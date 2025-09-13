@@ -51,7 +51,6 @@ This project uses multiple MCP servers for enhanced AI-assisted development and 
 - When you are running the app, if there are some warning or error, fix them straight away.
 - If you are implementing something related to Supabase, and you need me to do something in the Supabase dashboard, please guide me the best you can.
 - If you get any information about the db structure, please document it here
-- Before starting dev server, make sure that the process isn't already started on another port. If yes just notify me without trying to start it in another port.
 
 ## Project Status
 ### ✅ Initial Setup Complete (2025-09-13)
@@ -62,23 +61,8 @@ This project uses multiple MCP servers for enhanced AI-assisted development and 
 - Modern homepage with feature showcase created
 - Development server running on http://localhost:3001
 
-### 📋 Technology Stack Upgrade Roadmap (September 2025)
-**Current Versions:**
-- Next.js: 15.0.0 → **Upgrade to 15.5+** ✅ Safe
-- React: 18.x → **Upgrade to 19.x** ✅ Supported
-- TypeScript: 5.x → **Current** ✅ Good
-- ESLint: 8.x → **Migrate to 9.x** ⚠️ Breaking changes
-- Tailwind CSS: 3.4.1 → **Stay v3.4.x** ⏳ v4.x has major breaking changes
-
-**Priority Updates:**
-1. **Immediate**: Next.js 15.5 + React 19 (performance + stability)
-2. **Short-term**: ESLint 9 migration (prepare for Next.js 16)
-3. **Future**: Tailwind v4 migration (when ecosystem stabilizes)
-
 ### Next Steps
-- **Phase 1**: Update Next.js 15.5 and React 19
-- **Phase 2**: Migrate ESLint configuration to v9
-- **Phase 3**: Configure Supabase project and add environment variables
+- Configure Supabase project and add environment variables
 - Setup authentication system
 - Add mobile-first responsive design optimizations
 - Install Context7 and Playwright MCP servers
