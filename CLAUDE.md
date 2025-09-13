@@ -42,9 +42,10 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 ## Custom Instructions for Claude
 
 ### 🌐 Language & Localization
-- **Code & Documentation**: English (for maintainability)
-- **Application Content**: French (target audience)
-- **Comments**: English for technical, French for user-facing content
+- **CRITICAL**: ALL code, comments, documentation, logs, and technical content MUST be in English
+- **Application UI**: French (target audience - only visible text to users)
+- **No Exceptions**: Variable names, function names, comments, logs, markdown files - ALL English
+- **Rationale**: Code maintainability, international collaboration, technical standards
 
 ### 📚 Documentation & Research
 - **CRITICAL**: Always use "use context7" in prompts before implementing features
@@ -61,6 +62,8 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Loading States**: Add smooth loading animations for all data fetching
 - **Documentation**: Each time ou create a function, I want you to document it and explain what it doest just above it
 - **Code Quality**: Focus on clean, well-documented code without automated testing
+- **Style**: I want consistency in the style and the theme of the application
+- **Error handling**: Every time your are using an API or fetching data, implement a try/catch 
 
 ### 📱 Mobile-First Approach
 - **Primary Target**: Mobile devices
@@ -87,26 +90,12 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Confirmation**: Confirm approach for complex implementations
 - **Guidance**: Request Supabase dashboard steps when backend changes needed
 
-## Project Status
-### ✅ Initial Setup Complete (2025-09-13)
-- Next.js 15 project initialized with TypeScript
-- Tailwind CSS configured with custom color variables  
-- shadcn/ui installed with button and card components
-- Supabase client setup ready (awaiting environment variables)
-- Modern homepage with feature showcase created
-- Development server running on http://localhost:3001
-
-### ✅ Codebase Cleanup & Modernization Complete (2025-09-13)
-- **Next.js**: Updated from 15.0.0 → 15.5.3 (latest stable)
-- **React**: Updated from 18.x → 19.1.1 (latest stable)
-- **TypeScript**: Enhanced configuration with ES2022 target, strict mode improvements
-- **ESLint**: Migrated from v8 → v9 with flat config format
-- **Font Optimization**: Inter font with display swap and CSS variables
-- **Build Optimization**: Package imports optimization, performance improvements
-- **Viewport**: Updated to Next.js 15 viewport export format
-- **Gitignore**: Comprehensive gitignore for Next.js/Supabase/pnpm projects
-- **Scripts**: Added typecheck and lint:check commands
-- All linting and type checking passes ✅
+- **IMPORTANT**: Always log development progress for session continuity
+- Use `logs/CURRENT_SESSION.md` for active session tracking (keep under 1000 lines)
+- Archive completed sessions to `logs/dev-log-YYYY-MM.md` monthly
+- When CURRENT_SESSION.md gets large (>50KB), archive and start fresh
+- Always read CURRENT_SESSION.md at start of new sessions to understand project state
+- Log major decisions, architecture changes, completed features, and next steps
 
 ### 🎯 Current Tech Stack (Updated)
 - **Frontend**: Next.js 15.5.3 with App Router
@@ -119,9 +108,3 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ### 📝 Database Structure
 *To be documented when Supabase is configured*
-
-### 🚀 Next Steps
-1. Configure Supabase project and add environment variables
-2. Setup authentication system
-3. Add mobile-first responsive design optimizations
-4. Begin feature development
