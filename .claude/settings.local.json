@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebSearch"
+      "WebSearch",
+      "mcp__context7__get-library-docs",
+      "Bash(npx playwright test:*)"
     ],
     "deny": [],
     "ask": []

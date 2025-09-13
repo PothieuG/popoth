@@ -20,13 +20,9 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Functionality**: Real-time documentation access working
 - **Last Tested**: 2025-09-13 - Successfully resolved React library documentation
 
-### ⚠️ Playwright MCP Status: DEPENDENCIES INSTALLED, MCP PENDING
-- **Project Dependencies**: ✅ @playwright/test and playwright installed
-- **Browsers**: ✅ Chromium installed
-- **Configuration**: ✅ playwright.config.ts created
-- **Test Suite**: ✅ Basic homepage tests created
-- **MCP Server**: ❌ Requires Claude Desktop restart after configuration
-- **Required Action**: Add MCP server config and restart Claude Desktop
+### ❌ Playwright Status: REMOVED
+- **Status**: Completely removed from project
+- **Reason**: User requested removal of all Playwright-related files and dependencies
 
 ### 🔧 Claude Desktop Configuration
 **Required configuration for `claude_desktop_config.json`:**
@@ -36,10 +32,6 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
     "context7": {
       "command": "npx",
       "args": ["@upstash/context7-mcp@latest"]
-    },
-    "playwright": {
-      "command": "npx",
-      "args": ["@playwright/mcp@latest"]
     }
   }
 }
@@ -62,12 +54,13 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ### 🛠️ Development Workflow
 - **Package Manager**: pnpm ONLY
+- **Local server**: Never lauch pnpm dev, or ask for it.
 - **Code Quality**: Run lint + typecheck after major changes
 - **Error Handling**: Fix warnings/errors immediately when running the app
 - **Factorization**: Always look for reusable patterns and components
 - **Loading States**: Add smooth loading animations for all data fetching
 - **Documentation**: Each time ou create a function, I want you to document it and explain what it doest just above it
-- **Tests**: Every time you create a function, I want you to create a related test. Each time you modify it, you should modify also the test
+- **Code Quality**: Focus on clean, well-documented code without automated testing
 
 ### 📱 Mobile-First Approach
 - **Primary Target**: Mobile devices
@@ -80,9 +73,8 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Environment**: Guide .env setup for Supabase connection
 
 ### 🚀 Development Server Management
-- **Port Check**: Always verify if dev server is running before starting
-- **Default Port**: http://localhost:3001 (as configured)
-- **No Port Conflicts**: Just notify if port is busy, don't try alternatives
+- **Port**: NEVER Launch the app by yourself
+- **Default Port**: http://localhost:3000 (as configured)
 
 ### 📊 Session Logging & Continuity
 - **Progress Updates**: Update this CLAUDE.md with major milestones
@@ -132,5 +124,4 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 1. Configure Supabase project and add environment variables
 2. Setup authentication system
 3. Add mobile-first responsive design optimizations
-4. Install Context7 and Playwright MCP servers
-5. Begin feature development
+4. Begin feature development
