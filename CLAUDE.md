@@ -15,24 +15,37 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ## MCP Server Configuration
 
-### ❌ Context7 Status: NOT CONFIGURED
-- **Expected**: Context7 (@upstash/context7-mcp)
-- **Issue**: MCP server not connected to Claude Desktop
-- **Impact**: No real-time documentation access, falling back to web search
-- **Required**: Claude Desktop configuration + API key
+### ✅ Context7 Status: CONFIGURED AND FUNCTIONAL
+- **Status**: Installed and operational
+- **Functionality**: Real-time documentation access working
+- **Last Tested**: 2025-09-13 - Successfully resolved React library documentation
 
-### ❌ Playwright MCP Status: NOT CONFIGURED  
-- **Expected**: Microsoft Playwright MCP (@playwright/mcp)
-- **Issue**: MCP server not installed/configured
-- **Impact**: No automated browser testing capabilities
-- **Required**: MCP server setup + Playwright project dependencies
+### ⚠️ Playwright MCP Status: DEPENDENCIES INSTALLED, MCP PENDING
+- **Project Dependencies**: ✅ @playwright/test and playwright installed
+- **Browsers**: ✅ Chromium installed
+- **Configuration**: ✅ playwright.config.ts created
+- **Test Suite**: ✅ Basic homepage tests created
+- **MCP Server**: ❌ Requires Claude Desktop restart after configuration
+- **Required Action**: Add MCP server config and restart Claude Desktop
 
-### 🔧 MCP Setup Required
-**To enable enhanced AI development:**
-1. Configure Claude Desktop MCP servers
-2. Get Context7 API key from Upstash
-3. Install Playwright MCP server
-4. Add Playwright to project dependencies
+### 🔧 Claude Desktop Configuration
+**Required configuration for `claude_desktop_config.json`:**
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["@upstash/context7-mcp@latest"]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}
+```
+**Location**: `%APPDATA%\Claude\claude_desktop_config.json` (Windows)
+**After changes**: Restart Claude Desktop completely
 
 ## Custom Instructions for Claude
 
@@ -53,6 +66,8 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Error Handling**: Fix warnings/errors immediately when running the app
 - **Factorization**: Always look for reusable patterns and components
 - **Loading States**: Add smooth loading animations for all data fetching
+- **Documentation**: Each time ou create a function, I want you to document it and explain what it doest just above it
+- **Tests**: Every time you create a function, I want you to create a related test. Each time you modify it, you should modify also the test
 
 ### 📱 Mobile-First Approach
 - **Primary Target**: Mobile devices
