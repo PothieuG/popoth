@@ -76,3 +76,43 @@ export async function isSessionValid(): Promise<boolean> {
   const currentTime = Math.floor(Date.now() / 1000)
   return session.expiresAt > currentTime
 }
+
+/**
+ * Validates session token from NextRequest and returns session data
+ * Used in API routes to validate user authentication
+ */
+export async function validateSessionToken(request: Request): Promise<SessionPayload | null> {
+  try {
+    // Extract session token from cookies
+    const sessionCookie = request.headers.get('cookie')
+      ?.split(';')
+      .find(c => c.trim().startsWith('session='))
+      ?.split('=')[1]
+
+    if (!sessionCookie) {
+      console.log('❌ Aucun cookie de session trouvé')
+      return null
+    }
+
+    // Decrypt and validate the session token
+    const sessionData = await decrypt(sessionCookie)
+    
+    if (!sessionData) {
+      console.log('❌ Token de session invalide')
+      return null
+    }
+
+    // Check if session is expired
+    const currentTime = Math.floor(Date.now() / 1000)
+    if (sessionData.expiresAt <= currentTime) {
+      console.log('❌ Session expirée')
+      return null
+    }
+
+    console.log('✅ Session valide pour userId:', sessionData.userId)
+    return sessionData
+  } catch (error) {
+    console.error('❌ Erreur lors de la validation de session:', error)
+    return null
+  }
+}
