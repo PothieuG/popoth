@@ -101,3 +101,12 @@ export function deleteClientSession(): void {
 export function isClient(): boolean {
   return typeof window !== 'undefined'
 }
+
+/**
+ * Checks if a session cookie exists without making an API call
+ * Quick client-side check to avoid unnecessary network requests
+ */
+export function hasSessionCookie(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.cookie.includes('session=')
+}

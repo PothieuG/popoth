@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase-client'
 
 /**
  * Forgot password page allowing users to request a password reset email

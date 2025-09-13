@@ -1,4 +1,5 @@
 import { supabase } from './supabase-client'
+import { hasSessionCookie } from './session-client'
 
 // Auth response interfaces
 export interface AuthUser {
@@ -165,6 +166,11 @@ export async function refreshSession(): Promise<AuthResponse> {
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
+    // Quick client-side check first
+    if (!hasSessionCookie()) {
+      return null
+    }
+    
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
@@ -185,7 +191,10 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null
     
   } catch (error) {
-    console.error('Get current user error:', error)
+    // Don't log 401 errors as they're expected for non-authenticated users
+    if (!(error instanceof Error) || !error.message.includes('401')) {
+      console.error('Get current user error:', error)
+    }
     return null
   }
 }
@@ -196,6 +205,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
  */
 export async function isAuthenticated(): Promise<boolean> {
   try {
+    // Quick client-side check first
+    if (!hasSessionCookie()) {
+      return false
+    }
+    
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
@@ -208,7 +222,10 @@ export async function isAuthenticated(): Promise<boolean> {
     return result.success && result.authenticated
     
   } catch (error) {
-    console.error('Authentication check error:', error)
+    // Don't log 401 errors as they're expected for non-authenticated users
+    if (!(error instanceof Error) || !error.message.includes('401')) {
+      console.error('Authentication check error:', error)
+    }
     return false
   }
 }

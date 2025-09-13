@@ -52,6 +52,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializeAuth = async () => {
     try {
       setLoading(true)
+      
+      // Check if there's a session cookie first (client-side check)
+      const hasSession = typeof document !== 'undefined' && 
+        document.cookie.includes('session=')
+      
+      if (!hasSession) {
+        // No session cookie, skip API call
+        setUser(null)
+        stopTokenRefresh()
+        stopAuthCheck()
+        return
+      }
+      
+      // Only make API call if there's potentially a session
       const currentUser = await getCurrentUser()
       
       if (currentUser) {
@@ -64,9 +78,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         stopAuthCheck()
       }
     } catch (error) {
-      console.error('Auth initialization error:', error)
+      // Don't log 401 errors as they're expected for non-authenticated users
+      if (error instanceof Error && !error.message.includes('401')) {
+        console.error('Auth initialization error:', error)
+        setError('Erreur d\'initialisation de l\'authentification')
+      }
       setUser(null)
-      setError('Erreur d\'initialisation de l\'authentification')
+      stopTokenRefresh()
+      stopAuthCheck()
     } finally {
       setLoading(false)
     }
@@ -107,20 +126,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Starts periodic authentication checks
-   * Verifies that the user is still authenticated every 3 seconds
+   * Verifies that the user is still authenticated every 5 minutes
+   * Only runs when user is logged in to avoid unnecessary API calls
    */
   const startAuthCheck = () => {
     stopAuthCheck() // Clear any existing interval
     
     const interval = setInterval(async () => {
       try {
-        const authenticated = await isAuthenticated()
-        if (!authenticated) {
-          await handleLogout()
+        // Only check if user is currently set (logged in)
+        if (user) {
+          const authenticated = await isAuthenticated()
+          if (!authenticated) {
+            await handleLogout()
+          }
         }
       } catch (error) {
-        console.error('Auth check error:', error)
-        await handleLogout()
+        // Only log non-401 errors
+        if (!(error instanceof Error) || !error.message.includes('401')) {
+          console.error('Auth check error:', error)
+        }
+        if (user) {
+          await handleLogout()
+        }
       }
     }, 5 * 60 * 1000) // Check every 5 minutes
     
