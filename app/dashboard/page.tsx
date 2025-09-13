@@ -15,17 +15,7 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [showProfileDialog, setShowProfileDialog] = useState(false)
   const [showEditProfileDialog, setShowEditProfileDialog] = useState(false)
-
-  /**
-   * Vérifie si l'utilisateur a un profil et affiche la dialog si nécessaire
-   */
-  useEffect(() => {
-    if (!isLoading && !hasProfile) {
-      setShowProfileDialog(true)
-    }
-  }, [isLoading, hasProfile])
 
   /**
    * Gère la création du profil utilisateur
@@ -35,10 +25,6 @@ export default function DashboardPage() {
       first_name: firstName, 
       last_name: lastName 
     })
-    
-    if (success) {
-      setShowProfileDialog(false)
-    }
     
     return success
   }
@@ -71,6 +57,33 @@ export default function DashboardPage() {
     setIsMenuOpen(false) // Fermer le menu
   }
 
+  // Pendant le chargement, montrer seulement le loader
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Une fois chargé, si pas de profil, montrer la dialog
+  if (!hasProfile) {
+    return (
+      <>
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" />
+        <FirstTimeProfileDialog
+          isOpen={true}
+          onSubmit={handleProfileSubmit}
+          onError={handleProfileError}
+        />
+      </>
+    )
+  }
+
+  // Si profil existe, afficher le dashboard normal
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Sticky Navbar */}
@@ -173,13 +186,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </>
-
-      {/* First Time Profile Dialog */}
-      <FirstTimeProfileDialog
-        isOpen={showProfileDialog}
-        onSubmit={handleProfileSubmit}
-        onError={handleProfileError}
-      />
 
       {/* Edit Profile Dialog */}
       {profile && (

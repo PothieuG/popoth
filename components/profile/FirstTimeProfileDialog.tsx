@@ -107,8 +107,14 @@ export default function FirstTimeProfileDialog({
   )
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => !isSubmitting && resetForm()}>
-      <DialogContent className="sm:max-w-md mx-4" aria-describedby="profile-dialog-description">
+    <Dialog open={isOpen} modal={true}>
+      <DialogContent 
+        className="sm:max-w-md mx-4" 
+        aria-describedby="profile-dialog-description" 
+        hideCloseButton={true}
+        onInteractOutside={(e) => e.preventDefault()} 
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
             <User className="h-6 w-6 text-blue-600" />
