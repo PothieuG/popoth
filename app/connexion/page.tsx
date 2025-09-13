@@ -1,85 +1,46 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { supabase } from '@/lib/supabase'
+import { useLogin, useRequireGuest } from '@/hooks/useAuth'
 
 /**
  * Login page allowing users to authenticate with email and password
+ * Uses modern token management system with secure session cookies
  * Features clean cardless design with colorful shadcn/ui component variants and Roboto font
  */
 export default function ConnexionPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const { handleLogin, isSubmitting, error, clearError } = useLogin()
+  
+  // Ensure only guests can access this page
+  useRequireGuest()
 
   /**
-   * Handles login form submission
-   * Validates form fields and processes authentication
+   * Handles login form submission with modern token management
+   * Validates form fields and processes authentication using the new auth system
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    clearError()
     
     // Field validation
     if (!email || !password) {
-      setError('Veuillez remplir tous les champs')
       return
     }
 
     if (!email.includes('@')) {
-      setError('Veuillez entrer une adresse email valide')
       return
     }
 
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
       return
     }
 
-    setLoading(true)
-    
-    try {
-      // Sign in user with Supabase
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      })
-
-      if (signInError) {
-        // Handle specific authentication errors
-        if (signInError.message.includes('Invalid login credentials')) {
-          setError('Email ou mot de passe incorrect')
-        } else if (signInError.message.includes('Email not confirmed')) {
-          setError('Veuillez confirmer votre email avant de vous connecter')
-        } else if (signInError.message.includes('Too many requests')) {
-          setError('Trop de tentatives. Veuillez réessayer dans quelques minutes.')
-        } else {
-          setError('Erreur de connexion. Veuillez réessayer.')
-        }
-        // Only log non-credential errors to avoid console spam
-        if (!signInError.message.includes('Invalid login credentials')) {
-          console.error('Login error:', signInError)
-        }
-        return
-      }
-
-      if (data.user) {
-        // Successful login - redirect to dashboard or home
-        console.log('Login successful:', data.user.email)
-        router.push('/')
-      }
-      
-    } catch (error) {
-      setError('Erreur de connexion. Veuillez réessayer.')
-      console.error('Login error:', error)
-    } finally {
-      setLoading(false)
-    }
+    // Use the new login system with token management
+    await handleLogin(email, password)
   }
 
   return (
@@ -109,7 +70,7 @@ export default function ConnexionPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="votre@email.com"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="email"
                 className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
               />
@@ -126,7 +87,7 @@ export default function ConnexionPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Votre mot de passe"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="current-password"
                 className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
               />
@@ -154,9 +115,9 @@ export default function ConnexionPage() {
             <Button
               type="submit"
               className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? 'Connexion en cours...' : 'Se connecter'}
+              {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
             </Button>
           </form>
 
@@ -164,7 +125,7 @@ export default function ConnexionPage() {
           <div className="mt-8 space-y-4">
             <div className="text-center">
               <button 
-                onClick={() => router.push('/forgot-password')}
+                onClick={() => window.location.href = '/forgot-password'}
                 className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
               >
                 Mot de passe oublié ?

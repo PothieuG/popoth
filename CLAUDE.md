@@ -115,18 +115,30 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ## 🚀 Developed Features
 
-### ✅ Authentication System (2025-09-13)
+### ✅ Modern Authentication System (2025-09-13)
 - **Login page** (`/connexion`) with complete Supabase authentication
 - **Registration page** (`/inscription`) with account creation and email validation
 - **Password reset** (`/mot-de-passe-oublie`) with complete flow
-- **New password page** (`/reset-password`) with token validation ✅ **FIXED 2025-09-13**
+- **New password page** (`/reset-password`) with token validation
 - **API confirmation route** (`/auth/confirm`) for email link management
 - **Auth error page** (`/auth/auth-code-error`) for invalid/expired tokens
+- **Dashboard page** (`/dashboard`) for authenticated users
 - **Robust error handling** with specific messages in French
 - **Smooth navigation** between auth pages
 - **Client-side validation** (email, password, confirmation)
-- **User feedback** for all error cases (email already used, wrong password, etc.)
-- **🔧 Password Reset Bug Fix**: Fixed AuthApiError for duplicate password with proper French error message
+- **User feedback** for all error cases
+- **Homepage** (`/`) with authentication-aware interface
+
+### 🔐 Advanced Token Management System (2025-09-13)
+- **JWT-based sessions** with secure token encryption using `jose` library
+- **Automatic token refresh** every 50 minutes (before 1-hour expiration)
+- **Session validation** every 5 minutes to verify authentication status
+- **Secure HTTP-Only cookies** with SameSite protection
+- **Middleware protection** on all application routes
+- **Automatic logout** on token expiration or invalid sessions
+- **Route protection** - authenticated users blocked from auth pages
+- **Server-side session management** with Next.js API routes
+- **Client-side auth context** with React Context and custom hooks
 
 ### 🎨 Design System
 - **Mobile-first** with responsive design
@@ -135,11 +147,61 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Roboto font** with hydration warning fixes
 - **French interface** for end users
 
-### 🔧 Technical Improvements
+### 🔧 Technical Architecture
+- **Modern Next.js 15** with App Router and Server Components
 - **Supabase authentication** with `signUp()` and `signInWithPassword()`
-- **Specific error handling** by type (credentials, unconfirmed email, etc.)
-- **Automatic redirection** after email confirmation and successful login
-- **Clean console** with intelligent error logging
+- **JWT token management** with `jose` library for secure encryption
+- **Middleware-based route protection** for application-wide security
+- **React Context** for global authentication state management
+- **Custom hooks** (`useAuth`, `useLogin`, `useRequireAuth`) for clean component integration
+- **Server/client separation** for secure cookie and session handling
+- **API routes** (`/api/auth/session`) for authentication operations
+- **Automatic session refresh** to maintain user sessions seamlessly
+
+## 🏗️ Authentication System Architecture
+
+### 📁 File Structure
+```
+├── middleware.ts                    # Route protection and token validation
+├── lib/
+│   ├── session.ts                  # JWT token utilities (client/server agnostic)
+│   ├── session-server.ts           # Server-side session management
+│   ├── session-client.ts           # Client-side session utilities
+│   └── auth.ts                     # Authentication API functions
+├── contexts/
+│   └── AuthContext.tsx             # React Context for global auth state
+├── hooks/
+│   └── useAuth.ts                  # Custom authentication hooks
+├── app/
+│   ├── api/auth/session/route.ts   # Authentication API endpoint
+│   ├── layout.tsx                  # AuthProvider wrapper
+│   ├── connexion/page.tsx          # Login page
+│   ├── inscription/page.tsx        # Registration page
+│   └── dashboard/page.tsx          # Protected dashboard
+```
+
+### 🔐 Security Features
+- **JWT Secret Key**: Environment variable `JWT_SECRET_KEY` for token signing
+- **HTTP-Only Cookies**: Prevent XSS attacks with secure cookie storage
+- **Token Expiration**: 1-hour sessions with automatic refresh at 50 minutes
+- **Route Protection**: Middleware blocks unauthorized access to protected routes
+- **Auth Route Blocking**: Authenticated users redirected away from login/signup pages
+- **Secure Headers**: `Secure`, `SameSite=Lax` cookie attributes in production
+- **Session Validation**: Periodic checks to ensure token validity
+
+### 🔄 Authentication Flow
+1. **Login**: User submits credentials → Supabase validation → JWT token creation → Secure cookie storage
+2. **Route Access**: Middleware intercepts requests → Token validation → Allow/redirect
+3. **Token Refresh**: Automatic refresh every 50 minutes → New token → Updated cookie
+4. **Session Check**: Periodic validation every 5 minutes → Logout if invalid
+5. **Logout**: Clear server cookie → Clear client state → Redirect to login
 
 ### 📝 Database Structure
 *Supabase auth configuration functional - no custom tables yet*
+
+## 📊 Current Session Status
+- ✅ **Authentication System**: Fully functional and production-ready
+- ✅ **Token Management**: Modern JWT-based sessions implemented
+- ✅ **Security**: Enterprise-level security measures in place
+- ✅ **User Experience**: Seamless authentication with automatic session management
+- ✅ **Error Handling**: Comprehensive error handling with French user messages
