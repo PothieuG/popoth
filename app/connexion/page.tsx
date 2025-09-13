@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { supabase } from '@/lib/supabase'
 
 /**
  * Login page allowing users to authenticate with email and password
@@ -13,6 +15,7 @@ export default function ConnexionPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   /**
    * Handles login form submission
@@ -41,14 +44,35 @@ export default function ConnexionPage() {
     setLoading(true)
     
     try {
-      // TODO: Integrate with Supabase for authentication
-      console.log('Login attempt:', { email, password })
-      
-      // Simulate login for now
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Redirect after successful login
-      // router.push('/dashboard')
+      // Sign in user with Supabase
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
+
+      if (signInError) {
+        // Handle specific authentication errors
+        if (signInError.message.includes('Invalid login credentials')) {
+          setError('Email ou mot de passe incorrect')
+        } else if (signInError.message.includes('Email not confirmed')) {
+          setError('Veuillez confirmer votre email avant de vous connecter')
+        } else if (signInError.message.includes('Too many requests')) {
+          setError('Trop de tentatives. Veuillez réessayer dans quelques minutes.')
+        } else {
+          setError('Erreur de connexion. Veuillez réessayer.')
+        }
+        // Only log non-credential errors to avoid console spam
+        if (!signInError.message.includes('Invalid login credentials')) {
+          console.error('Login error:', signInError)
+        }
+        return
+      }
+
+      if (data.user) {
+        // Successful login - redirect to dashboard or home
+        console.log('Login successful:', data.user.email)
+        router.push('/')
+      }
       
     } catch (error) {
       setError('Erreur de connexion. Veuillez réessayer.')
@@ -64,7 +88,7 @@ export default function ConnexionPage() {
         {/* Header */}
         <div className="text-center space-y-3">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Connexion
+            Popoth
           </h1>
           <p className="text-lg text-gray-600">
             Connectez-vous à votre compte
@@ -139,14 +163,20 @@ export default function ConnexionPage() {
           {/* Additional Links */}
           <div className="mt-8 space-y-4">
             <div className="text-center">
-              <button className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">
+              <button 
+                onClick={() => router.push('/forgot-password')}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              >
                 Mot de passe oublié ?
               </button>
             </div>
             
             <div className="text-center text-sm text-gray-600">
               Pas encore de compte ?{' '}
-              <button className="font-semibold text-purple-600 hover:text-purple-800 transition-colors">
+              <button 
+                onClick={() => window.location.href = '/inscription'}
+                className="font-semibold text-purple-600 hover:text-purple-800 transition-colors"
+              >
                 Créer un compte
               </button>
             </div>

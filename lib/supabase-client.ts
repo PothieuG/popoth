@@ -16,7 +16,7 @@ export const supabase = createClient(
 export async function testSupabaseConnection() {
   try {
     // Test basic connection by checking auth session
-    const { data, error } = await supabase.auth.getSession()
+    const { error } = await supabase.auth.getSession()
     
     if (error && error.message !== 'Auth session missing!') {
       console.log('Supabase connection test result:', error.message)

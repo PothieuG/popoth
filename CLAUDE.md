@@ -45,6 +45,7 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **CRITICAL**: ALL code, comments, documentation, logs, and technical content MUST be in English
 - **Application UI**: French (target audience - only visible text to users)
 - **No Exceptions**: Variable names, function names, comments, logs, markdown files - ALL English
+- **Folder Names**: ALL folder/directory names MUST be in English - no French folder names
 - **Rationale**: Code maintainability, international collaboration, technical standards
 
 ### 📚 Documentation & Research
@@ -55,15 +56,15 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ### 🛠️ Development Workflow
 - **Package Manager**: pnpm ONLY
-- **Local server**: Never lauch pnpm dev, or ask for it.
-- **Code Quality**: Run lint + typecheck after major changes
-- **Error Handling**: Fix warnings/errors immediately when running the app
+- **NEVER RUN**: Do NOT run `pnpm dev`, `pnpm build`, or any development commands automatically
+- **Code Quality**: Run lint + typecheck only if explicitly requested
+- **Error Handling**: Fix warnings/errors when reported by user
 - **Factorization**: Always look for reusable patterns and components
 - **Loading States**: Add smooth loading animations for all data fetching
-- **Documentation**: Each time ou create a function, I want you to document it and explain what it doest just above it
+- **Documentation**: Each time you create a function, document it and explain what it does just above it
 - **Code Quality**: Focus on clean, well-documented code without automated testing
 - **Style**: I want consistency in the style and the theme of the application
-- **Error handling**: Every time your are using an API or fetching data, implement a try/catch 
+- **Error handling**: Every time you are using an API or fetching data, implement a try/catch 
 
 ### 📱 Mobile-First Approach
 - **Primary Target**: Mobile devices
@@ -90,21 +91,55 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Confirmation**: Confirm approach for complex implementations
 - **Guidance**: Request Supabase dashboard steps when backend changes needed
 
-- **IMPORTANT**: Always log development progress for session continuity
-- Use `logs/CURRENT_SESSION.md` for active session tracking (keep under 1000 lines)
+- **CRITICAL**: Always log development progress for session continuity and update CLAUDE.md
+- **MANDATORY**: Use `logs/CURRENT_SESSION.md` for active session tracking (keep under 1000 lines)
+- **IMPORTANT**: Update CLAUDE.md after each significant feature/fix - it's the project's memory
+- **ESSENTIAL ON /reset**: ALWAYS start new conversations by reading `logs/CURRENT_SESSION.md` first
+  - If CURRENT_SESSION.md doesn't exist, read the most recent `logs/dev-log-YYYY-MM.md`
+  - This ensures complete context continuity after conversation resets
+  - Do this BEFORE asking what the user wants to work on
 - Archive completed sessions to `logs/dev-log-YYYY-MM.md` monthly
 - When CURRENT_SESSION.md gets large (>50KB), archive and start fresh
 - Always read CURRENT_SESSION.md at start of new sessions to understand project state
 - Log major decisions, architecture changes, completed features, and next steps
+- **Remember**: Poor logging = Lost progress and repeated work
 
 ### 🎯 Current Tech Stack (Updated)
 - **Frontend**: Next.js 15.5.3 with App Router
 - **Language**: TypeScript 5.x (ES2022 target)
 - **Styling**: Tailwind CSS 3.4.x
 - **UI Components**: shadcn/ui (latest)
-- **Backend**: Supabase (Auth + Database) - pending setup
+- **Backend**: Supabase (Auth + Database) - ✅ configured and functional
 - **Package Manager**: pnpm
 - **Linting**: ESLint 9.x (flat config)
 
+## 🚀 Developed Features
+
+### ✅ Authentication System (2025-09-13)
+- **Login page** (`/connexion`) with complete Supabase authentication
+- **Registration page** (`/inscription`) with account creation and email validation
+- **Password reset** (`/mot-de-passe-oublie`) with complete flow
+- **New password page** (`/reset-password`) with token validation ✅ **FIXED 2025-09-13**
+- **API confirmation route** (`/auth/confirm`) for email link management
+- **Auth error page** (`/auth/auth-code-error`) for invalid/expired tokens
+- **Robust error handling** with specific messages in French
+- **Smooth navigation** between auth pages
+- **Client-side validation** (email, password, confirmation)
+- **User feedback** for all error cases (email already used, wrong password, etc.)
+- **🔧 Password Reset Bug Fix**: Fixed AuthApiError for duplicate password with proper French error message
+
+### 🎨 Design System
+- **Mobile-first** with responsive design
+- **Consistent gradients** (blue/purple theme)
+- **shadcn/ui components** with customization
+- **Roboto font** with hydration warning fixes
+- **French interface** for end users
+
+### 🔧 Technical Improvements
+- **Supabase authentication** with `signUp()` and `signInWithPassword()`
+- **Specific error handling** by type (credentials, unconfirmed email, etc.)
+- **Automatic redirection** after email confirmation and successful login
+- **Clean console** with intelligent error logging
+
 ### 📝 Database Structure
-*To be documented when Supabase is configured*
+*Supabase auth configuration functional - no custom tables yet*
