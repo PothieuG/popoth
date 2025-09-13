@@ -14,44 +14,71 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Development Aid**: Context7 MCP Server
 
 ## MCP Server Configuration
-This project uses multiple MCP servers for enhanced AI-assisted development and testing.
 
-### Context7 Setup
-- **MCP Server**: Context7 (@upstash/context7-mcp)
-- **Purpose**: Provides up-to-date documentation and code examples
-- **Usage**: Add "use context7" to prompts for enhanced documentation access
+### ❌ Context7 Status: NOT CONFIGURED
+- **Expected**: Context7 (@upstash/context7-mcp)
+- **Issue**: MCP server not connected to Claude Desktop
+- **Impact**: No real-time documentation access, falling back to web search
+- **Required**: Claude Desktop configuration + API key
 
-### Playwright MCP Setup
-- **MCP Server**: Microsoft Playwright MCP (@playwright/mcp)
-- **Purpose**: Enables automated browser testing and interaction
-- **Usage**: Claude can now run tests and interact with the application directly
-- **Features**: Take screenshots, navigate pages, fill forms, click elements
+### ❌ Playwright MCP Status: NOT CONFIGURED  
+- **Expected**: Microsoft Playwright MCP (@playwright/mcp)
+- **Issue**: MCP server not installed/configured
+- **Impact**: No automated browser testing capabilities
+- **Required**: MCP server setup + Playwright project dependencies
+
+### 🔧 MCP Setup Required
+**To enable enhanced AI development:**
+1. Configure Claude Desktop MCP servers
+2. Get Context7 API key from Upstash
+3. Install Playwright MCP server
+4. Add Playwright to project dependencies
 
 ## Custom Instructions for Claude
-- The code and documentation will be in english but the application is french
-- If you think it's relevant, add any important information to the Claude.md file to give more context. For example, it's when we are using a new tech stack, or when an important feature has been developed...
-- **DOCUMENTATION**: Always use context7 MCP integration to get up-to-date documentation for any library or framework before implementing features
-- Always check and reference the latest official documentation for all technologies used
-- Verify current best practices and API changes before implementing features
-- For Next.js: Use context7 to get latest App Router conventions and features
-- For shadcn/ui: Use context7 to verify component APIs and installation methods
-- For PWA: Use context7 to reference current service worker and manifest standards
-- For TailwindCSS: Use context7 for latest utility classes and configuration options
-- Always use the most up-to-date syntax and patterns from context7 documentation
-- Use pnpm as the package manager for this project
-- **IMPORTANT**: Always log development progress for session continuity
-- Use `logs/CURRENT_SESSION.md` for active session tracking (keep under 1000 lines)
-- Archive completed sessions to `logs/dev-log-YYYY-MM.md` monthly
-- When CURRENT_SESSION.md gets large (>50KB), archive and start fresh
-- Always read CURRENT_SESSION.md at start of new sessions to understand project state
-- Log major decisions, architecture changes, completed features, and next steps
-- Always try to factorize when you can
-- Ask me something if you need more information about something I told you
-- If you are implementing something that fetch data, always add a smooth loading animation somewhere relevant such a a simple "Loading..." text or better a small animated icon from a library.
-- When you are running the app, if there are some warning or error, fix them straight away.
-- If you are implementing something related to Supabase, and you need me to do something in the Supabase dashboard, please guide me the best you can.
-- If you get any information about the db structure, please document it here
-- Before starting dev server, make sure that the process isn't already started on another port. If yes just notify me without trying to start it in another port.
+
+### 🌐 Language & Localization
+- **Code & Documentation**: English (for maintainability)
+- **Application Content**: French (target audience)
+- **Comments**: English for technical, French for user-facing content
+
+### 📚 Documentation & Research
+- **CRITICAL**: Always use "use context7" in prompts before implementing features
+- Always verify latest documentation for Next.js, React, TypeScript, Tailwind, shadcn/ui
+- Check for breaking changes and best practices updates
+- Update this CLAUDE.md when adopting new technologies or major features
+
+### 🛠️ Development Workflow
+- **Package Manager**: pnpm ONLY
+- **Code Quality**: Run lint + typecheck after major changes
+- **Error Handling**: Fix warnings/errors immediately when running the app
+- **Factorization**: Always look for reusable patterns and components
+- **Loading States**: Add smooth loading animations for all data fetching
+
+### 📱 Mobile-First Approach
+- **Primary Target**: Mobile devices
+- **Desktop**: Functional but not priority for UX polish
+- **Responsive**: Use Tailwind mobile-first breakpoints
+
+### 🗄️ Supabase Integration
+- **Setup Guidance**: Provide step-by-step dashboard instructions when needed
+- **Database Structure**: Document all table schemas in "Database Structure" section below
+- **Environment**: Guide .env setup for Supabase connection
+
+### 🚀 Development Server Management
+- **Port Check**: Always verify if dev server is running before starting
+- **Default Port**: http://localhost:3001 (as configured)
+- **No Port Conflicts**: Just notify if port is busy, don't try alternatives
+
+### 📊 Session Logging & Continuity
+- **Progress Updates**: Update this CLAUDE.md with major milestones
+- **Architecture Decisions**: Document significant technical choices
+- **Feature Completion**: Mark features as ✅ complete with brief description
+- **Next Steps**: Always maintain clear next actions list
+
+### 🤝 Collaboration
+- **Questions**: Ask for clarification when requirements are unclear
+- **Confirmation**: Confirm approach for complex implementations
+- **Guidance**: Request Supabase dashboard steps when backend changes needed
 
 ## Project Status
 ### ✅ Initial Setup Complete (2025-09-13)
@@ -62,23 +89,33 @@ This project uses multiple MCP servers for enhanced AI-assisted development and 
 - Modern homepage with feature showcase created
 - Development server running on http://localhost:3001
 
-### 📋 Technology Stack Upgrade Roadmap (September 2025)
-**Current Versions:**
-- Next.js: 15.0.0 → **Upgrade to 15.5+** ✅ Safe
-- React: 18.x → **Upgrade to 19.x** ✅ Supported
-- TypeScript: 5.x → **Current** ✅ Good
-- ESLint: 8.x → **Migrate to 9.x** ⚠️ Breaking changes
-- Tailwind CSS: 3.4.1 → **Stay v3.4.x** ⏳ v4.x has major breaking changes
+### ✅ Codebase Cleanup & Modernization Complete (2025-09-13)
+- **Next.js**: Updated from 15.0.0 → 15.5.3 (latest stable)
+- **React**: Updated from 18.x → 19.1.1 (latest stable)
+- **TypeScript**: Enhanced configuration with ES2022 target, strict mode improvements
+- **ESLint**: Migrated from v8 → v9 with flat config format
+- **Font Optimization**: Inter font with display swap and CSS variables
+- **Build Optimization**: Package imports optimization, performance improvements
+- **Viewport**: Updated to Next.js 15 viewport export format
+- **Gitignore**: Comprehensive gitignore for Next.js/Supabase/pnpm projects
+- **Scripts**: Added typecheck and lint:check commands
+- All linting and type checking passes ✅
 
-**Priority Updates:**
-1. **Immediate**: Next.js 15.5 + React 19 (performance + stability)
-2. **Short-term**: ESLint 9 migration (prepare for Next.js 16)
-3. **Future**: Tailwind v4 migration (when ecosystem stabilizes)
+### 🎯 Current Tech Stack (Updated)
+- **Frontend**: Next.js 15.5.3 with App Router
+- **Language**: TypeScript 5.x (ES2022 target)
+- **Styling**: Tailwind CSS 3.4.x
+- **UI Components**: shadcn/ui (latest)
+- **Backend**: Supabase (Auth + Database) - pending setup
+- **Package Manager**: pnpm
+- **Linting**: ESLint 9.x (flat config)
 
-### Next Steps
-- **Phase 1**: Update Next.js 15.5 and React 19
-- **Phase 2**: Migrate ESLint configuration to v9
-- **Phase 3**: Configure Supabase project and add environment variables
-- Setup authentication system
-- Add mobile-first responsive design optimizations
-- Install Context7 and Playwright MCP servers
+### 📝 Database Structure
+*To be documented when Supabase is configured*
+
+### 🚀 Next Steps
+1. Configure Supabase project and add environment variables
+2. Setup authentication system
+3. Add mobile-first responsive design optimizations
+4. Install Context7 and Playwright MCP servers
+5. Begin feature development
