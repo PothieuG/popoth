@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import PlanningDrawer from './PlanningDrawer'
 
 interface FinancialIndicatorsProps {
   availableBalance: number
@@ -20,6 +22,7 @@ export default function FinancialIndicators({
   totalSavings,
   className
 }: FinancialIndicatorsProps) {
+  const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   
   /**
    * Get color class based on amount value
@@ -145,6 +148,38 @@ export default function FinancialIndicators({
           </div>
         </div>
       </div>
+
+      {/* Planning Button Card */}
+      <button 
+        onClick={() => setIsPlanningOpen(true)}
+        className="w-full p-2 rounded-xl bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 shadow-sm transition-all duration-200 cursor-pointer hover:from-blue-100 hover:to-blue-150"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            {/* Planning Icon */}
+            <div className="flex-shrink-0">
+              <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div>
+              <p className="text-sm font-medium text-blue-800">
+                Planification des revenus et budgets
+              </p>
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* Planning Drawer */}
+      <PlanningDrawer 
+        isOpen={isPlanningOpen} 
+        onClose={() => setIsPlanningOpen(false)} 
+      />
     </div>
   )
 }
