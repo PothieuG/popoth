@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
+import { useGroupContributions } from '@/hooks/useGroupContributions'
 import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
+import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
+import UserAvatar from '@/components/ui/UserAvatar'
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -14,6 +17,7 @@ import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
+  const { getUserContribution, fetchContributions } = useGroupContributions()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   /**
@@ -35,6 +39,13 @@ export default function DashboardPage() {
     console.error('Erreur lors de la création du profil:', error)
     // On peut ajouter une toast notification ici plus tard
   }
+
+  // Récupérer les contributions quand le profil est chargé
+  useEffect(() => {
+    if (profile?.group_id && !isLoading) {
+      fetchContributions()
+    }
+  }, [profile?.group_id, isLoading, fetchContributions])
 
 
   // Afficher loader pendant le chargement
@@ -69,26 +80,15 @@ export default function DashboardPage() {
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
-          <div className="flex flex-col">
-            <div className="text-lg font-semibold text-gray-900">
-              Popoth App
-            </div>
-            {profile && (
-              <div className="text-sm text-gray-600">
-                Bonjour {profile.first_name} !
-              </div>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
+          <UserInfoNavbar 
+            profile={profile}
+            userContribution={profile?.id ? getUserContribution(profile.id) : null}
+          />
+          <UserAvatar
+            profile={profile}
             onClick={() => setIsMenuOpen(true)}
-            className="p-2"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </Button>
+            size="md"
+          />
         </div>
       </nav>
 
@@ -151,7 +151,7 @@ export default function DashboardPage() {
           <div className="flex flex-col h-full">
             {/* Menu Header */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Paramètres</h2>
               <Button
                 variant="ghost"
                 size="sm"
