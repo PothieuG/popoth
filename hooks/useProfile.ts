@@ -9,6 +9,7 @@ export function useProfile() {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [hasBeenFetched, setHasBeenFetched] = useState(false)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   /**
@@ -69,6 +70,7 @@ export function useProfile() {
       }
     } finally {
       setIsLoading(false)
+      setHasBeenFetched(true)
     }
   }, [])
 
@@ -150,6 +152,7 @@ export function useProfile() {
     profile,
     isLoading,
     error,
+    hasBeenFetched,
     fetchProfile,
     createProfile,
     updateProfile,

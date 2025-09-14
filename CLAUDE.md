@@ -80,29 +80,44 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Port**: NEVER Launch the app by yourself
 - **Default Port**: http://localhost:3000 (as configured)
 
-### 📊 Session Logging & Continuity
+### 📊 Session Logging & Continuity System
 - **Progress Updates**: Update this CLAUDE.md with major milestones
 - **Architecture Decisions**: Document significant technical choices
 - **Feature Completion**: Mark features as ✅ complete with brief description
 - **Next Steps**: Always maintain clear next actions list
 
+### 🗂️ Advanced Session Management (Updated 2025-09-14)
+- **CRITICAL**: Always log development progress for session continuity and update CLAUDE.md
+- **MANDATORY**: Use `logs/CURRENT_SESSION.md` for active session tracking
+- **AUTOMATIC ARCHIVING**: At start of each new day, archive previous `CURRENT_SESSION.md` as `dev-session-YYYY-MM-DD.md`
+- **NEW SESSION PROTOCOL**:
+  1. Archive previous `CURRENT_SESSION.md` with date format: `dev-session-YYYY-MM-DD.md`
+  2. Create fresh `CURRENT_SESSION.md` with context summary from previous session
+  3. Include system status and capabilities for quick context
+  4. Define new session objectives based on user priorities
+
+### 📚 Session Continuity Protocol
+- **ESSENTIAL ON /reset**: ALWAYS start new conversations by reading `logs/CURRENT_SESSION.md` first
+  - If CURRENT_SESSION.md doesn't exist, read the most recent `logs/dev-session-YYYY-MM-DD.md`
+  - This ensures complete context continuity after conversation resets
+  - Do this BEFORE asking what the user wants to work on
+- **Archive Management**: Keep daily session archives for historical reference
+- **Size Management**: When CURRENT_SESSION.md gets large (>50KB), archive and start fresh
+- **Context Preservation**: Always include previous session achievements in new session header
+- **System Status**: Maintain current system capabilities summary for quick context
+
 ### 🤝 Collaboration
 - **Questions**: Ask for clarification when requirements are unclear
 - **Confirmation**: Confirm approach for complex implementations
 - **Guidance**: Request Supabase dashboard steps when backend changes needed
+- **Session Management**: User can request session archiving and new session creation at any time
 
-- **CRITICAL**: Always log development progress for session continuity and update CLAUDE.md
-- **MANDATORY**: Use `logs/CURRENT_SESSION.md` for active session tracking (keep under 1000 lines)
-- **IMPORTANT**: Update CLAUDE.md after each significant feature/fix - it's the project's memory
-- **ESSENTIAL ON /reset**: ALWAYS start new conversations by reading `logs/CURRENT_SESSION.md` first
-  - If CURRENT_SESSION.md doesn't exist, read the most recent `logs/dev-log-YYYY-MM.md`
-  - This ensures complete context continuity after conversation resets
-  - Do this BEFORE asking what the user wants to work on
-- Archive completed sessions to `logs/dev-log-YYYY-MM.md` monthly
-- When CURRENT_SESSION.md gets large (>50KB), archive and start fresh
-- Always read CURRENT_SESSION.md at start of new sessions to understand project state
-- Log major decisions, architecture changes, completed features, and next steps
-- **Remember**: Poor logging = Lost progress and repeated work
+### 📝 Logging Best Practices
+- **Daily Sessions**: Each day gets its own session file for clear organization
+- **Contextual Continuity**: New sessions include summary of previous achievements
+- **Status Tracking**: Maintain clear system status for quick context switching
+- **Historical Reference**: Archived sessions provide development timeline and decisions
+- **Problem Resolution**: Documented issues and solutions for future reference
 
 ### 🎯 Current Tech Stack (Updated)
 - **Frontend**: Next.js 15.5.3 with App Router
@@ -151,10 +166,26 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Sticky navbar** with app branding and hamburger menu button
 - **Full-width slide-out menu panel** with smooth animations (300ms ease-in-out)
 - **Menu panel features**: Right-to-left slide animation, overlay backdrop, close button
+- **Settings navigation** with gear icon and direct link to `/settings`
 - **Logout functionality** moved to menu panel with red styling
 - **Sticky footer** ready for future content
 - **Clean main content area** prepared for feature development
 - **Smooth transitions** for all panel interactions using Tailwind CSS transforms
+
+### 👥 Single-Group Management System (2025-09-14)
+- **One group per user** constraint enforced at database and application level
+- **Group creation** with name validation and budget estimation
+- **Direct relationship** via `profiles.group_id` foreign key (simplified architecture)
+- **Secure group management** with creator-only deletion rights
+- **Group search and discovery** only available to users without a group
+- **Automatic membership management** - join/leave updates profile directly
+- **Settings page** (`/settings`) with single group interface and state management
+- **Secure deletion modal** requiring "Delete [group_name]" confirmation
+- **Leave group functionality** for non-creators with profile cleanup
+- **Budget tracking** with monthly estimates for financial planning
+- **Smart UI** that hides/shows sections based on user's group status
+- **RLS security policies** ensuring proper data access control
+- **Responsive design** optimized for mobile-first usage
 
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
@@ -206,7 +237,51 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 5. **Logout**: Clear server cookie → Clear client state → Redirect to login
 
 ### 📝 Database Structure
-*Supabase auth configuration functional - no custom tables yet*
+
+#### 🗄️ Supabase Tables
+
+**`public.profiles`**
+```sql
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  group_id uuid REFERENCES public.groups(id) ON DELETE SET NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+```
+
+**Table Purpose**: Extended user profile information with single group membership
+- **Primary Key**: `id` (UUID) - Links directly to `auth.users(id)`
+- **Required Fields**: `first_name`, `last_name` - User's full name
+- **Group Relationship**: `group_id` - Links to single group (nullable)
+- **Timestamps**: Automatic `created_at` and `updated_at` tracking
+- **Constraint**: One user can belong to maximum one group
+
+**`public.groups`**
+```sql
+CREATE TABLE public.groups (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL UNIQUE,
+  monthly_budget_estimate DECIMAL(10,2) NOT NULL,
+  creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  CONSTRAINT groups_pkey PRIMARY KEY (id)
+);
+```
+
+**Table Purpose**: Groups for budget management and collaboration
+- **Primary Key**: `id` (UUID) - Unique group identifier
+- **Required Fields**: `name` (unique), `monthly_budget_estimate`, `creator_id`
+- **Foreign Key**: `creator_id` links to `auth.users(id)`
+- **Auto-update**: `updated_at` trigger for modifications
+- **RLS**: Row-level security enabled with creator-based permissions
+
+**Note**: The `group_members` table has been removed in favor of direct relationship via `profiles.group_id`.
 
 ## 📊 Current Session Status
 - ✅ **Authentication System**: Fully functional and production-ready
@@ -214,3 +289,4 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - ✅ **Security**: Enterprise-level security measures in place
 - ✅ **User Experience**: Seamless authentication with automatic session management
 - ✅ **Error Handling**: Comprehensive error handling with French user messages
+- ✅ **Single-Group System**: Simplified one-group-per-user system with full management capabilities
