@@ -292,17 +292,20 @@ CREATE TABLE public.profiles (
   id uuid NOT NULL,
   first_name text NOT NULL,
   last_name text NOT NULL,
-  group_id uuid REFERENCES public.groups(id) ON DELETE SET NULL,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  group_id uuid,
+  salary numeric DEFAULT 0,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
 ```
 
-**Table Purpose**: Extended user profile information with single group membership
+**Table Purpose**: Extended user profile information with single group membership and salary management
 - **Primary Key**: `id` (UUID) - Links directly to `auth.users(id)`
 - **Required Fields**: `first_name`, `last_name` - User's full name
+- **Salary Field**: `salary` (NUMERIC) - Monthly salary in euros, defaults to 0
 - **Group Relationship**: `group_id` - Links to single group (nullable)
 - **Timestamps**: Automatic `created_at` and `updated_at` tracking
 - **Constraint**: One user can belong to maximum one group
@@ -310,13 +313,14 @@ CREATE TABLE public.profiles (
 **`public.groups`**
 ```sql
 CREATE TABLE public.groups (
-  id UUID NOT NULL DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  monthly_budget_estimate DECIMAL(10,2) NOT NULL,
-  creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
-  CONSTRAINT groups_pkey PRIMARY KEY (id)
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL UNIQUE,
+  monthly_budget_estimate numeric NOT NULL,
+  creator_id uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT groups_pkey PRIMARY KEY (id),
+  CONSTRAINT groups_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES auth.users(id)
 );
 ```
 
@@ -326,6 +330,32 @@ CREATE TABLE public.groups (
 - **Foreign Key**: `creator_id` links to `auth.users(id)`
 - **Auto-update**: `updated_at` trigger for modifications
 - **RLS**: Row-level security enabled with creator-based permissions
+
+**`public.group_contributions`**
+```sql
+CREATE TABLE public.group_contributions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  profile_id uuid NOT NULL,
+  group_id uuid NOT NULL,
+  salary numeric NOT NULL CHECK (salary >= 0::numeric),
+  contribution_amount numeric NOT NULL CHECK (contribution_amount >= 0::numeric),
+  contribution_percentage numeric NOT NULL CHECK (contribution_percentage >= 0::numeric),
+  calculated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT group_contributions_pkey PRIMARY KEY (id),
+  CONSTRAINT group_contributions_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT group_contributions_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id)
+);
+```
+
+**Table Purpose**: Stores calculated proportional contributions for each user in a group
+- **Primary Key**: `id` (UUID) - Unique contribution record identifier
+- **Required Fields**: `profile_id`, `group_id`, `salary`, `contribution_amount`, `contribution_percentage`
+- **Foreign Keys**: Links to both `profiles(id)` and `groups(id)` tables
+- **Salary Snapshot**: `salary` field captures user's salary when contribution was calculated
+- **Calculated Values**: `contribution_amount` (euros), `contribution_percentage` (% of personal salary)
+- **Constraints**: All numeric values must be >= 0, unique constraint per (profile_id, group_id)
+- **Auto-calculation**: Updated automatically via PostgreSQL triggers when salaries or group budgets change
+- **Cleanup**: Records automatically deleted when profile leaves group or group is deleted
 
 **Note**: The `group_members` table has been removed in favor of direct relationship via `profiles.group_id`.
 
