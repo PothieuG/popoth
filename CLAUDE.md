@@ -207,6 +207,32 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Automatic group data fetching** with JOIN queries to groups table
 - **Real-time member information** with proper data formatting and validation
 
+### 💰 Salary and Contribution Management System (2025-09-14)
+- **Salary management** with user-editable monthly salary in profile settings
+- **Proportional contribution calculation** based on salary ratios within groups
+- **Automatic recalculation** via PostgreSQL triggers when salaries change
+- **ProfileSettingsCard component** with salary input and validation (1-999,999.99€)
+- **UserContributionCard component** displaying personal contribution and percentage
+- **GroupMembersWithContributionsModal** showing all members' contributions
+- **useGroupContributions hook** for contribution state management and API calls
+- **Smart calculation logic**: proportional when salaries defined, equal split otherwise
+- **Real-time updates** when group members join/leave or change salaries
+- **French currency formatting** and percentage display throughout the interface
+- **Mobile-first responsive design** with loading states and error handling
+- **Comprehensive documentation** in SALARY_CONTRIBUTION_SYSTEM.md
+
+### 🔧 Enhanced Salary System & UI Improvements (2025-09-14 - Session Update)
+- **Mandatory salary requirement** with validation preventing save if salary insufficient for calculated contribution
+- **Smart contribution validation** with real-time calculation and blocking when contribution > salary
+- **Detailed error messaging** with actionable suggestions (increase salary, reduce budget, wait for members)
+- **Button disabling logic** preventing save when validation errors or contribution warnings present
+- **Unified profile interface** moved from Settings page to Dashboard sidebar "Mon profil" section
+- **Enhanced contribution display** showing both personal impact (% of salary) and group impact (% of budget)
+- **PostgreSQL trigger fixes** for proper UUID handling and graceful group deletion
+- **Next.js 15 compatibility** with proper async params handling in API routes
+- **Database cleanup automation** with triggers removing orphaned contributions on group deletion
+- **UI/UX refinements** with red asterisks for required fields and contextual validation messages
+
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
 - **Supabase authentication** with `signUp()` and `signInWithPassword()`
@@ -314,3 +340,6 @@ CREATE TABLE public.groups (
 - ✅ **Navigation Enhancement**: Footer navigation with dynamic group names and menu improvements
 - ✅ **Loading States**: Comprehensive loading animations for all group operations
 - ✅ **Profile Enhancement**: Extended profile data with group information integration
+- ✅ **Mandatory Salary System**: Salary-centric application with intelligent contribution validation
+- ✅ **Advanced UI/UX**: Unified profile interface in dashboard sidebar with enhanced contribution display
+- ✅ **PostgreSQL Robustness**: Triggers, cleanup automation, and Next.js 15 compatibility

@@ -11,7 +11,7 @@ import { useGroupSearch } from '@/hooks/useGroupSearch'
 import CreateGroupForm from '@/components/groups/CreateGroupForm'
 import GroupSearchList from '@/components/groups/GroupSearchList'
 import DeleteGroupModal from '@/components/groups/DeleteGroupModal'
-import GroupMembersModal from '@/components/groups/GroupMembersModal'
+import GroupMembersWithContributionsModal from '@/components/groups/GroupMembersWithContributionsModal'
 import { GroupData } from '@/app/api/groups/route'
 
 /**
@@ -433,7 +433,7 @@ export default function SettingsPage() {
 
       {/* Group Members Modal */}
       {currentGroup && (
-        <GroupMembersModal
+        <GroupMembersWithContributionsModal
           group={currentGroup}
           isOpen={showMembersModal}
           onClose={() => setShowMembersModal(false)}

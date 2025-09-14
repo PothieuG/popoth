@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
-import EditProfileDialog from '@/components/profile/EditProfileDialog'
+import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -15,7 +15,6 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [showEditProfileDialog, setShowEditProfileDialog] = useState(false)
 
   /**
    * Gère la création du profil utilisateur
@@ -37,25 +36,6 @@ export default function DashboardPage() {
     // On peut ajouter une toast notification ici plus tard
   }
 
-  /**
-   * Gère la mise à jour du profil utilisateur
-   */
-  const handleProfileUpdate = async (firstName: string, lastName: string): Promise<boolean> => {
-    const success = await updateProfile({ 
-      first_name: firstName, 
-      last_name: lastName 
-    })
-    
-    return success
-  }
-
-  /**
-   * Ouvre la dialog d'édition du profil
-   */
-  const handleEditProfile = () => {
-    setShowEditProfileDialog(true)
-    setIsMenuOpen(false) // Fermer le menu
-  }
 
   // Afficher loader pendant le chargement
   if (isLoading) {
@@ -206,18 +186,7 @@ export default function DashboardPage() {
               {/* Profil utilisateur */}
               {profile && (
                 <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-medium text-gray-900 mb-2">Mon profil</h3>
-                    <p className="text-sm text-gray-600">{profile.first_name} {profile.last_name}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleEditProfile}
-                      className="mt-2 w-full"
-                    >
-                      Modifier
-                    </Button>
-                  </div>
+                  <ProfileSettingsCard className="bg-transparent border-0 shadow-none p-0" />
                 </div>
               )}
             </div>
@@ -236,16 +205,6 @@ export default function DashboardPage() {
         </div>
       </>
 
-      {/* Edit Profile Dialog */}
-      {profile && (
-        <EditProfileDialog
-          isOpen={showEditProfileDialog}
-          onClose={() => setShowEditProfileDialog(false)}
-          profile={profile}
-          onSubmit={handleProfileUpdate}
-          onError={handleProfileError}
-        />
-      )}
     </div>
   )
 }

@@ -26,7 +26,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const groupId = params.id
+    const resolvedParams = await params
+    const groupId = resolvedParams.id
     const body: UpdateGroupRequest = await request.json()
     const { name, monthly_budget_estimate } = body
 
@@ -130,7 +131,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const groupId = params.id
+    const resolvedParams = await params
+    const groupId = resolvedParams.id
     const supabase = supabaseServer
 
     // Check if group exists and user is the creator

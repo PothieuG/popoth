@@ -6,6 +6,7 @@ export interface ProfileData {
   id: string
   first_name: string
   last_name: string
+  salary: number
   group_id: string | null
   group_name: string | null
   created_at: string
@@ -15,6 +16,7 @@ export interface ProfileData {
 export interface CreateProfileRequest {
   first_name: string
   last_name: string
+  salary?: number
 }
 
 /**
@@ -37,14 +39,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Récupérer le profil depuis Supabase avec les informations du groupe
+    // Récupérer le profil depuis Supabase
     console.log('🔍 Requête Supabase pour userId:', sessionData.userId)
     const { data, error } = await supabaseServer
       .from('profiles')
-      .select(`
-        *,
-        groups(name)
-      `)
+      .select('*')
       .eq('id', sessionData.userId)
       .single()
 
@@ -66,13 +65,26 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Profil récupéré avec succès:', data)
     
+    // Get group information if user belongs to a group
+    let groupName: string | null = null
+    if (data.group_id) {
+      const { data: groupData } = await supabaseServer
+        .from('groups')
+        .select('name')
+        .eq('id', data.group_id)
+        .single()
+      
+      groupName = groupData?.name || null
+    }
+    
     // Format the profile data to include group information
     const profileData: ProfileData = {
       id: data.id,
       first_name: data.first_name,
       last_name: data.last_name,
+      salary: data.salary || 0,
       group_id: data.group_id,
-      group_name: (data.groups as any)?.name || null,
+      group_name: groupName,
       created_at: data.created_at,
       updated_at: data.updated_at
     }
@@ -109,8 +121,8 @@ export async function POST(request: NextRequest) {
 
     // Parser les données de la requête
     const body = await request.json() as CreateProfileRequest
-    const { first_name, last_name } = body
-    console.log('📝 Données reçues:', { first_name, last_name })
+    const { first_name, last_name, salary } = body
+    console.log('📝 Données reçues:', { first_name, last_name, salary })
 
     // Validation des données
     if (!first_name || !last_name) {
@@ -129,6 +141,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validation du salaire (requis)
+    if (salary !== undefined && (salary <= 0 || salary > 999999.99)) {
+      console.log('❌ Salaire invalide')
+      return NextResponse.json(
+        { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
+        { status: 400 }
+      )
+    }
+
     // Créer le profil dans Supabase
     console.log('💾 Insertion dans Supabase avec userId:', sessionData.userId)
     const { data, error } = await supabaseServer
@@ -136,7 +157,8 @@ export async function POST(request: NextRequest) {
       .insert({
         id: sessionData.userId,
         first_name: first_name.trim(),
-        last_name: last_name.trim()
+        last_name: last_name.trim(),
+        salary: salary || 1
       })
       .select()
       .single()
@@ -167,6 +189,7 @@ export async function POST(request: NextRequest) {
       id: data.id,
       first_name: data.first_name,
       last_name: data.last_name,
+      salary: data.salary || 0,
       group_id: data.group_id,
       group_name: null, // Nouveau profil n'a pas de groupe
       created_at: data.created_at,
@@ -194,12 +217,15 @@ export async function PUT(request: NextRequest) {
   try {
     // Valider la session utilisateur
     const sessionData = await validateSessionToken(request)
+    console.log('🔍 Session data for PUT:', sessionData)
     if (!sessionData?.userId) {
       return NextResponse.json(
         { error: 'Non autorisé' },
         { status: 401 }
       )
     }
+
+    console.log('👤 User ID for update:', sessionData.userId, 'type:', typeof sessionData.userId)
 
     // Parser les données de la requête
     const body = await request.json()
@@ -226,6 +252,16 @@ export async function PUT(request: NextRequest) {
       updates.last_name = body.last_name.trim()
     }
 
+    if (body.salary !== undefined) {
+      if (body.salary <= 0 || body.salary > 999999.99) {
+        return NextResponse.json(
+          { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
+          { status: 400 }
+        )
+      }
+      updates.salary = body.salary
+    }
+
     // Vérifier qu'il y a au moins une mise à jour
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -234,15 +270,23 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Mettre à jour le profil dans Supabase avec les informations du groupe
+    // Vérifier que userId est valide avant la requête
+    if (!sessionData.userId || sessionData.userId === 'null' || sessionData.userId === null) {
+      console.error('❌ User ID invalide:', sessionData.userId)
+      return NextResponse.json(
+        { error: 'ID utilisateur invalide' },
+        { status: 400 }
+      )
+    }
+
+    console.log('💾 Updating profile for userId:', sessionData.userId, 'with:', updates)
+
+    // Mettre à jour le profil dans Supabase
     const { data, error } = await supabaseServer
       .from('profiles')
       .update(updates)
       .eq('id', sessionData.userId)
-      .select(`
-        *,
-        groups(name)
-      `)
+      .select('*')
       .single()
 
     if (error) {
@@ -253,13 +297,26 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Get group information if user belongs to a group
+    let groupName: string | null = null
+    if (data.group_id) {
+      const { data: groupData } = await supabaseServer
+        .from('groups')
+        .select('name')
+        .eq('id', data.group_id)
+        .single()
+      
+      groupName = groupData?.name || null
+    }
+
     // Format the profile data to include group information
     const profileData: ProfileData = {
       id: data.id,
       first_name: data.first_name,
       last_name: data.last_name,
+      salary: data.salary || 0,
       group_id: data.group_id,
-      group_name: (data.groups as any)?.name || null,
+      group_name: groupName,
       created_at: data.created_at,
       updated_at: data.updated_at
     }
