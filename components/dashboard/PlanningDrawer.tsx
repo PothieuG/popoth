@@ -1,7 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import AddBudgetDialog from './AddBudgetDialog'
+import AddIncomeDialog from './AddIncomeDialog'
+import { useBudgets } from '@/hooks/useBudgets'
+import { useIncomes } from '@/hooks/useIncomes'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -16,6 +20,38 @@ type TabType = 'budgets' | 'revenus'
  */
 export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
+  const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
+  const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
+  
+  // Hooks pour la gestion des données
+  const { 
+    budgets, 
+    loading: budgetsLoading, 
+    error: budgetsError, 
+    addBudget, 
+    deleteBudget, 
+    refreshBudgets,
+    totalBudgets 
+  } = useBudgets()
+  
+  const { 
+    incomes, 
+    loading: incomesLoading, 
+    error: incomesError, 
+    addIncome, 
+    deleteIncome, 
+    refreshIncomes,
+    totalIncomes 
+  } = useIncomes()
+
+  // Refresh des données quand le drawer s'ouvre
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔄 PlanningDrawer ouvert - Refresh des données')
+      refreshBudgets()
+      refreshIncomes()
+    }
+  }, [isOpen, refreshBudgets, refreshIncomes])
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -23,6 +59,47 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
       currency: 'EUR',
       minimumFractionDigits: 2
     }).format(amount)
+  }
+
+  /**
+   * Gestion de l'ajout d'un nouveau budget
+   */
+  const handleAddBudget = async (budgetData: { name: string; estimatedAmount: number }) => {
+    console.log('🎯 PlanningDrawer - handleAddBudget appelé avec:', budgetData)
+    const success = await addBudget(budgetData)
+    console.log('🎯 PlanningDrawer - Résultat addBudget:', success)
+    if (success) {
+      setIsAddBudgetOpen(false)
+      console.log('✅ Dialog fermé après succès')
+    } else {
+      console.log('❌ Erreur lors de l\'ajout, dialog reste ouvert')
+    }
+    // En cas d'erreur, le hook gère déjà l'état d'erreur
+  }
+
+  /**
+   * Gestion de l'ajout d'un nouveau revenu
+   */
+  const handleAddIncome = async (incomeData: { name: string; estimatedAmount: number }) => {
+    const success = await addIncome(incomeData)
+    if (success) {
+      setIsAddIncomeOpen(false)
+    }
+    // En cas d'erreur, le hook gère déjà l'état d'erreur
+  }
+
+  /**
+   * Gestion de la suppression d'un budget
+   */
+  const handleDeleteBudget = async (budgetId: string) => {
+    await deleteBudget(budgetId)
+  }
+
+  /**
+   * Gestion de la suppression d'un revenu
+   */
+  const handleDeleteIncome = async (incomeId: string) => {
+    await deleteIncome(incomeId)
   }
 
   return (
@@ -110,71 +187,164 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
 
         {/* Content Area - Full height minus header and tabs */}
         <div className="h-[calc(100vh-200px)] overflow-y-auto">
+          {/* Error Messages */}
+          {(budgetsError || incomesError) && (
+            <div className="p-4">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
+                <p className="text-red-800 text-sm font-medium">
+                  {budgetsError || incomesError}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Budgets Tab Content */}
           {activeTab === 'budgets' && (
             <div className="p-4 space-y-4">
+              {budgetsLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Budgets Estimés</h3>
-                <button className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors">
+                <button 
+                  onClick={() => setIsAddBudgetOpen(true)}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                >
                   Ajouter un budget
                 </button>
               </div>
-              
-              {/* Empty State */}
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun budget configuré</h4>
-                <p className="text-sm text-gray-600 mb-4">
-                  Commencez par ajouter vos catégories de dépenses mensuelles
+
+              {/* Total discret */}
+              <div className="px-3 py-2 bg-orange-50/50 rounded-lg border border-orange-100">
+                <p className="text-sm text-orange-700">
+                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span>
                 </p>
-                <button className="px-6 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors">
-                  Créer votre premier budget
-                </button>
               </div>
               
-              {/* Summary */}
-              <div className="mt-8 p-4 bg-orange-50 rounded-xl border border-orange-200">
-                <h4 className="font-semibold text-orange-900 mb-2">Total des budgets estimés</h4>
-                <p className="text-2xl font-bold text-orange-700">{formatAmount(0)}</p>
-              </div>
+              {/* Budgets List or Empty State */}
+              {!budgetsLoading && budgets.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun budget configuré</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Commencez par ajouter vos catégories de dépenses mensuelles
+                  </p>
+                  <button 
+                    onClick={() => setIsAddBudgetOpen(true)}
+                    className="px-6 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                  >
+                    Créer votre premier budget
+                  </button>
+                </div>
+              ) : !budgetsLoading ? (
+                <div className="space-y-3">
+                  {budgets.map((budget) => (
+                    <div key={budget.id} className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-gray-900">{budget.name}</h5>
+                          <p className="text-sm text-gray-600">Budget mensuel</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-right">
+                            <p className="font-bold text-orange-700">{formatAmount(budget.estimated_amount)}</p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteBudget(budget.id)}
+                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors"
+                            title="Supprimer ce budget"
+                          >
+                            <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
 
           {/* Revenus Tab Content */}
           {activeTab === 'revenus' && (
             <div className="p-4 space-y-4">
+              {incomesLoading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Revenus Estimés</h3>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
+                <button 
+                  onClick={() => setIsAddIncomeOpen(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                >
                   Ajouter un revenu
                 </button>
               </div>
-              
-              {/* Empty State */}
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun revenu configuré</h4>
-                <p className="text-sm text-gray-600 mb-4">
-                  Ajoutez vos sources de revenus mensuels récurrents
+
+              {/* Total discret */}
+              <div className="px-3 py-2 bg-green-50/50 rounded-lg border border-green-100">
+                <p className="text-sm text-green-700">
+                  Total estimé: <span className="font-medium">{formatAmount(totalIncomes)}</span>
                 </p>
-                <button className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors">
-                  Ajouter votre premier revenu
-                </button>
               </div>
               
-              {/* Summary */}
-              <div className="mt-8 p-4 bg-green-50 rounded-xl border border-green-200">
-                <h4 className="font-semibold text-green-900 mb-2">Total des revenus estimés</h4>
-                <p className="text-2xl font-bold text-green-700">{formatAmount(0)}</p>
-              </div>
+              {/* Incomes List or Empty State */}
+              {!incomesLoading && incomes.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun revenu configuré</h4>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Ajoutez vos sources de revenus mensuels récurrents
+                  </p>
+                  <button 
+                    onClick={() => setIsAddIncomeOpen(true)}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                  >
+                    Ajouter votre premier revenu
+                  </button>
+                </div>
+              ) : !incomesLoading ? (
+                <div className="space-y-3">
+                  {incomes.map((income) => (
+                    <div key={income.id} className="p-3 bg-green-50 border border-green-200 rounded-xl">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <h5 className="font-medium text-gray-900">{income.name}</h5>
+                          <p className="text-sm text-gray-600">Revenu mensuel</p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-right">
+                            <p className="font-bold text-green-700">{formatAmount(income.estimated_amount)}</p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteIncome(income.id)}
+                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors"
+                            title="Supprimer ce revenu"
+                          >
+                            <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -183,10 +353,33 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
         <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-600">Différence estimée</span>
-            <span className="text-lg font-bold text-gray-900">{formatAmount(0)}</span>
+            <span className={cn(
+              "text-lg font-bold",
+              totalIncomes - totalBudgets > 0 ? "text-green-700" : 
+              totalIncomes - totalBudgets < 0 ? "text-red-700" : "text-gray-900"
+            )}>
+              {formatAmount(totalIncomes - totalBudgets)}
+            </span>
           </div>
           <p className="text-xs text-gray-500 mt-1">Revenus - Budgets</p>
         </div>
+
+        {/* Add Budget Dialog */}
+        <AddBudgetDialog
+          isOpen={isAddBudgetOpen}
+          onClose={() => setIsAddBudgetOpen(false)}
+          onSave={handleAddBudget}
+          currentBudgetsTotal={totalBudgets}
+          totalEstimatedIncome={totalIncomes}
+        />
+
+        {/* Add Income Dialog */}
+        <AddIncomeDialog
+          isOpen={isAddIncomeOpen}
+          onClose={() => setIsAddIncomeOpen(false)}
+          onSave={handleAddIncome}
+          currentIncomesTotal={totalIncomes}
+        />
       </div>
     </>
   )
