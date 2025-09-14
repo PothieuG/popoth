@@ -11,6 +11,7 @@ import { useGroupSearch } from '@/hooks/useGroupSearch'
 import CreateGroupForm from '@/components/groups/CreateGroupForm'
 import GroupSearchList from '@/components/groups/GroupSearchList'
 import DeleteGroupModal from '@/components/groups/DeleteGroupModal'
+import GroupMembersModal from '@/components/groups/GroupMembersModal'
 import { GroupData } from '@/app/api/groups/route'
 
 /**
@@ -34,6 +35,8 @@ export default function SettingsPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [groupToDelete, setGroupToDelete] = useState<GroupData | null>(null)
+  const [showMembersModal, setShowMembersModal] = useState(false)
+  const [isOperationLoading, setIsOperationLoading] = useState(false)
 
   /**
    * Handles group creation
@@ -53,14 +56,19 @@ export default function SettingsPage() {
    * Handles joining a group from search results
    */
   const handleJoinGroup = async (groupId: string): Promise<boolean> => {
-    const success = await joinGroup(groupId)
-    if (success) {
-      updateGroupMembership(groupId, true)
-      // Clear search and hide it since user now has a group
-      clearSearch()
-      setShowSearch(false)
+    setIsOperationLoading(true)
+    try {
+      const success = await joinGroup(groupId)
+      if (success) {
+        updateGroupMembership(groupId, true)
+        // Clear search and hide it since user now has a group
+        clearSearch()
+        setShowSearch(false)
+      }
+      return success
+    } finally {
+      setIsOperationLoading(false)
     }
-    return success
   }
 
   /**
@@ -69,12 +77,17 @@ export default function SettingsPage() {
   const handleLeaveGroup = async (): Promise<boolean> => {
     if (!currentGroup) return false
     
-    const success = await leaveGroup(currentGroup.id)
-    if (success) {
-      // User can now search for groups again
-      setShowSearch(false)
+    setIsOperationLoading(true)
+    try {
+      const success = await leaveGroup(currentGroup.id)
+      if (success) {
+        // User can now search for groups again
+        setShowSearch(false)
+      }
+      return success
+    } finally {
+      setIsOperationLoading(false)
     }
-    return success
   }
 
   /**
@@ -124,8 +137,51 @@ export default function SettingsPage() {
     setShowSearch(true)
   }
 
+  // Show loading screen while fetching group data
+  if (groupsLoading && !hasGroup && !currentGroup) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        {/* Header */}
+        <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
+          <div className="flex justify-between items-center p-4">
+            <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.history.back()}
+                className="p-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                </svg>
+              </Button>
+              <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
+            </div>
+            <Button
+              onClick={logoutAndRedirect}
+              variant="outline"
+              size="sm"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+            >
+              Se déconnecter
+            </Button>
+          </div>
+        </div>
+
+        {/* Loading Content */}
+        <main className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 mb-2">Chargement de vos groupes...</p>
+            <p className="text-sm text-gray-500">Veuillez patienter</p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 relative">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -140,7 +196,7 @@ export default function SettingsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
             </Button>
-            <h1 className="text-xl font-semibold text-gray-900">Paramètres</h1>
+            <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
           </div>
           <Button
             onClick={logoutAndRedirect}
@@ -212,9 +268,8 @@ export default function SettingsPage() {
                     variant="outline"
                     size="sm"
                     className="w-full"
-                    onClick={() => {
-                      console.log('View members for group:', currentGroup.id)
-                    }}
+                    onClick={() => setShowMembersModal(true)}
+                    disabled={isOperationLoading}
                   >
                     Voir membres
                   </Button>
@@ -225,7 +280,8 @@ export default function SettingsPage() {
                       variant="outline"
                       size="sm"
                       onClick={openDeleteModal}
-                      className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                      disabled={isOperationLoading}
+                      className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 disabled:opacity-50"
                     >
                       Supprimer
                     </Button>
@@ -234,9 +290,10 @@ export default function SettingsPage() {
                       variant="outline"
                       size="sm"
                       onClick={handleLeaveGroup}
-                      className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
+                      disabled={isOperationLoading}
+                      className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 disabled:opacity-50"
                     >
-                      Quitter
+                      {isOperationLoading ? 'Chargement...' : 'Quitter'}
                     </Button>
                   )}
                 </div>
@@ -372,6 +429,26 @@ export default function SettingsPage() {
           onClose={() => setGroupToDelete(null)}
           onConfirm={handleDeleteGroup}
         />
+      )}
+
+      {/* Group Members Modal */}
+      {currentGroup && (
+        <GroupMembersModal
+          group={currentGroup}
+          isOpen={showMembersModal}
+          onClose={() => setShowMembersModal(false)}
+        />
+      )}
+
+      {/* Loading Overlay for Group Operations */}
+      {isOperationLoading && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 shadow-xl text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-700 font-medium">Opération en cours...</p>
+            <p className="text-sm text-gray-500 mt-1">Veuillez patienter</p>
+          </div>
+        </div>
       )}
     </div>
   )

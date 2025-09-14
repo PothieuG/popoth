@@ -162,13 +162,15 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Roboto font** with hydration warning fixes
 - **French interface** for end users
 
-### 📱 Clean Dashboard Interface (2025-09-13)
+### 📱 Clean Dashboard Interface (2025-09-14)
 - **Sticky navbar** with app branding and hamburger menu button
 - **Full-width slide-out menu panel** with smooth animations (300ms ease-in-out)
 - **Menu panel features**: Right-to-left slide animation, overlay backdrop, close button
-- **Settings navigation** with gear icon and direct link to `/settings`
+- **Group management navigation** renamed from "Paramètres" to "Gestion du groupe" with appropriate group icon
 - **Logout functionality** moved to menu panel with red styling
-- **Sticky footer** ready for future content
+- **Navigation footer** with personal and group finance buttons
+- **Dynamic group name display** in footer showing actual group name instead of generic "Groupe"
+- **Conditional UI** - group finance button only appears when user belongs to a group
 - **Clean main content area** prepared for feature development
 - **Smooth transitions** for all panel interactions using Tailwind CSS transforms
 
@@ -186,6 +188,24 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Smart UI** that hides/shows sections based on user's group status
 - **RLS security policies** ensuring proper data access control
 - **Responsive design** optimized for mobile-first usage
+- **Group members functionality** with detailed member list modal
+- **Loading states** for all group operations with smooth animations
+- **Enhanced profile API** with group information integration
+
+### 👤 Group Members Management System (2025-09-14)
+- **Complete members functionality** with "Voir membres" button implementation
+- **GroupMembersModal component** with elegant modal design and responsive layout
+- **useGroupMembers hook** for state management and API integration
+- **Member list display** with avatars, names, and join dates
+- **Creator identification** with distinctive badges for group creators
+- **Generated avatars** with colorful gradient backgrounds using member initials
+- **Loading states** with spinners and proper error handling
+- **API security** ensuring only group members can view member lists
+- **French localization** for all UI text and date formatting
+- **Mobile-optimized** modal with proper touch interactions
+- **Enhanced ProfileData interface** including group_id and group_name fields
+- **Automatic group data fetching** with JOIN queries to groups table
+- **Real-time member information** with proper data formatting and validation
 
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
@@ -283,10 +303,14 @@ CREATE TABLE public.groups (
 
 **Note**: The `group_members` table has been removed in favor of direct relationship via `profiles.group_id`.
 
-## 📊 Current Session Status
+## 📊 Current Session Status (Updated 2025-09-14)
 - ✅ **Authentication System**: Fully functional and production-ready
 - ✅ **Token Management**: Modern JWT-based sessions implemented
 - ✅ **Security**: Enterprise-level security measures in place
 - ✅ **User Experience**: Seamless authentication with automatic session management
 - ✅ **Error Handling**: Comprehensive error handling with French user messages
 - ✅ **Single-Group System**: Simplified one-group-per-user system with full management capabilities
+- ✅ **Group Members Management**: Complete implementation with modal display and member listing
+- ✅ **Navigation Enhancement**: Footer navigation with dynamic group names and menu improvements
+- ✅ **Loading States**: Comprehensive loading animations for all group operations
+- ✅ **Profile Enhancement**: Extended profile data with group information integration

@@ -6,6 +6,8 @@ export interface ProfileData {
   id: string
   first_name: string
   last_name: string
+  group_id: string | null
+  group_name: string | null
   created_at: string
   updated_at: string
 }
@@ -35,11 +37,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Récupérer le profil depuis Supabase
+    // Récupérer le profil depuis Supabase avec les informations du groupe
     console.log('🔍 Requête Supabase pour userId:', sessionData.userId)
     const { data, error } = await supabaseServer
       .from('profiles')
-      .select('*')
+      .select(`
+        *,
+        groups(name)
+      `)
       .eq('id', sessionData.userId)
       .single()
 
@@ -60,7 +65,19 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('✅ Profil récupéré avec succès:', data)
-    return NextResponse.json({ profile: data })
+    
+    // Format the profile data to include group information
+    const profileData: ProfileData = {
+      id: data.id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      group_id: data.group_id,
+      group_name: (data.groups as any)?.name || null,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+    
+    return NextResponse.json({ profile: profileData })
   } catch (error) {
     console.error('❌ Erreur inattendue lors de la récupération du profil:', error)
     return NextResponse.json(
@@ -144,8 +161,20 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Profil créé avec succès:', data)
+    
+    // Format the profile data
+    const profileData: ProfileData = {
+      id: data.id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      group_id: data.group_id,
+      group_name: null, // Nouveau profil n'a pas de groupe
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+    
     return NextResponse.json({ 
-      profile: data,
+      profile: profileData,
       message: 'Profil créé avec succès'
     })
   } catch (error) {
@@ -205,12 +234,15 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Mettre à jour le profil dans Supabase
+    // Mettre à jour le profil dans Supabase avec les informations du groupe
     const { data, error } = await supabaseServer
       .from('profiles')
       .update(updates)
       .eq('id', sessionData.userId)
-      .select()
+      .select(`
+        *,
+        groups(name)
+      `)
       .single()
 
     if (error) {
@@ -221,8 +253,19 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Format the profile data to include group information
+    const profileData: ProfileData = {
+      id: data.id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      group_id: data.group_id,
+      group_name: (data.groups as any)?.name || null,
+      created_at: data.created_at,
+      updated_at: data.updated_at
+    }
+
     return NextResponse.json({ 
-      profile: data,
+      profile: profileData,
       message: 'Profil mis à jour avec succès'
     })
   } catch (error) {
