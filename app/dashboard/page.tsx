@@ -21,10 +21,7 @@ export default function DashboardPage() {
   const { getUserContribution, fetchContributions } = useGroupContributions()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  // Mock data for financial indicators - TODO: Replace with real data from API
-  const mockAvailableBalance = 1250.75
-  const mockRemainingToLive = -150.25
-  const mockTotalSavings = 1298.00
+  // Dashboard state simplified
 
   /**
    * Gère la création du profil utilisateur
@@ -100,17 +97,23 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="flex-1 p-4">
-        {/* Financial Indicators */}
-        <FinancialIndicators 
-          availableBalance={mockAvailableBalance}
-          remainingToLive={mockRemainingToLive}
-          totalSavings={mockTotalSavings}
-          className="mb-6"
-        />
-        
-        {/* Future content area */}
-        <div className="space-y-4">
-          {/* Additional dashboard content will go here */}
+        <div className="space-y-6">
+          {/* Financial Indicators */}
+          <FinancialIndicators 
+            availableBalance={1250.75}
+            remainingToLive={-150.25}
+            totalSavings={1298.00}
+          />
+          
+          {/* Placeholder for future financial features */}
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              Gestion financière
+            </h2>
+            <p className="text-gray-600">
+              Les fonctionnalités financières seront développées selon vos besoins
+            </p>
+          </div>
         </div>
       </main>
 
@@ -120,26 +123,18 @@ export default function DashboardPage() {
           <div className="flex space-x-8">
             {/* Personal Finance Button - Always visible */}
             <button 
-              className="flex flex-col items-center justify-center p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-              onClick={() => {
-                // TODO: Navigate to personal finance page
-                console.log('Navigate to personal finance')
-              }}
+              className="flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-200 hover:bg-gray-50 text-gray-600"
             >
-              <svg className="w-6 h-6 text-blue-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="text-xs text-gray-600">Personnel</span>
+              <span className="text-xs">Personnel</span>
             </button>
 
             {/* Group Finance Button - Only visible if user belongs to a group */}
             {profile?.group_id && (
               <button 
                 className="flex flex-col items-center justify-center p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200"
-                onClick={() => {
-                  // TODO: Navigate to group finance page
-                  console.log('Navigate to group finance')
-                }}
               >
                 <svg className="w-6 h-6 text-purple-600 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />

@@ -1,0 +1,40 @@
+Voici le plan pour la suite.
+
+J'aimerais que tu crée les relation et organise la base selon l'utilisation à venir de l'application:
+
+Chaque profile et group a:
+- son cash disponible
+- son reste à vivre
+- son budget estimé
+- ses entrées d'argent estimés (ou revenus)
+- ses réels entrées d'argent
+- ses réels dépenses
+
+- Règle cash disponible:
+ - c'est l'argent disponible sur le compte bancaire à un temps T
+ - c'est les réels entrées d'argent moins les réels dépenses
+ - Ca peut être négatif
+
+- Règle reste à vivre:
+ - Pour les profiles c'est l'ensemble des entrées d'argent moins ce qui a été budgété pour le mois moins les dépenses non-budgété (exceptionnelles), mais on y ajoute l'ensemble des économies des budgets
+ - pour les groups: c'est l'ensemble des entrées d'argent estimés et entrées réels (les contributions des profiles du groupe + entrées d'argent exceptionnels), moins l'ensemble de ce qui a été budgété moins les dépenses non-budgété (ou réel dépense qui n'est pas lié à un budget) mais on y ajoute l'ensemble des économies des budget
+ - Elle peut être également négative
+
+
+- Règle budget estimé:
+ - Ils correspondent à ce que les utilisateur/groups projetent de faire dans le mois
+ - par exemple: "budget course: 500€", "budget activité sportive: 200€". On peut dire que c'est des catégories générales
+ - On pourra ajouter ou éditer le budget dans son intégralité, nom et estimation du budget
+ - Chaque budget a des économies qui lui sont lié. Par exemple, si je décide de budgété 200€ pour des courses pendant un mois et qu'en fait je ne dépense que 150€, à la fin du mois, 50€ sera ajouté aux économies de ce budget.
+
+
+- ses réels entrées d'argent
+ - C'est ce que l'utilisateur entrera manuellement à chaque fois qu'il recevra de l'argent.
+ - elle peut être lié à une une entrée d'argent estimée,
+ - elle peut-être aussi exceptionnel (non lié à une entrée d'argent estimé)
+
+- ses réels dépenses
+ - C'est ce que l'utilisateur entrera manuellement à chaque fois qu'il dépensera de l'argent
+ - elle peut être lié à un budget estimée,
+ - elle peut-être aussi exceptionnel (non lié à un budget estimé)
+
