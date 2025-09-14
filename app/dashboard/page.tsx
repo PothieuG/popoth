@@ -9,6 +9,7 @@ import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
+import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -19,6 +20,11 @@ export default function DashboardPage() {
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  // Mock data for financial indicators - TODO: Replace with real data from API
+  const mockAvailableBalance = 1250.75
+  const mockRemainingToLive = -150.25
+  const mockTotalSavings = 1298.00
 
   /**
    * Gère la création du profil utilisateur
@@ -76,7 +82,7 @@ export default function DashboardPage() {
 
   // Si profil existe, afficher le dashboard normal
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -93,8 +99,19 @@ export default function DashboardPage() {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-1">
-        {/* Empty content area for now */}
+      <main className="flex-1 p-4">
+        {/* Financial Indicators */}
+        <FinancialIndicators 
+          availableBalance={mockAvailableBalance}
+          remainingToLive={mockRemainingToLive}
+          totalSavings={mockTotalSavings}
+          className="mb-6"
+        />
+        
+        {/* Future content area */}
+        <div className="space-y-4">
+          {/* Additional dashboard content will go here */}
+        </div>
       </main>
 
       {/* Navigation Footer */}
