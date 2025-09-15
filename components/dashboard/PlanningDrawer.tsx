@@ -15,6 +15,7 @@ interface PlanningDrawerProps {
   isOpen: boolean
   onClose: () => void
   onPlanningChange?: () => Promise<void>
+  context?: 'profile' | 'group'
 }
 
 type TabType = 'budgets' | 'revenus'
@@ -23,7 +24,7 @@ type TabType = 'budgets' | 'revenus'
  * Drawer de planification financière qui s'ouvre du bas vers le haut
  * Contient deux tabs : budgets estimés et revenus estimés
  */
-export default function PlanningDrawer({ isOpen, onClose, onPlanningChange }: PlanningDrawerProps) {
+export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, context }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
@@ -49,7 +50,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange }: Pl
     deleteBudget,
     refreshBudgets,
     totalBudgets
-  } = useBudgets()
+  } = useBudgets(context)
   
   const {
     incomes,
@@ -60,7 +61,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange }: Pl
     deleteIncome,
     refreshIncomes,
     totalIncomes
-  } = useIncomes()
+  } = useIncomes(context)
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {

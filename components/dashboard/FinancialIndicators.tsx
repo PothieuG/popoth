@@ -11,6 +11,7 @@ interface FinancialIndicatorsProps {
   totalSavings: number
   className?: string
   onPlanningChange?: () => Promise<void>
+  context?: 'profile' | 'group'
 }
 
 /**
@@ -23,7 +24,8 @@ export default function FinancialIndicators({
   remainingToLive,
   totalSavings,
   className,
-  onPlanningChange
+  onPlanningChange,
+  context
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -187,6 +189,7 @@ export default function FinancialIndicators({
         isOpen={isPlanningOpen}
         onClose={() => setIsPlanningOpen(false)}
         onPlanningChange={onPlanningChange}
+        context={context}
       />
 
       {/* Savings Drawer */}

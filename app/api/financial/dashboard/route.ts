@@ -44,6 +44,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
+    // Récupérer le paramètre de contexte depuis l'URL
+    const { searchParams } = new URL(request.url)
+    const forceContext = searchParams.get('context') as 'profile' | 'group' | null
+
     // Récupérer les informations du profil pour savoir si l'utilisateur fait partie d'un groupe
     const { data: profile, error: profileError } = await supabaseServer
       .from('profiles')
@@ -56,13 +60,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
 
-    // TEMPORAIRE: Forcer le contexte personnel pour debug
-    // TODO: Implémenter la logique de choix profile vs groupe
-    const context = 'profile' // Force profile même avec group_id
-    const contextId = profile.id // Toujours utiliser profile.id
+    // Déterminer le contexte à utiliser
+    let context: 'profile' | 'group'
+    let contextId: string
+
+    if (forceContext === 'group' && profile.group_id) {
+      // Contexte groupe demandé et utilisateur fait partie d'un groupe
+      context = 'group'
+      contextId = profile.group_id
+    } else {
+      // Contexte profil par défaut
+      context = 'profile'
+      contextId = profile.id
+    }
+
     const cacheKey = getCacheKey(userId, context, contextId)
 
-    console.log('🎯 Contexte forcé à PROFILE pour debug, groupId ignoré:', profile.group_id)
+    console.log('🎯 Contexte déterminé:', { forceContext, context, contextId, hasGroup: !!profile.group_id })
 
     // Vérifier le cache
     const cachedEntry = cache.get(cacheKey)
@@ -90,9 +104,13 @@ export async function GET(request: NextRequest) {
     // Calculer les données financières selon le contexte
     let financialData: FinancialData
 
-    // TEMPORAIRE: Toujours utiliser le calcul profile
-    financialData = await getProfileFinancialData(profile.id)
-    console.log('👤 Calcul PROFILE forcé terminé:', profile.id)
+    if (context === 'group') {
+      financialData = await getGroupFinancialData(profile.group_id!)
+      console.log('👥 Calcul GROUPE terminé:', profile.group_id)
+    } else {
+      financialData = await getProfileFinancialData(profile.id)
+      console.log('👤 Calcul PROFILE terminé:', profile.id)
+    }
 
     // Mettre en cache les résultats
     cache.set(cacheKey, {

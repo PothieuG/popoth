@@ -33,6 +33,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
+    // Récupérer le paramètre de contexte depuis l'URL
+    const { searchParams } = new URL(request.url)
+    const context = searchParams.get('context') as 'profile' | 'group' | null
+
     const supabase = supabaseServer
 
     // Récupérer les informations du profil avec le groupe
@@ -52,25 +56,32 @@ export async function GET(request: NextRequest) {
       console.log('❌ Profil non trouvé pour userId:', userId)
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
-    
+
     console.log('✅ Profil trouvé:', profile)
 
-    // Récupérer les revenus personnels ET du groupe (si applicable)
-    console.log('📋 Construction de la requête pour les revenus')
-    
-    let orConditions = `profile_id.eq.${userId}`
-    if (profile.group_id) {
-      console.log('👥 Ajout des revenus de groupe:', profile.group_id)
-      orConditions += `,group_id.eq.${profile.group_id}`
+    // Construire la requête selon le contexte demandé
+    console.log('📋 Construction de la requête pour les revenus, contexte:', context)
+
+    let query
+    if (context === 'group' && profile.group_id) {
+      // Récupérer seulement les revenus du groupe
+      console.log('👥 Récupération des revenus de groupe uniquement:', profile.group_id)
+      query = supabase
+        .from('estimated_incomes')
+        .select('*')
+        .eq('group_id', profile.group_id)
+        .is('profile_id', null)
+    } else {
+      // Récupérer seulement les revenus personnels
+      console.log('👤 Récupération des revenus personnels uniquement:', userId)
+      query = supabase
+        .from('estimated_incomes')
+        .select('*')
+        .eq('profile_id', userId)
+        .is('group_id', null)
     }
-    
-    console.log('🔍 Condition OR:', orConditions)
-    
-    const { data: incomes, error } = await supabase
-      .from('estimated_incomes')
-      .select('id, profile_id, group_id, name, estimated_amount, is_monthly_recurring, created_at, updated_at')
-      .or(orConditions)
-      .order('created_at', { ascending: false })
+
+    const { data: incomes, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       console.error('❌ Erreur lors de la récupération des revenus:', error)
@@ -96,7 +107,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    const { name, estimatedAmount, isGroupIncome = false } = await request.json()
+    // Récupérer le paramètre de contexte depuis l'URL
+    const { searchParams } = new URL(request.url)
+    const context = searchParams.get('context') as 'profile' | 'group' | null
+
+    const { name, estimatedAmount } = await request.json()
+    console.log('🎯 Contexte income:', context)
 
     // Validation des données
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
@@ -120,17 +136,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
 
-    // Vérifier si c'est un revenu de groupe et si l'utilisateur fait partie d'un groupe
-    if (isGroupIncome && !profile.group_id) {
+    // Vérifier le contexte et l'appartenance à un groupe
+    if (context === 'group' && !profile.group_id) {
       return NextResponse.json({ error: 'Vous devez faire partie d\'un groupe pour créer un revenu de groupe' }, { status: 400 })
     }
 
-    // Préparer les données du revenu
-    const incomeData = {
-      name: name.trim(),
-      estimated_amount: estimatedAmount,
-      is_monthly_recurring: true, // Par défaut mensuel
-      ...(isGroupIncome ? { group_id: profile.group_id } : { profile_id: userId })
+    // Préparer les données du revenu selon le contexte
+    let incomeData
+    if (context === 'group') {
+      incomeData = {
+        name: name.trim(),
+        estimated_amount: estimatedAmount,
+        is_monthly_recurring: true,
+        group_id: profile.group_id,
+        profile_id: null
+      }
+    } else {
+      incomeData = {
+        name: name.trim(),
+        estimated_amount: estimatedAmount,
+        is_monthly_recurring: true,
+        profile_id: userId,
+        group_id: null
+      }
     }
 
     // Créer le revenu
@@ -147,8 +175,8 @@ export async function POST(request: NextRequest) {
 
     // Sauvegarder automatiquement le nouveau reste à vivre
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
-      profileId: isGroupIncome ? undefined : userId,
-      groupId: isGroupIncome ? profile.group_id : undefined,
+      profileId: context === 'group' ? undefined : userId,
+      groupId: context === 'group' ? profile.group_id : undefined,
       reason: 'income_created'
     })
 

@@ -275,17 +275,17 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **API Routes Integration**: Clean REST endpoints with intelligent caching and invalidation hooks
 - **Migration Complete**: Successfully migrated from unreliable PostgreSQL triggers to stable application logic
 
-### 💰 Editable Bank Balance System (2025-09-15 - New Feature)
-- **Editable Balance Line**: Clean line in dashboard settings menu with pencil icon for editing
-- **Modal Interface**: Optimized modal with explanation about initial balance correction or error fixing
-- **Bank Balance Table**: New `bank_balances` table with RLS policies and automatic triggers
-- **API Integration**: Complete REST API with GET/POST endpoints for balance management
-- **Real-time Dashboard Integration**: Bank balance directly used as `availableBalance` in financial calculations
-- **Smart Error Handling**: Graceful handling of missing table or connection issues
-- **Mobile-Optimized UX**: Compact modal design that fits mobile screens without scrolling
-- **Cache Integration**: Automatic financial data refresh when bank balance is updated
-- **Security**: Row Level Security ensuring users can only access their own balance
-- **Documentation**: Complete SQL schema with comments and proper constraints
+### 💰 Dual-Context Financial System (2025-09-15 - Complete Independence)
+- **Profile-Group Separation**: Complete independence between personal and group finances
+- **Editable Bank Balance**: Both profiles and groups have separate, editable bank balances
+- **XOR Ownership Pattern**: All financial tables use profile_id XOR group_id constraint
+- **Context-Based APIs**: All endpoints support `?context=profile|group` parameter
+- **Group Dashboard**: Complete group financial dashboard at `/group-dashboard` with GroupInfoNavbar
+- **Independent Calculations**: Groups have their own income, budgets, and savings calculations
+- **Smart Caching System**: 5-minute cache with context-aware invalidation
+- **Database Migration**: Extended `bank_balances` table with partial unique indexes for groups
+- **API Security**: RLS policies ensuring proper access control for both contexts
+- **Real-time Synchronization**: Automatic cache refresh across both profile and group contexts
 
 ### 💰 Complete Financial Planning System (2025-09-14 - Enhanced)
 - **Interactive Planning Drawer**: Full-screen bottom-to-top drawer with smooth animations
@@ -500,28 +500,38 @@ CREATE TABLE public.real_income_entries (
 - **Optional Link**: `estimated_income_id` (NULL for exceptional income)
 - **Automatic Triggers**: Updates financial snapshots on changes
 
-**`public.bank_balances`**
+**`public.bank_balances` (Extended for Groups)**
 ```sql
 CREATE TABLE public.bank_balances (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL,
+  profile_id uuid,
+  group_id uuid,
   balance numeric NOT NULL DEFAULT 0 CHECK (balance >= 0::numeric),
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT bank_balances_pkey PRIMARY KEY (id),
   CONSTRAINT bank_balances_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES auth.users(id),
-  CONSTRAINT bank_balances_profile_id_unique UNIQUE (profile_id)
+  CONSTRAINT bank_balances_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT bank_balances_owner_exclusive_check CHECK (
+    (profile_id IS NOT NULL AND group_id IS NULL) OR
+    (profile_id IS NULL AND group_id IS NOT NULL)
+  )
 );
+
+-- Partial unique indexes for XOR pattern
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_balances_profile_id_unique
+ON public.bank_balances(profile_id) WHERE profile_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_balances_group_id_unique
+ON public.bank_balances(group_id) WHERE group_id IS NOT NULL;
 ```
 
-**Table Purpose**: Stores editable bank balance for each user
-- **Primary Key**: `id` (UUID) - Unique balance record identifier
-- **Required Fields**: `profile_id`, `balance` (≥ 0)
-- **Foreign Key**: Links to `auth.users(id)` table
-- **Unique Constraint**: One balance record per user
-- **RLS Policies**: Users can only view/modify their own balance
-- **Auto-update Trigger**: `updated_at` automatically managed
-- **Usage**: Replaces calculated available cash in financial dashboard
+**Table Purpose**: Stores editable bank balances for both profiles and groups
+- **XOR Ownership**: Each balance belongs to either a profile OR a group (never both)
+- **Partial Indexes**: Ensure one balance per profile and one per group
+- **Independent Balances**: Profiles and groups have completely separate bank balances
+- **RLS Policies**: Users can only access their own profile balance or their group's balance
+- **Context Support**: APIs use `?context=profile|group` to determine which balance to access
 
 **`public.estimated_budgets`**
 ```sql
@@ -597,7 +607,7 @@ CREATE TABLE public.financial_snapshots (
 - **Benefits**: Better performance, easier debugging, more maintainable code
 - **Migration**: Successfully completed on 2025-09-15 with comprehensive testing
 
-## 📊 Current Session Status (Updated 2025-09-15 - Editable Bank Balance System COMPLETE)
+## 📊 Current Session Status (Updated 2025-09-15 - Dual-Context Financial System COMPLETE)
 - ✅ **Authentication System**: Fully functional and production-ready
 - ✅ **Token Management**: Modern JWT-based sessions implemented
 - ✅ **Security**: Enterprise-level security measures in place
@@ -623,13 +633,12 @@ CREATE TABLE public.financial_snapshots (
 - ✅ **Real-time Dashboard**: Live financial data with loading states and error resilience
 - ✅ **Complete Migration**: Successfully migrated from database triggers to application calculations
 - ✅ **Performance Optimization**: Efficient data aggregation with comprehensive error handling
-- ✅ **Automatic Remaining-to-Live Snapshots**: Full snapshot system saving calculations to database
-- ✅ **Budget Savings Logic Fix**: Corrected economics calculation to 0€ during month (not end-of-month)
-- ✅ **Context Profile/Group Resolution**: Fixed major issue where dashboard used wrong calculation context
-- ✅ **Real-time Synchronization**: Dashboard now updates immediately after budget/income modifications
-- ✅ **Debug APIs**: Comprehensive debugging tools for financial calculations (/api/debug/financial)
-- ✅ **Documentation Complete**: Detailed docs on financial rules and issue resolution
-- ✅ **Editable Bank Balance System**: Complete implementation with modal UI and database integration
-- ✅ **Financial Integration**: Bank balance now directly used as availableBalance in dashboard
-- ✅ **Mobile UX Optimization**: Modal designed to fit mobile screens without scrolling
-- ✅ **API Security**: Full RLS implementation with user-specific bank balance access
+- ✅ **Dual-Context Financial System**: Complete separation of profile and group finances
+- ✅ **Group Dashboard**: Full group financial dashboard with independent calculations
+- ✅ **XOR Database Pattern**: All financial tables enforce profile_id XOR group_id ownership
+- ✅ **Context-Based APIs**: All endpoints support profile/group context separation
+- ✅ **Group Bank Balance**: Groups have independent, editable bank balances
+- ✅ **Database Migration**: Successfully extended bank_balances table with partial unique indexes
+- ✅ **Financial Independence**: Groups have completely separate income, budgets, and savings
+- ✅ **Documentation Complete**: Comprehensive docs on database structure and financial calculations
+- ✅ **API Security**: Full RLS implementation with context-aware access control

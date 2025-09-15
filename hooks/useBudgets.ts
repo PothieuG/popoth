@@ -29,7 +29,7 @@ interface UseBudgetsReturn {
  * Hook pour la gestion des budgets estimés
  * Gère le CRUD complet avec la base de données
  */
-export function useBudgets(): UseBudgetsReturn {
+export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   const [budgets, setBudgets] = useState<EstimatedBudget[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +48,8 @@ export function useBudgets(): UseBudgetsReturn {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/budgets', {
+      const url = context ? `/api/budgets?context=${context}` : '/api/budgets'
+      const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
       })
@@ -67,7 +68,7 @@ export function useBudgets(): UseBudgetsReturn {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [context])
 
   /**
    * Ajoute un nouveau budget
@@ -78,11 +79,11 @@ export function useBudgets(): UseBudgetsReturn {
 
       const requestBody = {
         name: budgetData.name,
-        estimatedAmount: budgetData.estimatedAmount,
-        isGroupBudget: budgetData.isGroupBudget || false
+        estimatedAmount: budgetData.estimatedAmount
       }
 
-      const response = await fetch('/api/budgets', {
+      const url = context ? `/api/budgets?context=${context}` : '/api/budgets'
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -110,7 +111,7 @@ export function useBudgets(): UseBudgetsReturn {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [])
+  }, [context])
 
   /**
    * Met à jour un budget existant

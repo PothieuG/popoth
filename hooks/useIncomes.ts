@@ -29,7 +29,7 @@ interface UseIncomesReturn {
  * Hook pour la gestion des revenus estimés
  * Gère le CRUD complet avec la base de données
  */
-export function useIncomes(): UseIncomesReturn {
+export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
   const [incomes, setIncomes] = useState<EstimatedIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,7 +48,8 @@ export function useIncomes(): UseIncomesReturn {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/incomes', {
+      const url = context ? `/api/incomes?context=${context}` : '/api/incomes'
+      const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
       })
@@ -67,7 +68,7 @@ export function useIncomes(): UseIncomesReturn {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [context])
 
   /**
    * Ajoute un nouveau revenu
@@ -78,11 +79,11 @@ export function useIncomes(): UseIncomesReturn {
 
       const requestBody = {
         name: incomeData.name,
-        estimatedAmount: incomeData.estimatedAmount,
-        isGroupIncome: incomeData.isGroupIncome || false
+        estimatedAmount: incomeData.estimatedAmount
       }
 
-      const response = await fetch('/api/incomes', {
+      const url = context ? `/api/incomes?context=${context}` : '/api/incomes'
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -110,7 +111,7 @@ export function useIncomes(): UseIncomesReturn {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [])
+  }, [context])
 
   /**
    * Met à jour un revenu existant

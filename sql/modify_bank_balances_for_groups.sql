@@ -1,0 +1,7 @@
+-- ⚠️ FICHIER OBSOLÈTE - Remplacé par des scripts en 2 étapes
+--
+-- Ce fichier a été divisé en deux pour éviter les erreurs de transaction :
+-- 1. modify_bank_balances_step1.sql - Modifications de structure (dans une transaction)
+-- 2. modify_bank_balances_step2.sql - Index concurrents (séparément)
+--
+-- N'UTILISEZ PAS ce fichier - utilisez les scripts step1 et step2 dans l'ordre.

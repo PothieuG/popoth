@@ -255,13 +255,14 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
 
     const totalRealExpenses = realExpenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 5. Récupérer les contributions des membres du groupe
-    const { data: contributions } = await supabaseServer
-      .from('group_contributions')
-      .select('contribution_amount')
+    // 5. Récupérer le solde bancaire du groupe (indépendant des membres)
+    const { data: groupBankBalance } = await supabaseServer
+      .from('bank_balances')
+      .select('balance')
       .eq('group_id', groupId)
+      .single()
 
-    const profileContributions = contributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
+    const totalGroupBankBalance = groupBankBalance?.balance || 0
 
     // 6. Calculer les dépenses exceptionnelles
     const exceptionalExpenses = realExpenses
@@ -282,15 +283,21 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     }
 
     // 8. Appliquer les règles de calcul pour groupe
-    const availableBalance = calculateAvailableCash(totalRealIncome + profileContributions, totalRealExpenses)
-    const remainingToLive = calculateRemainingToLiveGroup(
+    // Le solde disponible pour un groupe = somme des soldes bancaires des membres
+    const availableBalance = totalGroupBankBalance
+
+    // Le reste à vivre pour un groupe = revenus estimés - budgets estimés (logique simple)
+    const remainingToLive = totalEstimatedIncome - totalEstimatedBudgets
+
+    console.log('💰 Calcul financier groupe:', {
+      groupId,
       totalEstimatedIncome,
-      totalRealIncome,
-      profileContributions,
       totalEstimatedBudgets,
-      exceptionalExpenses,
+      totalGroupBankBalance,
+      remainingToLive: totalEstimatedIncome - totalEstimatedBudgets,
+      availableBalance: totalGroupBankBalance,
       totalSavings
-    )
+    })
 
     return {
       availableBalance,

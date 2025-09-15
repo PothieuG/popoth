@@ -28,7 +28,7 @@ interface FinancialApiResponse {
  * - Fournit des méthodes pour rafraîchir et invalider le cache
  * - Invalidation automatique lors des modifications de budgets/revenus
  */
-export function useFinancialData(): UseFinancialDataReturn {
+export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinancialDataReturn {
   const [financialData, setFinancialData] = useState<FinancialData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,7 +43,12 @@ export function useFinancialData(): UseFinancialDataReturn {
       setLoading(true)
       setError(null)
 
-      const response = await fetch('/api/financial/dashboard', {
+      // Construire l'URL avec le paramètre de contexte si spécifié
+      const url = forceContext
+        ? `/api/financial/dashboard?context=${forceContext}`
+        : '/api/financial/dashboard'
+
+      const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
       })
@@ -86,7 +91,7 @@ export function useFinancialData(): UseFinancialDataReturn {
     } finally {
       setLoading(false)
     }
-  }, []) // Supprimer la dépendance financialData qui causait la boucle infinie
+  }, [forceContext])
 
   /**
    * Invalide le cache côté serveur

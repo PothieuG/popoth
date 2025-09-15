@@ -10,9 +10,9 @@ interface BankBalanceState {
 
 /**
  * Hook personnalisé pour gérer le solde bancaire éditable
- * Permet de récupérer et mettre à jour le solde bancaire de l'utilisateur
+ * Permet de récupérer et mettre à jour le solde bancaire de l'utilisateur ou du groupe
  */
-export function useBankBalance() {
+export function useBankBalance(context?: 'profile' | 'group') {
   const [state, setState] = useState<BankBalanceState>({
     balance: 0,
     loading: true,
@@ -26,7 +26,8 @@ export function useBankBalance() {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }))
 
-      const response = await fetch('/api/bank-balance')
+      const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
+      const response = await fetch(url)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -69,7 +70,8 @@ export function useBankBalance() {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }))
 
-      const response = await fetch('/api/bank-balance', {
+      const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -111,7 +113,7 @@ export function useBankBalance() {
   // Chargement initial du solde
   useEffect(() => {
     fetchBankBalance()
-  }, [])
+  }, [context])
 
   return {
     balance: state.balance,

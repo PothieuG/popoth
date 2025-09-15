@@ -44,7 +44,7 @@ export default function UserInfoNavbar({ profile, userContribution }: UserInfoNa
     <div className="flex flex-col">
       {/* First line: Greeting */}
       <div className="text-sm font-medium text-gray-900">
-        Bonjour {profile.first_name} !
+        Bonjour <span className="text-orange-600">{profile.first_name}</span> !
       </div>
       
       {/* Second line: Group contribution */}

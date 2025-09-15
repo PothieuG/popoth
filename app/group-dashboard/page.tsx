@@ -4,50 +4,42 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
-import { useGroupContributions } from '@/hooks/useGroupContributions'
+import { useGroupMembers } from '@/hooks/useGroupMembers'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useBankBalance } from '@/hooks/useBankBalance'
-import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
-import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
-import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
+import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 
 /**
- * Dashboard page - main application page for authenticated users
- * Clean interface with sticky navbar, slide-out menu panel, and sticky footer
+ * Group Dashboard page - dashboard view for group finances
+ * Same UI as personal dashboard but with group-specific navbar and data
  */
-export default function DashboardPage() {
+export default function GroupDashboardPage() {
   const { logoutAndRedirect } = useAuth()
-  const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
-  const { getUserContribution, fetchContributions } = useGroupContributions()
-  const { financialData, loading: financialLoading, error: financialError, cached, context, refreshFinancialData } = useFinancialData()
-  const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('profile')
+  const { profile, isLoading } = useProfile()
+  const { members, fetchGroupMembers } = useGroupMembers()
+  const { financialData, loading: financialLoading, error: financialError, refreshFinancialData } = useFinancialData('group')
+  const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('group')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  /**
-   * Gère la création du profil utilisateur
-   */
-  const handleProfileSubmit = async (firstName: string, lastName: string): Promise<boolean> => {
-    const success = await createProfile({ 
-      first_name: firstName, 
-      last_name: lastName 
-    })
-    
-    return success
-  }
+  // Fetch group members when component loads
+  useEffect(() => {
+    if (profile?.group_id && !isLoading) {
+      fetchGroupMembers(profile.group_id)
+    }
+  }, [profile?.group_id, isLoading, fetchGroupMembers])
+
+  // Redirect to personal dashboard if user has no group
+  useEffect(() => {
+    if (!isLoading && profile && !profile.group_id) {
+      window.location.href = '/dashboard'
+    }
+  }, [isLoading, profile])
 
   /**
-   * Gère les erreurs de création de profil
-   */
-  const handleProfileError = (error: string) => {
-    console.error('Erreur lors de la création du profil:', error)
-    // On peut ajouter une toast notification ici plus tard
-  }
-
-  /**
-   * Gère la mise à jour du solde bancaire
+   * Gère la mise à jour du solde bancaire du groupe
    */
   const handleBankBalanceUpdate = async (newBalance: number) => {
     const success = await updateBankBalance(newBalance)
@@ -57,48 +49,24 @@ export default function DashboardPage() {
     }
   }
 
-  // Récupérer les contributions quand le profil est chargé
-  useEffect(() => {
-    if (profile?.group_id && !isLoading) {
-      fetchContributions()
-    }
-  }, [profile?.group_id, isLoading, fetchContributions])
-
-
   // Créer un composant de loader centralisé
   const renderCentralLoader = (message: string) => (
     <div className="flex-1 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-gray-600">{message}</p>
-        {cached && <p className="text-xs text-gray-500 mt-2">Données mises en cache</p>}
       </div>
     </div>
   )
 
-  // Une fois chargé, si pas de profil, montrer la dialog
-  if (!hasProfile) {
-    return (
-      <>
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" />
-        <FirstTimeProfileDialog
-          isOpen={true}
-          onSubmit={handleProfileSubmit}
-          onError={handleProfileError}
-        />
-      </>
-    )
-  }
-
-  // Si profil existe, afficher le dashboard normal
   return (
     <div className="min-h-screen flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
-          <UserInfoNavbar
+          <GroupInfoNavbar
             profile={profile}
-            userContribution={profile?.id ? getUserContribution(profile.id) : null}
+            members={members}
           />
           <UserAvatar
             profile={profile}
@@ -109,8 +77,14 @@ export default function DashboardPage() {
       </nav>
 
       {/* Main Content */}
-      {(isLoading || financialLoading) ? (
-        renderCentralLoader(isLoading ? 'Chargement du profil...' : 'Calcul des données financières...')
+      {(isLoading || financialLoading || !profile?.group_id) ? (
+        renderCentralLoader(
+          isLoading
+            ? 'Chargement du groupe...'
+            : !profile?.group_id
+            ? 'Redirection vers le dashboard personnel...'
+            : 'Calcul des données financières du groupe...'
+        )
       ) : (
         <main className="flex-1 p-4">
           <div className="space-y-6">
@@ -122,7 +96,7 @@ export default function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
                   <div>
-                    <p className="text-red-800 font-medium">Erreur de calcul des données financières</p>
+                    <p className="text-red-800 font-medium">Erreur de calcul des données financières du groupe</p>
                     <p className="text-red-600 text-sm">{financialError}</p>
                   </div>
                 </div>
@@ -133,7 +107,7 @@ export default function DashboardPage() {
                 remainingToLive={financialData?.remainingToLive || 0}
                 totalSavings={financialData?.totalSavings || 0}
                 onPlanningChange={refreshFinancialData}
-                context="profile"
+                context="group"
               />
             )}
           </div>
@@ -144,28 +118,26 @@ export default function DashboardPage() {
       <footer className="sticky bottom-0 z-40 bg-white border-t border-gray-200">
         <div className="flex justify-center items-center p-4 h-16">
           <div className="flex space-x-8">
-            {/* Personal Finance Button - Active state with orange */}
+            {/* Personal Finance Button */}
+            <button
+              onClick={() => window.location.href = '/dashboard'}
+              className="flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-200 hover:bg-gray-50 text-gray-600"
+            >
+              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="text-xs">{profile?.first_name || 'Personnel'}</span>
+            </button>
+
+            {/* Group Finance Button - Active state with orange */}
             <button
               className="flex flex-col items-center justify-center p-3 rounded-lg bg-orange-50 border border-orange-200 transition-colors duration-200"
             >
               <svg className="w-6 h-6 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
-              <span className="text-xs text-orange-600 font-medium">{profile?.first_name || 'Personnel'}</span>
+              <span className="text-xs text-orange-600 font-medium">{profile?.group_name || 'Groupe'}</span>
             </button>
-
-            {/* Group Finance Button - Only visible if user belongs to a group */}
-            {profile?.group_id && (
-              <button
-                onClick={() => window.location.href = '/group-dashboard'}
-                className="flex flex-col items-center justify-center p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-gray-600"
-              >
-                <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span className="text-xs">{profile?.group_name || 'Groupe'}</span>
-              </button>
-            )}
           </div>
         </div>
       </footer>
@@ -179,7 +151,7 @@ export default function DashboardPage() {
           }`}
           onClick={() => setIsMenuOpen(false)}
         />
-        
+
         {/* Menu Panel */}
         <div className={`fixed inset-y-0 right-0 z-50 w-full bg-white shadow-xl transform transition-all duration-300 ease-in-out ${
           isMenuOpen ? 'translate-x-0' : 'translate-x-full'
@@ -187,7 +159,7 @@ export default function DashboardPage() {
           <div className="flex flex-col h-full">
             {/* Menu Header */}
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Paramètres</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Paramètres du groupe</h2>
               <Button
                 variant="ghost"
                 size="sm"
@@ -199,7 +171,7 @@ export default function DashboardPage() {
                 </svg>
               </Button>
             </div>
-            
+
             {/* Menu Content */}
             <div className="flex-1 p-4">
               {/* Navigation Links */}
@@ -219,18 +191,15 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
-              {/* Profil utilisateur */}
-              {profile && (
-                <div className="space-y-4">
-                  <ProfileSettingsCard className="bg-transparent border-0 shadow-none p-0" />
-                  <EditableBalanceLine
-                    currentBalance={bankBalance}
-                    onBalanceUpdate={handleBankBalanceUpdate}
-                  />
-                </div>
-              )}
+              {/* Solde bancaire du groupe */}
+              <div className="space-y-4">
+                <EditableBalanceLine
+                  currentBalance={bankBalance}
+                  onBalanceUpdate={handleBankBalanceUpdate}
+                />
+              </div>
             </div>
-            
+
             {/* Menu Footer with Logout */}
             <div className="p-4 border-t border-gray-200">
               <Button
@@ -244,7 +213,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </>
-
     </div>
   )
 }
