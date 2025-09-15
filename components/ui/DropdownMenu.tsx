@@ -12,13 +12,20 @@ interface DropdownMenuItem {
 interface DropdownMenuProps {
   items: DropdownMenuItem[]
   triggerClassName?: string
+  buttonClassName?: string
+  buttonContent?: React.ReactNode
 }
 
 /**
  * Composant menu dropdown avec icône 3 points verticaux
  * Affiche un menu contextuel avec différentes options
  */
-export default function DropdownMenu({ items, triggerClassName }: DropdownMenuProps) {
+export default function DropdownMenu({
+  items,
+  triggerClassName,
+  buttonClassName,
+  buttonContent
+}: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -44,16 +51,21 @@ export default function DropdownMenu({ items, triggerClassName }: DropdownMenuPr
       {/* Bouton trigger avec 3 points verticaux */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-gray-100 ${triggerClassName}`}
+        className={
+          buttonClassName ||
+          `w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:bg-gray-100 ${triggerClassName || ''}`
+        }
         aria-label="Options"
       >
-        <svg
-          className="w-4 h-4 text-gray-500"
-          fill="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-        </svg>
+        {buttonContent || (
+          <svg
+            className="w-4 h-4 text-gray-500"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+          </svg>
+        )}
       </button>
 
       {/* Menu dropdown */}

@@ -305,6 +305,18 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Balance Calculations**: Dynamic footer showing real-time difference between total incomes and budgets
 - **Cache Invalidation**: Automatic financial cache refresh after all CRUD operations
 
+### 💳 Complete Real Transaction Management System (2025-09-15 - NEW)
+- **Dual Transaction Types**: Complete expense and income entry system with exceptional/budgeted categorization
+- **Real-time Transaction Tracking**: Live transaction lists with sorting by date (most recent first)
+- **XOR Database Integration**: Full integration with existing `real_expenses` and `real_income_entries` tables
+- **Context-Aware Operations**: Complete support for both profile and group transaction management
+- **Smart Categorization System**: Automatic distinction between exceptional and budgeted/estimated transactions
+- **Advanced CRUD Operations**: Full create, read, update, delete functionality with real-time cache invalidation
+- **Intelligent Modal System**: Adaptive transaction creation modal with context-sensitive forms
+- **Mobile-Optimized Interface**: Three-tab footer navigation with prominent add transaction functionality
+- **Transaction List Display**: 3-line layout showing description, category, and timestamp with proper color coding
+- **Professional UX Design**: Consistent iconography, subtle backgrounds, and optimized spacing throughout
+
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
 - **Supabase authentication** with `signUp()` and `signInWithPassword()`
@@ -334,7 +346,9 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 │   ├── useFinancialData.ts             # Financial data management with caching
 │   ├── useBudgets.ts                   # Budget CRUD operations with cache invalidation
 │   ├── useIncomes.ts                   # Income CRUD operations with cache invalidation
-│   └── useBankBalance.ts               # Bank balance management with error handling
+│   ├── useBankBalance.ts               # Bank balance management with error handling
+│   ├── useRealExpenses.ts              # Real expense CRUD operations with context support
+│   └── useRealIncomes.ts               # Real income CRUD operations with context support
 ├── components/
 │   ├── ui/
 │   │   ├── DropdownMenu.tsx            # Reusable 3-dot dropdown menu component
@@ -343,18 +357,25 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 │       ├── EditBudgetDialog.tsx        # Budget editing modal with validation
 │       ├── EditIncomeDialog.tsx        # Income editing modal with validation
 │       ├── EditableBalanceLine.tsx     # Bank balance line with pencil edit icon
-│       └── EditBalanceModal.tsx        # Bank balance editing modal with explanations
+│       ├── EditBalanceModal.tsx        # Bank balance editing modal with explanations
+│       ├── AddTransactionModal.tsx     # Unified transaction creation modal (expenses/incomes)
+│       ├── TransactionTabsComponent.tsx # Main transaction tabs interface with lists
+│       └── TransactionListItem.tsx     # Individual transaction display component
 ├── app/
 │   ├── api/
 │   │   ├── auth/session/route.ts       # Authentication API endpoint
 │   │   ├── financial/dashboard/route.ts # Financial data API with smart caching
 │   │   ├── budgets/route.ts            # Budget CRUD API endpoints
 │   │   ├── incomes/route.ts            # Income CRUD API endpoints
-│   │   └── bank-balance/route.ts       # Bank balance GET/POST API endpoints
+│   │   ├── bank-balance/route.ts       # Bank balance GET/POST API endpoints
+│   │   └── finances/
+│   │       ├── expenses/real/route.ts  # Real expenses CRUD API with context support
+│   │       └── income/real/route.ts    # Real income entries CRUD API with context support
 │   ├── layout.tsx                      # AuthProvider wrapper
 │   ├── connexion/page.tsx              # Login page
 │   ├── inscription/page.tsx            # Registration page
-│   └── dashboard/page.tsx              # Protected dashboard with live financial data
+│   ├── dashboard/page.tsx              # Protected dashboard with transaction management
+│   └── group-dashboard/page.tsx        # Group dashboard with transaction management
 ```
 
 ### 🔐 Security Features
@@ -642,3 +663,7 @@ CREATE TABLE public.financial_snapshots (
 - ✅ **Financial Independence**: Groups have completely separate income, budgets, and savings
 - ✅ **Documentation Complete**: Comprehensive docs on database structure and financial calculations
 - ✅ **API Security**: Full RLS implementation with context-aware access control
+- ✅ **Real Transaction Management**: Complete expense and income tracking system with dual-context support (2025-09-15)
+- ✅ **Advanced Transaction Interface**: Mobile-optimized 3-tab footer with transaction listing and management
+- ✅ **Smart Transaction Categorization**: Automatic exceptional vs budgeted/estimated transaction handling
+- ✅ **Transaction CRUD Operations**: Full create, read, update, delete with cache invalidation and real-time updates

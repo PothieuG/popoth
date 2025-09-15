@@ -13,6 +13,8 @@ import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
+import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
+import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -25,6 +27,7 @@ export default function DashboardPage() {
   const { financialData, loading: financialLoading, error: financialError, cached, context, refreshFinancialData } = useFinancialData()
   const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('profile')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
 
   /**
    * Gère la création du profil utilisateur
@@ -55,6 +58,14 @@ export default function DashboardPage() {
       // Rafraîchir les données financières après la mise à jour du solde
       refreshFinancialData()
     }
+  }
+
+  /**
+   * Gère l'ajout d'une transaction
+   */
+  const handleTransactionAdded = () => {
+    // Rafraîchir les données financières après l'ajout d'une transaction
+    refreshFinancialData()
   }
 
   // Récupérer les contributions quand le profil est chargé
@@ -92,7 +103,7 @@ export default function DashboardPage() {
 
   // Si profil existe, afficher le dashboard normal
   return (
-    <div className="min-h-screen flex flex-col bg-blue-50/50">
+    <div className="h-screen flex flex-col bg-blue-50/50 overflow-hidden">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -112,11 +123,11 @@ export default function DashboardPage() {
       {(isLoading || financialLoading) ? (
         renderCentralLoader(isLoading ? 'Chargement du profil...' : 'Calcul des données financières...')
       ) : (
-        <main className="flex-1 p-4">
-          <div className="space-y-6">
+        <main className="flex-1 p-4 flex flex-col overflow-hidden">
+          <div className="flex flex-col space-y-6 flex-1 overflow-hidden">
             {/* Financial Indicators */}
             {financialError ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex-shrink-0">
                 <div className="flex items-center space-x-2">
                   <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
@@ -128,13 +139,25 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <FinancialIndicators
-                availableBalance={financialData?.availableBalance || 0}
-                remainingToLive={financialData?.remainingToLive || 0}
-                totalSavings={financialData?.totalSavings || 0}
-                onPlanningChange={refreshFinancialData}
-                context="profile"
-              />
+              <>
+                <div className="flex-shrink-0">
+                  <FinancialIndicators
+                    availableBalance={financialData?.availableBalance || 0}
+                    remainingToLive={financialData?.remainingToLive || 0}
+                    totalSavings={financialData?.totalSavings || 0}
+                    onPlanningChange={refreshFinancialData}
+                    context="profile"
+                  />
+                </div>
+
+                {/* Transaction Tabs Component - Scrollable */}
+                <div className="flex-1 overflow-hidden">
+                  <TransactionTabsComponent
+                    context="profile"
+                    className="h-full"
+                  />
+                </div>
+              </>
             )}
           </div>
         </main>
@@ -142,31 +165,49 @@ export default function DashboardPage() {
 
       {/* Navigation Footer */}
       <footer className="sticky bottom-0 z-40 bg-white border-t border-gray-200">
-        <div className="flex justify-center items-center p-4 h-16">
-          <div className="flex space-x-8">
-            {/* Personal Finance Button - Active state with orange */}
-            <button
-              className="flex flex-col items-center justify-center p-3 rounded-lg bg-orange-50 border border-orange-200 transition-colors duration-200"
-            >
-              <svg className="w-6 h-6 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="text-xs text-orange-600 font-medium">{profile?.first_name || 'Personnel'}</span>
-            </button>
+        <div className="grid grid-cols-3 h-16">
+          {/* Personal Finance Tab - Active state */}
+          <button
+            className="flex flex-col items-center justify-center p-3 bg-orange-50 border-r border-gray-200 transition-colors duration-200"
+          >
+            <svg className="w-5 h-5 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span className="text-xs text-orange-600 font-medium">{profile?.first_name || 'Personnel'}</span>
+          </button>
 
-            {/* Group Finance Button - Only visible if user belongs to a group */}
-            {profile?.group_id && (
-              <button
-                onClick={() => window.location.href = '/group-dashboard'}
-                className="flex flex-col items-center justify-center p-3 rounded-lg hover:bg-gray-50 transition-colors duration-200 text-gray-600"
-              >
-                <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <span className="text-xs">{profile?.group_name || 'Groupe'}</span>
-              </button>
-            )}
-          </div>
+          {/* Group Finance Tab - Only visible if user belongs to a group */}
+          {profile?.group_id ? (
+            <button
+              onClick={() => window.location.href = '/group-dashboard'}
+              className="flex flex-col items-center justify-center p-3 border-r border-gray-200 hover:bg-gray-50 transition-colors duration-200 text-gray-600"
+            >
+              <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="text-xs">{profile?.group_name || 'Groupe'}</span>
+            </button>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-3 border-r border-gray-200 text-gray-400">
+              <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="text-xs">Aucun groupe</span>
+            </div>
+          )}
+
+          {/* Add Transaction Tab - Orange border style */}
+          <button
+            onClick={() => setIsAddTransactionModalOpen(true)}
+            className="flex flex-col items-center justify-center p-3 border-4 border-orange-500 hover:border-orange-600 transition-colors duration-200"
+          >
+            <div className="w-6 h-6 mb-1 bg-orange-500 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <span className="text-xs text-orange-500 font-medium">Ajouter</span>
+          </button>
         </div>
       </footer>
 
@@ -244,6 +285,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </>
+
+      {/* Add Transaction Modal */}
+      <AddTransactionModal
+        isOpen={isAddTransactionModalOpen}
+        onClose={() => setIsAddTransactionModalOpen(false)}
+        context="profile"
+        onTransactionAdded={handleTransactionAdded}
+      />
 
     </div>
   )

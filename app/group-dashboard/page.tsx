@@ -11,6 +11,8 @@ import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
+import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
+import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 
 /**
  * Group Dashboard page - dashboard view for group finances
@@ -23,6 +25,7 @@ export default function GroupDashboardPage() {
   const { financialData, loading: financialLoading, error: financialError, refreshFinancialData } = useFinancialData('group')
   const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('group')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
 
   // Fetch group members when component loads
   useEffect(() => {
@@ -49,6 +52,14 @@ export default function GroupDashboardPage() {
     }
   }
 
+  /**
+   * Gère l'ajout d'une transaction
+   */
+  const handleTransactionAdded = () => {
+    // Rafraîchir les données financières après l'ajout d'une transaction
+    refreshFinancialData()
+  }
+
   // Créer un composant de loader centralisé
   const renderCentralLoader = (message: string) => (
     <div className="flex-1 flex items-center justify-center">
@@ -60,7 +71,7 @@ export default function GroupDashboardPage() {
   )
 
   return (
-    <div className="min-h-screen flex flex-col bg-blue-50/50">
+    <div className="h-screen flex flex-col bg-blue-50/50 overflow-hidden">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -102,13 +113,21 @@ export default function GroupDashboardPage() {
                 </div>
               </div>
             ) : (
-              <FinancialIndicators
-                availableBalance={financialData?.availableBalance || 0}
-                remainingToLive={financialData?.remainingToLive || 0}
-                totalSavings={financialData?.totalSavings || 0}
-                onPlanningChange={refreshFinancialData}
-                context="group"
-              />
+              <>
+                <FinancialIndicators
+                  availableBalance={financialData?.availableBalance || 0}
+                  remainingToLive={financialData?.remainingToLive || 0}
+                  totalSavings={financialData?.totalSavings || 0}
+                  onPlanningChange={refreshFinancialData}
+                  context="group"
+                />
+
+                {/* Transaction Tabs Component */}
+                <TransactionTabsComponent
+                  context="group"
+                  className="mt-6"
+                />
+              </>
             )}
           </div>
         </main>
@@ -116,7 +135,8 @@ export default function GroupDashboardPage() {
 
       {/* Navigation Footer */}
       <footer className="sticky bottom-0 z-40 bg-white border-t border-gray-200">
-        <div className="flex justify-center items-center p-4 h-16">
+        <div className="flex justify-between items-center p-4 h-16">
+          {/* Left side - Navigation buttons */}
           <div className="flex space-x-8">
             {/* Personal Finance Button */}
             <button
@@ -139,6 +159,16 @@ export default function GroupDashboardPage() {
               <span className="text-xs text-orange-600 font-medium">{profile?.group_name || 'Groupe'}</span>
             </button>
           </div>
+
+          {/* Right side - Add Transaction Button - Orange border style */}
+          <button
+            onClick={() => setIsAddTransactionModalOpen(true)}
+            className="flex items-center justify-center p-4 border-4 border-orange-500 hover:border-orange-600 rounded-full transition-all duration-200 transform hover:scale-105"
+          >
+            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
         </div>
       </footer>
 
@@ -213,6 +243,14 @@ export default function GroupDashboardPage() {
           </div>
         </div>
       </>
+
+      {/* Add Transaction Modal */}
+      <AddTransactionModal
+        isOpen={isAddTransactionModalOpen}
+        onClose={() => setIsAddTransactionModalOpen(false)}
+        context="group"
+        onTransactionAdded={handleTransactionAdded}
+      />
     </div>
   )
 }
