@@ -3,9 +3,9 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export interface GroupMember {
@@ -28,7 +28,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const groupId = params.id
+    const resolvedParams = await params
+    const groupId = resolvedParams.id
     const supabase = supabaseServer
 
     // Get user's profile to check group membership
@@ -104,7 +105,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const groupId = params.id
+    const resolvedParams = await params
+    const groupId = resolvedParams.id
     const supabase = supabaseServer
 
     // Get user's profile and current group status
@@ -189,7 +191,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const groupId = params.id
+    const resolvedParams = await params
+    const groupId = resolvedParams.id
     const supabase = supabaseServer
 
     // Get user's profile and group information

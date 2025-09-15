@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
+import { useFinancialData } from '@/hooks/useFinancialData'
 import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
@@ -19,9 +20,8 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
+  const { financialData, loading: financialLoading, error: financialError, cached, context } = useFinancialData()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-
-  // Dashboard state simplified
 
   /**
    * Gère la création du profil utilisateur
@@ -51,13 +51,16 @@ export default function DashboardPage() {
   }, [profile?.group_id, isLoading, fetchContributions])
 
 
-  // Afficher loader pendant le chargement
-  if (isLoading) {
+  // Afficher loader pendant le chargement du profil ou des données financières
+  if (isLoading || financialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Chargement...</p>
+          <p className="text-gray-600">
+            {isLoading ? 'Chargement du profil...' : 'Calcul des données financières...'}
+          </p>
+          {cached && <p className="text-xs text-gray-500 mt-2">Données mises en cache</p>}
         </div>
       </div>
     )
@@ -99,19 +102,48 @@ export default function DashboardPage() {
       <main className="flex-1 p-4">
         <div className="space-y-6">
           {/* Financial Indicators */}
-          <FinancialIndicators 
-            availableBalance={1250.75}
-            remainingToLive={-150.25}
-            totalSavings={1298.00}
-          />
-          
+          {financialError ? (
+            <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <div>
+                  <p className="text-red-800 font-medium">Erreur de calcul des données financières</p>
+                  <p className="text-red-600 text-sm">{financialError}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <FinancialIndicators
+              availableBalance={financialData?.availableBalance || 0}
+              remainingToLive={financialData?.remainingToLive || 0}
+              totalSavings={financialData?.totalSavings || 0}
+            />
+          )}
+
+          {/* Debug info en développement */}
+          {process.env.NODE_ENV === 'development' && financialData && (
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs space-y-1">
+              <p><strong>Context:</strong> {context}</p>
+              <p><strong>Cached:</strong> {cached ? '✅ Oui' : '❌ Non'}</p>
+              <p><strong>Total revenus estimés:</strong> {financialData.totalEstimatedIncome}€</p>
+              <p><strong>Total budgets estimés:</strong> {financialData.totalEstimatedBudgets}€</p>
+              <p><strong>Total revenus réels:</strong> {financialData.totalRealIncome}€</p>
+              <p><strong>Total dépenses réelles:</strong> {financialData.totalRealExpenses}€</p>
+            </div>
+          )}
+
           {/* Placeholder for future financial features */}
           <div className="text-center py-12">
             <h2 className="text-xl font-semibold text-gray-900 mb-2">
               Gestion financière
             </h2>
             <p className="text-gray-600">
-              Les fonctionnalités financières seront développées selon vos besoins
+              Vos données financières sont maintenant calculées automatiquement
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              Utilisez la planification pour ajouter des budgets et revenus
             </p>
           </div>
         </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useFinancialCacheInvalidation } from '@/hooks/useFinancialData'
 
 interface EstimatedIncome {
   id: string
@@ -18,6 +19,7 @@ interface UseIncomesReturn {
   loading: boolean
   error: string | null
   addIncome: (incomeData: { name: string; estimatedAmount: number; isGroupIncome?: boolean }) => Promise<boolean>
+  updateIncome: (incomeId: string, incomeData: { name: string; estimatedAmount: number }) => Promise<boolean>
   deleteIncome: (incomeId: string) => Promise<boolean>
   refreshIncomes: () => Promise<void>
   totalIncomes: number
@@ -31,6 +33,7 @@ export function useIncomes(): UseIncomesReturn {
   const [incomes, setIncomes] = useState<EstimatedIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const { invalidateCache } = useFinancialCacheInvalidation()
 
   /**
    * Calcule le total des revenus estimés
@@ -101,9 +104,65 @@ export function useIncomes(): UseIncomesReturn {
       const data = await response.json()
       console.log('✅ Revenu créé avec succès:', data.income)
       setIncomes(prev => [data.income, ...prev])
+
+      // Invalider le cache des données financières
+      await invalidateCache()
+      console.log('🗑️ Cache financier invalidé après ajout de revenu')
+
       return true
     } catch (err) {
       console.error('Erreur lors de l\'ajout du revenu:', err)
+      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      return false
+    }
+  }, [])
+
+  /**
+   * Met à jour un revenu existant
+   */
+  const updateIncome = useCallback(async (incomeId: string, incomeData: { name: string; estimatedAmount: number }): Promise<boolean> => {
+    try {
+      console.log('🔄 Mise à jour revenu - Début:', incomeId, incomeData)
+      setError(null)
+
+      const requestBody = {
+        name: incomeData.name,
+        estimatedAmount: incomeData.estimatedAmount
+      }
+      console.log('📤 Données envoyées:', requestBody)
+
+      const response = await fetch(`/api/incomes?id=${incomeId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestBody)
+      })
+
+      console.log('📥 Réponse reçue:', response.status, response.statusText)
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Erreur API revenu:', response.status, errorData)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      console.log('✅ Revenu mis à jour avec succès:', data.income)
+
+      // Met à jour le revenu dans la liste
+      setIncomes(prev => prev.map(income =>
+        income.id === incomeId ? data.income : income
+      ))
+
+      // Invalider le cache des données financières
+      await invalidateCache()
+      console.log('🗑️ Cache financier invalidé après modification de revenu')
+
+      return true
+    } catch (err) {
+      console.error('Erreur lors de la mise à jour du revenu:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
@@ -126,6 +185,11 @@ export function useIncomes(): UseIncomesReturn {
       }
 
       setIncomes(prev => prev.filter(income => income.id !== incomeId))
+
+      // Invalider le cache des données financières
+      await invalidateCache()
+      console.log('🗑️ Cache financier invalidé après suppression de revenu')
+
       return true
     } catch (err) {
       console.error('Erreur lors de la suppression du revenu:', err)
@@ -151,6 +215,7 @@ export function useIncomes(): UseIncomesReturn {
     loading,
     error,
     addIncome,
+    updateIncome,
     deleteIncome,
     refreshIncomes,
     totalIncomes

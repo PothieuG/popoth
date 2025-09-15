@@ -8,7 +8,6 @@ export interface EstimatedBudgetData {
   group_id?: string
   name: string
   estimated_amount: number
-  current_savings: number
   is_monthly_recurring: boolean
   created_at: string
   updated_at: string
@@ -148,7 +147,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       estimated_amount,
       is_monthly_recurring,
-      current_savings: estimated_amount // Initially, all budget is considered savings
+      // current_savings calculated dynamically in application
     }
 
     if (is_for_group) {
@@ -256,7 +255,7 @@ export async function PUT(request: NextRequest) {
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
       const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-      updates.current_savings = Math.max(0, estimated_amount - spentThisMonth)
+      // current_savings calculated dynamically in application, not stored
     }
 
     if (is_monthly_recurring !== undefined) {

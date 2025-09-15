@@ -14,7 +14,6 @@ interface EstimatedBudget {
   group_id?: string
   name: string
   estimated_amount: number
-  current_savings: number
   is_monthly_recurring: boolean
   created_at: string
   updated_at: string
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
     
     const { data: budgets, error } = await supabase
       .from('estimated_budgets')
-      .select('*')
+      .select('id, profile_id, group_id, name, estimated_amount, is_monthly_recurring, created_at, updated_at')
       .or(orConditions)
       .order('created_at', { ascending: false })
 
@@ -137,7 +136,6 @@ export async function POST(request: NextRequest) {
     const budgetData = {
       name: name.trim(),
       estimated_amount: estimatedAmount,
-      current_savings: 0, // Sera calculé automatiquement par les triggers
       is_monthly_recurring: true, // Par défaut mensuel
       ...(isGroupBudget ? { group_id: profile.group_id } : { profile_id: userId })
     }
@@ -161,6 +159,112 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Erreur dans POST /api/budgets:', error)
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    console.log('🔄 API PUT /api/budgets - Début')
+
+    const sessionData = await validateSessionToken(request)
+    const userId = sessionData?.userId
+    console.log('🔐 Session validation:', userId ? '✅ Valid' : '❌ Invalid')
+
+    if (!userId) {
+      console.log('❌ Utilisateur non autorisé')
+      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const budgetId = searchParams.get('id')
+
+    if (!budgetId) {
+      return NextResponse.json({ error: 'ID du budget requis' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    console.log('📥 Données reçues:', body)
+
+    const { name, estimatedAmount } = body
+
+    // Validation des données
+    console.log('🔍 Validation - name:', name, 'type:', typeof name)
+    console.log('🔍 Validation - estimatedAmount:', estimatedAmount, 'type:', typeof estimatedAmount)
+
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      console.log('❌ Validation échouée: nom invalide')
+      return NextResponse.json({ error: 'Le nom du budget est requis (minimum 2 caractères)' }, { status: 400 })
+    }
+
+    if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
+      console.log('❌ Validation échouée: montant invalide')
+      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
+    }
+
+    const supabase = supabaseServer
+
+    // Récupérer les informations du profil
+    console.log('📊 Récupération du profil pour userId:', userId)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, group_id')
+      .eq('id', userId)
+      .single()
+
+    if (profileError || !profile) {
+      console.error('❌ Erreur récupération profil:', profileError)
+      return NextResponse.json({ error: 'Erreur lors de la récupération du profil' }, { status: 500 })
+    }
+
+    console.log('✅ Profil trouvé:', profile)
+
+    // Préparer les données de mise à jour
+    const updateData = {
+      name: name.trim(),
+      estimated_amount: estimatedAmount,
+      updated_at: new Date().toISOString()
+    }
+
+    console.log('💾 Données budget à mettre à jour:', updateData)
+
+    // Vérifier d'abord que le budget appartient à l'utilisateur ou à son groupe
+    let ownershipCondition = `profile_id.eq.${userId}`
+    if (profile.group_id) {
+      ownershipCondition += `,group_id.eq.${profile.group_id}`
+    }
+
+    // Vérifier l'existence et les permissions
+    const { data: existingBudget } = await supabase
+      .from('estimated_budgets')
+      .select('id, profile_id, group_id, name, estimated_amount, is_monthly_recurring, created_at, updated_at')
+      .eq('id', budgetId)
+      .or(ownershipCondition)
+      .single()
+
+    if (!existingBudget) {
+      console.log('❌ Budget non trouvé ou accès non autorisé')
+      return NextResponse.json({ error: 'Budget non trouvé ou accès non autorisé' }, { status: 404 })
+    }
+
+    // Mettre à jour le budget
+    const { data: budget, error } = await supabase
+      .from('estimated_budgets')
+      .update(updateData)
+      .eq('id', budgetId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Erreur lors de la mise à jour du budget:', error)
+      return NextResponse.json({ error: 'Erreur lors de la mise à jour du budget' }, { status: 500 })
+    }
+
+    console.log('✅ Budget mis à jour avec succès:', budget)
+    return NextResponse.json({ budget })
+
+  } catch (error) {
+    console.error('Erreur dans PUT /api/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -193,18 +297,30 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
 
-    // Supprimer le budget (seulement si c'est le sien ou de son groupe)
-    let query = supabase
+    // Vérifier d'abord que le budget appartient à l'utilisateur ou à son groupe
+    let ownershipCondition = `profile_id.eq.${userId}`
+    if (profile.group_id) {
+      ownershipCondition += `,group_id.eq.${profile.group_id}`
+    }
+
+    // Vérifier l'existence et les permissions
+    const { data: existingBudget } = await supabase
+      .from('estimated_budgets')
+      .select('*')
+      .eq('id', budgetId)
+      .or(ownershipCondition)
+      .single()
+
+    if (!existingBudget) {
+      console.log('❌ Budget non trouvé ou accès non autorisé pour suppression')
+      return NextResponse.json({ error: 'Budget non trouvé ou accès non autorisé' }, { status: 404 })
+    }
+
+    // Supprimer le budget
+    const { error } = await supabase
       .from('estimated_budgets')
       .delete()
       .eq('id', budgetId)
-      .or(`profile_id.eq.${userId}`)
-
-    if (profile.group_id) {
-      query = query.or(`group_id.eq.${profile.group_id}`)
-    }
-
-    const { error } = await query
 
     if (error) {
       console.error('Erreur lors de la suppression du budget:', error)

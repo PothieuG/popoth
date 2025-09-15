@@ -32,7 +32,6 @@ export interface FinancialDashboardData {
     id: string
     name: string
     estimated_amount: number
-    current_savings: number
     spent_this_month: number
     is_monthly_recurring: boolean
   }>
@@ -229,7 +228,7 @@ export async function GET(request: NextRequest) {
     // Get estimated budgets with spending calculation
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, current_savings, is_monthly_recurring')
+      .select('id, name, estimated_amount, is_monthly_recurring')
       .match(ownerCondition)
       .order('created_at', { ascending: false })
 
@@ -291,8 +290,8 @@ export async function GET(request: NextRequest) {
     const totalEstimatedBudgets = (estimatedBudgets || []).reduce((sum, budget) => 
       sum + (budget.is_monthly_recurring ? budget.estimated_amount : 0), 0)
 
-    const totalSavings = (budgetsWithSpending || []).reduce((sum, budget) => 
-      sum + budget.current_savings, 0)
+    const totalSavings = (budgetsWithSpending || []).reduce((sum, budget) =>
+      sum + Math.max(0, budget.estimated_amount - budget.spent_this_month), 0)
 
     // Build dashboard data using database calculations
     const dashboardData: FinancialDashboardData = {

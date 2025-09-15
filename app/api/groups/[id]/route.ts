@@ -3,9 +3,9 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export interface UpdateGroupRequest {

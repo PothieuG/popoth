@@ -4,6 +4,10 @@ import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import AddBudgetDialog from './AddBudgetDialog'
 import AddIncomeDialog from './AddIncomeDialog'
+import EditBudgetDialog from './EditBudgetDialog'
+import EditIncomeDialog from './EditIncomeDialog'
+import DropdownMenu from '../ui/DropdownMenu'
+import ConfirmationDialog from '../ui/ConfirmationDialog'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 
@@ -22,26 +26,39 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
+
+  // États pour l'édition
+  const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false)
+  const [isEditIncomeOpen, setIsEditIncomeOpen] = useState(false)
+  const [editingBudget, setEditingBudget] = useState<any>(null)
+  const [editingIncome, setEditingIncome] = useState<any>(null)
+
+  // États pour la confirmation de suppression
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [deletingItem, setDeletingItem] = useState<{ id: string; name: string; type: 'budget' | 'income' } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   
   // Hooks pour la gestion des données
-  const { 
-    budgets, 
-    loading: budgetsLoading, 
-    error: budgetsError, 
-    addBudget, 
-    deleteBudget, 
+  const {
+    budgets,
+    loading: budgetsLoading,
+    error: budgetsError,
+    addBudget,
+    updateBudget,
+    deleteBudget,
     refreshBudgets,
-    totalBudgets 
+    totalBudgets
   } = useBudgets()
   
-  const { 
-    incomes, 
-    loading: incomesLoading, 
-    error: incomesError, 
-    addIncome, 
-    deleteIncome, 
+  const {
+    incomes,
+    loading: incomesLoading,
+    error: incomesError,
+    addIncome,
+    updateIncome,
+    deleteIncome,
     refreshIncomes,
-    totalIncomes 
+    totalIncomes
   } = useIncomes()
 
   // Refresh des données quand le drawer s'ouvre
@@ -89,17 +106,75 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
   }
 
   /**
-   * Gestion de la suppression d'un budget
+   * Gestion de l'édition d'un budget
    */
-  const handleDeleteBudget = async (budgetId: string) => {
-    await deleteBudget(budgetId)
+  const handleEditBudget = (budget: any) => {
+    setEditingBudget(budget)
+    setIsEditBudgetOpen(true)
   }
 
   /**
-   * Gestion de la suppression d'un revenu
+   * Gestion de l'édition d'un revenu
    */
-  const handleDeleteIncome = async (incomeId: string) => {
-    await deleteIncome(incomeId)
+  const handleEditIncome = (income: any) => {
+    setEditingIncome(income)
+    setIsEditIncomeOpen(true)
+  }
+
+  /**
+   * Gestion de la sauvegarde d'un budget édité
+   */
+  const handleSaveEditedBudget = async (budgetData: { name: string; estimatedAmount: number }) => {
+    if (!editingBudget) return false
+    const success = await updateBudget(editingBudget.id, budgetData)
+    if (success) {
+      setIsEditBudgetOpen(false)
+      setEditingBudget(null)
+    }
+    return success
+  }
+
+  /**
+   * Gestion de la sauvegarde d'un revenu édité
+   */
+  const handleSaveEditedIncome = async (incomeData: { name: string; estimatedAmount: number }) => {
+    if (!editingIncome) return false
+    const success = await updateIncome(editingIncome.id, incomeData)
+    if (success) {
+      setIsEditIncomeOpen(false)
+      setEditingIncome(null)
+    }
+    return success
+  }
+
+  /**
+   * Demande de confirmation de suppression
+   */
+  const handleRequestDelete = (item: { id: string; name: string }, type: 'budget' | 'income') => {
+    setDeletingItem({ id: item.id, name: item.name, type })
+    setIsDeleteConfirmOpen(true)
+  }
+
+  /**
+   * Confirmation de la suppression
+   */
+  const handleConfirmDelete = async () => {
+    if (!deletingItem) return
+
+    setIsDeleting(true)
+    let success = false
+
+    if (deletingItem.type === 'budget') {
+      success = await deleteBudget(deletingItem.id)
+    } else {
+      success = await deleteIncome(deletingItem.id)
+    }
+
+    if (success) {
+      setIsDeleteConfirmOpen(false)
+      setDeletingItem(null)
+    }
+    setIsDeleting(false)
   }
 
   return (
@@ -255,15 +330,29 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
                           <div className="text-right">
                             <p className="font-bold text-orange-700">{formatAmount(budget.estimated_amount)}</p>
                           </div>
-                          <button
-                            onClick={() => handleDeleteBudget(budget.id)}
-                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors"
-                            title="Supprimer ce budget"
-                          >
-                            <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          <DropdownMenu
+                            items={[
+                              {
+                                label: 'Modifier',
+                                icon: (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                                onClick: () => handleEditBudget(budget)
+                              },
+                              {
+                                label: 'Supprimer',
+                                icon: (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                ),
+                                onClick: () => handleRequestDelete(budget, 'budget'),
+                                variant: 'danger' as const
+                              }
+                            ]}
+                          />
                         </div>
                       </div>
                     </div>
@@ -330,15 +419,29 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
                           <div className="text-right">
                             <p className="font-bold text-green-700">{formatAmount(income.estimated_amount)}</p>
                           </div>
-                          <button
-                            onClick={() => handleDeleteIncome(income.id)}
-                            className="w-6 h-6 rounded-full bg-red-100 hover:bg-red-200 flex items-center justify-center transition-colors"
-                            title="Supprimer ce revenu"
-                          >
-                            <svg className="w-3 h-3 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          <DropdownMenu
+                            items={[
+                              {
+                                label: 'Modifier',
+                                icon: (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                                onClick: () => handleEditIncome(income)
+                              },
+                              {
+                                label: 'Supprimer',
+                                icon: (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                ),
+                                onClick: () => handleRequestDelete(income, 'income'),
+                                variant: 'danger' as const
+                              }
+                            ]}
+                          />
                         </div>
                       </div>
                     </div>
@@ -379,6 +482,41 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
           onClose={() => setIsAddIncomeOpen(false)}
           onSave={handleAddIncome}
           currentIncomesTotal={totalIncomes}
+        />
+
+        {/* Edit Budget Dialog */}
+        <EditBudgetDialog
+          isOpen={isEditBudgetOpen}
+          onClose={() => setIsEditBudgetOpen(false)}
+          onSave={handleSaveEditedBudget}
+          budget={editingBudget}
+          currentBudgetsTotal={totalBudgets}
+          totalEstimatedIncome={totalIncomes}
+        />
+
+        {/* Edit Income Dialog */}
+        <EditIncomeDialog
+          isOpen={isEditIncomeOpen}
+          onClose={() => setIsEditIncomeOpen(false)}
+          onSave={handleSaveEditedIncome}
+          income={editingIncome}
+          currentIncomesTotal={totalIncomes}
+        />
+
+        {/* Confirmation Dialog */}
+        <ConfirmationDialog
+          isOpen={isDeleteConfirmOpen}
+          onClose={() => {
+            setIsDeleteConfirmOpen(false)
+            setDeletingItem(null)
+          }}
+          onConfirm={handleConfirmDelete}
+          title="Confirmer la suppression"
+          message={`Êtes-vous sûr de vouloir supprimer "${deletingItem?.name}" ? Cette action est irréversible.`}
+          confirmText="Supprimer"
+          cancelText="Annuler"
+          variant="danger"
+          loading={isDeleting}
         />
       </div>
     </>

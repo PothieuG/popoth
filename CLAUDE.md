@@ -258,35 +258,40 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **TypeScript interface** with `availableBalance`, `remainingToLive`, `totalSavings` props
 - **Component documentation** with clear purpose and usage instructions
 
-### 🏦 Complete Financial Management Database System (2025-09-14 - New)
-- **5 New Financial Tables**: `estimated_incomes`, `real_income_entries`, `estimated_budgets`, `real_expenses`, `financial_snapshots`
-- **Automatic Financial Calculations**: PostgreSQL functions implementing battleplan.txt logic
-- **Cash Disponible Calculation**: `real_income - real_expenses` with database function `calculate_available_cash()`
-- **Reste à Vivre Calculation**: `income - budgets - exceptional_expenses + savings` via `calculate_remaining_to_live()`
-- **Budget Savings Auto-Update**: `MAX(0, estimated_amount - spent_this_month)` with triggers
+### 💰 Application-Side Financial Calculation System (2025-09-15 - Migrated)
+- **4 Core Financial Tables**: `estimated_incomes`, `real_income_entries`, `estimated_budgets`, `real_expenses`
+- **Application-Side Calculations**: Modern TypeScript library implementing battleplan.txt business rules
+- **Financial Calculations Library**: `lib/financial-calculations.ts` with pure functions for all financial logic
+- **Cash Disponible Logic**: `calculateAvailableCash(realIncomes, realExpenses)` - real money on account
+- **Reste à Vivre Logic**: `calculateRemainingToLiveProfile()` and `calculateRemainingToLiveGroup()` variants
+- **Budget Savings Logic**: `calculateBudgetSavings()` with MAX(0, estimated - spent) formula
 - **XOR Ownership Constraints**: Each record belongs to either a profile OR a group (never both, never neither)
-- **Comprehensive Logging System**: Operation tracking, performance monitoring, and error handling
-- **Database Triggers**: Automatic recalculation of financial snapshots on data changes
-- **Performance Optimization**: 20+ specialized indexes for fast financial queries
-- **Data Integrity**: Business logic constraints, positive amounts, non-empty names
-- **API Routes Integration**: Dashboard, income, budgets, expenses routes with database functions
-- **Real-time Updates**: Financial snapshots updated automatically when any financial data changes
-- **Migration Scripts**: Safe database migration with constraint conflict resolution
+- **Smart Caching System**: 5-minute in-memory cache in `/api/financial/dashboard` for performance
+- **Automatic Cache Invalidation**: Cache cleared on any budget/income/expense modifications
+- **Data Retrieval Functions**: `getProfileFinancialData()` and `getGroupFinancialData()` with complete data aggregation
+- **Performance Optimization**: Efficient Supabase queries with JOIN operations and data aggregation
+- **Error Resilience**: Comprehensive try/catch with fallback values and detailed logging
+- **Real-time Dashboard**: Live financial data connected to dashboard with loading states
+- **API Routes Integration**: Clean REST endpoints with intelligent caching and invalidation hooks
+- **Migration Complete**: Successfully migrated from unreliable PostgreSQL triggers to stable application logic
 
-### 💰 Complete Financial Planning System (2025-09-14 - New)
+### 💰 Complete Financial Planning System (2025-09-14 - Enhanced)
 - **Interactive Planning Drawer**: Full-screen bottom-to-top drawer with smooth animations
 - **Dual-Tab Interface**: Separate tabs for estimated budgets (orange theme) and incomes (green theme)
 - **Smart Budget Validation**: Real-time balance checking prevents negative balances with detailed feedback
 - **Income Management**: Simple income creation with live total calculation showing current + new amounts
-- **Database Persistence**: Full CRUD operations via custom hooks (`useBudgets`, `useIncomes`) 
+- **Database Persistence**: Full CRUD operations via custom hooks (`useBudgets`, `useIncomes`)
 - **API Integration**: Secure REST endpoints (`/api/budgets`, `/api/incomes`) with JWT authentication
 - **Real-time Updates**: Automatic data refresh when drawer opens, immediate UI updates after operations
 - **Visual Feedback**: Discrete totals at tab tops, color-coded balance indicators, loading states
-- **Delete Functionality**: One-click deletion with confirmation for both budgets and incomes
+- **Enhanced CRUD Operations**: Full create, read, update, delete functionality for both budgets and incomes
+- **Edit/Delete Interface**: 3-dot dropdown menus with edit modals and delete confirmation dialogs
+- **Smart Edit Modals**: Real-time validation showing financial impact preview during editing
+- **Confirmation System**: Delete confirmation dialogs with item-specific messaging
 - **Error Handling**: Comprehensive error management with detailed logging and user-friendly messages
 - **Mobile-First Design**: Optimized for mobile with touch-friendly interactions and responsive layouts
 - **Balance Calculations**: Dynamic footer showing real-time difference between total incomes and budgets
-- **Detailed Documentation**: Complete system documentation in `/docs/FINANCIAL_PLANNING_SYSTEM.md`
+- **Cache Invalidation**: Automatic financial cache refresh after all CRUD operations
 
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
@@ -303,22 +308,37 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 ### 📁 File Structure
 ```
-├── middleware.ts                    # Route protection and token validation
+├── middleware.ts                        # Route protection and token validation
 ├── lib/
-│   ├── session.ts                  # JWT token utilities (client/server agnostic)
-│   ├── session-server.ts           # Server-side session management
-│   ├── session-client.ts           # Client-side session utilities
-│   └── auth.ts                     # Authentication API functions
+│   ├── session.ts                      # JWT token utilities (client/server agnostic)
+│   ├── session-server.ts               # Server-side session management
+│   ├── session-client.ts               # Client-side session utilities
+│   ├── auth.ts                         # Authentication API functions
+│   └── financial-calculations.ts       # Financial calculation library (battleplan.txt rules)
 ├── contexts/
-│   └── AuthContext.tsx             # React Context for global auth state
+│   └── AuthContext.tsx                 # React Context for global auth state
 ├── hooks/
-│   └── useAuth.ts                  # Custom authentication hooks
+│   ├── useAuth.ts                      # Custom authentication hooks
+│   ├── useFinancialData.ts             # Financial data management with caching
+│   ├── useBudgets.ts                   # Budget CRUD operations with cache invalidation
+│   └── useIncomes.ts                   # Income CRUD operations with cache invalidation
+├── components/
+│   ├── ui/
+│   │   ├── DropdownMenu.tsx            # Reusable 3-dot dropdown menu component
+│   │   └── ConfirmationDialog.tsx      # Delete confirmation modal dialog
+│   └── dashboard/
+│       ├── EditBudgetDialog.tsx        # Budget editing modal with validation
+│       └── EditIncomeDialog.tsx        # Income editing modal with validation
 ├── app/
-│   ├── api/auth/session/route.ts   # Authentication API endpoint
-│   ├── layout.tsx                  # AuthProvider wrapper
-│   ├── connexion/page.tsx          # Login page
-│   ├── inscription/page.tsx        # Registration page
-│   └── dashboard/page.tsx          # Protected dashboard
+│   ├── api/
+│   │   ├── auth/session/route.ts       # Authentication API endpoint
+│   │   ├── financial/dashboard/route.ts # Financial data API with smart caching
+│   │   ├── budgets/route.ts            # Budget CRUD API endpoints
+│   │   └── incomes/route.ts            # Income CRUD API endpoints
+│   ├── layout.tsx                      # AuthProvider wrapper
+│   ├── connexion/page.tsx              # Login page
+│   ├── inscription/page.tsx            # Registration page
+│   └── dashboard/page.tsx              # Protected dashboard with live financial data
 ```
 
 ### 🔐 Security Features
@@ -532,12 +552,13 @@ CREATE TABLE public.financial_snapshots (
 );
 ```
 
-**Table Purpose**: Cached financial calculations for performance
-- **Auto-updated**: By triggers when any financial data changes
-- **Unique Current**: Only one `is_current = true` per owner
-- **Calculations**: Uses database functions from battleplan.txt logic
+**❌ Table Removed**: This table has been removed in favor of application-side calculations
+- **Reason**: Moved to efficient caching system in Next.js API routes
+- **Replacement**: `/api/financial/dashboard` with 5-minute in-memory cache
+- **Benefits**: Better performance, easier debugging, more maintainable code
+- **Migration**: Successfully completed on 2025-09-15 with comprehensive testing
 
-## 📊 Current Session Status (Updated 2025-09-14 - Final)
+## 📊 Current Session Status (Updated 2025-09-15 - Planification Issues Resolved)
 - ✅ **Authentication System**: Fully functional and production-ready
 - ✅ **Token Management**: Modern JWT-based sessions implemented
 - ✅ **Security**: Enterprise-level security measures in place
@@ -550,10 +571,17 @@ CREATE TABLE public.financial_snapshots (
 - ✅ **Profile Enhancement**: Extended profile data with group information integration
 - ✅ **Mandatory Salary System**: Salary-centric application with intelligent contribution validation
 - ✅ **Advanced UI/UX**: Unified profile interface in dashboard sidebar with enhanced contribution display
-- ✅ **PostgreSQL Robustness**: Triggers, cleanup automation, and Next.js 15 compatibility
-- ✅ **Complete Financial Backend**: 5 tables, automatic calculations, triggers, and performance indexes
-- ✅ **API Routes**: Full CRUD operations for income, budgets, expenses with database integration
-- ✅ **Battleplan Implementation**: All financial calculations from battleplan.txt automated in PostgreSQL
-- ✅ **Migration Scripts**: Safe database deployment with constraint conflict resolution
-- ✅ **Comprehensive Logging**: Operation tracking, error handling, and performance monitoring
-- ✅ **Database Functions**: `calculate_available_cash()`, `calculate_remaining_to_live()`, budget savings automation
+- ✅ **PostgreSQL Cleanup**: Removed unreliable triggers in favor of stable application-side logic
+- ✅ **Financial Calculation Library**: Complete TypeScript library implementing all battleplan.txt rules
+- ✅ **Smart API Architecture**: Intelligent caching system with 5-minute in-memory cache
+- ✅ **Cache Invalidation System**: Automatic cache clearing on budget/income modifications
+- ✅ **Enhanced CRUD Operations**: Full edit/delete functionality with 3-dot dropdown menus
+- ✅ **Modal System**: Edit modals and confirmation dialogs for all financial operations
+- ✅ **Planification Persistence**: Complete resolution of data persistence issues (Sep 15, 2025)
+- ✅ **TypeScript Validation**: All 41+ TypeScript errors resolved, code fully validated
+- ✅ **Next.js 15 Compatibility**: Updated dynamic routes for Next.js 15 async params
+- ✅ **Delete Operations Fixed**: Corrected Supabase DELETE logic for budgets and incomes
+- ✅ **Real-time Dashboard**: Live financial data with loading states and error resilience
+- ✅ **Complete Migration**: Successfully migrated from database triggers to application calculations
+- ✅ **Performance Optimization**: Efficient data aggregation with comprehensive error handling
+- ✅ **Documentation Updated**: CLAUDE.md reflects current architecture and capabilities
