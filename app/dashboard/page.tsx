@@ -6,11 +6,13 @@ import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useFinancialData } from '@/hooks/useFinancialData'
+import { useBankBalance } from '@/hooks/useBankBalance'
 import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
+import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -21,6 +23,7 @@ export default function DashboardPage() {
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
   const { financialData, loading: financialLoading, error: financialError, cached, context, refreshFinancialData } = useFinancialData()
+  const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   /**
@@ -41,6 +44,17 @@ export default function DashboardPage() {
   const handleProfileError = (error: string) => {
     console.error('Erreur lors de la création du profil:', error)
     // On peut ajouter une toast notification ici plus tard
+  }
+
+  /**
+   * Gère la mise à jour du solde bancaire
+   */
+  const handleBankBalanceUpdate = async (newBalance: number) => {
+    const success = await updateBankBalance(newBalance)
+    if (success) {
+      // Rafraîchir les données financières après la mise à jour du solde
+      refreshFinancialData()
+    }
   }
 
   // Récupérer les contributions quand le profil est chargé
@@ -209,6 +223,10 @@ export default function DashboardPage() {
               {profile && (
                 <div className="space-y-4">
                   <ProfileSettingsCard className="bg-transparent border-0 shadow-none p-0" />
+                  <EditableBalanceLine
+                    currentBalance={bankBalance}
+                    onBalanceUpdate={handleBankBalanceUpdate}
+                  />
                 </div>
               )}
             </div>

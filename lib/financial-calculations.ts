@@ -121,7 +121,16 @@ export function calculateBudgetSavings(
 export async function getProfileFinancialData(profileId: string): Promise<FinancialData> {
   try {
 
-    // 1. Récupérer tous les revenus estimés du profile
+    // 1. Récupérer le solde bancaire éditable de l'utilisateur
+    const { data: bankBalance } = await supabaseServer
+      .from('bank_balances')
+      .select('balance')
+      .eq('profile_id', profileId)
+      .single()
+
+    const userBankBalance = bankBalance?.balance || 0
+
+    // 2. Récupérer tous les revenus estimés du profile
     const { data: estimatedIncomes } = await supabaseServer
       .from('estimated_incomes')
       .select('estimated_amount')
@@ -129,7 +138,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     const totalEstimatedIncome = estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
 
-    // 2. Récupérer tous les budgets estimés du profile
+    // 3. Récupérer tous les budgets estimés du profile
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
       .select('id, name, estimated_amount')
@@ -137,7 +146,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
 
-    // 3. Récupérer tous les revenus réels du profile
+    // 4. Récupérer tous les revenus réels du profile
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
       .select('amount')
@@ -145,7 +154,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
 
-    // 4. Récupérer toutes les dépenses réelles du profile
+    // 5. Récupérer toutes les dépenses réelles du profile
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select('amount, estimated_budget_id, is_exceptional')
@@ -172,7 +181,8 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     }
 
     // 7. Appliquer les règles de calcul du battleplan
-    const availableBalance = calculateAvailableCash(totalRealIncome, totalRealExpenses)
+    // Utiliser le solde bancaire éditable comme base au lieu du calcul revenus - dépenses
+    const availableBalance = userBankBalance
     const remainingToLive = calculateRemainingToLiveProfile(
       totalEstimatedIncome,
       totalEstimatedBudgets,
