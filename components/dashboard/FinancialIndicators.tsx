@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import PlanningDrawer from './PlanningDrawer'
+import SavingsDrawer from './SavingsDrawer'
 
 interface FinancialIndicatorsProps {
   availableBalance: number
   remainingToLive: number
   totalSavings: number
   className?: string
+  onPlanningChange?: () => Promise<void>
 }
 
 /**
@@ -20,9 +22,11 @@ export default function FinancialIndicators({
   availableBalance,
   remainingToLive,
   totalSavings,
-  className
+  className,
+  onPlanningChange
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
+  const [isSavingsOpen, setIsSavingsOpen] = useState(false)
   
   /**
    * Get color class based on amount value
@@ -127,7 +131,10 @@ export default function FinancialIndicators({
       </div>
 
       {/* Total Savings Card */}
-      <div className="p-2 rounded-xl bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 shadow-sm transition-all duration-200 cursor-pointer hover:from-purple-100 hover:to-purple-150">
+      <button
+        onClick={() => setIsSavingsOpen(true)}
+        className="w-full p-2 rounded-xl bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 shadow-sm transition-all duration-200 cursor-pointer hover:from-purple-100 hover:to-purple-150"
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {/* Information Icon */}
@@ -147,7 +154,7 @@ export default function FinancialIndicators({
             </div>
           </div>
         </div>
-      </div>
+      </button>
 
       {/* Planning Button Card */}
       <button 
@@ -176,9 +183,16 @@ export default function FinancialIndicators({
       </button>
 
       {/* Planning Drawer */}
-      <PlanningDrawer 
-        isOpen={isPlanningOpen} 
-        onClose={() => setIsPlanningOpen(false)} 
+      <PlanningDrawer
+        isOpen={isPlanningOpen}
+        onClose={() => setIsPlanningOpen(false)}
+        onPlanningChange={onPlanningChange}
+      />
+
+      {/* Savings Drawer */}
+      <SavingsDrawer
+        isOpen={isSavingsOpen}
+        onClose={() => setIsSavingsOpen(false)}
       />
     </div>
   )

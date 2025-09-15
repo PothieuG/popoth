@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 /**
  * API pour la gestion des revenus estimés
@@ -144,6 +145,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Erreur lors de la création du revenu' }, { status: 500 })
     }
 
+    // Sauvegarder automatiquement le nouveau reste à vivre
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: isGroupIncome ? undefined : userId,
+      groupId: isGroupIncome ? profile.group_id : undefined,
+      reason: 'income_created'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après création revenu')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    }
+
     return NextResponse.json({ income }, { status: 201 })
 
   } catch (error) {
@@ -250,6 +264,20 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log('✅ Revenu mis à jour avec succès:', income)
+
+    // Sauvegarder automatiquement le nouveau reste à vivre après modification
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: existingIncome.profile_id || undefined,
+      groupId: existingIncome.group_id || undefined,
+      reason: 'income_updated'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour revenu')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    }
+
     return NextResponse.json({ income })
 
   } catch (error) {
@@ -314,6 +342,19 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       console.error('Erreur lors de la suppression du revenu:', error)
       return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
+    }
+
+    // Sauvegarder automatiquement le nouveau reste à vivre après suppression
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: existingIncome.profile_id || undefined,
+      groupId: existingIncome.group_id || undefined,
+      reason: 'income_deleted'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après suppression revenu')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
     }
 
     return NextResponse.json({ message: 'Revenu supprimé avec succès' })

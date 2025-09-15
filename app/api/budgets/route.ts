@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 /**
  * API pour la gestion des budgets estimés
@@ -155,6 +156,20 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Budget créé avec succès:', budget)
+
+    // Sauvegarder automatiquement le nouveau reste à vivre
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: isGroupBudget ? undefined : userId,
+      groupId: isGroupBudget ? profile.group_id : undefined,
+      reason: 'budget_created'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après création budget')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    }
+
     return NextResponse.json({ budget }, { status: 201 })
 
   } catch (error) {
@@ -261,6 +276,20 @@ export async function PUT(request: NextRequest) {
     }
 
     console.log('✅ Budget mis à jour avec succès:', budget)
+
+    // Sauvegarder automatiquement le nouveau reste à vivre après modification
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: existingBudget.profile_id || undefined,
+      groupId: existingBudget.group_id || undefined,
+      reason: 'budget_updated'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour budget')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    }
+
     return NextResponse.json({ budget })
 
   } catch (error) {
@@ -325,6 +354,19 @@ export async function DELETE(request: NextRequest) {
     if (error) {
       console.error('Erreur lors de la suppression du budget:', error)
       return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
+    }
+
+    // Sauvegarder automatiquement le nouveau reste à vivre après suppression
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: existingBudget.profile_id || undefined,
+      groupId: existingBudget.group_id || undefined,
+      reason: 'budget_deleted'
+    })
+
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après suppression budget')
+    } else {
+      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
     }
 
     return NextResponse.json({ message: 'Budget supprimé avec succès' })

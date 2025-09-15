@@ -14,6 +14,7 @@ import { useIncomes } from '@/hooks/useIncomes'
 interface PlanningDrawerProps {
   isOpen: boolean
   onClose: () => void
+  onPlanningChange?: () => Promise<void>
 }
 
 type TabType = 'budgets' | 'revenus'
@@ -22,7 +23,7 @@ type TabType = 'budgets' | 'revenus'
  * Drawer de planification financière qui s'ouvre du bas vers le haut
  * Contient deux tabs : budgets estimés et revenus estimés
  */
-export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps) {
+export default function PlanningDrawer({ isOpen, onClose, onPlanningChange }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
@@ -64,7 +65,6 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
     if (isOpen) {
-      console.log('🔄 PlanningDrawer ouvert - Refresh des données')
       refreshBudgets()
       refreshIncomes()
     }
@@ -82,14 +82,15 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
    * Gestion de l'ajout d'un nouveau budget
    */
   const handleAddBudget = async (budgetData: { name: string; estimatedAmount: number }) => {
-    console.log('🎯 PlanningDrawer - handleAddBudget appelé avec:', budgetData)
     const success = await addBudget(budgetData)
-    console.log('🎯 PlanningDrawer - Résultat addBudget:', success)
     if (success) {
       setIsAddBudgetOpen(false)
-      console.log('✅ Dialog fermé après succès')
+
+      // Rafraîchir les données financières du dashboard
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
     } else {
-      console.log('❌ Erreur lors de l\'ajout, dialog reste ouvert')
     }
     // En cas d'erreur, le hook gère déjà l'état d'erreur
   }
@@ -101,6 +102,11 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
     const success = await addIncome(incomeData)
     if (success) {
       setIsAddIncomeOpen(false)
+
+      // Rafraîchir les données financières du dashboard
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
     }
     // En cas d'erreur, le hook gère déjà l'état d'erreur
   }
@@ -130,6 +136,11 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
     if (success) {
       setIsEditBudgetOpen(false)
       setEditingBudget(null)
+
+      // Rafraîchir les données financières du dashboard
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
     }
     return success
   }
@@ -143,6 +154,11 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
     if (success) {
       setIsEditIncomeOpen(false)
       setEditingIncome(null)
+
+      // Rafraîchir les données financières du dashboard
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
     }
     return success
   }
@@ -173,6 +189,11 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
     if (success) {
       setIsDeleteConfirmOpen(false)
       setDeletingItem(null)
+
+      // Rafraîchir les données financières du dashboard
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
     }
     setIsDeleting(false)
   }
@@ -197,8 +218,8 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
           <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
         </div>
 
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-gray-200">
+        {/* Header avec background color léger */}
+        <div className="px-4 py-3 border-b border-gray-200 bg-blue-50/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
@@ -320,7 +341,7 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
               ) : !budgetsLoading ? (
                 <div className="space-y-3">
                   {budgets.map((budget) => (
-                    <div key={budget.id} className="p-3 bg-orange-50 border border-orange-200 rounded-xl">
+                    <div key={budget.id} className="p-3 border-2 border-orange-200 rounded-xl">
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
                           <h5 className="font-medium text-gray-900">{budget.name}</h5>
@@ -409,7 +430,7 @@ export default function PlanningDrawer({ isOpen, onClose }: PlanningDrawerProps)
               ) : !incomesLoading ? (
                 <div className="space-y-3">
                   {incomes.map((income) => (
-                    <div key={income.id} className="p-3 bg-green-50 border border-green-200 rounded-xl">
+                    <div key={income.id} className="p-3 border-2 border-green-200 rounded-xl">
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
                           <h5 className="font-medium text-gray-900">{income.name}</h5>

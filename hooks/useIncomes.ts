@@ -74,7 +74,6 @@ export function useIncomes(): UseIncomesReturn {
    */
   const addIncome = useCallback(async (incomeData: { name: string; estimatedAmount: number; isGroupIncome?: boolean }): Promise<boolean> => {
     try {
-      console.log('🔄 Ajout revenu - Début:', incomeData)
       setError(null)
 
       const requestBody = {
@@ -82,7 +81,6 @@ export function useIncomes(): UseIncomesReturn {
         estimatedAmount: incomeData.estimatedAmount,
         isGroupIncome: incomeData.isGroupIncome || false
       }
-      console.log('📤 Données envoyées:', requestBody)
 
       const response = await fetch('/api/incomes', {
         method: 'POST',
@@ -93,7 +91,6 @@ export function useIncomes(): UseIncomesReturn {
         body: JSON.stringify(requestBody)
       })
 
-      console.log('📥 Réponse reçue:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
@@ -102,12 +99,10 @@ export function useIncomes(): UseIncomesReturn {
       }
 
       const data = await response.json()
-      console.log('✅ Revenu créé avec succès:', data.income)
       setIncomes(prev => [data.income, ...prev])
 
       // Invalider le cache des données financières
       await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après ajout de revenu')
 
       return true
     } catch (err) {
@@ -122,14 +117,12 @@ export function useIncomes(): UseIncomesReturn {
    */
   const updateIncome = useCallback(async (incomeId: string, incomeData: { name: string; estimatedAmount: number }): Promise<boolean> => {
     try {
-      console.log('🔄 Mise à jour revenu - Début:', incomeId, incomeData)
       setError(null)
 
       const requestBody = {
         name: incomeData.name,
         estimatedAmount: incomeData.estimatedAmount
       }
-      console.log('📤 Données envoyées:', requestBody)
 
       const response = await fetch(`/api/incomes?id=${incomeId}`, {
         method: 'PUT',
@@ -140,7 +133,6 @@ export function useIncomes(): UseIncomesReturn {
         body: JSON.stringify(requestBody)
       })
 
-      console.log('📥 Réponse reçue:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
@@ -149,7 +141,6 @@ export function useIncomes(): UseIncomesReturn {
       }
 
       const data = await response.json()
-      console.log('✅ Revenu mis à jour avec succès:', data.income)
 
       // Met à jour le revenu dans la liste
       setIncomes(prev => prev.map(income =>
@@ -158,7 +149,6 @@ export function useIncomes(): UseIncomesReturn {
 
       // Invalider le cache des données financières
       await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après modification de revenu')
 
       return true
     } catch (err) {
@@ -188,7 +178,6 @@ export function useIncomes(): UseIncomesReturn {
 
       // Invalider le cache des données financières
       await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après suppression de revenu')
 
       return true
     } catch (err) {

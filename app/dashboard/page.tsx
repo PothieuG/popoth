@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
-  const { financialData, loading: financialLoading, error: financialError, cached, context } = useFinancialData()
+  const { financialData, loading: financialLoading, error: financialError, cached, context, refreshFinancialData } = useFinancialData()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   /**
@@ -119,33 +119,11 @@ export default function DashboardPage() {
               availableBalance={financialData?.availableBalance || 0}
               remainingToLive={financialData?.remainingToLive || 0}
               totalSavings={financialData?.totalSavings || 0}
+              onPlanningChange={refreshFinancialData}
             />
           )}
 
-          {/* Debug info en développement */}
-          {process.env.NODE_ENV === 'development' && financialData && (
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs space-y-1">
-              <p><strong>Context:</strong> {context}</p>
-              <p><strong>Cached:</strong> {cached ? '✅ Oui' : '❌ Non'}</p>
-              <p><strong>Total revenus estimés:</strong> {financialData.totalEstimatedIncome}€</p>
-              <p><strong>Total budgets estimés:</strong> {financialData.totalEstimatedBudgets}€</p>
-              <p><strong>Total revenus réels:</strong> {financialData.totalRealIncome}€</p>
-              <p><strong>Total dépenses réelles:</strong> {financialData.totalRealExpenses}€</p>
-            </div>
-          )}
 
-          {/* Placeholder for future financial features */}
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">
-              Gestion financière
-            </h2>
-            <p className="text-gray-600">
-              Vos données financières sont maintenant calculées automatiquement
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              Utilisez la planification pour ajouter des budgets et revenus
-            </p>
-          </div>
         </div>
       </main>
 

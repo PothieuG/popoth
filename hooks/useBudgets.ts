@@ -74,7 +74,6 @@ export function useBudgets(): UseBudgetsReturn {
    */
   const addBudget = useCallback(async (budgetData: { name: string; estimatedAmount: number; isGroupBudget?: boolean }): Promise<boolean> => {
     try {
-      console.log('🔄 Ajout budget - Début:', budgetData)
       setError(null)
 
       const requestBody = {
@@ -82,7 +81,6 @@ export function useBudgets(): UseBudgetsReturn {
         estimatedAmount: budgetData.estimatedAmount,
         isGroupBudget: budgetData.isGroupBudget || false
       }
-      console.log('📤 Données envoyées:', requestBody)
 
       const response = await fetch('/api/budgets', {
         method: 'POST',
@@ -93,7 +91,6 @@ export function useBudgets(): UseBudgetsReturn {
         body: JSON.stringify(requestBody)
       })
 
-      console.log('📥 Réponse reçue:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
@@ -102,12 +99,10 @@ export function useBudgets(): UseBudgetsReturn {
       }
 
       const data = await response.json()
-      console.log('✅ Budget créé avec succès:', data.budget)
       setBudgets(prev => [data.budget, ...prev])
 
       // Invalider le cache des données financières
-      await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après ajout de budget')
+      const cacheInvalidated = await invalidateCache()
 
       return true
     } catch (err) {
@@ -122,14 +117,12 @@ export function useBudgets(): UseBudgetsReturn {
    */
   const updateBudget = useCallback(async (budgetId: string, budgetData: { name: string; estimatedAmount: number }): Promise<boolean> => {
     try {
-      console.log('🔄 Mise à jour budget - Début:', budgetId, budgetData)
       setError(null)
 
       const requestBody = {
         name: budgetData.name,
         estimatedAmount: budgetData.estimatedAmount
       }
-      console.log('📤 Données envoyées:', requestBody)
 
       const response = await fetch(`/api/budgets?id=${budgetId}`, {
         method: 'PUT',
@@ -140,7 +133,6 @@ export function useBudgets(): UseBudgetsReturn {
         body: JSON.stringify(requestBody)
       })
 
-      console.log('📥 Réponse reçue:', response.status, response.statusText)
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
@@ -149,7 +141,6 @@ export function useBudgets(): UseBudgetsReturn {
       }
 
       const data = await response.json()
-      console.log('✅ Budget mis à jour avec succès:', data.budget)
 
       // Met à jour le budget dans la liste
       setBudgets(prev => prev.map(budget =>
@@ -158,7 +149,6 @@ export function useBudgets(): UseBudgetsReturn {
 
       // Invalider le cache des données financières
       await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après modification de budget')
 
       return true
     } catch (err) {
@@ -188,7 +178,6 @@ export function useBudgets(): UseBudgetsReturn {
 
       // Invalider le cache des données financières
       await invalidateCache()
-      console.log('🗑️ Cache financier invalidé après suppression de budget')
 
       return true
     } catch (err) {

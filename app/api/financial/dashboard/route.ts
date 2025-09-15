@@ -56,38 +56,57 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
 
-    // Déterminer le contexte (personnel ou groupe)
-    const context = profile.group_id ? 'group' : 'profile'
-    const contextId = profile.group_id || profile.id
+    // TEMPORAIRE: Forcer le contexte personnel pour debug
+    // TODO: Implémenter la logique de choix profile vs groupe
+    const context = 'profile' // Force profile même avec group_id
+    const contextId = profile.id // Toujours utiliser profile.id
     const cacheKey = getCacheKey(userId, context, contextId)
+
+    console.log('🎯 Contexte forcé à PROFILE pour debug, groupId ignoré:', profile.group_id)
 
     // Vérifier le cache
     const cachedEntry = cache.get(cacheKey)
     if (cachedEntry && isCacheValid(cachedEntry)) {
+      console.log('📋 CACHE HIT - Données depuis le cache:', {
+        cacheKey,
+        remainingToLive: cachedEntry.data.remainingToLive,
+        availableBalance: cachedEntry.data.availableBalance,
+        age: Date.now() - cachedEntry.timestamp
+      })
       return NextResponse.json({
         data: cachedEntry.data,
         cached: true,
         context,
         timestamp: cachedEntry.timestamp
       })
+    } else {
+      console.log('📋 CACHE MISS - Recalcul nécessaire:', {
+        cacheKey,
+        hasEntry: !!cachedEntry,
+        isValid: cachedEntry ? isCacheValid(cachedEntry) : false
+      })
     }
 
     // Calculer les données financières selon le contexte
     let financialData: FinancialData
 
-    if (context === 'group' && profile.group_id) {
-      financialData = await getGroupFinancialData(profile.group_id)
-      console.log('👥 Calcul groupe terminé:', profile.group_id)
-    } else {
-      financialData = await getProfileFinancialData(profile.id)
-      console.log('👤 Calcul profil terminé:', profile.id)
-    }
+    // TEMPORAIRE: Toujours utiliser le calcul profile
+    financialData = await getProfileFinancialData(profile.id)
+    console.log('👤 Calcul PROFILE forcé terminé:', profile.id)
 
     // Mettre en cache les résultats
     cache.set(cacheKey, {
       data: financialData,
       timestamp: Date.now(),
       userId
+    })
+
+    console.log('📋 NOUVEAU CALCUL - Données mises en cache:', {
+      cacheKey,
+      remainingToLive: financialData.remainingToLive,
+      availableBalance: financialData.availableBalance,
+      totalEstimatedIncome: financialData.totalEstimatedIncome,
+      totalEstimatedBudgets: financialData.totalEstimatedBudgets
     })
 
     return NextResponse.json({
@@ -124,14 +143,17 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 API /api/financial/dashboard POST - Invalidation cache')
+    console.log('🔄 API /api/financial/dashboard POST - Invalidation cache DEMANDÉE')
 
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId
 
     if (!userId) {
+      console.log('❌ Invalidation refusée - utilisateur non autorisé')
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
+
+    console.log('👤 Invalidation cache pour userId:', userId)
 
     // Récupérer le profil pour connaître le contexte
     const { data: profile } = await supabaseServer
@@ -143,15 +165,23 @@ export async function POST(request: NextRequest) {
     if (profile) {
       // Invalider le cache pour le profil
       const profileCacheKey = getCacheKey(userId, 'profile', profile.id)
-      cache.delete(profileCacheKey)
+      const profileDeleted = cache.delete(profileCacheKey)
+      console.log('🗑️ Cache profile supprimé:', profileCacheKey, '→', profileDeleted)
 
       // Invalider le cache pour le groupe si applicable
       if (profile.group_id) {
         const groupCacheKey = getCacheKey(userId, 'group', profile.group_id)
-        cache.delete(groupCacheKey)
+        const groupDeleted = cache.delete(groupCacheKey)
+        console.log('🗑️ Cache groupe supprimé:', groupCacheKey, '→', groupDeleted)
       }
 
-      console.log('✅ Cache invalidé pour userId:', userId)
+      // Afficher l'état du cache après suppression
+      console.log('📊 État cache après invalidation - Taille:', cache.size)
+      console.log('📊 Clés restantes:', Array.from(cache.keys()))
+
+      console.log('✅ Cache invalidé avec succès pour userId:', userId)
+    } else {
+      console.log('❌ Profil non trouvé pour invalidation')
     }
 
     return NextResponse.json({

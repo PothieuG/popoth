@@ -27,6 +27,21 @@ export interface BudgetSavings {
   savings: number              // MAX(0, estimatedAmount - spentThisMonth)
 }
 
+export interface RemainingToLiveSnapshot {
+  id: string
+  profileId?: string
+  groupId?: string
+  remainingToLive: number
+  availableBalance: number
+  totalSavings: number
+  totalEstimatedIncome: number
+  totalEstimatedBudgets: number
+  totalRealIncome: number
+  totalRealExpenses: number
+  snapshotReason: string
+  createdAt: string
+}
+
 // ============================================
 // CALCULS SELON BATTLEPLAN.TXT
 // ============================================
@@ -77,8 +92,22 @@ export function calculateRemainingToLiveGroup(
  * Calcul des économies d'un budget (battleplan ligne 28):
  * "si je décide de budgété 200€ pour des courses pendant un mois et qu'en fait je ne dépense que 150€,
  * à la fin du mois, 50€ sera ajouté aux économies de ce budget"
+ *
+ * IMPORTANT: Les économies ne sont calculées QU'À LA FIN DU MOIS/PÉRIODE,
+ * pas en temps réel pendant le mois en cours.
+ * En temps réel = toujours 0 (car le mois n'est pas terminé)
  */
-export function calculateBudgetSavings(estimatedAmount: number, spentThisMonth: number): number {
+export function calculateBudgetSavings(
+  estimatedAmount: number,
+  spentThisMonth: number,
+  isEndOfPeriod: boolean = false
+): number {
+  // En temps réel pendant le mois : pas d'économies calculées
+  if (!isEndOfPeriod) {
+    return 0
+  }
+
+  // À la fin du mois seulement : calculer les vraies économies
   return Math.max(0, estimatedAmount - spentThisMonth)
 }
 
@@ -137,7 +166,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
           .filter(expense => expense.estimated_budget_id === budget.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
 
-        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget)
+        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
         totalSavings += budgetSavings
       }
     }
@@ -237,7 +266,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
           .filter(expense => expense.estimated_budget_id === budget.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
 
-        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget)
+        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
         totalSavings += budgetSavings
       }
     }
@@ -302,7 +331,7 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
         ?.filter(expense => expense.estimated_budget_id === budget.id)
         ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-      const savings = calculateBudgetSavings(budget.estimated_amount, spentThisMonth)
+      const savings = calculateBudgetSavings(budget.estimated_amount, spentThisMonth, false)
 
       result.push({
         budgetId: budget.id,
@@ -317,6 +346,210 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
 
   } catch (error) {
     console.error('❌ Erreur lors du calcul des économies par budget:', error)
+    return []
+  }
+}
+
+// ============================================
+// FONCTIONS DE SAUVEGARDE AUTOMATIQUE
+// ============================================
+
+/**
+ * Sauvegarde automatique du reste à vivre pour un profile après modification de planification
+ */
+export async function saveRemainingToLiveSnapshotProfile(
+  profileId: string,
+  reason: string
+): Promise<boolean> {
+  try {
+    console.log(`📊 Sauvegarde du reste à vivre pour le profile ${profileId}, raison: ${reason}`)
+
+    // 1. Calculer les données financières actuelles
+    const financialData = await getProfileFinancialData(profileId)
+
+    // 2. Insérer le snapshot en base
+    const { error } = await supabaseServer
+      .from('remaining_to_live_snapshots')
+      .insert({
+        profile_id: profileId,
+        remaining_to_live: financialData.remainingToLive,
+        available_balance: financialData.availableBalance,
+        total_savings: financialData.totalSavings,
+        total_estimated_income: financialData.totalEstimatedIncome,
+        total_estimated_budgets: financialData.totalEstimatedBudgets,
+        total_real_income: financialData.totalRealIncome,
+        total_real_expenses: financialData.totalRealExpenses,
+        snapshot_reason: reason
+      })
+
+    if (error) {
+      console.error('❌ Erreur lors de la sauvegarde du snapshot:', error)
+      return false
+    }
+
+    console.log(`✅ Snapshot sauvegardé - Reste à vivre: ${financialData.remainingToLive}€`)
+    return true
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la sauvegarde du snapshot profile:', error)
+    return false
+  }
+}
+
+/**
+ * Sauvegarde automatique du reste à vivre pour un groupe après modification de planification
+ */
+export async function saveRemainingToLiveSnapshotGroup(
+  groupId: string,
+  reason: string
+): Promise<boolean> {
+  try {
+    console.log(`📊 Sauvegarde du reste à vivre pour le groupe ${groupId}, raison: ${reason}`)
+
+    // 1. Calculer les données financières actuelles du groupe
+    const financialData = await getGroupFinancialData(groupId)
+
+    // 2. Insérer le snapshot en base
+    const { error } = await supabaseServer
+      .from('remaining_to_live_snapshots')
+      .insert({
+        group_id: groupId,
+        remaining_to_live: financialData.remainingToLive,
+        available_balance: financialData.availableBalance,
+        total_savings: financialData.totalSavings,
+        total_estimated_income: financialData.totalEstimatedIncome,
+        total_estimated_budgets: financialData.totalEstimatedBudgets,
+        total_real_income: financialData.totalRealIncome,
+        total_real_expenses: financialData.totalRealExpenses,
+        snapshot_reason: reason
+      })
+
+    if (error) {
+      console.error('❌ Erreur lors de la sauvegarde du snapshot groupe:', error)
+      return false
+    }
+
+    console.log(`✅ Snapshot groupe sauvegardé - Reste à vivre: ${financialData.remainingToLive}€`)
+    return true
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la sauvegarde du snapshot groupe:', error)
+    return false
+  }
+}
+
+/**
+ * Sauvegarde intelligente qui détecte automatiquement si c'est un profile ou un groupe
+ * en fonction des paramètres fournis lors de la modification de planification
+ */
+export async function saveRemainingToLiveSnapshot(
+  options: {
+    profileId?: string
+    groupId?: string
+    reason: string
+  }
+): Promise<boolean> {
+  const { profileId, groupId, reason } = options
+
+  // Validation: doit avoir soit profileId soit groupId
+  if (!profileId && !groupId) {
+    console.error('❌ Erreur: profileId ou groupId requis pour la sauvegarde')
+    return false
+  }
+
+  if (profileId && groupId) {
+    console.error('❌ Erreur: profileId et groupId ne peuvent pas être fournis simultanément')
+    return false
+  }
+
+  // Appeler la fonction appropriée
+  if (profileId) {
+    return await saveRemainingToLiveSnapshotProfile(profileId, reason)
+  } else if (groupId) {
+    return await saveRemainingToLiveSnapshotGroup(groupId, reason)
+  }
+
+  return false
+}
+
+/**
+ * Récupère l'historique des snapshots pour un profile
+ */
+export async function getRemainingToLiveHistory(
+  profileId: string,
+  limit: number = 50
+): Promise<RemainingToLiveSnapshot[]> {
+  try {
+    const { data, error } = await supabaseServer
+      .from('remaining_to_live_snapshots')
+      .select('*')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('❌ Erreur lors de la récupération de l\'historique:', error)
+      return []
+    }
+
+    return data?.map(snapshot => ({
+      id: snapshot.id,
+      profileId: snapshot.profile_id,
+      groupId: snapshot.group_id,
+      remainingToLive: snapshot.remaining_to_live,
+      availableBalance: snapshot.available_balance,
+      totalSavings: snapshot.total_savings,
+      totalEstimatedIncome: snapshot.total_estimated_income,
+      totalEstimatedBudgets: snapshot.total_estimated_budgets,
+      totalRealIncome: snapshot.total_real_income,
+      totalRealExpenses: snapshot.total_real_expenses,
+      snapshotReason: snapshot.snapshot_reason,
+      createdAt: snapshot.created_at
+    })) || []
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération de l\'historique:', error)
+    return []
+  }
+}
+
+/**
+ * Récupère l'historique des snapshots pour un groupe
+ */
+export async function getGroupRemainingToLiveHistory(
+  groupId: string,
+  limit: number = 50
+): Promise<RemainingToLiveSnapshot[]> {
+  try {
+    const { data, error } = await supabaseServer
+      .from('remaining_to_live_snapshots')
+      .select('*')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('❌ Erreur lors de la récupération de l\'historique groupe:', error)
+      return []
+    }
+
+    return data?.map(snapshot => ({
+      id: snapshot.id,
+      profileId: snapshot.profile_id,
+      groupId: snapshot.group_id,
+      remainingToLive: snapshot.remaining_to_live,
+      availableBalance: snapshot.available_balance,
+      totalSavings: snapshot.total_savings,
+      totalEstimatedIncome: snapshot.total_estimated_income,
+      totalEstimatedBudgets: snapshot.total_estimated_budgets,
+      totalRealIncome: snapshot.total_real_income,
+      totalRealExpenses: snapshot.total_real_expenses,
+      snapshotReason: snapshot.snapshot_reason,
+      createdAt: snapshot.created_at
+    })) || []
+
+  } catch (error) {
+    console.error('❌ Erreur lors de la récupération de l\'historique groupe:', error)
     return []
   }
 }

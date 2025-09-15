@@ -90,7 +90,6 @@ export default function UserGroupsList({ groups, isLoading, onDeleteGroup }: Use
                 className="w-full"
                 onClick={() => {
                   // TODO: Implement view members functionality
-                  console.log('View members for group:', group.id)
                 }}
               >
                 Voir membres
@@ -116,7 +115,6 @@ export default function UserGroupsList({ groups, isLoading, onDeleteGroup }: Use
                   className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400"
                   onClick={() => {
                     // TODO: Implement leave group functionality
-                    console.log('Leave group:', group.id)
                   }}
                 >
                   Quitter

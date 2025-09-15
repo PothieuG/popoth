@@ -558,7 +558,7 @@ CREATE TABLE public.financial_snapshots (
 - **Benefits**: Better performance, easier debugging, more maintainable code
 - **Migration**: Successfully completed on 2025-09-15 with comprehensive testing
 
-## 📊 Current Session Status (Updated 2025-09-15 - Planification Issues Resolved)
+## 📊 Current Session Status (Updated 2025-09-15 - Context Profile/Group Issue RESOLVED)
 - ✅ **Authentication System**: Fully functional and production-ready
 - ✅ **Token Management**: Modern JWT-based sessions implemented
 - ✅ **Security**: Enterprise-level security measures in place
@@ -584,4 +584,9 @@ CREATE TABLE public.financial_snapshots (
 - ✅ **Real-time Dashboard**: Live financial data with loading states and error resilience
 - ✅ **Complete Migration**: Successfully migrated from database triggers to application calculations
 - ✅ **Performance Optimization**: Efficient data aggregation with comprehensive error handling
-- ✅ **Documentation Updated**: CLAUDE.md reflects current architecture and capabilities
+- ✅ **Automatic Remaining-to-Live Snapshots**: Full snapshot system saving calculations to database
+- ✅ **Budget Savings Logic Fix**: Corrected economics calculation to 0€ during month (not end-of-month)
+- ✅ **Context Profile/Group Resolution**: Fixed major issue where dashboard used wrong calculation context
+- ✅ **Real-time Synchronization**: Dashboard now updates immediately after budget/income modifications
+- ✅ **Debug APIs**: Comprehensive debugging tools for financial calculations (/api/debug/financial)
+- ✅ **Documentation Complete**: Detailed docs on financial rules and issue resolution

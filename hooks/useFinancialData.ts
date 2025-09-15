@@ -63,14 +63,6 @@ export function useFinancialData(): UseFinancialDataReturn {
         setError(apiResponse.error)
       }
 
-      // Log seulement si ce n'est pas depuis le cache
-      if (!apiResponse.cached) {
-        console.log('💰 Données financières calculées:', {
-          availableBalance: apiResponse.data.availableBalance,
-          remainingToLive: apiResponse.data.remainingToLive,
-          totalSavings: apiResponse.data.totalSavings
-        })
-      }
 
     } catch (err) {
       console.error('❌ Erreur dans useFinancialData:', err)
@@ -97,20 +89,10 @@ export function useFinancialData(): UseFinancialDataReturn {
   }, []) // Supprimer la dépendance financialData qui causait la boucle infinie
 
   /**
-   * Force le rafraîchissement des données (ignore le cache)
-   */
-  const refreshFinancialData = useCallback(async () => {
-    console.log('🔄 useFinancialData - Rafraîchissement forcé')
-    await invalidateCache()
-    await fetchFinancialData()
-  }, [fetchFinancialData])
-
-  /**
    * Invalide le cache côté serveur
    */
   const invalidateCache = useCallback(async (): Promise<boolean> => {
     try {
-      console.log('🗑️ useFinancialData - Invalidation du cache')
 
       const response = await fetch('/api/financial/dashboard', {
         method: 'POST',
@@ -123,7 +105,6 @@ export function useFinancialData(): UseFinancialDataReturn {
       }
 
       const result = await response.json()
-      console.log('✅ Cache invalidé:', result.message)
       return true
 
     } catch (err) {
@@ -131,6 +112,18 @@ export function useFinancialData(): UseFinancialDataReturn {
       return false
     }
   }, [])
+
+  /**
+   * Force le rafraîchissement des données (ignore le cache)
+   */
+  const refreshFinancialData = useCallback(async () => {
+
+    // 1. Invalider le cache côté serveur
+    const cacheInvalidated = await invalidateCache()
+
+    // 2. Forcer un nouveau fetch (qui devrait ignorer le cache maintenant)
+    await fetchFinancialData()
+  }, [fetchFinancialData, invalidateCache])
 
   // Charger les données financières au montage du composant
   useEffect(() => {
@@ -155,13 +148,20 @@ export function useFinancialData(): UseFinancialDataReturn {
 export function useFinancialCacheInvalidation() {
   const invalidateCache = useCallback(async (): Promise<boolean> => {
     try {
+
       const response = await fetch('/api/financial/dashboard', {
         method: 'POST',
         credentials: 'include'
       })
 
-      return response.ok
-    } catch {
+
+      if (response.ok) {
+        const result = await response.json()
+        return true
+      } else {
+        return false
+      }
+    } catch (error) {
       return false
     }
   }, [])

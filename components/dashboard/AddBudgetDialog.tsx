@@ -93,11 +93,8 @@ export default function AddBudgetDialog({
    * Gestion de la sauvegarde
    */
   const handleSave = () => {
-    console.log('💾 AddBudgetDialog - handleSave appelé')
-    console.log('💾 Form valid:', isFormValid())
     
     if (!isFormValid()) {
-      console.log('❌ Formulaire invalide, abandon')
       return
     }
 
@@ -106,14 +103,12 @@ export default function AddBudgetDialog({
       estimatedAmount: parseFloat(budgetAmount)
     }
     
-    console.log('💾 AddBudgetDialog - Appel onSave avec:', budgetData)
     onSave(budgetData)
 
     // Reset du formulaire
     setBudgetName('')
     setBudgetAmount('')
     setErrors({})
-    console.log('💾 AddBudgetDialog - Formulaire réinitialisé')
   }
 
   /**
