@@ -170,7 +170,7 @@ export default function TransactionTabsComponent({
   }
 
   return (
-    <div className={cn('bg-white rounded-xl border border-gray-200 flex flex-col', className)}>
+    <div className={cn('bg-white rounded-xl border border-gray-200 shadow-md flex flex-col', className)}>
       {/* Tab Navigation */}
       <div className="p-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex space-x-2 bg-gray-100 rounded-lg p-1">

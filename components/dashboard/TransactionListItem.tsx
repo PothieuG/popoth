@@ -100,7 +100,7 @@ export default function TransactionListItem({
     if (transaction.is_exceptional) {
       return 'text-gray-600'
     } else {
-      return type === 'expense' ? 'text-orange-600' : 'text-green-600'
+      return 'text-blue-800'
     }
   }
 
