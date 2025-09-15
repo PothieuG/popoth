@@ -1,0 +1,10 @@
+- Ajouter une option de switch par semaine/jour
+- En fait le RAV doit être calculé sans les économies des budgets
+- Quand on valide un revenu, on recalcul le rav avec la nouvelle valeur, Si un budget est négatif, le négatif s'ajoute au calcul du rav, si il y a une dépense hors budget ou une entrée d'argent hors budget, il s'ajoutent au calcul dur rav
+- Si un budget dépasse mais qu'il a des économies, il va par défaut taper dedans et si il continue de dépasser on peut choisir de prendre dans des économies ailleurs
+- Dans la modal d'ajout d'une dépense, proposer de prendre dans les économies si on le souhaite
+- dans la meme modal, la première étape est de dire si c'est une dépense budgété ou exceptionnel
+- Il n'y a que le créateur d'un group qui peut changer le solde disponible d'un group dans les options
+- Dans le menu du group (dans les settings), on peut enlever la pastille créateur, l'option de suppression et la box du bas
+- Enlever "Se deconnecter" dans les options "Mon group"
+- Régler ce problème de flicker de la page d'information quand on arrive sur le site

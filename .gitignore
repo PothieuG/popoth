@@ -92,10 +92,6 @@ Thumbs.db
 tmp/
 temp/
 
-# Logs
-logs
-*.log
-
 # Runtime data
 pids
 *.pid
