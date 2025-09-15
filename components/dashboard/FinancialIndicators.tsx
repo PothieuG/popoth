@@ -42,12 +42,12 @@ export default function FinancialIndicators({
 
   /**
    * Get background color class based on amount value
-   * Positive: subtle green, Negative: subtle red, Zero: subtle gray with thicker borders
+   * Positive: subtle green, Negative: subtle red, Zero: subtle gray with subtle borders
    */
   const getBackgroundColorClass = (amount: number): string => {
-    if (amount > 0) return 'bg-green-50/50 border-green-300 border-2'
-    if (amount < 0) return 'bg-red-50/50 border-red-300 border-2'
-    return 'bg-gray-50/50 border-gray-300 border-2'
+    if (amount > 0) return 'bg-green-50/50 border-green-200'
+    if (amount < 0) return 'bg-red-50/50 border-red-200'
+    return 'bg-gray-50/50 border-gray-200'
   }
 
   /**
@@ -67,7 +67,7 @@ export default function FinancialIndicators({
       <div className="grid grid-cols-2 gap-3">
         {/* Available Balance Card */}
       <div className={cn(
-        'p-2 rounded-xl shadow-sm transition-all duration-200',
+        'p-2 rounded-xl shadow-sm transition-all duration-200 border',
         getBackgroundColorClass(availableBalance)
       )}>
         <div className="flex flex-col items-center text-center space-y-1">
@@ -100,7 +100,7 @@ export default function FinancialIndicators({
 
       {/* Remaining to Live Card */}
       <div className={cn(
-        'p-2 rounded-xl shadow-sm transition-all duration-200',
+        'p-2 rounded-xl shadow-sm transition-all duration-200 border',
         getBackgroundColorClass(remainingToLive)
       )}>
         <div className="flex flex-col items-center text-center space-y-1">

@@ -212,7 +212,7 @@ export default function TransactionTabsComponent({
 
       {/* Tab Content - Scrollable */}
       <div className="p-3 flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto pb-2">
           {renderTransactionsList()}
         </div>
       </div>

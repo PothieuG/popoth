@@ -123,8 +123,8 @@ export default function DashboardPage() {
       {(isLoading || financialLoading) ? (
         renderCentralLoader(isLoading ? 'Chargement du profil...' : 'Calcul des données financières...')
       ) : (
-        <main className="flex-1 p-4 flex flex-col overflow-hidden">
-          <div className="flex flex-col space-y-6 flex-1 overflow-hidden">
+        <main className="flex-1 p-4 flex flex-col overflow-hidden min-h-0">
+          <div className="flex flex-col space-y-4 flex-1 overflow-hidden min-h-0">
             {/* Financial Indicators */}
             {financialError ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex-shrink-0">
@@ -151,7 +151,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Transaction Tabs Component - Scrollable */}
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-hidden min-h-0">
                   <TransactionTabsComponent
                     context="profile"
                     className="h-full"
@@ -164,8 +164,8 @@ export default function DashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="sticky bottom-0 z-40 bg-white border-t border-gray-200">
-        <div className="grid grid-cols-3 h-16">
+      <footer className="flex-shrink-0 bg-white border-t border-gray-200">
+        <div className="grid grid-cols-3">
           {/* Personal Finance Tab - Active state */}
           <button
             className="flex flex-col items-center justify-center p-3 bg-orange-50 border-r border-gray-200 transition-colors duration-200"

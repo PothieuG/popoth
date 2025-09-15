@@ -97,8 +97,8 @@ export default function GroupDashboardPage() {
             : 'Calcul des données financières du groupe...'
         )
       ) : (
-        <main className="flex-1 p-4">
-          <div className="space-y-6">
+        <main className="flex-1 p-4 flex flex-col overflow-hidden min-h-0">
+          <div className="flex flex-col space-y-4 flex-1 overflow-hidden min-h-0">
             {/* Financial Indicators */}
             {financialError ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
@@ -114,19 +114,23 @@ export default function GroupDashboardPage() {
               </div>
             ) : (
               <>
-                <FinancialIndicators
-                  availableBalance={financialData?.availableBalance || 0}
-                  remainingToLive={financialData?.remainingToLive || 0}
-                  totalSavings={financialData?.totalSavings || 0}
-                  onPlanningChange={refreshFinancialData}
-                  context="group"
-                />
+                <div className="flex-shrink-0">
+                  <FinancialIndicators
+                    availableBalance={financialData?.availableBalance || 0}
+                    remainingToLive={financialData?.remainingToLive || 0}
+                    totalSavings={financialData?.totalSavings || 0}
+                    onPlanningChange={refreshFinancialData}
+                    context="group"
+                  />
+                </div>
 
-                {/* Transaction Tabs Component */}
-                <TransactionTabsComponent
-                  context="group"
-                  className="mt-6"
-                />
+                {/* Transaction Tabs Component - Scrollable */}
+                <div className="flex-1 overflow-hidden min-h-0">
+                  <TransactionTabsComponent
+                    context="group"
+                    className="h-full"
+                  />
+                </div>
               </>
             )}
           </div>
@@ -134,40 +138,40 @@ export default function GroupDashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="sticky bottom-0 z-40 bg-white border-t border-gray-200">
-        <div className="flex justify-between items-center p-4 h-16">
-          {/* Left side - Navigation buttons */}
-          <div className="flex space-x-8">
-            {/* Personal Finance Button */}
-            <button
-              onClick={() => window.location.href = '/dashboard'}
-              className="flex flex-col items-center justify-center p-3 rounded-lg transition-colors duration-200 hover:bg-gray-50 text-gray-600"
-            >
-              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <footer className="flex-shrink-0 bg-white border-t border-gray-200">
+        <div className="grid grid-cols-3">
+          {/* Personal Finance Tab */}
+          <button
+            onClick={() => window.location.href = '/dashboard'}
+            className="flex flex-col items-center justify-center p-3 border-r border-gray-200 hover:bg-gray-50 transition-colors duration-200 text-gray-600"
+          >
+            <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="text-xs">{profile?.first_name || 'Personnel'}</span>
-            </button>
+            </svg>
+            <span className="text-xs">{profile?.first_name || 'Personnel'}</span>
+          </button>
 
-            {/* Group Finance Button - Active state with orange */}
-            <button
-              className="flex flex-col items-center justify-center p-3 rounded-lg bg-orange-50 border border-orange-200 transition-colors duration-200"
-            >
-              <svg className="w-6 h-6 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Group Finance Tab - Active state */}
+          <button
+            className="flex flex-col items-center justify-center p-3 bg-orange-50 border-r border-gray-200 transition-colors duration-200"
+          >
+            <svg className="w-5 h-5 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <span className="text-xs text-orange-600 font-medium">{profile?.group_name || 'Groupe'}</span>
-            </button>
-          </div>
+            </svg>
+            <span className="text-xs text-orange-600 font-medium">{profile?.group_name || 'Groupe'}</span>
+          </button>
 
-          {/* Right side - Add Transaction Button - Orange border style */}
+          {/* Add Transaction Tab - Orange border style */}
           <button
             onClick={() => setIsAddTransactionModalOpen(true)}
-            className="flex items-center justify-center p-4 border-4 border-orange-500 hover:border-orange-600 rounded-full transition-all duration-200 transform hover:scale-105"
+            className="flex flex-col items-center justify-center p-3 border-4 border-orange-500 hover:border-orange-600 transition-colors duration-200"
           >
-            <svg className="w-6 h-6 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
+            <div className="w-6 h-6 mb-1 bg-orange-500 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <span className="text-xs text-orange-500 font-medium">Ajouter</span>
           </button>
         </div>
       </footer>

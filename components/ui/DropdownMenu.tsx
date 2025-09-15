@@ -7,6 +7,7 @@ interface DropdownMenuItem {
   icon: React.ReactNode
   onClick: () => void
   variant?: 'default' | 'danger'
+  className?: string
 }
 
 interface DropdownMenuProps {
