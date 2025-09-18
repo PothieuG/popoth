@@ -317,6 +317,18 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 - **Transaction List Display**: 3-line layout showing description, category, and timestamp with proper color coding
 - **Professional UX Design**: Consistent iconography, subtle backgrounds, and optimized spacing throughout
 
+### 🎨 Complete Avatar System with Personal Photos (2025-09-18 - NEW)
+- **Personal Photo Upload**: Full image upload system in profile settings with drag-and-drop support
+- **Smart Avatar Management**: Upload, change, and delete personal photos with intelligent fallback to initials
+- **Multi-format Support**: Accepts all image formats (JPG, PNG, GIF, etc.) with 5MB size limit
+- **Base64 Storage**: Simplified storage using data URLs, no external file hosting required
+- **Intelligent Fallback**: Automatic fallback to colorful initials when no photo or load error
+- **Universal Integration**: Personal avatars displayed throughout the application (navbar, transactions, profiles)
+- **Perfect Alignment**: Corrected vertical alignment in transaction lists for professional appearance
+- **Force Refresh System**: Automatic page reload after avatar changes to ensure immediate visual updates
+- **Error Handling**: Robust error handling with graceful degradation and user feedback
+- **Mobile-First Design**: Optimized for mobile with touch-friendly upload interface
+
 ### 🔧 Technical Architecture
 - **Modern Next.js 15** with App Router and Server Components
 - **Supabase authentication** with `signUp()` and `signInWithPassword()`
@@ -352,7 +364,9 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 ├── components/
 │   ├── ui/
 │   │   ├── DropdownMenu.tsx            # Reusable 3-dot dropdown menu component
-│   │   └── ConfirmationDialog.tsx      # Delete confirmation modal dialog
+│   │   ├── ConfirmationDialog.tsx      # Delete confirmation modal dialog
+│   │   ├── UserAvatar.tsx              # Smart avatar component with photo/initials fallback
+│   │   └── AvatarUpload.tsx            # Avatar upload component with file validation
 │   └── dashboard/
 │       ├── EditBudgetDialog.tsx        # Budget editing modal with validation
 │       ├── EditIncomeDialog.tsx        # Income editing modal with validation
@@ -408,16 +422,18 @@ CREATE TABLE public.profiles (
   updated_at timestamp with time zone DEFAULT now(),
   group_id uuid,
   salary numeric DEFAULT 0,
+  avatar_url text DEFAULT NULL,
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
   CONSTRAINT profiles_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
   CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );
 ```
 
-**Table Purpose**: Extended user profile information with single group membership and salary management
+**Table Purpose**: Extended user profile information with single group membership, salary management, and personal avatar
 - **Primary Key**: `id` (UUID) - Links directly to `auth.users(id)`
 - **Required Fields**: `first_name`, `last_name` - User's full name
 - **Salary Field**: `salary` (NUMERIC) - Monthly salary in euros, defaults to 0
+- **Avatar Field**: `avatar_url` (TEXT) - Personal avatar image as data URL or external URL, nullable
 - **Group Relationship**: `group_id` - Links to single group (nullable)
 - **Timestamps**: Automatic `created_at` and `updated_at` tracking
 - **Constraint**: One user can belong to maximum one group
@@ -628,7 +644,7 @@ CREATE TABLE public.financial_snapshots (
 - **Benefits**: Better performance, easier debugging, more maintainable code
 - **Migration**: Successfully completed on 2025-09-15 with comprehensive testing
 
-## 📊 Current Session Status (Updated 2025-09-15 - Dual-Context Financial System COMPLETE)
+## 📊 Current Session Status (Updated 2025-09-18 - Avatar System COMPLETE)
 - ✅ **Authentication System**: Fully functional and production-ready
 - ✅ **Token Management**: Modern JWT-based sessions implemented
 - ✅ **Security**: Enterprise-level security measures in place
@@ -667,3 +683,7 @@ CREATE TABLE public.financial_snapshots (
 - ✅ **Advanced Transaction Interface**: Mobile-optimized 3-tab footer with transaction listing and management
 - ✅ **Smart Transaction Categorization**: Automatic exceptional vs budgeted/estimated transaction handling
 - ✅ **Transaction CRUD Operations**: Full create, read, update, delete with cache invalidation and real-time updates
+- ✅ **Complete Avatar System**: Personal photo upload with intelligent fallback to colorful initials (2025-09-18)
+- ✅ **Universal Avatar Integration**: Avatars displayed throughout application (navbar, transactions, profile settings)
+- ✅ **Smart Image Management**: Multi-format support, error handling, and automatic refresh system
+- ✅ **Perfect UI Alignment**: Corrected vertical alignment in transaction lists for professional appearance

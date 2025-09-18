@@ -9,6 +9,7 @@ export interface ProfileData {
   salary: number
   group_id: string | null
   group_name: string | null
+  avatar_url: string | null
   created_at: string
   updated_at: string
 }
@@ -17,6 +18,7 @@ export interface CreateProfileRequest {
   first_name: string
   last_name: string
   salary?: number
+  avatar_url?: string | null
 }
 
 /**
@@ -85,6 +87,7 @@ export async function GET(request: NextRequest) {
       salary: data.salary || 0,
       group_id: data.group_id,
       group_name: groupName,
+      avatar_url: data.avatar_url || null,
       created_at: data.created_at,
       updated_at: data.updated_at
     }
@@ -192,6 +195,7 @@ export async function POST(request: NextRequest) {
       salary: data.salary || 0,
       group_id: data.group_id,
       group_name: null, // Nouveau profil n'a pas de groupe
+      avatar_url: data.avatar_url || null,
       created_at: data.created_at,
       updated_at: data.updated_at
     }
@@ -262,6 +266,10 @@ export async function PUT(request: NextRequest) {
       updates.salary = body.salary
     }
 
+    if (body.avatar_url !== undefined) {
+      updates.avatar_url = body.avatar_url
+    }
+
     // Vérifier qu'il y a au moins une mise à jour
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -317,6 +325,7 @@ export async function PUT(request: NextRequest) {
       salary: data.salary || 0,
       group_id: data.group_id,
       group_name: groupName,
+      avatar_url: data.avatar_url || null,
       created_at: data.created_at,
       updated_at: data.updated_at
     }

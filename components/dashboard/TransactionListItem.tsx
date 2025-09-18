@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { RealExpense } from '@/hooks/useRealExpenses'
 import { RealIncome } from '@/hooks/useRealIncomes'
+import { ProfileData } from '@/app/api/profile/route'
 import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
+import UserAvatar from '@/components/ui/UserAvatar'
 
 type Transaction = RealExpense | RealIncome
 
@@ -15,6 +17,7 @@ interface TransactionListItemProps {
   onEdit: (transaction: Transaction) => void
   onDelete: (transactionId: string) => Promise<boolean>
   context?: 'profile' | 'group'
+  userProfile?: ProfileData | null
   className?: string
 }
 
@@ -28,6 +31,7 @@ export default function TransactionListItem({
   onEdit,
   onDelete,
   context = 'profile',
+  userProfile = null,
   className
 }: TransactionListItemProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -155,15 +159,14 @@ export default function TransactionListItem({
       )}>
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
-          <div className="flex items-start space-x-3 flex-1 min-w-0">
-            {/* Avatar placeholder for group transactions */}
+          <div className="flex items-center space-x-3 flex-1 min-w-0">
+            {/* Avatar for group transactions */}
             {context === 'group' && (
-              <div className="flex-shrink-0 mt-1">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xs font-medium">
-                    U
-                  </span>
-                </div>
+              <div className="flex-shrink-0">
+                <UserAvatar
+                  profile={userProfile}
+                  size="sm"
+                />
               </div>
             )}
 

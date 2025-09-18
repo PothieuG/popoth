@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
+import { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
 
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
+  userProfile?: ProfileData | null
   onEditTransaction?: (transaction: any, type: 'expense' | 'income') => void
   className?: string
 }
@@ -20,6 +22,7 @@ type TabType = 'expenses' | 'incomes'
  */
 export default function TransactionTabsComponent({
   context,
+  userProfile,
   onEditTransaction,
   className
 }: TransactionTabsComponentProps) {
@@ -141,6 +144,7 @@ export default function TransactionTabsComponent({
               transaction={expense}
               type="expense"
               context={context}
+              userProfile={userProfile}
               onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
               onDelete={deleteExpense}
             />
@@ -160,6 +164,7 @@ export default function TransactionTabsComponent({
               transaction={income}
               type="income"
               context={context}
+              userProfile={userProfile}
               onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
               onDelete={deleteIncome}
             />

@@ -9,6 +9,7 @@ import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { calculateUserContribution, formatCurrency, formatPercentage } from '@/lib/contribution-calculator'
+import AvatarUpload from '@/components/ui/AvatarUpload'
 
 interface ProfileSettingsCardProps {
   className?: string
@@ -18,7 +19,7 @@ interface ProfileSettingsCardProps {
  * Component for managing user profile settings including personal information and salary
  */
 export default function ProfileSettingsCard({ className }: ProfileSettingsCardProps) {
-  const { profile, isLoading, updateProfile, hasProfile } = useProfile()
+  const { profile, isLoading, updateProfile, hasProfile, fetchProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
   const { contributions, fetchContributions } = useGroupContributions()
   
@@ -128,11 +129,35 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   }
 
   /**
+   * Handles avatar update
+   */
+  const handleAvatarUpdate = async (avatarUrl: string | null) => {
+    try {
+      const updates = {
+        avatar_url: avatarUrl
+      }
+
+      const success = await updateProfile(updates)
+      if (success) {
+        setSuccessMessage('Photo de profil mise à jour avec succès')
+
+        // Force page refresh after a short delay to show success message
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+      }
+    } catch (error) {
+      console.error('Error updating avatar:', error)
+      throw error
+    }
+  }
+
+  /**
    * Handles form submission
    */
   const handleSave = async () => {
     setSuccessMessage('')
-    
+
     if (!validateForm()) {
       return
     }
@@ -146,7 +171,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       }
 
       const success = await updateProfile(updates)
-      
+
       if (success) {
         setIsEditing(false)
         setSuccessMessage('Profil mis à jour avec succès')
@@ -233,7 +258,18 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-6">
+        {/* Avatar Upload Section */}
+        <div className="border-b border-gray-200 pb-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-4">Photo de profil</h3>
+          <AvatarUpload
+            profile={profile}
+            onAvatarUpdate={handleAvatarUpdate}
+            isUpdating={isSaving}
+            className="mx-auto"
+          />
+        </div>
+
         {/* First Name */}
         <div>
           <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">

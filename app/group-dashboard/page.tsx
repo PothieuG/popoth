@@ -128,6 +128,7 @@ export default function GroupDashboardPage() {
                 <div className="flex-1 overflow-hidden min-h-0">
                   <TransactionTabsComponent
                     context="group"
+                    userProfile={profile}
                     className="h-full"
                   />
                 </div>

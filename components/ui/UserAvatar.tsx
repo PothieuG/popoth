@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { ProfileData } from '@/app/api/profile/route'
 
 interface UserAvatarProps {
@@ -7,19 +8,30 @@ interface UserAvatarProps {
   onClick?: () => void
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  style?: React.CSSProperties
 }
 
 /**
- * UserAvatar Component - Displays user avatar with initials
+ * UserAvatar Component - Displays user avatar with custom photo or initials
  * Can be clicked to trigger actions (like opening menu)
- * Future: will support image upload
+ * Supports both custom avatar images and fallback to initials
  */
-export default function UserAvatar({ 
-  profile, 
-  onClick, 
-  size = 'md', 
-  className = '' 
+export default function UserAvatar({
+  profile,
+  onClick,
+  size = 'md',
+  className = '',
+  style = {}
 }: UserAvatarProps) {
+  const [imageLoadError, setImageLoadError] = useState(false)
+  const [imageKey, setImageKey] = useState(0)
+
+  // Reset image state when avatar_url changes
+  useEffect(() => {
+    setImageLoadError(false)
+    setImageKey(prev => prev + 1) // Force image reload
+  }, [profile?.avatar_url])
+
   // Generate initials from profile
   const getInitials = () => {
     if (!profile || !profile.first_name || !profile.last_name) {
@@ -52,27 +64,52 @@ export default function UserAvatar({
   // Size classes
   const sizeClasses = {
     sm: 'w-8 h-8 text-xs',
-    md: 'w-10 h-10 text-sm', 
+    md: 'w-10 h-10 text-sm',
     lg: 'w-12 h-12 text-base'
   }
+
+  // Check if user has custom avatar and no load error
+  const hasCustomAvatar = profile?.avatar_url && !imageLoadError
 
   return (
     <button
       onClick={onClick}
+      style={style}
       className={`
         ${sizeClasses[size]}
-        ${getAvatarColor()}
+        ${hasCustomAvatar ? 'bg-gray-200' : getAvatarColor()}
         rounded-full
         flex items-center justify-center
         text-white font-semibold
         shadow-sm
         transition-all duration-200
+        overflow-hidden
         ${onClick ? 'hover:shadow-md hover:scale-105 active:scale-95' : ''}
         ${className}
       `}
       disabled={!onClick}
     >
-      {getInitials()}
+      {hasCustomAvatar ? (
+        <img
+          key={imageKey} // Force re-render when key changes
+          src={profile.avatar_url}
+          alt={`Avatar de ${profile.first_name} ${profile.last_name}`}
+          className="w-full h-full object-cover"
+          onError={() => {
+            setImageLoadError(true)
+          }}
+          onLoad={() => {
+            setImageLoadError(false)
+          }}
+        />
+      ) : null}
+
+      {/* Initials fallback - shown when no avatar or when image fails to load */}
+      {!hasCustomAvatar && (
+        <span className="w-full h-full flex items-center justify-center">
+          {getInitials()}
+        </span>
+      )}
     </button>
   )
 }

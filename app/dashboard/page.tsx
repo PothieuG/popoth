@@ -154,6 +154,7 @@ export default function DashboardPage() {
                 <div className="flex-1 overflow-hidden min-h-0">
                   <TransactionTabsComponent
                     context="profile"
+                    userProfile={profile}
                     className="h-full"
                   />
                 </div>
