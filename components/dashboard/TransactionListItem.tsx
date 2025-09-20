@@ -153,8 +153,8 @@ export default function TransactionListItem({
   return (
     <>
       <div className={cn(
-        'p-4 bg-white rounded-lg border border-gray-200 shadow-sm transition-all duration-200',
-        'hover:shadow-md hover:border-gray-300',
+        'p-4 bg-white rounded-lg border border-gray-200 shadow-md transition-all duration-200',
+        'hover:shadow-lg hover:border-gray-300',
         className
       )}>
         <div className="flex items-center justify-between">

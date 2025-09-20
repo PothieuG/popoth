@@ -83,8 +83,8 @@ export default function BudgetProgressIndicator({
         {/* Nom du budget et économies - alignés à gauche */}
         <div className="flex-1 flex flex-col justify-center">
           <h5 className="font-medium text-gray-900 text-sm text-left">{progress.budgetName}</h5>
-          <div className="text-xs font-medium text-blue-600 text-left">
-            Eco: <span className="font-bold text-blue-700">{formatAmount(progress.savings)}</span>
+          <div className="text-xs font-medium text-purple-600 text-left">
+            Economies: <span className="font-bold text-purple-800">{formatAmount(progress.savings)}</span>
           </div>
         </div>
       </div>

@@ -226,7 +226,7 @@ export default function TransactionTabsComponent({
     <div className={cn('bg-white rounded-xl border border-gray-200 shadow-md flex flex-col', className)}>
       {/* Tab Navigation */}
       <div className="p-3 border-b border-gray-200 flex-shrink-0">
-        <div className="flex space-x-2 bg-gray-100 rounded-lg p-1">
+        <div className="flex space-x-2 bg-gray-50/100 rounded-lg p-1">
           <button
             onClick={() => setActiveTab('expenses')}
             className={getTabButtonClass('expenses')}

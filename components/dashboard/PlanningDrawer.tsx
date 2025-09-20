@@ -307,7 +307,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         </div>
 
         {/* Header avec background color léger */}
-        <div className="px-4 py-3 border-b border-gray-200 bg-blue-50/30">
+        <div className="px-4 py-3 border-b border-gray-200 bg-blue-50/80">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
@@ -403,7 +403,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
               {/* Total discret */}
               <div className="px-3 py-2 bg-orange-50/50 rounded-lg border border-orange-100">
                 <p className="text-sm text-orange-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span>
+                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span> (sans les économies)
                 </p>
               </div>
               
@@ -433,7 +433,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     if (!progress) return null
 
                     return (
-                      <div key={budget.id} className="p-3 border-2 border-orange-200 rounded-xl">
+                      <div key={budget.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
                         <div className="flex justify-between items-center">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
@@ -498,7 +498,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
               {/* Total discret */}
               <div className="px-3 py-2 bg-green-50/50 rounded-lg border border-green-100">
                 <p className="text-sm text-green-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalIncomes)}</span>
+                  Total estimé: <span className="font-medium">{formatAmount(totalIncomes)}</span> (sans les économies)
                 </p>
               </div>
               
@@ -528,7 +528,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     if (!progress) return null
 
                     return (
-                      <div key={income.id} className="p-3 border-2 border-green-200 rounded-xl">
+                      <div key={income.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
                         <div className="flex justify-between items-center">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
@@ -574,7 +574,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         </div>
 
         {/* Bottom Summary - Always visible */}
-        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+        <div className="px-4 py-3 bg-gray-100/80 border-t border-gray-200">
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium text-gray-600">Différence estimée</span>
             <span className={cn(
