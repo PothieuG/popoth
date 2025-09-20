@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import FinancialLogger from '@/lib/financial-logger'
+import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 export interface RealIncomeEntryData {
   id: string
@@ -257,6 +258,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel
+    if (data.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: is_for_group ? undefined : session.userId,
+        groupId: is_for_group ? insertData.group_id : undefined,
+        reason: 'exceptional_income_created'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après création revenu exceptionnel')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
+    }
+
     return NextResponse.json({
       real_income_entry: data,
       message: 'Entrée d\'argent créée avec succès'
@@ -350,6 +366,21 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel
+    if (data.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: data.profile_id || undefined,
+        groupId: data.group_id || undefined,
+        reason: 'exceptional_income_updated'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour revenu exceptionnel')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
+    }
+
     return NextResponse.json({
       real_income_entry: data,
       message: 'Entrée d\'argent mise à jour avec succès'
@@ -386,6 +417,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel
+    const { data: incomeToDelete } = await supabaseServer
+      .from('real_income_entries')
+      .select('profile_id, group_id, is_exceptional')
+      .eq('id', id)
+      .single()
+
     // Delete the real income entry
     const { error } = await supabaseServer
       .from('real_income_entries')
@@ -398,6 +436,21 @@ export async function DELETE(request: NextRequest) {
         { error: 'Erreur lors de la suppression de l\'entrée d\'argent' },
         { status: 500 }
       )
+    }
+
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'était un revenu exceptionnel
+    if (incomeToDelete?.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: incomeToDelete.profile_id || undefined,
+        groupId: incomeToDelete.group_id || undefined,
+        reason: 'exceptional_income_deleted'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après suppression revenu exceptionnel')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
     }
 
     return NextResponse.json({

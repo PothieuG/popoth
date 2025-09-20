@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 export interface RealExpenseData {
   id: string
@@ -263,6 +264,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est une dépense exceptionnelle
+    if (data.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: is_for_group ? undefined : session.userId,
+        groupId: is_for_group ? insertData.group_id : undefined,
+        reason: 'exceptional_expense_created'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après création dépense exceptionnelle')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
+    }
+
     return NextResponse.json({
       real_expense: data,
       message: 'Dépense créée avec succès'
@@ -356,6 +372,21 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est une dépense exceptionnelle
+    if (data.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: data.profile_id || undefined,
+        groupId: data.group_id || undefined,
+        reason: 'exceptional_expense_updated'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour dépense exceptionnelle')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
+    }
+
     return NextResponse.json({
       real_expense: data,
       message: 'Dépense mise à jour avec succès'
@@ -392,6 +423,13 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    // Récupérer d'abord les informations de la dépense avant suppression pour savoir si elle était exceptionnelle
+    const { data: expenseToDelete } = await supabaseServer
+      .from('real_expenses')
+      .select('profile_id, group_id, is_exceptional')
+      .eq('id', id)
+      .single()
+
     // Delete the real expense
     const { error } = await supabaseServer
       .from('real_expenses')
@@ -404,6 +442,21 @@ export async function DELETE(request: NextRequest) {
         { error: 'Erreur lors de la suppression de la dépense' },
         { status: 500 }
       )
+    }
+
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'était une dépense exceptionnelle
+    if (expenseToDelete?.is_exceptional) {
+      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+        profileId: expenseToDelete.profile_id || undefined,
+        groupId: expenseToDelete.group_id || undefined,
+        reason: 'exceptional_expense_deleted'
+      })
+
+      if (snapshotSuccess) {
+        console.log('📊 Snapshot reste à vivre sauvegardé après suppression dépense exceptionnelle')
+      } else {
+        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      }
     }
 
     return NextResponse.json({

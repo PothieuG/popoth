@@ -57,35 +57,32 @@ export function calculateAvailableCash(realIncomes: number, realExpenses: number
 }
 
 /**
- * Règle reste à vivre pour PROFILES (battleplan ligne 18-19):
+ * Règle reste à vivre pour PROFILES (nouvelle règle 2025):
  * "l'ensemble des entrées d'argent moins ce qui a été budgété pour le mois
- * moins les dépenses non-budgété (exceptionnelles),
- * mais on y ajoute l'ensemble des économies des budgets"
+ * moins les dépenses non-budgété (exceptionnelles)"
  */
 export function calculateRemainingToLiveProfile(
   estimatedIncomes: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number,
-  totalBudgetSavings: number
+  exceptionalExpenses: number
 ): number {
-  return estimatedIncomes - estimatedBudgets - exceptionalExpenses + totalBudgetSavings
+  return estimatedIncomes - estimatedBudgets - exceptionalExpenses
 }
 
 /**
- * Règle reste à vivre pour GROUPS (battleplan ligne 20-21):
- * "l'ensemble des entrées d'argent estimés et entrées réels (les contributions des profiles du groupe + entrées d'argent exceptionnels),
- * moins l'ensemble de ce qui a été budgété moins les dépenses non-budgété"
+ * Règle reste à vivre pour GROUPS (nouvelle règle 2025):
+ * "l'ensemble des entrées d'argent estimées et entrées réelles (les contributions des profiles du groupe + entrées d'argent exceptionnels),
+ * moins l'ensemble de ce qui a été budgété moins les dépenses non-budgétées (ou réelles dépenses qui ne sont pas liées à un budget)"
  */
 export function calculateRemainingToLiveGroup(
   estimatedIncomes: number,
   realIncomes: number,
   profileContributions: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number,
-  totalBudgetSavings: number
+  exceptionalExpenses: number
 ): number {
   const totalIncomes = estimatedIncomes + realIncomes + profileContributions
-  return totalIncomes - estimatedBudgets - exceptionalExpenses + totalBudgetSavings
+  return totalIncomes - estimatedBudgets - exceptionalExpenses
 }
 
 /**
@@ -186,8 +183,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     const remainingToLive = calculateRemainingToLiveProfile(
       totalEstimatedIncome,
       totalEstimatedBudgets,
-      exceptionalExpenses,
-      totalSavings
+      exceptionalExpenses
     )
 
     // Calculs terminés
@@ -282,19 +278,33 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       }
     }
 
-    // 8. Appliquer les règles de calcul pour groupe
-    // Le solde disponible pour un groupe = somme des soldes bancaires des membres
-    const availableBalance = totalGroupBankBalance
+    // 8. Récupérer les contributions des profiles du groupe
+    const { data: groupContributions } = await supabaseServer
+      .from('group_contributions')
+      .select('contribution_amount')
+      .eq('group_id', groupId)
 
-    // Le reste à vivre pour un groupe = revenus estimés - budgets estimés (logique simple)
-    const remainingToLive = totalEstimatedIncome - totalEstimatedBudgets
+    const totalProfileContributions = groupContributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
+
+    // 9. Appliquer les règles de calcul pour groupe selon les nouvelles règles
+    const availableBalance = totalGroupBankBalance
+    const remainingToLive = calculateRemainingToLiveGroup(
+      totalEstimatedIncome,
+      totalRealIncome,
+      totalProfileContributions,
+      totalEstimatedBudgets,
+      exceptionalExpenses
+    )
 
     console.log('💰 Calcul financier groupe:', {
       groupId,
       totalEstimatedIncome,
+      totalRealIncome,
+      totalProfileContributions,
       totalEstimatedBudgets,
+      exceptionalExpenses,
       totalGroupBankBalance,
-      remainingToLive: totalEstimatedIncome - totalEstimatedBudgets,
+      remainingToLive,
       availableBalance: totalGroupBankBalance,
       totalSavings
     })
