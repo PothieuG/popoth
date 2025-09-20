@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         .filter(realIncome => realIncome.estimated_income_id === income.id)
         .reduce((sum, realIncome) => sum + realIncome.amount, 0)
 
-      const bonusAmount = Math.max(0, receivedAmount - income.estimated_amount)
+      const bonusAmount = receivedAmount - income.estimated_amount
 
       return {
         incomeId: income.id,

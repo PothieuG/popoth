@@ -165,6 +165,19 @@
 - **API Routes Integration**: Clean REST endpoints with intelligent caching and invalidation hooks
 - **Migration Complete**: Successfully migrated from unreliable PostgreSQL triggers to stable application logic
 
+### 💰 Enhanced Income Deficit/Surplus System (2025-09-20 - NEW)
+- **Comprehensive Income Impact Logic**: Complete implementation of deficit and surplus calculations for estimated incomes
+- **Deficit Handling**: When real income is below estimation, the shortage impacts remaining balance negatively
+- **Surplus Handling**: When real income exceeds estimation, the excess improves remaining balance positively
+- **Mathematical Precision**: Accurate calculation of income differences: `realAmount - estimatedAmount`
+- **Backend Logic Enhancement**: Updated `financial-calculations.ts` to handle both positive and negative income differences
+- **API Progress Updates**: Fixed `/api/finances/income/progress` to calculate `bonusAmount` without `Math.max(0, ...)` restriction
+- **Real-time Preview Accuracy**: Enhanced `RemainingToLivePreview.tsx` with correct deficit/surplus impact calculations
+- **Modal Transaction Logic**: Updated `AddTransactionModal.tsx` and `EditTransactionModal.tsx` for accurate income difference display
+- **Two-Case Logic Implementation**: Handles first income entry vs. additional income entries with different calculation approaches
+- **User Experience Enhancement**: Clear visual feedback showing exact impact of income deficits and surpluses on remaining balance
+- **Complete Integration**: All components (backend calculations, API endpoints, UI previews) now consistently handle income differences
+
 ### 💰 Dual-Context Financial System (2025-09-15 - Complete Independence)
 - **Profile-Group Separation**: Complete independence between personal and group finances
 - **Editable Bank Balance**: Both profiles and groups have separate, editable bank balances

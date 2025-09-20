@@ -78,7 +78,7 @@ export default function EditTransactionModal({
       type: 'income' as const,
       receivedAmount: progress?.receivedAmount || 0,
       estimatedAmount: income.estimated_amount,
-      bonusAmount: progress?.bonusAmount || Math.max(0, (progress?.receivedAmount || 0) - income.estimated_amount)
+      bonusAmount: progress?.bonusAmount || ((progress?.receivedAmount || 0) - income.estimated_amount)
     }
   })
 

@@ -77,8 +77,8 @@ export function calculateAvailableCash(bankBalance: number, realIncomes: number,
  *
  * NOUVELLES RÈGLES AJOUTÉES:
  * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
- * - Si bonus revenus (revenus réels > revenus estimés): ajout de la différence
- * - Calcul précis des bonus par revenu associé (pas global)
+ * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
+ * - Calcul précis des bonus/déficits par revenu associé (pas global)
  */
 export function calculateRemainingToLiveProfile(
   estimatedIncomes: number,
@@ -86,7 +86,7 @@ export function calculateRemainingToLiveProfile(
   exceptionalExpenses: number,
   realIncomes?: number,
   realExpensesOnBudgets?: number,
-  incomeBonus?: number
+  incomeDifference?: number
 ): number {
   let remainingToLive = estimatedIncomes - estimatedBudgets - exceptionalExpenses
 
@@ -98,11 +98,15 @@ export function calculateRemainingToLiveProfile(
     console.log(`📉 [calculateRemainingToLiveProfile] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // NOUVELLE RÈGLE 2: Addition des bonus revenus calculés précisément
-  // Utilise le bonus calculé par getProfileFinancialData basé sur les revenus associés
-  if (incomeBonus !== undefined && incomeBonus > 0) {
-    remainingToLive += incomeBonus
-    console.log(`📈 [calculateRemainingToLiveProfile] Bonus revenus précis de ${incomeBonus}€, addition appliquée`)
+  // NOUVELLE RÈGLE 2: Addition/soustraction des bonus/déficits revenus calculés précisément
+  // Utilise le bonus/déficit calculé par getProfileFinancialData basé sur les revenus associés
+  if (incomeDifference !== undefined && incomeDifference !== 0) {
+    remainingToLive += incomeDifference
+    if (incomeDifference > 0) {
+      console.log(`📈 [calculateRemainingToLiveProfile] Bonus revenus précis de +${incomeDifference}€, addition appliquée`)
+    } else {
+      console.log(`📉 [calculateRemainingToLiveProfile] Déficit revenus précis de ${incomeDifference}€, soustraction appliquée`)
+    }
   }
 
   console.log(`💰 [calculateRemainingToLiveProfile] Calcul final: ${remainingToLive}€`)
@@ -116,8 +120,8 @@ export function calculateRemainingToLiveProfile(
  *
  * NOUVELLES RÈGLES AJOUTÉES:
  * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
- * - Si bonus revenus (revenus réels totaux > revenus estimés): ajout de la différence
- * - Calcul précis des bonus par revenu associé (pas global)
+ * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
+ * - Calcul précis des bonus/déficits par revenu associé (pas global)
  */
 export function calculateRemainingToLiveGroup(
   estimatedIncomes: number,
@@ -126,7 +130,7 @@ export function calculateRemainingToLiveGroup(
   estimatedBudgets: number,
   exceptionalExpenses: number,
   realExpensesOnBudgets?: number,
-  incomeBonus?: number
+  incomeDifference?: number
 ): number {
   const totalIncomes = estimatedIncomes + realIncomes + profileContributions
   let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
@@ -139,11 +143,15 @@ export function calculateRemainingToLiveGroup(
     console.log(`📉 [calculateRemainingToLiveGroup] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // NOUVELLE RÈGLE 2: Addition des bonus revenus calculés précisément
-  // Utilise le bonus calculé par getGroupFinancialData basé sur les revenus associés
-  if (incomeBonus !== undefined && incomeBonus > 0) {
-    remainingToLive += incomeBonus
-    console.log(`📈 [calculateRemainingToLiveGroup] Bonus revenus précis de ${incomeBonus}€, addition appliquée`)
+  // NOUVELLE RÈGLE 2: Addition/soustraction des bonus/déficits revenus calculés précisément
+  // Utilise le bonus/déficit calculé par getGroupFinancialData basé sur les revenus associés
+  if (incomeDifference !== undefined && incomeDifference !== 0) {
+    remainingToLive += incomeDifference
+    if (incomeDifference > 0) {
+      console.log(`📈 [calculateRemainingToLiveGroup] Bonus revenus précis de +${incomeDifference}€, addition appliquée`)
+    } else {
+      console.log(`📉 [calculateRemainingToLiveGroup] Déficit revenus précis de ${incomeDifference}€, soustraction appliquée`)
+    }
   }
 
   console.log(`💰 [calculateRemainingToLiveGroup] Calcul final: ${remainingToLive}€`)
@@ -234,8 +242,8 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 5.2. Calculer le bonus revenus précis par revenu associé
-    let totalIncomeBonus = 0
+    // 5.2. Calculer les différences revenus précises par revenu associé (bonus ou déficits)
+    let totalIncomeDifference = 0
     if (estimatedIncomes && realIncomes) {
       // Récupérer les revenus réels avec leur estimation associée
       const { data: realIncomesWithEstimated } = await supabaseServer
@@ -262,12 +270,16 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
           return acc
         }, {} as Record<string, { totalReal: number; estimatedAmount: number }>)
 
-        // Calculer les bonus pour chaque revenu estimé
+        // Calculer les bonus/déficits pour chaque revenu estimé
         for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
-          if (data.totalReal > data.estimatedAmount) {
-            const bonus = data.totalReal - data.estimatedAmount
-            totalIncomeBonus += bonus
-            console.log(`📈 [getProfileFinancialData] Bonus revenu ${estimatedId}: ${bonus}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+          const difference = data.totalReal - data.estimatedAmount
+          if (difference !== 0) {
+            totalIncomeDifference += difference
+            if (difference > 0) {
+              console.log(`📈 [getProfileFinancialData] Bonus revenu ${estimatedId}: +${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+            } else {
+              console.log(`📉 [getProfileFinancialData] Déficit revenu ${estimatedId}: ${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+            }
           }
         }
       }
@@ -296,7 +308,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       exceptionalExpenses,
       totalRealIncome,
       realExpensesOnBudgets,
-      totalIncomeBonus
+      totalIncomeDifference
     )
 
     // Calculs terminés
@@ -399,8 +411,8 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 6.2. Calculer le bonus revenus précis par revenu associé pour le groupe
-    let totalIncomeBonus = 0
+    // 6.2. Calculer les différences revenus précises par revenu associé pour le groupe (bonus ou déficits)
+    let totalIncomeDifference = 0
     if (estimatedIncomes && realIncomes) {
       // Récupérer les revenus réels du groupe avec leur estimation associée
       const { data: realIncomesWithEstimated } = await supabaseServer
@@ -427,12 +439,16 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
           return acc
         }, {} as Record<string, { totalReal: number; estimatedAmount: number }>)
 
-        // Calculer les bonus pour chaque revenu estimé du groupe
+        // Calculer les bonus/déficits pour chaque revenu estimé du groupe
         for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
-          if (data.totalReal > data.estimatedAmount) {
-            const bonus = data.totalReal - data.estimatedAmount
-            totalIncomeBonus += bonus
-            console.log(`📈 [getGroupFinancialData] Bonus revenu groupe ${estimatedId}: ${bonus}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+          const difference = data.totalReal - data.estimatedAmount
+          if (difference !== 0) {
+            totalIncomeDifference += difference
+            if (difference > 0) {
+              console.log(`📈 [getGroupFinancialData] Bonus revenu groupe ${estimatedId}: +${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+            } else {
+              console.log(`📉 [getGroupFinancialData] Déficit revenu groupe ${estimatedId}: ${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
+            }
           }
         }
       }
@@ -470,7 +486,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       totalEstimatedBudgets,
       exceptionalExpenses,
       realExpensesOnBudgets,
-      totalIncomeBonus
+      totalIncomeDifference
     )
 
     console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)

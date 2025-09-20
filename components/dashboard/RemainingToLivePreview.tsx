@@ -106,15 +106,29 @@ export default function RemainingToLivePreview({
         const newTotalReceived = currentReceived + amount
         const estimatedAmount = income.estimated_amount
 
-        // Si le nouveau total dépasse l'estimation, le bonus impacte le reste à vivre
-        if (newTotalReceived > estimatedAmount) {
-          const previousBonus = Math.max(0, currentReceived - estimatedAmount)
-          const newBonus = newTotalReceived - estimatedAmount
-          const additionalBonus = newBonus - previousBonus
+        // Calculer l'impact de cette transaction par rapport à l'estimation
+        const currentDifference = currentReceived - estimatedAmount
+        const newDifference = newTotalReceived - estimatedAmount
 
+        // Si aucun revenu n'a encore été reçu (currentReceived = 0),
+        // l'impact est la différence totale par rapport à l'estimation (newDifference)
+        // Sinon, c'est le changement différentiel normal
+
+        if (currentReceived === 0) {
+          // Premier revenu pour cette estimation : impact = différence totale vs estimation
           return {
-            newRemainingToLive: currentRemainingToLive + additionalBonus,
-            change: additionalBonus
+            newRemainingToLive: currentRemainingToLive + newDifference,
+            change: newDifference
+          }
+        } else {
+          // Revenus supplémentaires : impact = changement différentiel
+          const additionalChange = newDifference - currentDifference
+
+          if (additionalChange !== 0) {
+            return {
+              newRemainingToLive: currentRemainingToLive + additionalChange,
+              change: additionalChange
+            }
           }
         }
       }
@@ -187,6 +201,29 @@ export default function RemainingToLivePreview({
           </div>
         )}
 
+        {/* Affichage spécial pour les déficits de revenus */}
+        {!isExceptional && type === 'income' && selectedId && amount > 0 && (
+          (() => {
+            const progress = incomeProgress[selectedId]
+            const income = incomes.find(i => i.id === selectedId)
+            if (progress && income) {
+              const newTotalReceived = (progress.receivedAmount || 0) + amount
+              const totalDeficitOrBonus = newTotalReceived - income.estimated_amount
+              if (totalDeficitOrBonus < 0) {
+                return (
+                  <div className="flex items-center justify-between border-t border-blue-200 pt-2">
+                    <span className="text-xs text-gray-600">Déficit total :</span>
+                    <span className="text-xs font-semibold text-red-600">
+                      {formatEur(totalDeficitOrBonus)}
+                    </span>
+                  </div>
+                )
+              }
+            }
+            return null
+          })()
+        )}
+
         <div className="pt-2 border-t border-blue-200">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">Nouveau :</span>
@@ -202,7 +239,7 @@ export default function RemainingToLivePreview({
           </p>
         ) : change !== 0 ? (
           <p className="text-xs text-amber-600 mt-2">
-            {type === 'expense' ? 'Dépassement de budget' : 'Bonus au-delà de l\'estimation'}
+            {type === 'expense' ? 'Dépassement de budget' : change > 0 ? 'Bonus au-delà de l\'estimation' : 'Déficit par rapport à l\'estimation'}
           </p>
         ) : (
           <p className="text-xs text-gray-500 mt-2">
