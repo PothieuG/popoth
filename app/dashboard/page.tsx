@@ -155,6 +155,7 @@ export default function DashboardPage() {
                   <TransactionTabsComponent
                     context="profile"
                     userProfile={profile}
+                    onTransactionDeleted={refreshFinancialData}
                     className="h-full"
                   />
                 </div>

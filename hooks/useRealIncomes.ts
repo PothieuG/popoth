@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidation } from '@/hooks/useFinancialData'
+import { useFinancialCacheInvalidationWithRefresh } from '@/hooks/useFinancialData'
 
 export interface RealIncome {
   id: string
@@ -53,7 +53,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   const [incomes, setIncomes] = useState<RealIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidation()
+  const { invalidateCache } = useFinancialCacheInvalidationWithRefresh()
 
   /**
    * Calculate total amount of all incomes
@@ -182,6 +182,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   const deleteIncome = useCallback(async (incomeId: string): Promise<boolean> => {
     try {
       setError(null)
+      console.log('🗑️ [useRealIncomes] Deleting income:', incomeId)
 
       const response = await fetch(`/api/finances/income/real?id=${incomeId}`, {
         method: 'DELETE',
@@ -190,18 +191,21 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error deleting income:', response.status, errorData)
+        console.error('❌ [useRealIncomes] API Error deleting income:', response.status, errorData)
         throw new Error(errorData?.error || 'Erreur lors de la suppression du revenu')
       }
 
       setIncomes(prev => prev.filter(income => income.id !== incomeId))
+      console.log('✅ [useRealIncomes] Income removed from local state')
 
       // Invalidate financial cache
+      console.log('🔄 [useRealIncomes] Invalidating financial cache...')
       await invalidateCache()
+      console.log('✅ [useRealIncomes] Financial cache invalidated')
 
       return true
     } catch (err) {
-      console.error('Error in deleteIncome:', err)
+      console.error('❌ [useRealIncomes] Error in deleteIncome:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }

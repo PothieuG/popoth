@@ -195,7 +195,7 @@
 - **Balance Calculations**: Dynamic footer showing real-time difference between total incomes and budgets
 - **Cache Invalidation**: Automatic financial cache refresh after all CRUD operations
 
-### 💳 Complete Real Transaction Management System (2025-09-15 - NEW)
+### 💳 Complete Real Transaction Management System (2025-09-15 - UPDATED)
 - **Dual Transaction Types**: Complete expense and income entry system with exceptional/budgeted categorization
 - **Real-time Transaction Tracking**: Live transaction lists with sorting by date (most recent first)
 - **XOR Database Integration**: Full integration with existing `real_expenses` and `real_income_entries` tables
@@ -206,6 +206,16 @@
 - **Mobile-Optimized Interface**: Three-tab footer navigation with prominent add transaction functionality
 - **Transaction List Display**: 3-line layout showing description, category, and timestamp with proper color coding
 - **Professional UX Design**: Consistent iconography, subtle backgrounds, and optimized spacing throughout
+
+### 🔄 Real-time Financial Data Synchronization (2025-09-20 - NEW)
+- **Immediate UI Updates**: Instant "Reste à Vivre" recalculation upon transaction deletion/addition
+- **Smart Cache Management**: Optimized cache invalidation preventing infinite API loops
+- **Dual Refresh Strategy**: Combined cache invalidation + callback system for guaranteed UI updates
+- **Anti-Loop Protection**: setTimeout-based callback delays (100ms) preventing render conflicts
+- **Universal Reactivity**: Both expense and income operations trigger immediate financial dashboard refresh
+- **Context-Agnostic**: Works seamlessly across personal and group dashboards
+- **Performance Optimized**: Eliminates dozens of redundant API calls per second while maintaining reactivity
+- **Error Recovery**: Graceful fallback to manual refresh if real-time updates fail
 
 ## 🏗️ Authentication System Architecture
 

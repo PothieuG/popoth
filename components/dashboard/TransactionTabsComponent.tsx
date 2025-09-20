@@ -11,6 +11,7 @@ interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
   userProfile?: ProfileData | null
   onEditTransaction?: (transaction: any, type: 'expense' | 'income') => void
+  onTransactionDeleted?: () => void
   className?: string
 }
 
@@ -24,6 +25,7 @@ export default function TransactionTabsComponent({
   context,
   userProfile,
   onEditTransaction,
+  onTransactionDeleted,
   className
 }: TransactionTabsComponentProps) {
   const [activeTab, setActiveTab] = useState<TabType>('expenses')
@@ -42,6 +44,52 @@ export default function TransactionTabsComponent({
     error: incomesError,
     deleteIncome
   } = useRealIncomes(context)
+
+  /**
+   * Handle delete expense with callback
+   */
+  const handleDeleteExpense = async (expenseId: string): Promise<boolean> => {
+    console.log('🗑️ [TransactionTabs] Starting expense deletion:', expenseId)
+    const success = await deleteExpense(expenseId)
+
+    if (success) {
+      console.log('✅ [TransactionTabs] Expense deleted successfully, triggering financial refresh')
+      if (onTransactionDeleted) {
+        // Use setTimeout to avoid immediate re-render during deletion
+        setTimeout(() => {
+          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
+          onTransactionDeleted()
+        }, 100)
+      }
+    } else {
+      console.log('❌ [TransactionTabs] Expense deletion failed')
+    }
+
+    return success
+  }
+
+  /**
+   * Handle delete income with callback
+   */
+  const handleDeleteIncome = async (incomeId: string): Promise<boolean> => {
+    console.log('🗑️ [TransactionTabs] Starting income deletion:', incomeId)
+    const success = await deleteIncome(incomeId)
+
+    if (success) {
+      console.log('✅ [TransactionTabs] Income deleted successfully, triggering financial refresh')
+      if (onTransactionDeleted) {
+        // Use setTimeout to avoid immediate re-render during deletion
+        setTimeout(() => {
+          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
+          onTransactionDeleted()
+        }, 100)
+      }
+    } else {
+      console.log('❌ [TransactionTabs] Income deletion failed')
+    }
+
+    return success
+  }
 
   /**
    * Handle edit transaction action
@@ -146,7 +194,7 @@ export default function TransactionTabsComponent({
               context={context}
               userProfile={userProfile}
               onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
-              onDelete={deleteExpense}
+              onDelete={handleDeleteExpense}
             />
           ))}
         </div>
@@ -166,7 +214,7 @@ export default function TransactionTabsComponent({
               context={context}
               userProfile={userProfile}
               onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
-              onDelete={deleteIncome}
+              onDelete={handleDeleteIncome}
             />
           ))}
         </div>

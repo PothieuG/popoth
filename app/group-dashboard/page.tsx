@@ -129,6 +129,7 @@ export default function GroupDashboardPage() {
                   <TransactionTabsComponent
                     context="group"
                     userProfile={profile}
+                    onTransactionDeleted={refreshFinancialData}
                     className="h-full"
                   />
                 </div>

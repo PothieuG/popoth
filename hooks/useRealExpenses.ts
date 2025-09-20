@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidation } from '@/hooks/useFinancialData'
+import { useFinancialCacheInvalidationWithRefresh } from '@/hooks/useFinancialData'
 
 export interface RealExpense {
   id: string
@@ -53,7 +53,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   const [expenses, setExpenses] = useState<RealExpense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidation()
+  const { invalidateCache } = useFinancialCacheInvalidationWithRefresh()
 
   /**
    * Calculate total amount of all expenses
@@ -182,6 +182,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   const deleteExpense = useCallback(async (expenseId: string): Promise<boolean> => {
     try {
       setError(null)
+      console.log('🗑️ [useRealExpenses] Deleting expense:', expenseId)
 
       const response = await fetch(`/api/finances/expenses/real?id=${expenseId}`, {
         method: 'DELETE',
@@ -190,18 +191,21 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error deleting expense:', response.status, errorData)
+        console.error('❌ [useRealExpenses] API Error deleting expense:', response.status, errorData)
         throw new Error(errorData?.error || 'Erreur lors de la suppression de la dépense')
       }
 
       setExpenses(prev => prev.filter(expense => expense.id !== expenseId))
+      console.log('✅ [useRealExpenses] Expense removed from local state')
 
       // Invalidate financial cache
+      console.log('🔄 [useRealExpenses] Invalidating financial cache...')
       await invalidateCache()
+      console.log('✅ [useRealExpenses] Financial cache invalidated')
 
       return true
     } catch (err) {
-      console.error('Error in deleteExpense:', err)
+      console.error('❌ [useRealExpenses] Error in deleteExpense:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }

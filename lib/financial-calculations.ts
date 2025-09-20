@@ -51,9 +51,23 @@ export interface RemainingToLiveSnapshot {
  * "c'est l'argent disponible sur le compte bancaire à un temps T"
  * "c'est les réels entrées d'argent moins les réels dépenses"
  * "Ca peut être négatif"
+ *
+ * IMPORTANT: Cette fonction calcule le solde disponible en combinant:
+ * - Le solde bancaire de base (éditable par l'utilisateur)
+ * - Plus tous les revenus réels ajoutés
+ * - Moins toutes les dépenses réelles ajoutées
+ *
+ * Formule: solde_disponible = solde_bancaire_base + revenus_réels - dépenses_réelles
  */
-export function calculateAvailableCash(realIncomes: number, realExpenses: number): number {
-  return realIncomes - realExpenses
+export function calculateAvailableCash(bankBalance: number, realIncomes: number, realExpenses: number): number {
+  const result = bankBalance + realIncomes - realExpenses
+  console.log('💰 [calculateAvailableCash] Calcul du solde disponible:', {
+    bankBalance,
+    realIncomes,
+    realExpenses,
+    result
+  })
+  return result
 }
 
 /**
@@ -178,8 +192,9 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     }
 
     // 7. Appliquer les règles de calcul du battleplan
-    // Utiliser le solde bancaire éditable comme base au lieu du calcul revenus - dépenses
-    const availableBalance = userBankBalance
+    // Utiliser la fonction dédiée pour calculer le solde disponible
+    console.log('📊 [getProfileFinancialData] Calcul du solde disponible pour le profil:', profileId)
+    const availableBalance = calculateAvailableCash(userBankBalance, totalRealIncome, totalRealExpenses)
     const remainingToLive = calculateRemainingToLiveProfile(
       totalEstimatedIncome,
       totalEstimatedBudgets,
@@ -187,6 +202,22 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     )
 
     // Calculs terminés
+    console.log('💰 [getProfileFinancialData] Calculs financiers terminés pour le profil:', profileId)
+    console.log('💰 [getProfileFinancialData] Détail des calculs:', {
+      profileId,
+      // Données de base
+      userBankBalance,
+      totalRealIncome,
+      totalRealExpenses,
+      // Résultat final
+      availableBalance: `${userBankBalance} + ${totalRealIncome} - ${totalRealExpenses} = ${availableBalance}`,
+      // Autres données
+      totalEstimatedIncome,
+      totalEstimatedBudgets,
+      exceptionalExpenses,
+      remainingToLive,
+      totalSavings
+    })
 
     return {
       availableBalance,
@@ -287,7 +318,9 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     const totalProfileContributions = groupContributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
 
     // 9. Appliquer les règles de calcul pour groupe selon les nouvelles règles
-    const availableBalance = totalGroupBankBalance
+    // Utiliser la fonction dédiée pour calculer le solde disponible du groupe
+    console.log('📊 [getGroupFinancialData] Calcul du solde disponible pour le groupe:', groupId)
+    const availableBalance = calculateAvailableCash(totalGroupBankBalance, totalRealIncome, totalRealExpenses)
     const remainingToLive = calculateRemainingToLiveGroup(
       totalEstimatedIncome,
       totalRealIncome,
@@ -296,16 +329,21 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       exceptionalExpenses
     )
 
-    console.log('💰 Calcul financier groupe:', {
+    console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)
+    console.log('💰 [getGroupFinancialData] Détail des calculs:', {
       groupId,
-      totalEstimatedIncome,
+      // Données de base
+      totalGroupBankBalance,
       totalRealIncome,
+      totalRealExpenses,
+      // Résultat final
+      availableBalance: `${totalGroupBankBalance} + ${totalRealIncome} - ${totalRealExpenses} = ${availableBalance}`,
+      // Autres données
+      totalEstimatedIncome,
       totalProfileContributions,
       totalEstimatedBudgets,
       exceptionalExpenses,
-      totalGroupBankBalance,
       remainingToLive,
-      availableBalance: totalGroupBankBalance,
       totalSavings
     })
 

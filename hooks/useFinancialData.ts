@@ -35,6 +35,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
   const [cached, setCached] = useState(false)
   const [context, setContext] = useState<'profile' | 'group' | null>(null)
 
+
   /**
    * Récupère les données financières depuis l'API
    */
@@ -122,17 +123,23 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
    * Force le rafraîchissement des données (ignore le cache)
    */
   const refreshFinancialData = useCallback(async () => {
-
-    // 1. Invalider le cache côté serveur
-    const cacheInvalidated = await invalidateCache()
-
-    // 2. Forcer un nouveau fetch (qui devrait ignorer le cache maintenant)
+    // Forcer un nouveau fetch directement
     await fetchFinancialData()
-  }, [fetchFinancialData, invalidateCache])
+  }, [fetchFinancialData])
 
   // Charger les données financières au montage du composant
   useEffect(() => {
     fetchFinancialData()
+  }, [fetchFinancialData])
+
+  // Register for global financial refresh notifications
+  useEffect(() => {
+    const refreshHandler = () => {
+      console.log('🔄 [useFinancialData] Global refresh triggered')
+      fetchFinancialData()
+    }
+    const unregister = registerFinancialRefreshCallback(refreshHandler)
+    return unregister
   }, [fetchFinancialData])
 
   return {
@@ -162,6 +169,58 @@ export function useFinancialCacheInvalidation() {
 
       if (response.ok) {
         const result = await response.json()
+        return true
+      } else {
+        return false
+      }
+    } catch (error) {
+      return false
+    }
+  }, [])
+
+  return { invalidateCache }
+}
+
+/**
+ * Global refresh callback registry for financial data
+ * Allows other hooks to register refresh callbacks that get triggered
+ * when real transactions are modified
+ */
+const financialRefreshCallbacks = new Set<() => void>()
+
+export function registerFinancialRefreshCallback(callback: () => void) {
+  financialRefreshCallbacks.add(callback)
+  return () => financialRefreshCallbacks.delete(callback)
+}
+
+export function triggerFinancialRefresh() {
+  console.log('🔄 [FinancialData] Triggering global financial refresh for', financialRefreshCallbacks.size, 'registered callbacks')
+  financialRefreshCallbacks.forEach(callback => {
+    try {
+      callback()
+    } catch (error) {
+      console.error('❌ Error in financial refresh callback:', error)
+    }
+  })
+}
+
+/**
+ * Enhanced hook for financial cache invalidation with automatic refresh
+ * This combines cache invalidation with triggering refreshes in all listening components
+ */
+export function useFinancialCacheInvalidationWithRefresh() {
+  const invalidateCache = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/financial/dashboard', {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (response.ok) {
+        // After successful cache invalidation, trigger refresh in all registered components
+        setTimeout(() => {
+          triggerFinancialRefresh()
+        }, 100)
         return true
       } else {
         return false
