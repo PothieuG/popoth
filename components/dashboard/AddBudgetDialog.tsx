@@ -93,7 +93,7 @@ export default function AddBudgetDialog({
    * Gestion de la sauvegarde
    */
   const handleSave = () => {
-    
+
     if (!isFormValid()) {
       return
     }
@@ -102,13 +102,14 @@ export default function AddBudgetDialog({
       name: budgetName.trim(),
       estimatedAmount: parseFloat(budgetAmount)
     }
-    
+
     onSave(budgetData)
 
-    // Reset du formulaire
+    // Reset du formulaire pour permettre l'ajout d'un autre budget
     setBudgetName('')
     setBudgetAmount('')
     setErrors({})
+    // Ne pas fermer le dialog automatiquement
   }
 
   /**

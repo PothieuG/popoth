@@ -71,32 +71,82 @@ export function calculateAvailableCash(bankBalance: number, realIncomes: number,
 }
 
 /**
- * Règle reste à vivre pour PROFILES (nouvelle règle 2025):
+ * Règle reste à vivre pour PROFILES (nouvelle règle 2025 + améliorations 2025-09-20):
  * "l'ensemble des entrées d'argent moins ce qui a été budgété pour le mois
  * moins les dépenses non-budgété (exceptionnelles)"
+ *
+ * NOUVELLES RÈGLES AJOUTÉES:
+ * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
+ * - Si bonus revenus (revenus réels > revenus estimés): ajout de la différence
  */
 export function calculateRemainingToLiveProfile(
   estimatedIncomes: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number
+  exceptionalExpenses: number,
+  realIncomes?: number,
+  realExpensesOnBudgets?: number
 ): number {
-  return estimatedIncomes - estimatedBudgets - exceptionalExpenses
+  let remainingToLive = estimatedIncomes - estimatedBudgets - exceptionalExpenses
+
+  // NOUVELLE RÈGLE 1: Déduction si budget dépassé
+  // Si les dépenses réelles sur budgets > budgets estimés, déduire la différence
+  if (realExpensesOnBudgets !== undefined && realExpensesOnBudgets > estimatedBudgets) {
+    const budgetOverrun = realExpensesOnBudgets - estimatedBudgets
+    remainingToLive -= budgetOverrun
+    console.log(`📉 [calculateRemainingToLiveProfile] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
+  }
+
+  // NOUVELLE RÈGLE 2: Addition si bonus revenus
+  // Si les revenus réels > revenus estimés, ajouter la différence
+  if (realIncomes !== undefined && realIncomes > estimatedIncomes) {
+    const incomeBonus = realIncomes - estimatedIncomes
+    remainingToLive += incomeBonus
+    console.log(`📈 [calculateRemainingToLiveProfile] Bonus revenus de ${incomeBonus}€, addition appliquée`)
+  }
+
+  console.log(`💰 [calculateRemainingToLiveProfile] Calcul final: ${remainingToLive}€`)
+  return remainingToLive
 }
 
 /**
- * Règle reste à vivre pour GROUPS (nouvelle règle 2025):
+ * Règle reste à vivre pour GROUPS (nouvelle règle 2025 + améliorations 2025-09-20):
  * "l'ensemble des entrées d'argent estimées et entrées réelles (les contributions des profiles du groupe + entrées d'argent exceptionnels),
  * moins l'ensemble de ce qui a été budgété moins les dépenses non-budgétées (ou réelles dépenses qui ne sont pas liées à un budget)"
+ *
+ * NOUVELLES RÈGLES AJOUTÉES:
+ * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
+ * - Si bonus revenus (revenus réels totaux > revenus estimés): ajout de la différence
  */
 export function calculateRemainingToLiveGroup(
   estimatedIncomes: number,
   realIncomes: number,
   profileContributions: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number
+  exceptionalExpenses: number,
+  realExpensesOnBudgets?: number
 ): number {
   const totalIncomes = estimatedIncomes + realIncomes + profileContributions
-  return totalIncomes - estimatedBudgets - exceptionalExpenses
+  let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
+
+  // NOUVELLE RÈGLE 1: Déduction si budget dépassé
+  // Si les dépenses réelles sur budgets > budgets estimés, déduire la différence
+  if (realExpensesOnBudgets !== undefined && realExpensesOnBudgets > estimatedBudgets) {
+    const budgetOverrun = realExpensesOnBudgets - estimatedBudgets
+    remainingToLive -= budgetOverrun
+    console.log(`📉 [calculateRemainingToLiveGroup] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
+  }
+
+  // NOUVELLE RÈGLE 2: Addition si bonus revenus
+  // Pour les groupes, on compare le total des revenus réels avec les revenus estimés
+  const totalRealIncomes = realIncomes + profileContributions
+  if (totalRealIncomes > estimatedIncomes) {
+    const incomeBonus = totalRealIncomes - estimatedIncomes
+    remainingToLive += incomeBonus
+    console.log(`📈 [calculateRemainingToLiveGroup] Bonus revenus de ${incomeBonus}€, addition appliquée`)
+  }
+
+  console.log(`💰 [calculateRemainingToLiveGroup] Calcul final: ${remainingToLive}€`)
+  return remainingToLive
 }
 
 /**
@@ -178,6 +228,11 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
+    // 5.1. Calculer les dépenses réelles liées aux budgets (pour nouvelles règles)
+    const realExpensesOnBudgets = realExpenses
+      ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
+      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
     // 6. Calculer les économies pour chaque budget
     let totalSavings = 0
     if (estimatedBudgets && realExpenses) {
@@ -191,14 +246,16 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       }
     }
 
-    // 7. Appliquer les règles de calcul du battleplan
+    // 7. Appliquer les règles de calcul du battleplan avec nouvelles règles
     // Utiliser la fonction dédiée pour calculer le solde disponible
     console.log('📊 [getProfileFinancialData] Calcul du solde disponible pour le profil:', profileId)
     const availableBalance = calculateAvailableCash(userBankBalance, totalRealIncome, totalRealExpenses)
     const remainingToLive = calculateRemainingToLiveProfile(
       totalEstimatedIncome,
       totalEstimatedBudgets,
-      exceptionalExpenses
+      exceptionalExpenses,
+      totalRealIncome,
+      realExpensesOnBudgets
     )
 
     // Calculs terminés
@@ -296,6 +353,11 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
+    // 6.1. Calculer les dépenses réelles liées aux budgets (pour nouvelles règles)
+    const realExpensesOnBudgets = realExpenses
+      ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
+      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
     // 7. Calculer les économies des budgets
     let totalSavings = 0
     if (estimatedBudgets && realExpenses) {
@@ -317,7 +379,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
 
     const totalProfileContributions = groupContributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
 
-    // 9. Appliquer les règles de calcul pour groupe selon les nouvelles règles
+    // 9. Appliquer les règles de calcul pour groupe avec nouvelles règles
     // Utiliser la fonction dédiée pour calculer le solde disponible du groupe
     console.log('📊 [getGroupFinancialData] Calcul du solde disponible pour le groupe:', groupId)
     const availableBalance = calculateAvailableCash(totalGroupBankBalance, totalRealIncome, totalRealExpenses)
@@ -326,7 +388,8 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       totalRealIncome,
       totalProfileContributions,
       totalEstimatedBudgets,
-      exceptionalExpenses
+      exceptionalExpenses,
+      realExpensesOnBudgets
     )
 
     console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)

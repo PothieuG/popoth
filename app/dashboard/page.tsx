@@ -14,6 +14,7 @@ import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
+import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 
 /**
@@ -28,6 +29,9 @@ export default function DashboardPage() {
   const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('profile')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
+  const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<any>(null)
+  const [editingTransactionType, setEditingTransactionType] = useState<'expense' | 'income'>('expense')
 
   /**
    * Gère la création du profil utilisateur
@@ -65,6 +69,23 @@ export default function DashboardPage() {
    */
   const handleTransactionAdded = () => {
     // Rafraîchir les données financières après l'ajout d'une transaction
+    refreshFinancialData()
+  }
+
+  /**
+   * Gère l'édition d'une transaction
+   */
+  const handleEditTransaction = (transaction: any, type: 'expense' | 'income') => {
+    setEditingTransaction(transaction)
+    setEditingTransactionType(type)
+    setIsEditTransactionModalOpen(true)
+  }
+
+  /**
+   * Gère la mise à jour d'une transaction
+   */
+  const handleTransactionUpdated = () => {
+    // Rafraîchir les données financières après la mise à jour d'une transaction
     refreshFinancialData()
   }
 
@@ -155,6 +176,7 @@ export default function DashboardPage() {
                   <TransactionTabsComponent
                     context="profile"
                     userProfile={profile}
+                    onEditTransaction={handleEditTransaction}
                     onTransactionDeleted={refreshFinancialData}
                     className="h-full"
                   />
@@ -294,6 +316,19 @@ export default function DashboardPage() {
         onClose={() => setIsAddTransactionModalOpen(false)}
         context="profile"
         onTransactionAdded={handleTransactionAdded}
+      />
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        isOpen={isEditTransactionModalOpen}
+        onClose={() => {
+          setIsEditTransactionModalOpen(false)
+          setEditingTransaction(null)
+        }}
+        transaction={editingTransaction}
+        transactionType={editingTransactionType}
+        context="profile"
+        onTransactionUpdated={handleTransactionUpdated}
       />
 
     </div>

@@ -8,6 +8,7 @@ interface DropdownMenuItem {
   onClick: () => void
   variant?: 'default' | 'danger'
   className?: string
+  disabled?: boolean
 }
 
 interface DropdownMenuProps {
@@ -76,11 +77,18 @@ export default function DropdownMenu({
             <button
               key={index}
               onClick={() => {
-                item.onClick()
-                setIsOpen(false)
+                if (!item.disabled) {
+                  item.onClick()
+                  setIsOpen(false)
+                }
               }}
-              className={`w-full px-3 py-2 text-left flex items-center space-x-2 hover:bg-gray-50 transition-colors ${
-                item.variant === 'danger' ? 'text-red-600 hover:bg-red-50' : 'text-gray-700'
+              disabled={item.disabled}
+              className={`w-full px-3 py-2 text-left flex items-center space-x-2 transition-colors ${
+                item.disabled
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : item.variant === 'danger'
+                    ? 'text-red-600 hover:bg-red-50'
+                    : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
               <span className="flex-shrink-0">{item.icon}</span>

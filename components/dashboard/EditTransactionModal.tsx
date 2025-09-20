@@ -9,66 +9,76 @@ import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
+import { RealExpense } from '@/hooks/useRealExpenses'
+import { RealIncome } from '@/hooks/useRealIncomes'
 
-interface AddTransactionModalProps {
+interface EditTransactionModalProps {
   isOpen: boolean
   onClose: () => void
+  transaction: RealExpense | RealIncome | null
+  transactionType: 'expense' | 'income'
   context?: 'profile' | 'group'
-  onTransactionAdded?: () => void
+  onTransactionUpdated?: () => void
 }
 
-type TransactionType = 'expense' | 'income'
-
 /**
- * Modal for adding new transactions (expenses or income)
- * Adaptive form based on transaction type and exceptional vs budgeted/estimated
+ * Modal for editing existing transactions (expenses or income)
+ * Pre-fills form with existing transaction data
  */
-export default function AddTransactionModal({
+export default function EditTransactionModal({
   isOpen,
   onClose,
+  transaction,
+  transactionType,
   context,
-  onTransactionAdded
-}: AddTransactionModalProps) {
-  const [transactionType, setTransactionType] = useState<TransactionType>('expense')
-  const [isExceptional, setIsExceptional] = useState(false)
+  onTransactionUpdated
+}: EditTransactionModalProps) {
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: '',
     budgetId: '',
     incomeId: ''
   })
+  const [isExceptional, setIsExceptional] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Hooks for managing data
   const { budgets, refreshBudgets } = useBudgets(context)
   const { incomes, refreshIncomes } = useIncomes(context)
-  const { addExpense } = useRealExpenses(context)
-  const { addIncome } = useRealIncomes(context)
+  const { updateExpense } = useRealExpenses(context)
+  const { updateIncome } = useRealIncomes(context)
 
   /**
-   * Reset form when modal opens/closes and refresh budgets/incomes
+   * Load transaction data into form when modal opens or transaction changes
    */
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && transaction) {
+      // Get the date field based on transaction type
+      const dateField = transactionType === 'expense'
+        ? (transaction as RealExpense).expense_date
+        : (transaction as RealIncome).entry_date
+
       setFormData({
-        description: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        budgetId: '',
-        incomeId: ''
+        description: transaction.description || '',
+        amount: transaction.amount.toString(),
+        date: dateField,
+        budgetId: transactionType === 'expense'
+          ? (transaction as RealExpense).estimated_budget_id || ''
+          : '',
+        incomeId: transactionType === 'income'
+          ? (transaction as RealIncome).estimated_income_id || ''
+          : ''
       })
-      setIsExceptional(false)
-      setTransactionType('expense')
+      setIsExceptional(transaction.is_exceptional || false)
       setError(null)
 
-      // Rafraîchir les budgets et revenus à chaque ouverture
-      // pour s'assurer d'avoir les dernières données
+      // Refresh budgets/incomes to ensure we have latest data
       refreshBudgets()
       refreshIncomes()
     }
-  }, [isOpen, refreshBudgets, refreshIncomes])
+  }, [isOpen, transaction, transactionType, refreshBudgets, refreshIncomes])
 
   /**
    * Handle form submission
@@ -76,6 +86,8 @@ export default function AddTransactionModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    if (!transaction) return
 
     // Validation
     if (!formData.description.trim()) {
@@ -106,30 +118,30 @@ export default function AddTransactionModal({
       let success = false
 
       if (transactionType === 'expense') {
-        success = await addExpense({
+        success = await updateExpense({
+          id: transaction.id,
           description: formData.description.trim(),
           amount,
           expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId,
-          is_for_group: context === 'group'
+          estimated_budget_id: isExceptional ? undefined : formData.budgetId
         })
       } else {
-        success = await addIncome({
+        success = await updateIncome({
+          id: transaction.id,
           description: formData.description.trim(),
           amount,
           entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId,
-          is_for_group: context === 'group'
+          estimated_income_id: isExceptional ? undefined : formData.incomeId
         })
       }
 
       if (success) {
-        onTransactionAdded?.()
+        onTransactionUpdated?.()
         onClose()
       }
     } catch (err) {
-      console.error('Error adding transaction:', err)
-      setError('Erreur lors de l\'ajout de la transaction')
+      console.error('Error updating transaction:', err)
+      setError('Erreur lors de la mise à jour de la transaction')
     } finally {
       setIsSubmitting(false)
     }
@@ -144,7 +156,7 @@ export default function AddTransactionModal({
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || !transaction) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -159,7 +171,7 @@ export default function AddTransactionModal({
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-semibold text-gray-900">
-            Ajouter une transaction
+            Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
           </h2>
           <Button
             variant="ghost"
@@ -176,48 +188,6 @@ export default function AddTransactionModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Transaction Type Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-gray-900">Type de transaction</Label>
-            <div className="flex space-x-3">
-              <button
-                type="button"
-                onClick={() => setTransactionType('expense')}
-                className={cn(
-                  'flex-1 p-4 rounded-lg border text-sm font-medium transition-all',
-                  transactionType === 'expense'
-                    ? 'bg-red-50 border-red-200 text-red-700'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                )}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                  </svg>
-                  <span className="font-medium">Dépense</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTransactionType('income')}
-                className={cn(
-                  'flex-1 p-4 rounded-lg border text-sm font-medium transition-all',
-                  transactionType === 'income'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                )}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                  </svg>
-                  <span className="font-medium">Revenu</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
           {/* Exceptional Checkbox */}
           <div className="flex flex-col items-center space-y-3">
             <div className="flex items-center space-x-3">
@@ -358,10 +328,10 @@ export default function AddTransactionModal({
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Ajout...</span>
+                  <span>Modification...</span>
                 </div>
               ) : (
-                `Ajouter ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
+                `Modifier ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
               )}
             </Button>
           </div>

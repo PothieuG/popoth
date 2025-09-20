@@ -8,8 +8,12 @@ import EditBudgetDialog from './EditBudgetDialog'
 import EditIncomeDialog from './EditIncomeDialog'
 import DropdownMenu from '../ui/DropdownMenu'
 import ConfirmationDialog from '../ui/ConfirmationDialog'
+import BudgetProgressIndicator from './BudgetProgressIndicator'
+import IncomeProgressIndicator from './IncomeProgressIndicator'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
+import { useBudgetProgress } from '@/hooks/useBudgetProgress'
+import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -39,6 +43,10 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deletingItem, setDeletingItem] = useState<{ id: string; name: string; type: 'budget' | 'income' } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // États pour la popup d'information des budgets/revenus entamés
+  const [isStartedItemInfoOpen, setIsStartedItemInfoOpen] = useState(false)
+  const [startedItemInfo, setStartedItemInfo] = useState<{ name: string; type: 'budget' | 'income' } | null>(null)
   
   // Hooks pour la gestion des données
   const {
@@ -51,7 +59,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     refreshBudgets,
     totalBudgets
   } = useBudgets(context)
-  
+
   const {
     incomes,
     loading: incomesLoading,
@@ -63,13 +71,28 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     totalIncomes
   } = useIncomes(context)
 
+  // Hooks pour les calculs de progression
+  const {
+    budgetProgresses,
+    loading: budgetProgressLoading,
+    refreshProgress: refreshBudgetProgress
+  } = useBudgetProgress(budgets, context)
+
+  const {
+    incomeProgresses,
+    loading: incomeProgressLoading,
+    refreshProgress: refreshIncomeProgress
+  } = useIncomeProgress(incomes, context)
+
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
     if (isOpen) {
       refreshBudgets()
       refreshIncomes()
+      refreshBudgetProgress()
+      refreshIncomeProgress()
     }
-  }, [isOpen, refreshBudgets, refreshIncomes])
+  }, [isOpen, refreshBudgets, refreshIncomes, refreshBudgetProgress, refreshIncomeProgress])
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -85,13 +108,16 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   const handleAddBudget = async (budgetData: { name: string; estimatedAmount: number }) => {
     const success = await addBudget(budgetData)
     if (success) {
-      setIsAddBudgetOpen(false)
+      // Ne plus fermer le dialog automatiquement
+      // setIsAddBudgetOpen(false)
+
+      // Rafraîchir les progressions des budgets
+      await refreshBudgetProgress()
 
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
         await onPlanningChange()
       }
-    } else {
     }
     // En cas d'erreur, le hook gère déjà l'état d'erreur
   }
@@ -102,7 +128,11 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   const handleAddIncome = async (incomeData: { name: string; estimatedAmount: number }) => {
     const success = await addIncome(incomeData)
     if (success) {
-      setIsAddIncomeOpen(false)
+      // Ne plus fermer le dialog automatiquement
+      // setIsAddIncomeOpen(false)
+
+      // Rafraîchir les progressions des revenus
+      await refreshIncomeProgress()
 
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
@@ -116,6 +146,12 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Gestion de l'édition d'un budget
    */
   const handleEditBudget = (budget: any) => {
+    // Vérifier si le budget est entamé
+    if (isBudgetStarted(budget.id)) {
+      handleStartedItemAction(budget, 'budget')
+      return
+    }
+
     setEditingBudget(budget)
     setIsEditBudgetOpen(true)
   }
@@ -124,6 +160,12 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Gestion de l'édition d'un revenu
    */
   const handleEditIncome = (income: any) => {
+    // Vérifier si le revenu est entamé
+    if (isIncomeStarted(income.id)) {
+      handleStartedItemAction(income, 'income')
+      return
+    }
+
     setEditingIncome(income)
     setIsEditIncomeOpen(true)
   }
@@ -137,6 +179,9 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     if (success) {
       setIsEditBudgetOpen(false)
       setEditingBudget(null)
+
+      // Rafraîchir les progressions des budgets
+      await refreshBudgetProgress()
 
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
@@ -156,6 +201,9 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
       setIsEditIncomeOpen(false)
       setEditingIncome(null)
 
+      // Rafraîchir les progressions des revenus
+      await refreshIncomeProgress()
+
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
         await onPlanningChange()
@@ -165,9 +213,41 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   }
 
   /**
+   * Vérifie si un budget est "entamé" (a des dépenses associées)
+   */
+  const isBudgetStarted = (budgetId: string): boolean => {
+    const progress = budgetProgresses.find(p => p.budgetId === budgetId)
+    return progress ? progress.spentAmount > 0 : false
+  }
+
+  /**
+   * Vérifie si un revenu est "entamé" (a des entrées associées)
+   */
+  const isIncomeStarted = (incomeId: string): boolean => {
+    const progress = incomeProgresses.find(p => p.incomeId === incomeId)
+    return progress ? progress.receivedAmount > 0 : false
+  }
+
+  /**
+   * Gestion des actions sur les items entamés
+   */
+  const handleStartedItemAction = (item: { name: string }, type: 'budget' | 'income') => {
+    setStartedItemInfo({ name: item.name, type })
+    setIsStartedItemInfoOpen(true)
+  }
+
+  /**
    * Demande de confirmation de suppression
    */
   const handleRequestDelete = (item: { id: string; name: string }, type: 'budget' | 'income') => {
+    // Vérifier si l'item est entamé
+    const isStarted = type === 'budget' ? isBudgetStarted(item.id) : isIncomeStarted(item.id)
+
+    if (isStarted) {
+      handleStartedItemAction(item, type)
+      return
+    }
+
     setDeletingItem({ id: item.id, name: item.name, type })
     setIsDeleteConfirmOpen(true)
   }
@@ -190,6 +270,13 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     if (success) {
       setIsDeleteConfirmOpen(false)
       setDeletingItem(null)
+
+      // Rafraîchir les progressions selon le type
+      if (deletingItem.type === 'budget') {
+        await refreshBudgetProgress()
+      } else {
+        await refreshIncomeProgress()
+      }
 
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
@@ -339,46 +426,52 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     Créer votre premier budget
                   </button>
                 </div>
-              ) : !budgetsLoading ? (
+              ) : (!budgetsLoading && !budgetProgressLoading) ? (
                 <div className="space-y-3">
-                  {budgets.map((budget) => (
-                    <div key={budget.id} className="p-3 border-2 border-orange-200 rounded-xl">
-                      <div className="flex justify-between items-center">
-                        <div className="flex-1">
-                          <h5 className="font-medium text-gray-900">{budget.name}</h5>
-                          <p className="text-sm text-gray-600">Budget mensuel</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-right">
-                            <p className="font-bold text-orange-700">{formatAmount(budget.estimated_amount)}</p>
+                  {budgets.map((budget) => {
+                    const progress = budgetProgresses.find(p => p.budgetId === budget.id)
+                    if (!progress) return null
+
+                    return (
+                      <div key={budget.id} className="p-3 border-2 border-orange-200 rounded-xl">
+                        <div className="flex justify-between items-center">
+                          {/* Indicateur de progression intégré */}
+                          <div className="flex-1">
+                            <BudgetProgressIndicator progress={progress} />
                           </div>
-                          <DropdownMenu
-                            items={[
-                              {
-                                label: 'Modifier',
-                                icon: (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                ),
-                                onClick: () => handleEditBudget(budget)
-                              },
-                              {
-                                label: 'Supprimer',
-                                icon: (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                ),
-                                onClick: () => handleRequestDelete(budget, 'budget'),
-                                variant: 'danger' as const
-                              }
-                            ]}
-                          />
+
+                          {/* Menu dropdown */}
+                          <div className="ml-2">
+                            <DropdownMenu
+                              items={[
+                                {
+                                  label: 'Modifier',
+                                  icon: (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleEditBudget(budget),
+                                  disabled: isBudgetStarted(budget.id)
+                                },
+                                {
+                                  label: 'Supprimer',
+                                  icon: (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleRequestDelete(budget, 'budget'),
+                                  variant: 'danger' as const,
+                                  disabled: isBudgetStarted(budget.id)
+                                }
+                              ]}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : null}
             </div>
@@ -428,46 +521,52 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     Ajouter votre premier revenu
                   </button>
                 </div>
-              ) : !incomesLoading ? (
+              ) : (!incomesLoading && !incomeProgressLoading) ? (
                 <div className="space-y-3">
-                  {incomes.map((income) => (
-                    <div key={income.id} className="p-3 border-2 border-green-200 rounded-xl">
-                      <div className="flex justify-between items-center">
-                        <div className="flex-1">
-                          <h5 className="font-medium text-gray-900">{income.name}</h5>
-                          <p className="text-sm text-gray-600">Revenu mensuel</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <div className="text-right">
-                            <p className="font-bold text-green-700">{formatAmount(income.estimated_amount)}</p>
+                  {incomes.map((income) => {
+                    const progress = incomeProgresses.find(p => p.incomeId === income.id)
+                    if (!progress) return null
+
+                    return (
+                      <div key={income.id} className="p-3 border-2 border-green-200 rounded-xl">
+                        <div className="flex justify-between items-center">
+                          {/* Indicateur de progression intégré */}
+                          <div className="flex-1">
+                            <IncomeProgressIndicator progress={progress} />
                           </div>
-                          <DropdownMenu
-                            items={[
-                              {
-                                label: 'Modifier',
-                                icon: (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                ),
-                                onClick: () => handleEditIncome(income)
-                              },
-                              {
-                                label: 'Supprimer',
-                                icon: (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                ),
-                                onClick: () => handleRequestDelete(income, 'income'),
-                                variant: 'danger' as const
-                              }
-                            ]}
-                          />
+
+                          {/* Menu dropdown */}
+                          <div className="ml-2">
+                            <DropdownMenu
+                              items={[
+                                {
+                                  label: 'Modifier',
+                                  icon: (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleEditIncome(income),
+                                  disabled: isIncomeStarted(income.id)
+                                },
+                                {
+                                  label: 'Supprimer',
+                                  icon: (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleRequestDelete(income, 'income'),
+                                  variant: 'danger' as const,
+                                  disabled: isIncomeStarted(income.id)
+                                }
+                              ]}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : null}
             </div>
@@ -539,6 +638,25 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           cancelText="Annuler"
           variant="danger"
           loading={isDeleting}
+        />
+
+        {/* Information Dialog for Started Items */}
+        <ConfirmationDialog
+          isOpen={isStartedItemInfoOpen}
+          onClose={() => {
+            setIsStartedItemInfoOpen(false)
+            setStartedItemInfo(null)
+          }}
+          onConfirm={() => {
+            setIsStartedItemInfoOpen(false)
+            setStartedItemInfo(null)
+          }}
+          title={`${startedItemInfo?.type === 'budget' ? 'Budget' : 'Revenu'} en cours d'utilisation`}
+          message={`Le ${startedItemInfo?.type === 'budget' ? 'budget' : 'revenu'} "${startedItemInfo?.name}" ne peut pas être modifié ou supprimé car il est déjà en cours d'utilisation ce mois-ci. Vous pourrez le modifier le mois prochain.`}
+          confirmText="Compris"
+          cancelText={null}
+          variant="info"
+          loading={false}
         />
       </div>
     </>

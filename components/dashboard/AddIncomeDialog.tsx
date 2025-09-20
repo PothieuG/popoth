@@ -77,10 +77,11 @@ export default function AddIncomeDialog({
       estimatedAmount: parseFloat(incomeAmount)
     })
 
-    // Reset du formulaire
+    // Reset du formulaire pour permettre l'ajout d'un autre revenu
     setIncomeName('')
     setIncomeAmount('')
     setErrors({})
+    // Ne pas fermer le dialog automatiquement
   }
 
   /**
