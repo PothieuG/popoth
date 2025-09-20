@@ -11,6 +11,9 @@ import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
 import { RealExpense } from '@/hooks/useRealExpenses'
 import { RealIncome } from '@/hooks/useRealIncomes'
+import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import { useProgressData } from '@/hooks/useProgressData'
+import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface EditTransactionModalProps {
   isOpen: boolean
@@ -49,6 +52,38 @@ export default function EditTransactionModal({
   const { incomes, refreshIncomes } = useIncomes(context)
   const { updateExpense } = useRealExpenses(context)
   const { updateIncome } = useRealIncomes(context)
+  const { expenseProgress, incomeProgress } = useProgressData(context)
+
+  // Calculer le montant pour le preview
+  const previewAmount = parseFloat(formData.amount) || 0
+
+  // Préparer les options pour les dropdowns
+  const budgetOptions: DropdownOption[] = budgets.map(budget => {
+    const progress = expenseProgress[budget.id]
+    return {
+      id: budget.id,
+      name: budget.name,
+      type: 'expense' as const,
+      spentAmount: progress?.spentAmount || 0,
+      estimatedAmount: budget.estimated_amount,
+      economyAmount: progress?.economyAmount || Math.max(0, budget.estimated_amount - (progress?.spentAmount || 0))
+    }
+  })
+
+  const incomeOptions: DropdownOption[] = incomes.map(income => {
+    const progress = incomeProgress[income.id]
+    return {
+      id: income.id,
+      name: income.name,
+      type: 'income' as const,
+      receivedAmount: progress?.receivedAmount || 0,
+      estimatedAmount: income.estimated_amount,
+      bonusAmount: progress?.bonusAmount || Math.max(0, (progress?.receivedAmount || 0) - income.estimated_amount)
+    }
+  })
+
+  // Vérifier si c'est une transaction exceptionnelle originale
+  const isOriginallyExceptional = transaction?.is_exceptional || false
 
   /**
    * Load transaction data into form when modal opens or transaction changes
@@ -188,27 +223,29 @@ export default function EditTransactionModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Exceptional Checkbox */}
-          <div className="flex flex-col items-center space-y-3">
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="exceptional"
-                checked={isExceptional}
-                onChange={(e) => setIsExceptional(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <Label htmlFor="exceptional" className="text-sm text-gray-700 cursor-pointer font-medium">
-                {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
-              </Label>
+          {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
+          {isOriginallyExceptional && (
+            <div className="flex flex-col items-center space-y-3">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="exceptional"
+                  checked={isExceptional}
+                  disabled={true} // Always readonly for originally exceptional
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded opacity-50 cursor-not-allowed"
+                />
+                <Label
+                  htmlFor="exceptional"
+                  className="text-sm text-gray-700 font-medium cursor-not-allowed opacity-50"
+                >
+                  {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
+                </Label>
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                Transaction originalement exceptionnelle (non modifiable)
+              </p>
             </div>
-            <p className="text-xs text-gray-500 text-center">
-              {transactionType === 'expense'
-                ? 'Non associée à un budget estimé'
-                : 'Non associé à un revenu estimé'
-              }
-            </p>
-          </div>
+          )}
 
           {/* Budget/Income Selection - Only shown if not exceptional */}
           {!isExceptional && (
@@ -217,27 +254,16 @@ export default function EditTransactionModal({
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
                 <span className="text-red-500 ml-1">*</span>
               </Label>
-              <select
+              <CustomDropdown
+                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
                 value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(e) => setFormData(prev => ({
+                onChange={(value) => setFormData(prev => ({
                   ...prev,
-                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: e.target.value
+                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value
                 }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
                 required={!isExceptional}
-              >
-                <option value="">
-                  {transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
-                </option>
-                {(transactionType === 'expense' ? budgets : incomes).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} - {new Intl.NumberFormat('fr-FR', {
-                      style: 'currency',
-                      currency: 'EUR'
-                    }).format(item.estimated_amount)} {transactionType === 'expense' ? 'alloués' : 'estimés'}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
 
@@ -296,6 +322,17 @@ export default function EditTransactionModal({
               </div>
             </div>
           </div>
+
+          {/* Remaining to Live Preview */}
+          {previewAmount > 0 && previewAmount !== transaction?.amount && (
+            <RemainingToLivePreview
+              amount={previewAmount - (transaction?.amount || 0)} // Différence seulement
+              type={transactionType}
+              isExceptional={isExceptional}
+              selectedId={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
+              context={context}
+            />
+          )}
 
           {/* Error Display */}
           {error && (

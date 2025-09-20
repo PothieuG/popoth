@@ -229,6 +229,38 @@
 - **Real-time Updates**: Bonus calculations refresh immediately when incomes are modified
 - **Performance Optimized**: Efficient grouped calculations with single database queries per context
 
+### 🎨 Enhanced Transaction UI/UX System (2025-09-20 - NEW)
+- **Real-time Remaining Balance Preview**: Live calculation and display of transaction impact on "Reste à Vivre" with intelligent color coding
+- **Smart Budget Overrun Detection**: Accurate calculation of budget overruns and their direct impact on remaining balance (e.g., 400€ budget + 450€ expense = -50€ remaining balance)
+- **Advanced Custom Dropdown Component**: Professional dropdown with animated arrow, improved spacing, and modern design
+- **Intelligent Option Display Format**: `name - spent_amount/budget_amount (Economy: X€)` with contextual color coding
+- **Dynamic Color Coding System**: Automatic color assignment based on budget/income progress (red: overrun, orange: near limit, blue: exact, green: under budget)
+- **Visual Hierarchy Enhancement**: Bold black names, colored progress values, purple economy/bonus indicators for optimal readability
+- **Real-time Financial Impact Preview**: Instant calculation showing how new transactions affect remaining balance before submission
+- **Context-Aware Calculations**: Different logic for exceptional vs budgeted transactions with appropriate impact calculations
+- **Mobile-First Responsive Design**: Touch-optimized interface with proper spacing and interaction patterns
+- **Progressive Enhancement**: Smooth animations, loading states, and error handling throughout the transaction flow
+
+### 🔒 Smart Exceptional Transaction Management (2025-09-20 - NEW)
+- **Intelligent Edit Modal Logic**: Dynamic checkbox behavior based on transaction origin and type
+- **Protected Exceptional Status**: Originally exceptional transactions display readonly checkbox with clear messaging
+- **Hidden Checkbox for Budgeted Edits**: Transactions associated with budgets/incomes hide exceptional checkbox completely
+- **Transaction Type Preservation**: Prevents invalid state changes while maintaining data integrity
+- **Clear Visual Indicators**: Contextual messages explaining transaction status and modification limitations
+- **Secure State Management**: Backend validation ensures transaction categorization consistency
+- **User-Friendly Feedback**: Descriptive messages guide users on what can and cannot be modified
+- **Context-Sensitive Forms**: Adaptive form layout based on transaction origin and current state
+
+### 📊 Advanced Progress Tracking APIs (2025-09-20 - NEW)
+- **Expense Progress API** (`/api/finances/expenses/progress`): Real-time budget utilization tracking with spending analysis
+- **Income Progress API** (`/api/finances/income/progress`): Live income tracking with bonus calculation and progress monitoring
+- **Context-Aware Data Retrieval**: Supports both profile and group contexts with secure access control
+- **Performance-Optimized Queries**: Efficient database operations with JOIN queries and data aggregation
+- **Real-time Cache Integration**: Automatic cache invalidation and refresh for immediate UI updates
+- **Secure Authentication**: JWT-based session validation ensuring proper data access and privacy
+- **Error Resilience**: Comprehensive error handling with graceful degradation and detailed logging
+- **Type-Safe Data Structures**: Complete TypeScript interfaces for reliable data handling and validation
+
 ## 🏗️ Authentication System Architecture
 
 ### 📁 File Structure
@@ -249,19 +281,25 @@
 │   ├── useIncomes.ts                   # Income CRUD operations with cache invalidation
 │   ├── useBankBalance.ts               # Bank balance management with error handling
 │   ├── useRealExpenses.ts              # Real expense CRUD operations with context support
-│   └── useRealIncomes.ts               # Real income CRUD operations with context support
+│   ├── useRealIncomes.ts               # Real income CRUD operations with context support
+│   ├── useProgressData.ts              # Combined progress tracking for budgets and incomes
+│   ├── useExpenseProgress.ts           # Budget progression and economy calculations
+│   └── useIncomeProgress.ts            # Income progression and bonus calculations
 ├── components/
 │   ├── ui/
 │   │   ├── DropdownMenu.tsx            # Reusable 3-dot dropdown menu component
 │   │   ├── ConfirmationDialog.tsx      # Delete confirmation modal dialog
 │   │   ├── UserAvatar.tsx              # Smart avatar component with photo/initials fallback
-│   │   └── AvatarUpload.tsx            # Avatar upload component with file validation
+│   │   ├── AvatarUpload.tsx            # Avatar upload component with file validation
+│   │   └── CustomDropdown.tsx          # Advanced dropdown with color coding and formatting
 │   └── dashboard/
 │       ├── EditBudgetDialog.tsx        # Budget editing modal with validation
 │       ├── EditIncomeDialog.tsx        # Income editing modal with validation
 │       ├── EditableBalanceLine.tsx     # Bank balance line with pencil edit icon
 │       ├── EditBalanceModal.tsx        # Bank balance editing modal with explanations
-│       ├── AddTransactionModal.tsx     # Unified transaction creation modal (expenses/incomes)
+│       ├── AddTransactionModal.tsx     # Enhanced transaction creation modal with preview
+│       ├── EditTransactionModal.tsx    # Smart transaction editing modal with state management
+│       ├── RemainingToLivePreview.tsx  # Real-time financial impact preview component
 │       ├── TransactionTabsComponent.tsx # Main transaction tabs interface with lists
 │       └── TransactionListItem.tsx     # Individual transaction display component
 ├── app/
@@ -272,8 +310,12 @@
 │   │   ├── incomes/route.ts            # Income CRUD API endpoints
 │   │   ├── bank-balance/route.ts       # Bank balance GET/POST API endpoints
 │   │   └── finances/
-│   │       ├── expenses/real/route.ts  # Real expenses CRUD API with context support
-│   │       └── income/real/route.ts    # Real income entries CRUD API with context support
+│   │       ├── expenses/
+│   │       │   ├── real/route.ts       # Real expenses CRUD API with context support
+│   │       │   └── progress/route.ts   # Budget progress tracking API
+│   │       └── income/
+│   │           ├── real/route.ts       # Real income entries CRUD API with context support
+│   │           └── progress/route.ts   # Income progress tracking API
 │   ├── layout.tsx                      # AuthProvider wrapper
 │   ├── connexion/page.tsx              # Login page
 │   ├── inscription/page.tsx            # Registration page

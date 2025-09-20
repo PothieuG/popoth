@@ -9,6 +9,9 @@ import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
+import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import { useProgressData } from '@/hooks/useProgressData'
+import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface AddTransactionModalProps {
   isOpen: boolean
@@ -46,6 +49,35 @@ export default function AddTransactionModal({
   const { incomes, refreshIncomes } = useIncomes(context)
   const { addExpense } = useRealExpenses(context)
   const { addIncome } = useRealIncomes(context)
+  const { expenseProgress, incomeProgress } = useProgressData(context)
+
+  // Calculer le montant pour le preview
+  const previewAmount = parseFloat(formData.amount) || 0
+
+  // Préparer les options pour les dropdowns
+  const budgetOptions: DropdownOption[] = budgets.map(budget => {
+    const progress = expenseProgress[budget.id]
+    return {
+      id: budget.id,
+      name: budget.name,
+      type: 'expense' as const,
+      spentAmount: progress?.spentAmount || 0,
+      estimatedAmount: budget.estimated_amount,
+      economyAmount: progress?.economyAmount || Math.max(0, budget.estimated_amount - (progress?.spentAmount || 0))
+    }
+  })
+
+  const incomeOptions: DropdownOption[] = incomes.map(income => {
+    const progress = incomeProgress[income.id]
+    return {
+      id: income.id,
+      name: income.name,
+      type: 'income' as const,
+      receivedAmount: progress?.receivedAmount || 0,
+      estimatedAmount: income.estimated_amount,
+      bonusAmount: progress?.bonusAmount || Math.max(0, (progress?.receivedAmount || 0) - income.estimated_amount)
+    }
+  })
 
   /**
    * Reset form when modal opens/closes and refresh budgets/incomes
@@ -247,27 +279,16 @@ export default function AddTransactionModal({
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
                 <span className="text-red-500 ml-1">*</span>
               </Label>
-              <select
+              <CustomDropdown
+                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
                 value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(e) => setFormData(prev => ({
+                onChange={(value) => setFormData(prev => ({
                   ...prev,
-                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: e.target.value
+                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value
                 }))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
                 required={!isExceptional}
-              >
-                <option value="">
-                  {transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
-                </option>
-                {(transactionType === 'expense' ? budgets : incomes).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} - {new Intl.NumberFormat('fr-FR', {
-                      style: 'currency',
-                      currency: 'EUR'
-                    }).format(item.estimated_amount)} {transactionType === 'expense' ? 'alloués' : 'estimés'}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           )}
 
@@ -326,6 +347,17 @@ export default function AddTransactionModal({
               </div>
             </div>
           </div>
+
+          {/* Remaining to Live Preview */}
+          {previewAmount > 0 && (
+            <RemainingToLivePreview
+              amount={previewAmount}
+              type={transactionType}
+              isExceptional={isExceptional}
+              selectedId={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
+              context={context}
+            />
+          )}
 
           {/* Error Display */}
           {error && (
