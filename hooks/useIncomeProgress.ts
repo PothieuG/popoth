@@ -12,7 +12,6 @@ export interface IncomeProgress {
   estimatedAmount: number
   receivedAmount: number
   percentage: number
-  surplus: number
   colorClass: string
   textColorClass: string
 }
@@ -98,10 +97,7 @@ export function useIncomeProgress(
           ? Math.round((receivedAmount / income.estimated_amount) * 100 * 100) / 100 // 2 décimales
           : 0
 
-        // Calculer le surplus selon les règles financières:
-        // En temps réel pendant le mois : seulement si montant déjà reçu dépasse l'estimé
-        // Contrairement aux économies, le surplus peut être positif en cours de mois
-        const surplus = Math.max(0, receivedAmount - income.estimated_amount)
+        // Note: Le surplus n'est plus calculé ici car cette feature sera implémentée plus tard
 
         // Déterminer les classes de couleur
         const { colorClass, textColorClass } = getIncomeColorClass(percentage)
@@ -112,7 +108,6 @@ export function useIncomeProgress(
           estimatedAmount: income.estimated_amount,
           receivedAmount,
           percentage,
-          surplus,
           colorClass,
           textColorClass
         }

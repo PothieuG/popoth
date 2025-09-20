@@ -5,7 +5,8 @@
       "mcp__context7__get-library-docs",
       "Bash(npx playwright test:*)",
       "mcp__context7__resolve-library-id",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(npm run typecheck:*)"
     ],
     "deny": [],
     "ask": []

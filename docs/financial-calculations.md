@@ -26,13 +26,26 @@ Located in `lib/financial-calculations.ts` - `getProfileFinancialData()`
 const availableBalance = bankBalance || 0
 ```
 
-#### Remaining to Live
+#### Remaining to Live (Enhanced with Income Bonus System)
 ```typescript
-const remainingToLive = totalEstimatedIncome - totalEstimatedBudgets
+// Base calculation
+const remainingToLive = totalEstimatedIncome - totalEstimatedBudgets - exceptionalExpenses
+
+// Enhanced with budget overrun deduction
+if (realExpensesOnBudgets > estimatedBudgets) {
+  remainingToLive -= (realExpensesOnBudgets - estimatedBudgets)
+}
+
+// Enhanced with precise income bonus calculation
+if (incomeBonus > 0) {
+  remainingToLive += incomeBonus
+}
 ```
-- **Formula**: Total Estimated Income - Total Estimated Budgets
-- **Purpose**: Shows how much money remains after covering all planned expenses
-- **Example**: 1000€ income - 400€ budgets = 600€ remaining to live
+- **Base Formula**: Total Estimated Income - Total Estimated Budgets - Exceptional Expenses
+- **Budget Overrun**: Deducts excess spending on budgets
+- **Income Bonus**: Adds surplus from individual income sources that exceed their estimates
+- **Purpose**: Shows accurate money available after considering real vs estimated performance
+- **Example**: 1000€ income - 400€ budgets + 100€ bonus = 700€ remaining to live
 
 #### Total Savings
 ```typescript
@@ -343,3 +356,217 @@ FOR SELECT USING (
 - `/api/debug/financial`: Comprehensive financial data debugging
 - Logs all calculation steps and data sources
 - Helps identify context or calculation issues
+
+## Advanced Income Bonus System (2025-09-20)
+
+### Overview
+The Income Bonus System enhances the "Reste à Vivre" calculation by precisely tracking when real income entries exceed their associated estimated incomes, adding the difference as a bonus to the available funds.
+
+### Key Concepts
+
+#### 1. Individual Income Tracking
+Instead of comparing total real vs total estimated incomes, the system tracks each income source individually:
+
+```typescript
+// OLD APPROACH (Global comparison)
+if (totalRealIncomes > totalEstimatedIncomes) {
+  bonus = totalRealIncomes - totalEstimatedIncomes
+}
+
+// NEW APPROACH (Per-income precision)
+const groupedByEstimated = realIncomes.reduce((acc, income) => {
+  const estimatedId = income.estimated_income_id!
+  if (!acc[estimatedId]) {
+    acc[estimatedId] = { totalReal: 0, estimatedAmount: 0 }
+  }
+  acc[estimatedId].totalReal += income.amount
+  return acc
+}, {})
+
+for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
+  if (data.totalReal > data.estimatedAmount) {
+    totalBonus += (data.totalReal - data.estimatedAmount)
+  }
+}
+```
+
+#### 2. Database Integration
+The system leverages the existing `real_income_entries.estimated_income_id` foreign key to associate real entries with their estimates:
+
+```sql
+-- Real income entries linked to estimated incomes
+SELECT
+  rie.amount,
+  rie.estimated_income_id,
+  ei.estimated_amount
+FROM real_income_entries rie
+JOIN estimated_incomes ei ON rie.estimated_income_id = ei.id
+WHERE rie.profile_id = $1 AND rie.estimated_income_id IS NOT NULL
+```
+
+#### 3. Calculation Process
+
+##### Profile Bonus Calculation
+```typescript
+// In getProfileFinancialData()
+const { data: realIncomesWithEstimated } = await supabaseServer
+  .from('real_income_entries')
+  .select(`
+    amount,
+    estimated_income_id,
+    estimated_income:estimated_incomes(estimated_amount)
+  `)
+  .eq('profile_id', profileId)
+  .not('estimated_income_id', 'is', null)
+
+// Group by estimated income and calculate bonus
+const groupedByEstimated = realIncomesWithEstimated.reduce((acc, income) => {
+  const estimatedId = income.estimated_income_id!
+  if (!acc[estimatedId]) {
+    acc[estimatedId] = {
+      totalReal: 0,
+      estimatedAmount: (income.estimated_income as any)?.estimated_amount || 0
+    }
+  }
+  acc[estimatedId].totalReal += income.amount
+  return acc
+}, {} as Record<string, { totalReal: number; estimatedAmount: number }>)
+
+// Calculate total bonus
+let totalIncomeBonus = 0
+for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
+  if (data.totalReal > data.estimatedAmount) {
+    const bonus = data.totalReal - data.estimatedAmount
+    totalIncomeBonus += bonus
+  }
+}
+```
+
+##### Group Bonus Calculation
+```typescript
+// Same logic but with group_id filter
+const { data: realIncomesWithEstimated } = await supabaseServer
+  .from('real_income_entries')
+  .select(`
+    amount,
+    estimated_income_id,
+    estimated_income:estimated_incomes(estimated_amount)
+  `)
+  .eq('group_id', groupId)
+  .not('estimated_income_id', 'is', null)
+```
+
+### Enhanced Function Signatures
+
+#### Profile Calculation
+```typescript
+export function calculateRemainingToLiveProfile(
+  estimatedIncomes: number,
+  estimatedBudgets: number,
+  exceptionalExpenses: number,
+  realIncomes?: number,           // Still used for total tracking
+  realExpensesOnBudgets?: number, // For budget overrun
+  incomeBonus?: number            // NEW: Precise bonus calculation
+): number
+```
+
+#### Group Calculation
+```typescript
+export function calculateRemainingToLiveGroup(
+  estimatedIncomes: number,
+  realIncomes: number,
+  profileContributions: number,
+  estimatedBudgets: number,
+  exceptionalExpenses: number,
+  realExpensesOnBudgets?: number, // For budget overrun
+  incomeBonus?: number            // NEW: Precise bonus calculation
+): number
+```
+
+### Automatic Snapshot Management
+
+#### Snapshot Triggers
+The system automatically creates financial snapshots when associated income operations occur:
+
+```typescript
+// POST /api/finances/income/real
+if (data.is_exceptional || data.estimated_income_id) {
+  const reason = data.is_exceptional
+    ? 'exceptional_income_created'
+    : 'associated_income_created'
+
+  await saveRemainingToLiveSnapshot({
+    profileId: is_for_group ? undefined : session.userId,
+    groupId: is_for_group ? insertData.group_id : undefined,
+    reason
+  })
+}
+```
+
+#### Snapshot Reasons
+- `associated_income_created`: New real income linked to estimated income
+- `associated_income_updated`: Modified real income with estimated link
+- `associated_income_deleted`: Removed real income that was linked to estimate
+
+### Usage Examples
+
+#### Example 1: Basic Bonus Calculation
+```typescript
+// Scenario: Estimated income of 1000€, real income of 1200€
+const estimatedIncome = { id: 'est1', estimated_amount: 1000 }
+const realIncomes = [
+  { estimated_income_id: 'est1', amount: 1200 }
+]
+
+// Result: 200€ bonus added to reste à vivre
+// Old reste à vivre: 1000 - 500 (budgets) = 500€
+// New reste à vivre: 1000 - 500 + 200 (bonus) = 700€
+```
+
+#### Example 2: Multiple Income Sources
+```typescript
+// Scenario: Two income sources with different performance
+const estimatedIncomes = [
+  { id: 'salary', estimated_amount: 2000 },
+  { id: 'bonus', estimated_amount: 500 }
+]
+
+const realIncomes = [
+  { estimated_income_id: 'salary', amount: 2100 }, // +100€ bonus
+  { estimated_income_id: 'bonus', amount: 300 }    // No bonus (under estimate)
+]
+
+// Result: Only 100€ bonus from salary (bonus income ignored as it's under estimate)
+```
+
+#### Example 3: Deletion Impact
+```typescript
+// Before deletion: Real income 1200€ vs estimated 1000€ = +200€ bonus
+// After deletion: No real income vs estimated 1000€ = 0€ bonus
+// Impact: -200€ from reste à vivre (bonus removed)
+```
+
+### Performance Considerations
+
+#### Efficient Queries
+- Single query with JOIN to fetch real incomes and their estimates
+- Grouping performed in application layer for maximum flexibility
+- Results cached with standard 5-minute financial data cache
+
+#### Memory Usage
+- Minimal additional memory footprint
+- Calculation performed once per financial data refresh
+- No persistent storage of bonus calculations (computed on-demand)
+
+### Independence from Surplus System
+
+#### Clear Separation
+- **Income Bonus**: Affects "Reste à Vivre" calculation immediately
+- **Surplus System**: Future feature for displaying excess income (UI only)
+- **No Overlap**: Bonus calculation does not interfere with future surplus functionality
+
+#### Future Compatibility
+The system is designed to coexist with the future surplus system:
+- Bonus affects financial planning (reste à vivre)
+- Surplus will affect display/reporting only
+- Both can be calculated from the same data sources without conflict

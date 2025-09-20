@@ -67,7 +67,7 @@ export default function IncomeProgressIndicator({
         </span>
       </div>
 
-      {/* Ligne du bas : pourcentage et revenu/surplus avec espace */}
+      {/* Ligne du bas : pourcentage et nom du revenu */}
       <div className="flex items-stretch w-full flex-1">
         {/* Pourcentage avec code couleur - prend toute la hauteur restante */}
         <div className={cn(
@@ -77,12 +77,9 @@ export default function IncomeProgressIndicator({
           {Math.round(progress.percentage)}%
         </div>
 
-        {/* Nom du revenu et surplus - alignés à gauche */}
+        {/* Nom du revenu - aligné à gauche */}
         <div className="flex-1 flex flex-col justify-center">
           <h5 className="font-medium text-gray-900 text-sm text-left">{progress.incomeName}</h5>
-          <div className="text-xs font-medium text-blue-600 text-left">
-            Surplus: <span className="font-bold text-blue-700">{formatAmount(progress.surplus)}</span>
-          </div>
         </div>
       </div>
     </div>

@@ -108,8 +108,8 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   const handleAddBudget = async (budgetData: { name: string; estimatedAmount: number }) => {
     const success = await addBudget(budgetData)
     if (success) {
-      // Ne plus fermer le dialog automatiquement
-      // setIsAddBudgetOpen(false)
+      // Le dialog se ferme automatiquement dans AddBudgetDialog
+      setIsAddBudgetOpen(false)
 
       // Rafraîchir les progressions des budgets
       await refreshBudgetProgress()
@@ -128,8 +128,8 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   const handleAddIncome = async (incomeData: { name: string; estimatedAmount: number }) => {
     const success = await addIncome(incomeData)
     if (success) {
-      // Ne plus fermer le dialog automatiquement
-      // setIsAddIncomeOpen(false)
+      // Le dialog se ferme automatiquement dans AddIncomeDialog
+      setIsAddIncomeOpen(false)
 
       // Rafraîchir les progressions des revenus
       await refreshIncomeProgress()

@@ -258,16 +258,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel
-    if (data.is_exceptional) {
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel ou associé
+    if (data.is_exceptional || data.estimated_income_id) {
+      const reason = data.is_exceptional ? 'exceptional_income_created' : 'associated_income_created'
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: is_for_group ? undefined : session.userId,
         groupId: is_for_group ? insertData.group_id : undefined,
-        reason: 'exceptional_income_created'
+        reason
       })
 
       if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après création revenu exceptionnel')
+        console.log(`📊 Snapshot reste à vivre sauvegardé après création revenu (${reason})`)
       } else {
         console.log('⚠️ Échec sauvegarde snapshot (non critique)')
       }
@@ -366,16 +367,17 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel
-    if (data.is_exceptional) {
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'est un revenu exceptionnel ou associé
+    if (data.is_exceptional || data.estimated_income_id) {
+      const reason = data.is_exceptional ? 'exceptional_income_updated' : 'associated_income_updated'
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: data.profile_id || undefined,
         groupId: data.group_id || undefined,
-        reason: 'exceptional_income_updated'
+        reason
       })
 
       if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour revenu exceptionnel')
+        console.log(`📊 Snapshot reste à vivre sauvegardé après mise à jour revenu (${reason})`)
       } else {
         console.log('⚠️ Échec sauvegarde snapshot (non critique)')
       }
@@ -417,10 +419,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel
+    // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel ou associé
     const { data: incomeToDelete } = await supabaseServer
       .from('real_income_entries')
-      .select('profile_id, group_id, is_exceptional')
+      .select('profile_id, group_id, is_exceptional, estimated_income_id')
       .eq('id', id)
       .single()
 
@@ -438,16 +440,17 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Sauvegarder automatiquement le nouveau reste à vivre si c'était un revenu exceptionnel
-    if (incomeToDelete?.is_exceptional) {
+    // Sauvegarder automatiquement le nouveau reste à vivre si c'était un revenu exceptionnel ou associé à un revenu estimé
+    if (incomeToDelete?.is_exceptional || incomeToDelete?.estimated_income_id) {
+      const reason = incomeToDelete.is_exceptional ? 'exceptional_income_deleted' : 'associated_income_deleted'
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: incomeToDelete.profile_id || undefined,
         groupId: incomeToDelete.group_id || undefined,
-        reason: 'exceptional_income_deleted'
+        reason
       })
 
       if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après suppression revenu exceptionnel')
+        console.log(`📊 Snapshot reste à vivre sauvegardé après suppression revenu (${reason})`)
       } else {
         console.log('⚠️ Échec sauvegarde snapshot (non critique)')
       }

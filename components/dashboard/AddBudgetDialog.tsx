@@ -105,11 +105,11 @@ export default function AddBudgetDialog({
 
     onSave(budgetData)
 
-    // Reset du formulaire pour permettre l'ajout d'un autre budget
+    // Reset du formulaire et fermer le dialog
     setBudgetName('')
     setBudgetAmount('')
     setErrors({})
-    // Ne pas fermer le dialog automatiquement
+    onClose()
   }
 
   /**

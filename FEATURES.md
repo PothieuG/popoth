@@ -217,6 +217,18 @@
 - **Performance Optimized**: Eliminates dozens of redundant API calls per second while maintaining reactivity
 - **Error Recovery**: Graceful fallback to manual refresh if real-time updates fail
 
+### 💰 Advanced Income Bonus System (2025-09-20 - NEW)
+- **Precise Income Bonus Calculation**: When real income exceeds estimated income, difference automatically added to "Reste à Vivre"
+- **Individual Income Tracking**: Calculates bonus per associated income rather than global comparison (e.g., estimated 100€ → real 200€ = +100€ bonus)
+- **Automatic Recalculation**: When associated income is deleted, bonus is automatically removed from "Reste à Vivre"
+- **Smart Financial Logic**: Enhanced `calculateRemainingToLiveProfile()` and `calculateRemainingToLiveGroup()` functions with precise bonus parameter
+- **Database Integration**: Groups real incomes by `estimated_income_id` to calculate accurate per-income bonuses
+- **Automatic Snapshot Saving**: Creates financial snapshots for all associated income operations (create/update/delete)
+- **Context-Aware**: Works for both personal profiles and groups with separate calculation logic
+- **Surplus Independence**: Bonus system completely separate from future surplus functionality
+- **Real-time Updates**: Bonus calculations refresh immediately when incomes are modified
+- **Performance Optimized**: Efficient grouped calculations with single database queries per context
+
 ## 🏗️ Authentication System Architecture
 
 ### 📁 File Structure
