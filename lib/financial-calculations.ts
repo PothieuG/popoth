@@ -293,7 +293,8 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
           .filter(expense => expense.estimated_budget_id === budget.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
 
-        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
+        // Utiliser les économies mensuelles calculées si disponibles, sinon calculer
+        const budgetSavings = budget.monthly_surplus || calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
         totalSavings += budgetSavings
       }
     }
@@ -462,7 +463,8 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
           .filter(expense => expense.estimated_budget_id === budget.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
 
-        const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
+        // Utiliser les économies mensuelles calculées si disponibles, sinon calculer
+        const budgetSavings = budget.monthly_surplus || calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
         totalSavings += budgetSavings
       }
     }
