@@ -17,7 +17,7 @@ interface EstimatedBudget {
   carryover_applied_date?: string // Champ legacy, plus utilisé
   cumulated_savings?: number // Économies cumulées
   last_savings_update?: string // Date de dernière mise à jour des économies
-  spent_this_month?: number // Déjà calculé par l'API avec carryover
+  spent_this_month?: number // Dépenses réelles du mois
 }
 
 interface UseBudgetsReturn {

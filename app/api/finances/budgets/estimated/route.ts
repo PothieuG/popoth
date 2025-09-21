@@ -12,6 +12,8 @@ export interface EstimatedBudgetData {
   created_at: string
   updated_at: string
   spent_this_month?: number
+  cumulated_savings?: number
+  last_savings_update?: string
 }
 
 export interface CreateEstimatedBudgetRequest {
@@ -94,25 +96,11 @@ export async function GET(request: NextRequest) {
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-
-      // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
-      let carryoverSpent = 0
-      if (budget.carryover_spent_amount !== undefined) {
-        // Nouveau système de carryover
-        carryoverSpent = budget.carryover_spent_amount || 0
-      } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
-        // Ancien système de fallback
-        carryoverSpent = Math.abs(budget.monthly_surplus)
-      }
-
-      // Total dépensé = dépenses réelles + carryover du mois précédent
-      const spentThisMonth = realExpensesThisMonth + carryoverSpent
+      const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
       return {
         ...budget,
-        spent_this_month: spentThisMonth,
-        carryover_spent_amount: carryoverSpent // Inclure dans la réponse pour le frontend
+        spent_this_month: spentThisMonth
       }
     }))
 

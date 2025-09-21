@@ -197,7 +197,8 @@ export async function POST(request: NextRequest) {
           total_spent_amount: spentThisMonth,
           difference, // Positif = économie, Négatif = déficit
           surplus: Math.max(0, difference), // Économies (budget - dépenses)
-          deficit: Math.max(0, -difference) // Déficit (dépenses - budget)
+          deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
+          cumulated_savings: budget.cumulated_savings || 0 // Économies cumulées existantes
         }
 
         budgetStats.push(budgetStat)

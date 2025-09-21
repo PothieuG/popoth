@@ -158,6 +158,33 @@ export default function MonthlyRecapStep2({
           </Card>
         )}
 
+         {/* Résumé des totaux */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card className="p-4 bg-green-50 border border-green-200">
+            <div className="text-center">
+              <h4 className="font-medium text-green-900">Total Économies</h4>
+              <p className="text-xl font-bold text-green-600 mt-1">
+                {formatCurrency(recapData.total_surplus)}
+              </p>
+              <p className="text-xs text-green-700 mt-1">
+                {budgetsWithSurplus.length} budget(s) excédentaire(s)
+              </p>
+            </div>
+          </Card>
+
+          <Card className="p-4 bg-red-50 border border-red-200">
+            <div className="text-center">
+              <h4 className="font-medium text-red-900">Total Déficits</h4>
+              <p className="text-xl font-bold text-red-600 mt-1">
+                {formatCurrency(recapData.total_deficit)}
+              </p>
+              <p className="text-xs text-red-700 mt-1">
+                {budgetsWithDeficit.length} budget(s) déficitaire(s)
+              </p>
+            </div>
+          </Card>
+        </div>
+
         {/* Liste des budgets */}
         <Card className="p-4 bg-white">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Détail par budget</h3>
@@ -171,12 +198,17 @@ export default function MonthlyRecapStep2({
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{budget.name}</h4>
                   <div className="text-sm text-gray-600 mt-1">
-                    Budgété: {formatCurrency(budget.estimated_amount)} /
-                    Dépensé: {formatCurrency(budget.spent_amount)}
+                    <div>Budgété: {formatCurrency(budget.estimated_amount)}</div>
+                    <div>Dépensé: {formatCurrency(budget.spent_amount)}</div>
                   </div>
                   <div className={`text-sm font-medium mt-1 ${getBudgetStatusColor(budget)}`}>
                     {getBudgetStatusText(budget)}
                   </div>
+                  {budget.cumulated_savings && budget.cumulated_savings > 0 && (
+                    <div className="text-sm text-purple-600 mt-1">
+                      +{formatCurrency(budget.cumulated_savings)} d'économies
+                    </div>
+                  )}
                 </div>
 
                 {budget.surplus > 0 && (
@@ -204,32 +236,7 @@ export default function MonthlyRecapStep2({
           )}
         </Card>
 
-        {/* Résumé des totaux */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 bg-green-50 border border-green-200">
-            <div className="text-center">
-              <h4 className="font-medium text-green-900">Total Économies</h4>
-              <p className="text-xl font-bold text-green-600 mt-1">
-                {formatCurrency(recapData.total_surplus)}
-              </p>
-              <p className="text-xs text-green-700 mt-1">
-                {budgetsWithSurplus.length} budget(s) excédentaire(s)
-              </p>
-            </div>
-          </Card>
-
-          <Card className="p-4 bg-red-50 border border-red-200">
-            <div className="text-center">
-              <h4 className="font-medium text-red-900">Total Déficits</h4>
-              <p className="text-xl font-bold text-red-600 mt-1">
-                {formatCurrency(recapData.total_deficit)}
-              </p>
-              <p className="text-xs text-red-700 mt-1">
-                {budgetsWithDeficit.length} budget(s) déficitaire(s)
-              </p>
-            </div>
-          </Card>
-        </div>
+       
       </div>
 
       {/* Footer avec navigation */}

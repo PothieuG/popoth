@@ -24,10 +24,12 @@ interface EstimatedBudget {
   id: string
   name: string
   estimated_amount: number
-  monthly_surplus?: number // Pour le fallback du carryover de déficit
-  carryover_spent_amount?: number // Nouveau système de carryover
-  carryover_applied_date?: string // Date d'application du carryover
-  spent_this_month?: number // Déjà calculé par l'API avec carryover
+  monthly_surplus?: number // Champ legacy, plus utilisé
+  carryover_spent_amount?: number // Champ legacy, plus utilisé
+  carryover_applied_date?: string // Champ legacy, plus utilisé
+  spent_this_month?: number // Dépenses réelles du mois
+  cumulated_savings?: number // Économies cumulées
+  last_savings_update?: string // Date de dernière mise à jour des économies
 }
 
 interface UseBudgetProgressReturn {
@@ -103,10 +105,8 @@ export function useBudgetProgress(
           ? Math.round((spentAmount / budget.estimated_amount) * 100 * 100) / 100 // 2 décimales
           : 0
 
-        // Calculer les économies selon les règles financières:
-        // En temps réel pendant le mois : toujours 0 (économies calculées seulement à la fin de la période)
-        // Ref: financial-calculations.ts ligne 160-173
-        const savings = 0
+        // Utiliser les économies cumulées du budget
+        const savings = budget.cumulated_savings || 0
 
         // Déterminer les classes de couleur
         const { colorClass, textColorClass } = getBudgetColorClass(percentage)

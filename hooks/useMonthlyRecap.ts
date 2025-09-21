@@ -11,6 +11,7 @@ export interface BudgetStat {
   difference: number
   surplus: number
   deficit: number
+  cumulated_savings?: number // Économies cumulées existantes
 }
 
 export interface RecapData {

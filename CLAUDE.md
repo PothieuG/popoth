@@ -8,11 +8,24 @@ The application is only for mobile, but could be used in desktop. Desktop beauti
 
 This project documentation is organized into focused files for better maintainability:
 
+### 📋 Core Documentation
 - **[DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md)** - Claude instructions, workflow rules, and development standards
 - **[TECH_STACK.md](./TECH_STACK.md)** - Technical stack details, MCP server configuration, and environment setup
 - **[FEATURES.md](./FEATURES.md)** - Complete list of developed features with technical architecture
 - **[DATABASE.md](./DATABASE.md)** - Database schema, table structures, and relationships
 - **[SESSION_STATUS.md](./SESSION_STATUS.md)** - Current project status, achievements, and system readiness
+
+### 🗂️ Detailed Documentation
+- **[docs/README.md](./docs/README.md)** - 📖 **COMPREHENSIVE DOCUMENTATION INDEX** - Start here for detailed system documentation
+- **[docs/MONTHLY_RECAP_SYSTEM.md](./docs/MONTHLY_RECAP_SYSTEM.md)** - Complete monthly recap system documentation
+- **[docs/FINANCIAL_PLANNING_SYSTEM.md](./docs/FINANCIAL_PLANNING_SYSTEM.md)** - Financial planning architecture
+- **[docs/FINANCIAL_RULES.md](./docs/FINANCIAL_RULES.md)** - Business logic and calculation rules
+
+### 🔍 Quick Navigation
+- **For system understanding** → [docs/README.md](./docs/README.md)
+- **For development setup** → [TECH_STACK.md](./TECH_STACK.md)
+- **For coding guidelines** → [DEVELOPMENT_GUIDELINES.md](./DEVELOPMENT_GUIDELINES.md)
+- **For feature overview** → [FEATURES.md](./FEATURES.md)
 
 ## Quick Reference
 
