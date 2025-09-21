@@ -180,10 +180,12 @@ export default function CustomDropdown({
                       ) : null}
                     </div>
 
-                    {/* Parenthèse économie seulement (pas de bonus pour les revenus) */}
-                    <div className="text-purple-600 text-xs">
+                    {/* Parenthèse économie/déficit seulement (pas de bonus pour les revenus) */}
+                    <div className={`text-xs ${option.economyAmount && option.economyAmount < 0 ? 'text-red-600' : 'text-purple-600'}`}>
                       {option.type === 'expense' && option.economyAmount !== undefined ? (
-                        `(Économie: ${option.economyAmount.toFixed(2)}€)`
+                        option.economyAmount >= 0
+                          ? `(Économie: ${option.economyAmount.toFixed(2)}€)`
+                          : `(Déficit: ${Math.abs(option.economyAmount).toFixed(2)}€)`
                       ) : null}
                     </div>
                   </div>

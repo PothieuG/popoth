@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { RecapData, BudgetStat } from '@/hooks/useMonthlyRecap'
+import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface MonthlyRecapStep2Props {
   recapData: RecapData
@@ -45,7 +46,42 @@ export default function MonthlyRecapStep2({
   const budgetsWithDeficit = recapData.budget_stats.filter(budget => budget.deficit > 0)
   const generalRatio = recapData.total_surplus - recapData.total_deficit
 
+  // Helper function to convert budget stats to dropdown options for transfer mode
+  const getTransferDestinationOptions = (): DropdownOption[] => {
+    return recapData.budget_stats
+      .filter(budget => budget.id !== selectedFromBudget?.id)
+      .map(budget => ({
+        id: budget.id,
+        name: budget.name,
+        type: 'expense' as const,
+        spentAmount: budget.spent_amount,
+        estimatedAmount: budget.estimated_amount,
+        economyAmount: budget.surplus > 0 ? budget.surplus : budget.deficit > 0 ? -budget.deficit : 0
+      }))
+  }
+
+  // Helper function to convert budget stats to dropdown options for recovery mode
+  const getRecoverySourceOptions = (): DropdownOption[] => {
+    return recapData.budget_stats
+      .filter(budget => budget.id !== selectedFromBudget?.id && budget.surplus > 0)
+      .map(budget => ({
+        id: budget.id,
+        name: budget.name,
+        type: 'expense' as const,
+        spentAmount: budget.spent_amount,
+        estimatedAmount: budget.estimated_amount,
+        economyAmount: budget.surplus
+      }))
+  }
+
   const handleTransferClick = (budget: BudgetStat) => {
+    setSelectedFromBudget(budget)
+    setSelectedToBudget('')
+    setTransferAmount('')
+    setIsTransferModalOpen(true)
+  }
+
+  const handleRecoverClick = (budget: BudgetStat) => {
     setSelectedFromBudget(budget)
     setSelectedToBudget('')
     setTransferAmount('')
@@ -61,14 +97,32 @@ export default function MonthlyRecapStep2({
       return
     }
 
-    if (amount > selectedFromBudget.surplus) {
-      alert(`Le montant ne peut pas dépasser ${selectedFromBudget.surplus}€`)
-      return
+    // Validation différente selon le mode (transfert ou récupération)
+    if (selectedFromBudget.surplus > 0) {
+      // Mode transfert: vérifier que le montant ne dépasse pas le surplus
+      if (amount > selectedFromBudget.surplus) {
+        alert(`Le montant ne peut pas dépasser ${selectedFromBudget.surplus}€`)
+        return
+      }
+    } else {
+      // Mode récupération: vérifier que le montant ne dépasse pas le déficit
+      if (amount > selectedFromBudget.deficit) {
+        alert(`Le montant ne peut pas dépasser ${selectedFromBudget.deficit}€`)
+        return
+      }
     }
 
     setIsProcessing(true)
     try {
-      const result = await onTransfer(selectedFromBudget.id, selectedToBudget, amount)
+      let result
+      if (selectedFromBudget.surplus > 0) {
+        // Mode transfert: de selectedFromBudget vers selectedToBudget
+        result = await onTransfer(selectedFromBudget.id, selectedToBudget, amount)
+      } else {
+        // Mode récupération: de selectedToBudget vers selectedFromBudget
+        result = await onTransfer(selectedToBudget, selectedFromBudget.id, amount)
+      }
+
       if (result) {
         setIsTransferModalOpen(false)
         setSelectedFromBudget(null)
@@ -225,6 +279,21 @@ export default function MonthlyRecapStep2({
                     Transférer
                   </Button>
                 )}
+
+                {budget.deficit > 0 && (
+                  <Button
+                    onClick={() => handleRecoverClick(budget)}
+                    disabled={isLoading || isProcessing}
+                    variant="outline"
+                    size="sm"
+                    className="ml-3"
+                  >
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7h16m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    Récupérer
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -263,62 +332,104 @@ export default function MonthlyRecapStep2({
         </div>
       </div>
 
-      {/* Modal de transfert */}
+      {/* Modal de transfert/récupération */}
       <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Transférer des économies</DialogTitle>
+            <DialogTitle>
+              {selectedFromBudget?.surplus > 0 ? 'Transférer des économies' : 'Récupérer des fonds'}
+            </DialogTitle>
           </DialogHeader>
 
           {selectedFromBudget && (
             <div className="space-y-4">
-              <div className="p-3 bg-green-50 rounded-lg">
-                <h4 className="font-medium text-green-900">Budget source</h4>
-                <p className="text-sm text-green-700">{selectedFromBudget.name}</p>
-                <p className="text-sm text-green-600 font-medium">
-                  {formatCurrency(selectedFromBudget.surplus)} disponibles
-                </p>
-              </div>
+              {selectedFromBudget.surplus > 0 ? (
+                // Mode transfert (budget avec surplus)
+                <>
+                  <div className="p-3 bg-green-50 rounded-lg">
+                    <h4 className="font-medium text-green-900">Budget source</h4>
+                    <p className="text-sm text-green-700">{selectedFromBudget.name}</p>
+                    <p className="text-sm text-green-600 font-medium">
+                      {formatCurrency(selectedFromBudget.surplus)} disponibles
+                    </p>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Budget de destination
-                </label>
-                <select
-                  value={selectedToBudget}
-                  onChange={(e) => setSelectedToBudget(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Sélectionner un budget</option>
-                  {recapData.budget_stats
-                    .filter(budget => budget.id !== selectedFromBudget.id)
-                    .map((budget) => (
-                      <option key={budget.id} value={budget.id}>
-                        {budget.name}
-                        {budget.deficit > 0 && ` (${formatCurrency(budget.deficit)} de déficit)`}
-                      </option>
-                    ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Budget de destination
+                    </label>
+                    <CustomDropdown
+                      options={getTransferDestinationOptions()}
+                      value={selectedToBudget}
+                      onChange={setSelectedToBudget}
+                      placeholder="Sélectionner un budget"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Montant à transférer
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max={selectedFromBudget.surplus}
-                  value={transferAmount}
-                  onChange={(e) => setTransferAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Maximum: {formatCurrency(selectedFromBudget.surplus)}
-                </p>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Montant à transférer
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={selectedFromBudget.surplus}
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum: {formatCurrency(selectedFromBudget.surplus)}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                // Mode récupération (budget avec déficit)
+                <>
+                  <div className="p-3 bg-red-50 rounded-lg">
+                    <h4 className="font-medium text-red-900">Budget en déficit</h4>
+                    <p className="text-sm text-red-700">{selectedFromBudget.name}</p>
+                    <p className="text-sm text-red-600 font-medium">
+                      {formatCurrency(selectedFromBudget.deficit)} de déficit
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Budget source (avec surplus)
+                    </label>
+                    <CustomDropdown
+                      options={getRecoverySourceOptions()}
+                      value={selectedToBudget}
+                      onChange={setSelectedToBudget}
+                      placeholder="Sélectionner un budget avec surplus"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Montant à récupérer
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={selectedFromBudget.deficit}
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum: {formatCurrency(selectedFromBudget.deficit)}
+                    </p>
+                  </div>
+                </>
+              )}
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button
@@ -333,7 +444,10 @@ export default function MonthlyRecapStep2({
                   disabled={!selectedToBudget || !transferAmount || isProcessing}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  {isProcessing ? 'Transfert...' : 'Confirmer'}
+                  {isProcessing ?
+                    (selectedFromBudget.surplus > 0 ? 'Transfert...' : 'Récupération...') :
+                    (selectedFromBudget.surplus > 0 ? 'Confirmer' : 'Récupérer')
+                  }
                 </Button>
               </div>
             </div>
