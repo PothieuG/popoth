@@ -47,10 +47,10 @@ export interface RemainingToLiveSnapshot {
 // ============================================
 
 /**
- * Calcule la compensation revenus estimés vs réels pour un profile
- * Logique: pour chaque revenu estimé, si les revenus réels liés sont < estimation,
- * alors le reste à vivre doit être diminué de la différence (compensation négative)
- * Si les revenus réels > estimation, le reste à vivre augmente (compensation positive)
+ * Calcule l'ajout de revenus au reste à vivre pour un profile
+ * LOGIQUE CORRECTE:
+ * - Revenu estimé NON utilisé (0€ réel) = +revenu estimé au reste à vivre
+ * - Revenu estimé utilisé = +montant réellement reçu au reste à vivre
  */
 async function calculateIncomeCompensationProfile(profileId: string): Promise<number> {
   try {
@@ -71,8 +71,8 @@ async function calculateIncomeCompensationProfile(profileId: string): Promise<nu
 
     const realIncomesData = realIncomes || []
 
-    // 3. Calculer la compensation pour chaque revenu estimé
-    let totalCompensation = 0
+    // 3. Calculer ce qui doit être ajouté au reste à vivre
+    let totalToAdd = 0
 
     for (const estimatedIncome of estimatedIncomes) {
       const estimated = estimatedIncome.estimated_amount
@@ -80,26 +80,35 @@ async function calculateIncomeCompensationProfile(profileId: string): Promise<nu
         .filter(real => real.estimated_income_id === estimatedIncome.id)
         .reduce((sum, real) => sum + real.amount, 0)
 
-      // Compensation = revenus réels - revenus estimés
-      // Si réels < estimés = compensation négative (diminue reste à vivre)
-      // Si réels > estimés = compensation positive (augmente reste à vivre)
-      const compensation = realAmountForThisIncome - estimated
-      totalCompensation += compensation
+      let amountToAdd = 0
 
-      console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: estimé=${estimated}€, réel=${realAmountForThisIncome}€, compensation=${compensation}€`)
+      if (realAmountForThisIncome === 0) {
+        // Revenu estimé NON utilisé → ajouter le montant estimé au reste à vivre
+        amountToAdd = estimated
+        console.log(`📊 [Income Addition] Revenu ${estimatedIncome.id}: NON UTILISÉ, estimé=${estimated}€ → +${estimated}€ au reste à vivre`)
+      } else {
+        // Revenu estimé utilisé → ajouter le montant réellement reçu
+        amountToAdd = realAmountForThisIncome
+        console.log(`📊 [Income Addition] Revenu ${estimatedIncome.id}: UTILISÉ, estimé=${estimated}€, réel=${realAmountForThisIncome}€ → +${realAmountForThisIncome}€ au reste à vivre`)
+      }
+
+      totalToAdd += amountToAdd
     }
 
-    console.log(`💰 [Income Compensation Profile] Total compensation: ${totalCompensation}€`)
-    return totalCompensation
+    console.log(`💰 [Income Addition Profile] Total à ajouter: ${totalToAdd}€`)
+    return totalToAdd
 
   } catch (error) {
-    console.error('❌ Erreur lors du calcul de compensation revenus profile:', error)
+    console.error('❌ Erreur lors du calcul des revenus profile:', error)
     return 0
   }
 }
 
 /**
- * Calcule la compensation revenus estimés vs réels pour un groupe
+ * Calcule l'ajout de revenus au reste à vivre pour un groupe
+ * LOGIQUE CORRECTE:
+ * - Revenu estimé NON utilisé (0€ réel) = +revenu estimé au reste à vivre
+ * - Revenu estimé utilisé = +montant réellement reçu au reste à vivre
  */
 async function calculateIncomeCompensationGroup(groupId: string): Promise<number> {
   try {
@@ -129,14 +138,22 @@ async function calculateIncomeCompensationGroup(groupId: string): Promise<number
         .filter(real => real.estimated_income_id === estimatedIncome.id)
         .reduce((sum, real) => sum + real.amount, 0)
 
-      // Compensation = revenus réels - revenus estimés
-      const compensation = realAmountForThisIncome - estimated
-      totalCompensation += compensation
+      let compensation = 0
 
-      console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: estimé=${estimated}€, réel=${realAmountForThisIncome}€, compensation=${compensation}€`)
+      if (realAmountForThisIncome === 0) {
+        // Revenu estimé NON utilisé → ajouter le montant estimé au reste à vivre
+        compensation = estimated
+        console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: NON UTILISÉ, estimé=${estimated}€ → +${estimated}€ au reste à vivre`)
+      } else {
+        // Revenu estimé utilisé → ajouter le montant réellement reçu
+        compensation = realAmountForThisIncome
+        console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: UTILISÉ, estimé=${estimated}€, réel=${realAmountForThisIncome}€ → +${realAmountForThisIncome}€ au reste à vivre`)
+      }
+
+      totalCompensation += compensation
     }
 
-    console.log(`💰 [Income Compensation Group] Total compensation: ${totalCompensation}€`)
+    console.log(`💰 [Income Compensation Group] Total à ajouter: ${totalCompensation}€`)
     return totalCompensation
 
   } catch (error) {
@@ -186,7 +203,9 @@ export async function calculateRemainingToLiveProfile(
   profileId: string,
   realExpensesOnBudgets?: number,
 ): Promise<number> {
-  let remainingToLive = estimatedIncomes - estimatedBudgets - exceptionalExpenses
+  // NOUVELLE LOGIQUE: Ne plus inclure automatiquement les revenus estimés
+  // Ils seront ajoutés via la compensation uniquement s'ils ne sont pas utilisés
+  let remainingToLive = 0 - estimatedBudgets - exceptionalExpenses
 
   // NOUVELLE RÈGLE 1: Déduction si budget dépassé
   // Si les dépenses réelles sur budgets > budgets estimés, déduire la différence
@@ -225,7 +244,9 @@ export async function calculateRemainingToLiveGroup(
   groupId: string,
   realExpensesOnBudgets?: number
 ): Promise<number> {
-  const totalIncomes = estimatedIncomes + realIncomes + profileContributions
+  // NOUVELLE LOGIQUE: Ne plus inclure automatiquement les revenus estimés du groupe
+  // Ils seront ajoutés via la compensation uniquement s'ils ne sont pas utilisés
+  const totalIncomes = realIncomes + profileContributions
 
   let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
 

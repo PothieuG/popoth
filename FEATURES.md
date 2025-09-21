@@ -286,6 +286,18 @@
 - **Cache Invalidation**: Automatic financial data cache refresh after recap completion for immediate dashboard updates
 - **Type-Safe Processing**: Complete TypeScript interfaces for all recap data structures and processing flows
 
+### 🎯 Smart Estimated Income Logic (2025-09-21 - CORRECTED LOGIC)
+- **Intelligent Revenue State Management**: Estimated incomes automatically adapt based on usage status
+- **Unused Estimated Incomes**: Non-allocated estimated incomes (0€ received) contribute their full estimated amount to remaining-to-live
+- **Used Estimated Incomes**: Once real income is added, only the actually received amount contributes to remaining-to-live
+- **Visual Status Indicators**: Gray display for unused estimated incomes instead of alarming red coloring
+- **Seamless Transition Logic**: Automatic recalculation when switching between unused/used states
+- **Precise Financial Impact**: `remaining_to_live = base - budgets + unused_estimated_incomes + received_real_incomes`
+- **User-Intuitive Calculations**: Matches user expectation: "3000€ estimated, 2900€ received = 2900€ available"
+- **Real-time UI Updates**: Instant color change from gray (unused) to red/yellow/green (usage percentage)
+- **Elimination of Compensation Logic**: Replaced complex compensation with simple addition-based logic
+- **Enhanced User Experience**: Clear visual feedback and predictable financial calculations
+
 ## 🏗️ Authentication System Architecture
 
 ### 📁 File Structure

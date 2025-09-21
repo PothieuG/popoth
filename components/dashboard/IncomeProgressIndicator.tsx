@@ -15,6 +15,7 @@ interface IncomeProgressIndicatorProps {
  * - En bas : pourcentage et nom du revenu alignés
  *
  * Codes couleur pour revenus estimés :
+ * - si revenu estimé pas encore utilisé (0€ reçu) : gris
  * - si valeur du revenu estimé ou supérieur : vert
  * - si en dessous de 10% de la valeur estimé (90-100%) : jaune foncé
  * - si en dessous de cette valeur de 10% (<90%) : rouge
@@ -37,11 +38,14 @@ export default function IncomeProgressIndicator({
 
   /**
    * Détermine la couleur selon la logique des revenus
+   * NOUVELLE LOGIQUE : gris si pas encore utilisé (0€ reçu)
    */
   const getIncomeTextColor = (): string => {
     const { receivedAmount, estimatedAmount } = progress
 
-    if (receivedAmount >= estimatedAmount) {
+    if (receivedAmount === 0) {
+      return 'text-gray-500' // Gris pour revenu estimé non encore utilisé
+    } else if (receivedAmount >= estimatedAmount) {
       return 'text-green-600' // Vert pour valeur estimée ou supérieure
     } else if (receivedAmount >= (estimatedAmount * 0.9)) {
       return 'text-yellow-600' // Jaune foncé pour dans les 10% de la valeur estimée (90-100%)

@@ -32,19 +32,24 @@ Cash Disponible = Revenus Réels - Dépenses Réelles
 ### 2. Reste à Vivre
 
 #### 📱 Pour les Profiles (utilisateurs individuels)
-**Définition** : L'argent disponible pour le mois après avoir soustrait les budgets et ajouté les économies
+**Définition** : L'argent disponible pour le mois après avoir soustrait les budgets et ajouté les revenus
 
-**Formule** :
+**Formule CORRIGÉE (2025-09-21)** :
 ```
-Reste à Vivre = Revenus Estimés - Budgets Estimés - Dépenses Exceptionnelles + Économies des Budgets
+Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus
+                - Budgets Estimés - Dépenses Exceptionnelles + Économies des Budgets
 ```
+
+**Logique des Revenus Estimés** :
+- **Non utilisé** (0€ reçu) : +montant estimé complet
+- **Utilisé** : +montant réellement reçu (remplace l'estimation)
 
 #### 👥 Pour les Groups
 **Définition** : Budget collectif disponible incluant les contributions des membres
 
-**Formule** :
+**Formule CORRIGÉE (2025-09-21)** :
 ```
-Reste à Vivre = (Revenus Estimés + Revenus Réels + Contributions des Profiles)
+Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Contributions des Profiles
                 - Budgets Estimés - Dépenses Exceptionnelles + Économies des Budgets
 ```
 
@@ -103,6 +108,23 @@ Reste à Vivre = (Revenus Estimés + Revenus Réels + Contributions des Profiles
 - Saisie manuelle à chaque réception d'argent
 - Peuvent être liés à un "Revenu Estimé" ou être exceptionnels
 - Impact immédiat sur le "Cash Disponible"
+
+#### 🎯 Logique des Revenus Estimés (MISE À JOUR 2025-09-21)
+
+**État : Non Utilisé (0€ reçu)**
+- **Interface** : Affichage GRIS (vs rouge alarmant)
+- **Calcul** : +montant estimé complet au reste à vivre
+- **Exemple** : Salaire estimé 3000€ → +3000€ au reste à vivre
+
+**État : Utilisé (revenus réels ajoutés)**
+- **Interface** : Couleur selon pourcentage (rouge/jaune/vert)
+- **Calcul** : +montant réellement reçu au reste à vivre
+- **Exemple** : Salaire estimé 3000€, reçu 2900€ → +2900€ au reste à vivre
+
+**Transitions**
+- Non utilisé → Utilisé : Passage de +estimation à +réel
+- Modification du réel : Mise à jour directe du montant
+- Suppression du réel : Retour à l'état "Non utilisé"
 
 #### Dépenses Réelles
 - Saisie manuelle à chaque dépense
@@ -179,6 +201,23 @@ Reste à Vivre = (Revenus Estimés + Revenus Réels + Contributions des Profiles
 4. **Logs** : Tracer tous les calculs pour le debugging
 5. **Validation** : Vérifier que `totalEstimatedIncome - totalEstimatedBudgets = Reste à Vivre` (sans économies en cours de mois)
 
+## 🔄 Changements et Améliorations
+
+### 2025-09-21 : Correction Logique Revenus Estimés
+
+**Problème identifié** :
+- Logique de "compensation" complexe et contre-intuitive
+- Affichage rouge alarmant pour revenus non encore reçus
+
+**Solution implémentée** :
+- **Logique simple** : revenus non utilisés = +estimation, revenus utilisés = +réel
+- **Affichage intuitif** : gris pour non utilisé, couleurs pour pourcentage une fois utilisé
+- **Calculs prévisibles** : correspondent à l'attente utilisateur
+
+**Fichiers modifiés** :
+- `lib/financial-calculations.ts` : Fonctions `calculateIncomeCompensationProfile/Group`
+- `components/dashboard/IncomeProgressIndicator.tsx` : Logique d'affichage couleur
+
 ---
 
-*Documentation mise à jour le 2025-09-15 - Correction de la logique des économies*
+*Documentation mise à jour le 2025-09-21 - Correction majeure de la logique des revenus estimés*
