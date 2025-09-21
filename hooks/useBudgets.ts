@@ -12,9 +12,11 @@ interface EstimatedBudget {
   is_monthly_recurring: boolean
   created_at: string
   updated_at: string
-  monthly_surplus?: number // Pour le fallback du carryover de déficit
-  carryover_spent_amount?: number // Nouveau système de carryover
-  carryover_applied_date?: string // Date d'application du carryover
+  monthly_surplus?: number // Champ legacy, plus utilisé
+  carryover_spent_amount?: number // Champ legacy, plus utilisé
+  carryover_applied_date?: string // Champ legacy, plus utilisé
+  cumulated_savings?: number // Économies cumulées
+  last_savings_update?: string // Date de dernière mise à jour des économies
   spent_this_month?: number // Déjà calculé par l'API avec carryover
 }
 

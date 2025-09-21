@@ -177,30 +177,27 @@ export async function POST(request: NextRequest) {
           .filter((expense: any) => expense.estimated_budget_id === budget.id)
           .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
 
-        // Ajouter le carryover du mois précédent
-        let carryoverSpent = 0
-        if (budget.carryover_spent_amount !== undefined) {
-          // Nouveau système de carryover
-          carryoverSpent = budget.carryover_spent_amount || 0
-        } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
-          // Ancien système de fallback
-          carryoverSpent = Math.abs(budget.monthly_surplus)
-        }
-        const totalSpent = spentThisMonth + carryoverSpent
-
         const estimated = parseFloat(budget.estimated_amount)
-        const difference = estimated - totalSpent
+
+        // SIMPLIFIÉ: Calcul simple sans carryover
+        const difference = estimated - spentThisMonth
+
+        console.log(`🔍 [Initialize Debug] Budget "${budget.name}":`)
+        console.log(`  - spentThisMonth: ${spentThisMonth}€`)
+        console.log(`  - estimated: ${budget.estimated_amount}€`)
+        console.log(`  - difference: ${estimated} - ${spentThisMonth} = ${difference}€`)
+        console.log(`  - surplus: ${Math.max(0, difference)}€`)
 
         const budgetStat = {
           id: budget.id,
           name: budget.name,
           estimated_amount: estimated,
           spent_amount: spentThisMonth,
-          carryover_spent_amount: carryoverSpent,
-          total_spent_amount: totalSpent, // Nouveau champ pour clarté
+          carryover_spent_amount: 0, // Plus utilisé
+          total_spent_amount: spentThisMonth,
           difference, // Positif = économie, Négatif = déficit
-          surplus: Math.max(0, difference), // Économies
-          deficit: Math.max(0, -difference) // Déficit
+          surplus: Math.max(0, difference), // Économies (budget - dépenses)
+          deficit: Math.max(0, -difference) // Déficit (dépenses - budget)
         }
 
         budgetStats.push(budgetStat)

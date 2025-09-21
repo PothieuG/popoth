@@ -6,6 +6,8 @@ export interface BudgetStat {
   name: string
   estimated_amount: number
   spent_amount: number
+  carryover_spent_amount?: number // Legacy, plus utilisé
+  total_spent_amount?: number // Legacy, plus utilisé
   difference: number
   surplus: number
   deficit: number

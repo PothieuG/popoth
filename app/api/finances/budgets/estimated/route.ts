@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       // Get group's estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*, carryover_spent_amount, carryover_applied_date')
+        .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
         .eq('group_id', profile.group_id)
         .order('created_at', { ascending: false })
       
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       // Get user's personal estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*, carryover_spent_amount, carryover_applied_date')
+        .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
         .eq('profile_id', session.userId)
         .order('created_at', { ascending: false })
       

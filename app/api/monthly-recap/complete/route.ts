@@ -209,31 +209,25 @@ export async function POST(request: NextRequest) {
       // 2.1. NE PAS remettre les revenus estimés à 0 - ils restent pour le mois suivant
       console.log(`📝 [Monthly Recap Complete] Les revenus estimés restent inchangés pour le mois suivant`)
 
-      // 3. IMPORTANT: Reporter les déficits AVANT de supprimer les dépenses
-      console.log(`🔄 [Deficit Carryover] Début du traitement des déficits pour ${context}:${contextId}`)
+      // 3. SIMPLIFIÉ: Reporter le déficit comme dépense du mois suivant
+      console.log(`🔄 [Deficit Processing] Début du traitement simplifié des déficits pour ${context}:${contextId}`)
 
       try {
-        // Forcer l'utilisation du nouveau système puisque les colonnes existent dans la base
-        const hasCarryoverColumns = true
-        console.log('✅ [Deficit Carryover] Utilisation forcée du système carryover complet')
-
-        // Récupérer TOUS les budgets pour recalculer les déficits
-        const selectFields = 'id, name, estimated_amount, carryover_spent_amount'
-
+        // Récupérer TOUS les budgets pour calculer les déficits
         const { data: allBudgets, error: budgetsQueryError } = await supabaseServer
           .from('estimated_budgets')
-          .select(selectFields)
+          .select('id, name, estimated_amount')
           .eq(ownerField, contextId)
 
         if (budgetsQueryError) {
-          console.error('❌ [Deficit Carryover] Erreur lors de la récupération des budgets:', budgetsQueryError)
+          console.error('❌ [Deficit Processing] Erreur lors de la récupération des budgets:', budgetsQueryError)
         } else if (!allBudgets || allBudgets.length === 0) {
-          console.log('✅ [Deficit Carryover] Aucun budget à traiter')
+          console.log('✅ [Deficit Processing] Aucun budget à traiter')
         } else {
-          console.log(`🔄 [Deficit Carryover] ${allBudgets.length} budget(s) trouvé(s), calcul des déficits...`)
+          console.log(`🔄 [Deficit Processing] ${allBudgets.length} budget(s) trouvé(s), calcul des déficits...`)
 
-          // Calculer les déficits pour chaque budget (comme dans l'initialize)
-          const budgetsWithDeficit = []
+          // Calculer les déficits pour chaque budget
+          const deficitExpenses = []
 
           for (const budget of allBudgets) {
             // Calculer le montant dépensé ce mois (dépenses réelles)
@@ -244,112 +238,120 @@ export async function POST(request: NextRequest) {
 
             const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-            // Ajouter le carryover existant
-            const existingCarryover = budget.carryover_spent_amount || 0
-            const totalSpent = realExpensesThisMonth + existingCarryover
+            // Calculer le déficit simple: dépenses - budget estimé
+            const deficit = Math.max(0, realExpensesThisMonth - budget.estimated_amount)
 
-            // Calculer le déficit
-            const deficit = Math.max(0, totalSpent - budget.estimated_amount)
-
-            console.log(`📊 [Deficit Carryover] "${budget.name}": ${budget.estimated_amount}€ estimé, ${totalSpent}€ total dépensé (${realExpensesThisMonth}€ + ${existingCarryover}€ carryover) = ${deficit}€ déficit`)
+            console.log(`📊 [Deficit Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé = ${deficit}€ déficit`)
 
             if (deficit > 0) {
-              budgetsWithDeficit.push({
-                ...budget,
-                monthly_deficit: deficit
-              })
-            }
-          }
-
-          console.log(`🔄 [Deficit Carryover] ${budgetsWithDeficit.length} budget(s) avec déficit détecté(s)`)
-
-          if (budgetsWithDeficit.length > 0) {
-            if (hasCarryoverColumns) {
-              console.log('✅ [Deficit Carryover] Utilisation du système carryover complet')
-
-              // SOLUTION DÉFINITIVE: Utiliser carryover_spent_amount
-              const carryoverPromises = budgetsWithDeficit.map(budget => {
-                const currentCarryover = budget.carryover_spent_amount || 0
-                const newCarryoverAmount = currentCarryover + budget.monthly_deficit
-
-                console.log(`🔄 [Deficit Carryover] "${budget.name}": déficit ${budget.monthly_deficit}€ + carryover existant ${currentCarryover}€ = ${newCarryoverAmount}€`)
-
-                return supabaseServer
-                  .from('estimated_budgets')
-                  .update({
-                    carryover_spent_amount: newCarryoverAmount,
-                    carryover_applied_date: currentDate.toISOString().split('T')[0],
-                    monthly_deficit: 0,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', budget.id)
-              })
-
-              const carryoverResults = await Promise.all(carryoverPromises)
-              const carryoverErrors = carryoverResults.filter(result => result.error)
-
-              console.log('🔍 [Deficit Carryover] Résultats des updates:', carryoverResults.map((result, index) => ({
-                budget: budgetsWithDeficit[index]?.name,
-                success: !result.error,
-                error: result.error?.message,
-                data: result.data
-              })))
-
-              if (carryoverErrors.length > 0) {
-                console.error('❌ [Deficit Carryover] Erreurs lors du report:', carryoverErrors.map(r => r.error))
-              } else {
-                console.log(`✅ [Deficit Carryover] ${budgetsWithDeficit.length} déficit(s) reporté(s) avec succès`)
+              // Créer une dépense réelle pour le déficit (APRÈS reset des dépenses)
+              const deficitExpense = {
+                estimated_budget_id: budget.id,
+                amount: deficit,
+                description: `Déficit reporté du récap ${currentMonth}/${currentYear}`,
+                expense_date: currentDate.toISOString().split('T')[0],
+                created_at: new Date().toISOString()
               }
 
-            } else {
-              console.log('💡 [Deficit Carryover] Utilisation du système de fallback (surplus négatif)')
+              // Ajouter les champs de propriétaire
+              if (context === 'profile') {
+                deficitExpense.profile_id = contextId
+              } else {
+                deficitExpense.group_id = contextId
+              }
 
-              // SOLUTION TEMPORAIRE: Utiliser monthly_surplus en négatif pour simuler le carryover
-              const carryoverPromises = budgetsWithDeficit.map(budget => {
-                const carryoverAmount = -budget.monthly_deficit // Négatif pour indiquer "déjà dépensé"
-                console.log(`🔄 [Deficit Carryover] "${budget.name}": déficit ${budget.monthly_deficit}€ → surplus négatif ${carryoverAmount}€ (fallback)`)
-
-                return supabaseServer
-                  .from('estimated_budgets')
-                  .update({
-                    monthly_surplus: carryoverAmount, // Stockage temporaire du carryover
-                    monthly_deficit: 0,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', budget.id)
-              })
-
-              await Promise.all(carryoverPromises)
-              console.log(`✅ [Deficit Carryover] ${budgetsWithDeficit.length} déficit(s) reporté(s) via fallback`)
-              console.log('💡 [Deficit Carryover] Exécutez database/implement_deficit_carryover.sql pour le système complet')
+              deficitExpenses.push(deficitExpense)
             }
-          } else {
-            console.log('✅ [Deficit Carryover] Aucun budget avec déficit à traiter')
+          }
+
+          // Stocker les déficits pour les insérer APRÈS le reset des dépenses
+          if (deficitExpenses.length > 0) {
+            console.log(`🔄 [Deficit Processing] ${deficitExpenses.length} déficit(s) à reporter après reset`)
+            // Les déficits seront insérés plus tard dans le code
+            global.deficitExpensesToInsert = deficitExpenses
           }
         }
-      } catch (carryoverError) {
-        console.error('❌ [Deficit Carryover] Erreur générale lors du traitement des déficits:', carryoverError)
+      } catch (deficitError) {
+        console.error('❌ [Deficit Processing] Erreur générale lors du traitement des déficits:', deficitError)
         // Ne pas faire échouer la transaction pour ça
       }
 
-      // 3.6. Remettre à zéro les surplus POSITIFS (économies) pour le nouveau mois
-      // Les déficits ont déjà été reportés en négatif, maintenant on reset les surplus positifs
-      console.log('🔄 [Monthly Recap Complete] Reset des surplus positifs pour le nouveau mois')
+      // 3.5. Calculer et reporter les économies (surplus) simples
+      console.log(`💰 [Savings Processing] Début du traitement simplifié des économies pour ${context}:${contextId}`)
 
-      const { error: resetSurplusError } = await supabaseServer
-        .from('estimated_budgets')
-        .update({
-          monthly_surplus: 0,
-          monthly_deficit: 0,
-          updated_at: new Date().toISOString()
-        })
-        .eq(ownerField, contextId)
-        .gte('monthly_surplus', 0) // Seulement les surplus positifs ou zéro
+      try {
+        // Récupérer tous les budgets pour calculer les économies
+        const { data: allBudgetsForSavings, error: savingsQueryError } = await supabaseServer
+          .from('estimated_budgets')
+          .select('id, name, estimated_amount, cumulated_savings')
+          .eq(ownerField, contextId)
 
-      if (resetSurplusError) {
-        console.error('❌ Erreur lors du reset des surplus:', resetSurplusError)
-      } else {
-        console.log('✅ [Monthly Recap Complete] Surplus positifs remis à zéro pour le nouveau mois')
+        if (savingsQueryError) {
+          console.error('❌ [Savings Processing] Erreur lors de la récupération des budgets:', savingsQueryError)
+        } else if (!allBudgetsForSavings || allBudgetsForSavings.length === 0) {
+          console.log('✅ [Savings Processing] Aucun budget à traiter')
+        } else {
+          console.log(`💰 [Savings Processing] ${allBudgetsForSavings.length} budget(s) trouvé(s), calcul des économies...`)
+
+          const budgetsWithSavings = []
+
+          for (const budget of allBudgetsForSavings) {
+            // Calculer le montant dépensé ce mois (dépenses réelles)
+            const { data: expenses } = await supabaseServer
+              .from('real_expenses')
+              .select('amount')
+              .eq('estimated_budget_id', budget.id)
+
+            const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
+            // Calculer les économies simples: budget - dépenses
+            const surplus = Math.max(0, budget.estimated_amount - realExpensesThisMonth)
+
+            console.log(`💰 [Savings Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé = ${surplus}€ économies`)
+
+            if (surplus > 0) {
+              budgetsWithSavings.push({
+                ...budget,
+                calculated_savings: surplus
+              })
+            }
+          }
+
+          if (budgetsWithSavings.length > 0) {
+            console.log(`💰 [Savings Processing] ${budgetsWithSavings.length} budget(s) avec économies détecté(s)`)
+
+            // Appliquer les économies
+            const savingsPromises = budgetsWithSavings.map(budget => {
+              const currentSavings = budget.cumulated_savings || 0
+              const newSavingsAmount = currentSavings + budget.calculated_savings
+
+              console.log(`💰 [Savings Processing] "${budget.name}": économies ${budget.calculated_savings}€ + économies existantes ${currentSavings}€ = ${newSavingsAmount}€`)
+
+              return supabaseServer
+                .from('estimated_budgets')
+                .update({
+                  cumulated_savings: newSavingsAmount,
+                  last_savings_update: currentDate.toISOString().split('T')[0],
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', budget.id)
+            })
+
+            const savingsResults = await Promise.all(savingsPromises)
+            const savingsErrors = savingsResults.filter(result => result.error)
+
+            if (savingsErrors.length > 0) {
+              console.error('❌ [Savings Processing] Erreurs lors du report des économies:', savingsErrors.map(r => r.error))
+            } else {
+              console.log(`✅ [Savings Processing] ${budgetsWithSavings.length} économie(s) reportée(s) avec succès`)
+            }
+          } else {
+            console.log('✅ [Savings Processing] Aucun budget avec économies à traiter')
+          }
+        }
+      } catch (savingsError) {
+        console.error('❌ [Savings Processing] Erreur générale lors du traitement des économies:', savingsError)
+        // Ne pas faire échouer la transaction pour ça
       }
 
       // 4. Désactiver le snapshot (marquer comme utilisé)
@@ -392,6 +394,24 @@ export async function POST(request: NextRequest) {
         console.log(`✅ [Monthly Recap Complete] Dépenses réelles supprimées avec succès`)
       }
 
+      // 4.2.1. Insérer les déficits reportés APRÈS le reset
+      if (global.deficitExpensesToInsert && global.deficitExpensesToInsert.length > 0) {
+        console.log(`🔄 [Deficit Processing] Insertion de ${global.deficitExpensesToInsert.length} déficit(s) reporté(s)`)
+
+        const { error: insertDeficitError } = await supabaseServer
+          .from('real_expenses')
+          .insert(global.deficitExpensesToInsert)
+
+        if (insertDeficitError) {
+          console.error('❌ [Deficit Processing] Erreur lors de l\'insertion des déficits reportés:', insertDeficitError)
+        } else {
+          console.log(`✅ [Deficit Processing] ${global.deficitExpensesToInsert.length} déficit(s) reporté(s) avec succès`)
+        }
+
+        // Nettoyer la variable globale
+        delete global.deficitExpensesToInsert
+      }
+
       // 4.3. Mettre à jour la date de dernière mise à jour mensuelle des budgets
       const { error: budgetUpdateError } = await supabaseServer
         .from('estimated_budgets')
@@ -406,9 +426,8 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça, juste logger
       }
 
-      // 4.4. Remettre à zéro les surplus POSITIFS (économies) pour le nouveau mois
-      // Les déficits ont déjà été reportés via carryover, maintenant on reset les surplus positifs
-      console.log('🔄 [Monthly Recap Complete] Reset des surplus positifs pour le nouveau mois')
+      // 4.4. Remettre à zéro les champs surplus/déficit (plus utilisés)
+      console.log('🔄 [Monthly Recap Complete] Reset des champs surplus/déficit')
 
       const { error: resetSurplusError2 } = await supabaseServer
         .from('estimated_budgets')
@@ -418,12 +437,11 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString()
         })
         .eq(ownerField, contextId)
-        .gte('monthly_surplus', 0) // Seulement les surplus positifs ou zéro
 
       if (resetSurplusError2) {
-        console.error('❌ Erreur lors du reset des surplus:', resetSurplusError2)
+        console.error('❌ Erreur lors du reset des surplus/déficit:', resetSurplusError2)
       } else {
-        console.log('✅ [Monthly Recap Complete] Surplus positifs remis à zéro pour le nouveau mois')
+        console.log('✅ [Monthly Recap Complete] Champs surplus/déficit remis à zéro')
       }
 
       // 5. Invalider le cache financier (appel à l'API dashboard pour vider le cache)
