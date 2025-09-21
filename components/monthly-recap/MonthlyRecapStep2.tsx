@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -45,6 +45,21 @@ export default function MonthlyRecapStep2({
   const budgetsWithSurplus = recapData.budget_stats.filter(budget => budget.surplus > 0)
   const budgetsWithDeficit = recapData.budget_stats.filter(budget => budget.deficit > 0)
   const generalRatio = recapData.total_surplus - recapData.total_deficit
+
+  // Debug: Log quand les données changent
+  useEffect(() => {
+    console.log('🎯 [Component] Données reçues dans MonthlyRecapStep2:', {
+      totalSurplus: recapData.total_surplus,
+      totalDeficit: recapData.total_deficit,
+      budgetStats: recapData.budget_stats.map(b => ({
+        name: b.name,
+        spent: b.spent_amount,
+        estimated: b.estimated_amount,
+        surplus: b.surplus,
+        deficit: b.deficit
+      }))
+    })
+  }, [recapData])
 
   // Helper function to convert budget stats to dropdown options for transfer mode
   const getTransferDestinationOptions = (): DropdownOption[] => {
@@ -99,15 +114,17 @@ export default function MonthlyRecapStep2({
 
     // Validation différente selon le mode (transfert ou récupération)
     if (selectedFromBudget.surplus > 0) {
-      // Mode transfert: vérifier que le montant ne dépasse pas le surplus
-      if (amount > selectedFromBudget.surplus) {
-        alert(`Le montant ne peut pas dépasser ${selectedFromBudget.surplus}€`)
+      // Mode transfert: vérifier que le montant ne dépasse pas le surplus disponible
+      const availableSurplus = selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount
+      if (amount > availableSurplus) {
+        alert(`Le montant ne peut pas dépasser ${formatCurrency(availableSurplus)} de surplus disponible`)
         return
       }
     } else {
       // Mode récupération: vérifier que le montant ne dépasse pas le déficit
-      if (amount > selectedFromBudget.deficit) {
-        alert(`Le montant ne peut pas dépasser ${selectedFromBudget.deficit}€`)
+      const currentDeficit = selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount
+      if (amount > currentDeficit) {
+        alert(`Le montant ne peut pas dépasser ${formatCurrency(currentDeficit)} de déficit`)
         return
       }
     }
@@ -124,10 +141,14 @@ export default function MonthlyRecapStep2({
       }
 
       if (result) {
+        console.log('✅ [Frontend] Transfert réussi, résultat:', result)
         setIsTransferModalOpen(false)
         setSelectedFromBudget(null)
         setSelectedToBudget('')
         setTransferAmount('')
+        console.log('🔄 [Frontend] Modal fermée, refresh des données en cours...')
+      } else {
+        console.log('❌ [Frontend] Transfert échoué')
       }
     } finally {
       setIsProcessing(false)
@@ -375,14 +396,14 @@ export default function MonthlyRecapStep2({
                       type="number"
                       step="0.01"
                       min="0"
-                      max={selectedFromBudget.surplus}
+                      max={selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount}
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0.00"
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Maximum: {formatCurrency(selectedFromBudget.surplus)}
+                      Maximum: {formatCurrency(selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount)}
                     </p>
                   </div>
                 </>
@@ -418,14 +439,14 @@ export default function MonthlyRecapStep2({
                       type="number"
                       step="0.01"
                       min="0"
-                      max={selectedFromBudget.deficit}
+                      max={selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount}
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0.00"
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Maximum: {formatCurrency(selectedFromBudget.deficit)}
+                      Maximum: {formatCurrency(selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount)}
                     </p>
                   </div>
                 </>

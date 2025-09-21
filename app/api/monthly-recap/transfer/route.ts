@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     const { data: budgets, error: budgetsError } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus, monthly_deficit')
+      .select('id, name, estimated_amount')
       .eq(ownerField, contextId)
       .in('id', [from_budget_id, to_budget_id])
 
@@ -114,12 +114,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Vérifier que le budget source a suffisamment d'économies
-    const fromBudgetSurplus = fromBudget.monthly_surplus || 0
+    // Calculer les montants dépensés réels pour chaque budget
+    const { data: fromExpenses, error: fromExpensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('amount')
+      .eq('estimated_budget_id', from_budget_id)
+      .eq(ownerField, contextId)
+
+    const { data: toExpenses, error: toExpensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('amount')
+      .eq('estimated_budget_id', to_budget_id)
+      .eq(ownerField, contextId)
+
+    if (fromExpensesError || toExpensesError) {
+      return NextResponse.json(
+        { error: 'Erreur lors du calcul des dépenses' },
+        { status: 500 }
+      )
+    }
+
+    // Calculer les montants dépensés réels
+    const fromSpentAmount = (fromExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+    const toSpentAmount = (toExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+
+    // Calculer le surplus disponible du budget source
+    const fromBudgetSurplus = Math.max(0, fromBudget.estimated_amount - fromSpentAmount)
+
     if (fromBudgetSurplus < amount) {
       return NextResponse.json(
         {
-          error: `Budget source "${fromBudget.name}" n'a que ${fromBudgetSurplus}€ d'économies disponibles`
+          error: `Budget source "${fromBudget.name}" n'a que ${fromBudgetSurplus.toFixed(2)}€ de surplus disponible`
         },
         { status: 400 }
       )
@@ -127,92 +152,44 @@ export async function POST(request: NextRequest) {
 
     // Effectuer le transfert
     console.log(`💸 [Budget Transfer] ${fromBudget.name} → ${toBudget.name}: ${amount}€`)
+    console.log(`📊 [Transfer Debug] From: ${fromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${fromBudgetSurplus}€)`)
+    console.log(`📊 [Transfer Debug] To: ${toSpentAmount}€/${toBudget.estimated_amount}€`)
 
-    // Démarrer une transaction
-    const { error: transactionError } = await supabaseServer.rpc('execute_budget_transfer', {
-      p_from_budget_id: from_budget_id,
-      p_to_budget_id: to_budget_id,
-      p_amount: amount,
-      p_monthly_recap_id: monthly_recap_id
-    })
+    // Enregistrer le transfert dans la table budget_transfers
+    // Cela nous permet de calculer les ajustements sans modifier real_expenses
+    const { error: transferInsertError } = await supabaseServer
+      .from('budget_transfers')
+      .insert({
+        [ownerField]: contextId,
+        from_budget_id,
+        to_budget_id,
+        transfer_amount: amount,
+        transfer_reason: 'Manual transfer via monthly recap',
+        transfer_date: new Date().toISOString().split('T')[0],
+        monthly_recap_id: monthly_recap_id || null
+      })
 
-    if (transactionError) {
-      // Si la fonction RPC n'existe pas, faire le transfert manuellement
-      console.log('⚠️ Fonction RPC non disponible, transfert manuel...')
-
-      // Mettre à jour les surplus/déficits des budgets
-      const updates = []
-
-      // Réduire le surplus du budget source
-      updates.push(
-        supabaseServer
-          .from('estimated_budgets')
-          .update({
-            monthly_surplus: fromBudgetSurplus - amount,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', from_budget_id)
+    if (transferInsertError) {
+      console.error('❌ Erreur lors de l\'enregistrement du transfert:', transferInsertError)
+      return NextResponse.json(
+        { error: 'Erreur lors de l\'enregistrement du transfert' },
+        { status: 500 }
       )
-
-      // Augmenter le surplus du budget destination ou réduire son déficit
-      const toBudgetSurplus = toBudget.monthly_surplus || 0
-      const toBudgetDeficit = toBudget.monthly_deficit || 0
-
-      if (toBudgetDeficit > 0) {
-        // Si le budget destination a un déficit, on le réduit d'abord
-        const deficitReduction = Math.min(amount, toBudgetDeficit)
-        const surplusIncrease = amount - deficitReduction
-
-        updates.push(
-          supabaseServer
-            .from('estimated_budgets')
-            .update({
-              monthly_deficit: toBudgetDeficit - deficitReduction,
-              monthly_surplus: toBudgetSurplus + surplusIncrease,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', to_budget_id)
-        )
-      } else {
-        // Sinon, augmenter directement le surplus
-        updates.push(
-          supabaseServer
-            .from('estimated_budgets')
-            .update({
-              monthly_surplus: toBudgetSurplus + amount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', to_budget_id)
-        )
-      }
-
-      // Exécuter toutes les mises à jour
-      const results = await Promise.all(updates)
-      const hasErrors = results.some(result => result.error)
-
-      if (hasErrors) {
-        console.error('❌ Erreur lors du transfert:', results.map(r => r.error).filter(Boolean))
-        return NextResponse.json(
-          { error: 'Erreur lors du transfert entre budgets' },
-          { status: 500 }
-        )
-      }
-
-      // Enregistrer le transfert dans l'historique si on a un recap_id
-      if (monthly_recap_id) {
-        await supabaseServer
-          .from('budget_transfers')
-          .insert({
-            monthly_recap_id,
-            from_budget_id,
-            to_budget_id,
-            transfer_amount: amount,
-            transfer_reason: 'Manual transfer via monthly recap'
-          })
-      }
     }
 
+    console.log(`✅ Transfert enregistré: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`)
+
+    // Calculer les nouveaux montants après transfert
+    const newFromSpentAmount = fromSpentAmount + amount
+    const newToSpentAmount = toSpentAmount - amount
+    const newFromSurplus = Math.max(0, fromBudget.estimated_amount - newFromSpentAmount)
+    const newToSurplus = Math.max(0, toBudget.estimated_amount - newToSpentAmount)
+    const newFromDeficit = Math.max(0, newFromSpentAmount - fromBudget.estimated_amount)
+    const newToDeficit = Math.max(0, newToSpentAmount - toBudget.estimated_amount)
+
     console.log(`✅ [Budget Transfer] Transfert terminé: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`)
+    console.log(`📊 [Transfer Result] From: ${newFromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${newFromSurplus}€, deficit: ${newFromDeficit}€)`)
+    console.log(`📊 [Transfer Result] To: ${newToSpentAmount}€/${toBudget.estimated_amount}€ (surplus: ${newToSurplus}€, deficit: ${newToDeficit}€)`)
 
     return NextResponse.json({
       success: true,
@@ -221,13 +198,20 @@ export async function POST(request: NextRequest) {
         from_budget: {
           id: fromBudget.id,
           name: fromBudget.name,
-          new_surplus: fromBudgetSurplus - amount
+          previous_spent: fromSpentAmount,
+          new_spent: newFromSpentAmount,
+          estimated_amount: fromBudget.estimated_amount,
+          new_surplus: newFromSurplus,
+          new_deficit: newFromDeficit
         },
         to_budget: {
           id: toBudget.id,
           name: toBudget.name,
-          previous_surplus: toBudget.monthly_surplus || 0,
-          previous_deficit: toBudget.monthly_deficit || 0
+          previous_spent: toSpentAmount,
+          new_spent: newToSpentAmount,
+          estimated_amount: toBudget.estimated_amount,
+          new_surplus: newToSurplus,
+          new_deficit: newToDeficit
         },
         amount
       }

@@ -1,0 +1,212 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { validateSessionToken } from '@/lib/session-server'
+import { supabaseServer } from '@/lib/supabase-server'
+
+/**
+ * API GET /api/monthly-recap/refresh
+ *
+ * Rafraîchit les données du récapitulatif mensuel avec les calculs en temps réel
+ * Query: {
+ *   context: 'profile' | 'group',
+ *   snapshot_id: string
+ * }
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // Validation de la session
+    const sessionData = await validateSessionToken(request)
+    if (!sessionData?.userId) {
+      return NextResponse.json(
+        { error: 'Session invalide' },
+        { status: 401 }
+      )
+    }
+
+    const url = new URL(request.url)
+    const context = url.searchParams.get('context') || 'profile'
+    const snapshotId = url.searchParams.get('snapshot_id')
+
+    // Validations
+    if (!['profile', 'group'].includes(context)) {
+      return NextResponse.json(
+        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
+        { status: 400 }
+      )
+    }
+
+    if (!snapshotId) {
+      return NextResponse.json(
+        { error: 'snapshot_id est requis' },
+        { status: 400 }
+      )
+    }
+
+    const userId = sessionData.userId
+
+    // Récupérer le profil utilisateur
+    const { data: profile, error: profileError } = await supabaseServer
+      .from('profiles')
+      .select('id, group_id, first_name, last_name')
+      .eq('id', userId)
+      .single()
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: 'Profil utilisateur non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    const contextId = context === 'profile' ? profile.id : profile.group_id
+
+    if (context === 'group' && !profile.group_id) {
+      return NextResponse.json(
+        { error: 'Utilisateur ne fait partie d\'aucun groupe' },
+        { status: 400 }
+      )
+    }
+
+    // Vérifier que le snapshot appartient à l'utilisateur/groupe
+    const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
+    const { data: snapshot, error: snapshotError } = await supabaseServer
+      .from('recap_snapshots')
+      .select('id, snapshot_month, snapshot_year, snapshot_data')
+      .eq('id', snapshotId)
+      .eq(ownerField, contextId)
+      .single()
+
+    if (snapshotError || !snapshot) {
+      return NextResponse.json(
+        { error: 'Snapshot non trouvé ou non autorisé' },
+        { status: 404 }
+      )
+    }
+
+    console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
+
+    // Récupérer les données actuelles (budgets, dépenses réelles, et transferts)
+    const [budgets, realExpenses] = await Promise.all([
+      supabaseServer
+        .from('estimated_budgets')
+        .select('id, name, estimated_amount')
+        .eq(ownerField, contextId),
+      supabaseServer
+        .from('real_expenses')
+        .select('estimated_budget_id, amount')
+        .eq(ownerField, contextId)
+    ])
+
+    // Récupérer les transferts maintenant que la migration SQL est terminée
+    console.log(`🔍 [Refresh Debug] Recherche des transferts avec ${ownerField} = ${contextId}`)
+    const { data: transfersData, error: transfersError } = await supabaseServer
+      .from('budget_transfers')
+      .select('from_budget_id, to_budget_id, transfer_amount')
+      .eq(ownerField, contextId)
+
+    if (transfersError) {
+      console.error('❌ [Refresh Debug] Erreur lors de la récupération des transferts:', transfersError)
+    }
+
+    if (budgets.error || realExpenses.error) {
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des données' },
+        { status: 500 }
+      )
+    }
+
+    // Si la récupération des transferts échoue, continuer sans transferts
+    const transfers = transfersError ? [] : (transfersData || [])
+
+    console.log(`🔄 [Refresh Debug] ${transfers.length} transferts trouvés pour le contexte ${context}:${contextId}`)
+    if (transfers.length > 0) {
+      console.log('📋 [Refresh Debug] Transferts:', transfers)
+    }
+
+    // Recalculer les statistiques des budgets en temps réel
+    const budgetStats = []
+
+    for (const budget of budgets.data || []) {
+      // Calculer le montant dépensé de base pour ce budget
+      const baseSpentAmount = (realExpenses.data || [])
+        .filter(expense => expense.estimated_budget_id === budget.id)
+        .reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+
+      // Calculer les ajustements de transfert pour ce budget
+      let transferAdjustment = 0
+
+      // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
+      const outgoingTransfers = transfers
+        .filter(transfer => transfer.from_budget_id === budget.id)
+        .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+
+      // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
+      const incomingTransfers = transfers
+        .filter(transfer => transfer.to_budget_id === budget.id)
+        .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+
+      transferAdjustment = outgoingTransfers - incomingTransfers
+
+      // Montant dépensé final avec ajustements de transfert
+      const adjustedSpentAmount = baseSpentAmount + transferAdjustment
+
+      const estimated = parseFloat(budget.estimated_amount)
+      const difference = estimated - adjustedSpentAmount
+
+      console.log(`🔍 [Refresh Debug] Budget "${budget.name}":`)
+      console.log(`  - baseSpentAmount: ${baseSpentAmount}€`)
+      console.log(`  - outgoingTransfers: ${outgoingTransfers}€`)
+      console.log(`  - incomingTransfers: ${incomingTransfers}€`)
+      console.log(`  - transferAdjustment: ${transferAdjustment}€`)
+      console.log(`  - adjustedSpentAmount: ${adjustedSpentAmount}€`)
+      console.log(`  - estimated: ${estimated}€`)
+      console.log(`  - difference: ${difference}€`)
+      console.log(`  - surplus: ${Math.max(0, difference)}€`)
+      console.log(`  - deficit: ${Math.max(0, -difference)}€`)
+
+      const budgetStat = {
+        id: budget.id,
+        name: budget.name,
+        estimated_amount: estimated,
+        spent_amount: adjustedSpentAmount, // Montant dépensé avec transferts
+        carryover_spent_amount: 0, // Plus utilisé
+        total_spent_amount: adjustedSpentAmount,
+        difference, // Positif = économie, Négatif = déficit
+        surplus: Math.max(0, difference), // Économies (budget - dépenses)
+        deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
+        cumulated_savings: 0 // Recalculé ailleurs si nécessaire
+      }
+
+      budgetStats.push(budgetStat)
+    }
+
+    // Calculer les totaux généraux
+    const totalSurplus = budgetStats.reduce((sum, budget) => sum + budget.surplus, 0)
+    const totalDeficit = budgetStats.reduce((sum, budget) => sum + budget.deficit, 0)
+    const generalRatio = totalSurplus - totalDeficit
+
+    console.log(`📊 [Monthly Recap Refresh] Nouvelles données calculées pour ${context}:${contextId}`)
+    console.log(`📊 [Monthly Recap Refresh] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`)
+
+    // Retourner les données rafraîchies avec la même structure que l'initialisation
+    return NextResponse.json({
+      success: true,
+      snapshot_id: snapshot.id,
+      current_remaining_to_live: snapshot.snapshot_data.financial_data?.remainingToLive || 0,
+      budget_stats: budgetStats,
+      total_surplus: totalSurplus,
+      total_deficit: totalDeficit,
+      general_ratio: generalRatio,
+      context,
+      month: snapshot.snapshot_month,
+      year: snapshot.snapshot_year,
+      user_name: `${profile.first_name} ${profile.last_name}`
+    })
+
+  } catch (error) {
+    console.error('❌ Erreur lors du rafraîchissement du récap mensuel:', error)
+    return NextResponse.json(
+      { error: 'Erreur interne du serveur' },
+      { status: 500 }
+    )
+  }
+}

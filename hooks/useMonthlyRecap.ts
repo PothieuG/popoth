@@ -150,7 +150,9 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       }
 
       // Rafraîchir les données du récap après le transfert
-      await refreshRecapData()
+      console.log('🔄 [Hook] Rafraîchissement des données après transfert...')
+      const refreshResult = await refreshRecapData()
+      console.log('✅ [Hook] Données rafraîchies:', refreshResult ? 'succès' : 'échec')
 
       return data
 
@@ -251,12 +253,38 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
    * Rafraîchit les données du récap en cours
    */
   const refreshRecapData = useCallback(async () => {
-    if (!recapData) return
+    if (!recapData?.snapshot_id) return
 
-    // Pour l'instant, on re-initialise les données
-    // Dans une vraie app, on aurait une API GET pour récupérer l'état actuel
-    return await initializeRecap()
-  }, [recapData, initializeRecap])
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // Récupérer les données actuelles du snapshot
+      const response = await fetch(`/api/monthly-recap/refresh?context=${context}&snapshot_id=${recapData.snapshot_id}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors du rafraîchissement')
+      }
+
+      // Mettre à jour les données avec les nouveaux calculs
+      console.log('📊 [Hook] Nouvelles données reçues du serveur:', data)
+      setRecapData(data)
+      console.log('🔄 [Hook] État mis à jour dans le hook')
+      return data
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+      setError(errorMessage)
+      console.error('❌ Erreur lors du rafraîchissement du récap:', err)
+
+      // Fallback: re-initialiser complètement
+      console.log('🔄 Fallback: re-initialisation complète...')
+      return await initializeRecap()
+    } finally {
+      setIsLoading(false)
+    }
+  }, [recapData?.snapshot_id, context, initializeRecap])
 
   /**
    * Navigation entre les étapes
