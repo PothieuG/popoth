@@ -27,10 +27,10 @@ export async function GET(request: NextRequest) {
     let expenses: any[] = []
 
     if (context === 'profile') {
-      // Récupérer les budgets du profil
+      // Récupérer les budgets du profil avec leurs économies
       const { data: budgetsData } = await supabaseServer
         .from('estimated_budgets')
-        .select('id, name, estimated_amount')
+        .select('id, name, estimated_amount, current_savings')
         .eq('profile_id', userId)
 
       budgets = budgetsData || []
@@ -59,10 +59,10 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      // Récupérer les budgets du groupe
+      // Récupérer les budgets du groupe avec leurs économies
       const { data: budgetsData } = await supabaseServer
         .from('estimated_budgets')
-        .select('id, name, estimated_amount')
+        .select('id, name, estimated_amount, current_savings')
         .eq('group_id', profileData.group_id)
 
       budgets = budgetsData || []
@@ -84,7 +84,8 @@ export async function GET(request: NextRequest) {
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       const remainingAmount = budget.estimated_amount - spentAmount
-      const economyAmount = Math.max(0, remainingAmount)
+      // Utiliser les économies stockées en base (current_savings)
+      const economyAmount = budget.current_savings || 0
 
       return {
         budgetId: budget.id,

@@ -48,37 +48,53 @@ export default function EditTransactionModal({
   const [error, setError] = useState<string | null>(null)
 
   // Hooks for managing data
-  const { budgets, refreshBudgets } = useBudgets(context)
-  const { incomes, refreshIncomes } = useIncomes(context)
-  const { updateExpense } = useRealExpenses(context)
-  const { updateIncome } = useRealIncomes(context)
+  const { updateExpense, expenses: realExpenses } = useRealExpenses(context)
+  const { updateIncome, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
+  // Fallback pour éviter les dropdowns vides
+  const { budgets } = useBudgets(context)
+  const { incomes } = useIncomes(context)
 
   // Calculer le montant pour le preview
   const previewAmount = parseFloat(formData.amount) || 0
 
-  // Préparer les options pour les dropdowns
+  // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
+  const calculateRealSpentAmount = (budgetId: string): number => {
+    return realExpenses
+      .filter(expense => expense.estimated_budget_id === budgetId)
+      .reduce((sum, expense) => sum + expense.amount, 0)
+  }
+
+  // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
+  const calculateRealReceivedAmount = (incomeId: string): number => {
+    return realIncomes
+      .filter(income => income.estimated_income_id === incomeId)
+      .reduce((sum, income) => sum + income.amount, 0)
+  }
+
+  // Préparer les options pour les dropdowns - TOUJOURS utiliser les calculs en temps réel
   const budgetOptions: DropdownOption[] = budgets.map(budget => {
-    const progress = expenseProgress[budget.id]
+    const realSpentAmount = calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: progress?.spentAmount || 0,
+      spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
       estimatedAmount: budget.estimated_amount,
-      economyAmount: progress?.economyAmount || Math.max(0, budget.estimated_amount - (progress?.spentAmount || 0))
+      economyAmount: budget.current_savings || 0 // 🔥 Directement depuis la base
     }
   })
 
   const incomeOptions: DropdownOption[] = incomes.map(income => {
-    const progress = incomeProgress[income.id]
+    const realReceivedAmount = calculateRealReceivedAmount(income.id)
+    const bonusAmount = realReceivedAmount - income.estimated_amount
     return {
       id: income.id,
       name: income.name,
       type: 'income' as const,
-      receivedAmount: progress?.receivedAmount || 0,
+      receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
       estimatedAmount: income.estimated_amount,
-      bonusAmount: progress?.bonusAmount || ((progress?.receivedAmount || 0) - income.estimated_amount)
+      bonusAmount: bonusAmount // 🔥 Calcul en temps réel du bonus
     }
   })
 
@@ -108,12 +124,8 @@ export default function EditTransactionModal({
       })
       setIsExceptional(transaction.is_exceptional || false)
       setError(null)
-
-      // Refresh budgets/incomes to ensure we have latest data
-      refreshBudgets()
-      refreshIncomes()
     }
-  }, [isOpen, transaction, transactionType, refreshBudgets, refreshIncomes])
+  }, [isOpen, transaction, transactionType])
 
   /**
    * Handle form submission
@@ -171,6 +183,7 @@ export default function EditTransactionModal({
       }
 
       if (success) {
+        // L'invalidation automatique du cache se charge du rafraîchissement
         onTransactionUpdated?.()
         onClose()
       }

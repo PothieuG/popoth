@@ -73,12 +73,11 @@ export default function RemainingToLivePreview({
     if (type === 'expense' && selectedId) {
       // Vérifier si c'est un dépassement de budget
       const progress = expenseProgress[selectedId]
-      const budget = budgets.find(b => b.id === selectedId)
 
-      if (progress && budget) {
+      if (progress) {
         const currentSpent = progress.spentAmount
         const newTotalSpent = currentSpent + amount
-        const budgetAmount = budget.estimated_amount
+        const budgetAmount = progress.estimatedAmount
 
         // Si le nouveau total dépasse le budget, l'excès impacte le reste à vivre
         if (newTotalSpent > budgetAmount) {
@@ -99,12 +98,11 @@ export default function RemainingToLivePreview({
     } else if (type === 'income' && selectedId) {
       // Pour les revenus, vérifier si c'est un bonus
       const progress = incomeProgress[selectedId]
-      const income = incomes.find(i => i.id === selectedId)
 
-      if (progress && income) {
+      if (progress) {
         const currentReceived = progress.receivedAmount
         const newTotalReceived = currentReceived + amount
-        const estimatedAmount = income.estimated_amount
+        const estimatedAmount = progress.estimatedAmount
 
         // Calculer l'impact de cette transaction par rapport à l'estimation
         const currentDifference = currentReceived - estimatedAmount
@@ -205,10 +203,9 @@ export default function RemainingToLivePreview({
         {!isExceptional && type === 'income' && selectedId && amount > 0 && (
           (() => {
             const progress = incomeProgress[selectedId]
-            const income = incomes.find(i => i.id === selectedId)
-            if (progress && income) {
+            if (progress) {
               const newTotalReceived = (progress.receivedAmount || 0) + amount
-              const totalDeficitOrBonus = newTotalReceived - income.estimated_amount
+              const totalDeficitOrBonus = newTotalReceived - progress.estimatedAmount
               if (totalDeficitOrBonus < 0) {
                 return (
                   <div className="flex items-center justify-between border-t border-blue-200 pt-2">

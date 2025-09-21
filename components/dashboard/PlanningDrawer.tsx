@@ -576,7 +576,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         {/* Bottom Summary - Always visible */}
         <div className="px-4 py-3 bg-gray-100/80 border-t border-gray-200">
           <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Différence estimée</span>
+            <span className="text-sm font-medium text-gray-600">Différence estimée (sans les économies)</span>
             <span className={cn(
               "text-lg font-bold",
               totalIncomes - totalBudgets > 0 ? "text-green-700" : 
