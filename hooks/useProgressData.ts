@@ -65,9 +65,6 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
         incomeResponse.json()
       ])
 
-      console.log('🔍 [useProgressData] Raw expenseData:', expenseData)
-      console.log('🔍 [useProgressData] Raw incomeData:', incomeData)
-
       // Transformer les données en maps pour un accès rapide
       const expenseMap: Record<string, ExpenseProgress> = {}
       expenseData.forEach((item: ExpenseProgress) => {
@@ -78,9 +75,6 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
       incomeData.forEach((item: IncomeProgress) => {
         incomeMap[item.incomeId] = item
       })
-
-      console.log('🔍 [useProgressData] Final expenseMap:', expenseMap)
-      console.log('🔍 [useProgressData] Final incomeMap:', incomeMap)
 
       setExpenseProgress(expenseMap)
       setIncomeProgress(incomeMap)

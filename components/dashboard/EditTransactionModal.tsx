@@ -265,7 +265,7 @@ export default function EditTransactionModal({
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-900">
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                <span className="text-red-500 ml-1">*</span>
+                <span className="text-gray-500 text-xs ml-2">(non modifiable)</span>
               </Label>
               <CustomDropdown
                 options={transactionType === 'expense' ? budgetOptions : incomeOptions}
@@ -276,6 +276,7 @@ export default function EditTransactionModal({
                 }))}
                 placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
                 required={!isExceptional}
+                disabled={true} // En modification, le budget/revenu associé est readonly
               />
             </div>
           )}
@@ -336,16 +337,6 @@ export default function EditTransactionModal({
             </div>
           </div>
 
-          {/* Remaining to Live Preview */}
-          {previewAmount > 0 && previewAmount !== transaction?.amount && (
-            <RemainingToLivePreview
-              amount={previewAmount - (transaction?.amount || 0)} // Différence seulement
-              type={transactionType}
-              isExceptional={isExceptional}
-              selectedId={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-              context={context}
-            />
-          )}
 
           {/* Error Display */}
           {error && (

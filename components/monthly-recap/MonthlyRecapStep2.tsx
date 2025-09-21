@@ -204,7 +204,7 @@ export default function MonthlyRecapStep2({
                   <div className={`text-sm font-medium mt-1 ${getBudgetStatusColor(budget)}`}>
                     {getBudgetStatusText(budget)}
                   </div>
-                  {budget.cumulated_savings && budget.cumulated_savings > 0 && (
+                  {budget.cumulated_savings > 0 && (
                     <div className="text-sm text-purple-600 mt-1">
                       +{formatCurrency(budget.cumulated_savings)} d'économies
                     </div>

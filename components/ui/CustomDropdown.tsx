@@ -21,6 +21,7 @@ interface CustomDropdownProps {
   placeholder: string
   className?: string
   required?: boolean
+  disabled?: boolean
 }
 
 /**
@@ -55,7 +56,8 @@ export default function CustomDropdown({
   onChange,
   placeholder,
   className,
-  required = false
+  required = false,
+  disabled = false
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -80,10 +82,12 @@ export default function CustomDropdown({
       {/* Bouton principal */}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
         className={cn(
           'w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-left transition-colors',
-          !selectedOption && 'text-gray-500'
+          !selectedOption && 'text-gray-500',
+          disabled && 'opacity-50 cursor-not-allowed bg-gray-50'
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
@@ -130,7 +134,7 @@ export default function CustomDropdown({
       </button>
 
       {/* Menu dropdown */}
-      {isOpen && (
+      {isOpen && !disabled && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
           {options.length === 0 ? (
             <div className="px-3 py-2 text-gray-500 text-sm">

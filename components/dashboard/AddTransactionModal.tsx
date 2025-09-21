@@ -95,11 +95,6 @@ export default function AddTransactionModal({
     }
   })
 
-  // Debug temporaire
-  console.log('🔍 [AddTransactionModal] expenseProgress:', expenseProgress)
-  console.log('🔍 [AddTransactionModal] budgetOptions:', budgetOptions)
-  console.log('🔍 [AddTransactionModal] incomeProgress:', incomeProgress)
-  console.log('🔍 [AddTransactionModal] incomeOptions:', incomeOptions)
 
   /**
    * Reset form when modal opens/closes and force refresh
