@@ -213,16 +213,20 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         throw new Error('Aucun snapshot trouvé pour finaliser le récap')
       }
 
+      const requestData = {
+        context,
+        snapshot_id: recapData.snapshot_id,
+        remaining_to_live_choice: remainingToLiveChoice
+      }
+
+      console.log('🔍 [useMonthlyRecap] Données envoyées à l\'API complete:', requestData)
+
       const response = await fetch('/api/monthly-recap/complete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          context,
-          snapshot_id: recapData.snapshot_id,
-          remaining_to_live_choice: remainingToLiveChoice
-        })
+        body: JSON.stringify(requestData)
       })
 
       const data = await response.json()

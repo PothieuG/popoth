@@ -47,6 +47,105 @@ export interface RemainingToLiveSnapshot {
 // ============================================
 
 /**
+ * Calcule la compensation revenus estimés vs réels pour un profile
+ * Logique: pour chaque revenu estimé, si les revenus réels liés sont < estimation,
+ * alors le reste à vivre doit être diminué de la différence (compensation négative)
+ * Si les revenus réels > estimation, le reste à vivre augmente (compensation positive)
+ */
+async function calculateIncomeCompensationProfile(profileId: string): Promise<number> {
+  try {
+    // 1. Récupérer tous les revenus estimés du profile
+    const { data: estimatedIncomes } = await supabaseServer
+      .from('estimated_incomes')
+      .select('id, estimated_amount')
+      .eq('profile_id', profileId)
+
+    if (!estimatedIncomes || estimatedIncomes.length === 0) return 0
+
+    // 2. Récupérer tous les revenus réels liés aux revenus estimés
+    const { data: realIncomes } = await supabaseServer
+      .from('real_income_entries')
+      .select('amount, estimated_income_id')
+      .eq('profile_id', profileId)
+      .not('estimated_income_id', 'is', null)
+
+    const realIncomesData = realIncomes || []
+
+    // 3. Calculer la compensation pour chaque revenu estimé
+    let totalCompensation = 0
+
+    for (const estimatedIncome of estimatedIncomes) {
+      const estimated = estimatedIncome.estimated_amount
+      const realAmountForThisIncome = realIncomesData
+        .filter(real => real.estimated_income_id === estimatedIncome.id)
+        .reduce((sum, real) => sum + real.amount, 0)
+
+      // Compensation = revenus réels - revenus estimés
+      // Si réels < estimés = compensation négative (diminue reste à vivre)
+      // Si réels > estimés = compensation positive (augmente reste à vivre)
+      const compensation = realAmountForThisIncome - estimated
+      totalCompensation += compensation
+
+      console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: estimé=${estimated}€, réel=${realAmountForThisIncome}€, compensation=${compensation}€`)
+    }
+
+    console.log(`💰 [Income Compensation Profile] Total compensation: ${totalCompensation}€`)
+    return totalCompensation
+
+  } catch (error) {
+    console.error('❌ Erreur lors du calcul de compensation revenus profile:', error)
+    return 0
+  }
+}
+
+/**
+ * Calcule la compensation revenus estimés vs réels pour un groupe
+ */
+async function calculateIncomeCompensationGroup(groupId: string): Promise<number> {
+  try {
+    // 1. Récupérer tous les revenus estimés du groupe
+    const { data: estimatedIncomes } = await supabaseServer
+      .from('estimated_incomes')
+      .select('id, estimated_amount')
+      .eq('group_id', groupId)
+
+    if (!estimatedIncomes || estimatedIncomes.length === 0) return 0
+
+    // 2. Récupérer tous les revenus réels liés aux revenus estimés
+    const { data: realIncomes } = await supabaseServer
+      .from('real_income_entries')
+      .select('amount, estimated_income_id')
+      .eq('group_id', groupId)
+      .not('estimated_income_id', 'is', null)
+
+    const realIncomesData = realIncomes || []
+
+    // 3. Calculer la compensation pour chaque revenu estimé
+    let totalCompensation = 0
+
+    for (const estimatedIncome of estimatedIncomes) {
+      const estimated = estimatedIncome.estimated_amount
+      const realAmountForThisIncome = realIncomesData
+        .filter(real => real.estimated_income_id === estimatedIncome.id)
+        .reduce((sum, real) => sum + real.amount, 0)
+
+      // Compensation = revenus réels - revenus estimés
+      const compensation = realAmountForThisIncome - estimated
+      totalCompensation += compensation
+
+      console.log(`📊 [Income Compensation] Revenu ${estimatedIncome.id}: estimé=${estimated}€, réel=${realAmountForThisIncome}€, compensation=${compensation}€`)
+    }
+
+    console.log(`💰 [Income Compensation Group] Total compensation: ${totalCompensation}€`)
+    return totalCompensation
+
+  } catch (error) {
+    console.error('❌ Erreur lors du calcul de compensation revenus group:', error)
+    return 0
+  }
+}
+
+/**
  * Règle cash disponible (battleplan ligne 13-16):
  * "c'est l'argent disponible sur le compte bancaire à un temps T"
  * "c'est les réels entrées d'argent moins les réels dépenses"
@@ -80,13 +179,13 @@ export function calculateAvailableCash(bankBalance: number, realIncomes: number,
  * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
  * - Calcul précis des bonus/déficits par revenu associé (pas global)
  */
-export function calculateRemainingToLiveProfile(
+export async function calculateRemainingToLiveProfile(
   estimatedIncomes: number,
   estimatedBudgets: number,
   exceptionalExpenses: number,
-  realIncomes?: number,
+  profileId: string,
   realExpensesOnBudgets?: number,
-): number {
+): Promise<number> {
   let remainingToLive = estimatedIncomes - estimatedBudgets - exceptionalExpenses
 
   // NOUVELLE RÈGLE 1: Déduction si budget dépassé
@@ -97,7 +196,11 @@ export function calculateRemainingToLiveProfile(
     console.log(`📉 [calculateRemainingToLiveProfile] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // ANCIENNE RÈGLE SUPPRIMÉE: Plus de bonus/déficit sur les revenus estimés
+  // NOUVELLE RÈGLE 2: Compensation revenus estimés vs réels
+  // Pour chaque revenu estimé, calculer la différence avec ses revenus réels associés
+  const incomeCompensation = await calculateIncomeCompensationProfile(profileId)
+  remainingToLive += incomeCompensation
+  console.log(`💰 [calculateRemainingToLiveProfile] Compensation revenus: ${incomeCompensation}€`)
 
   console.log(`💰 [calculateRemainingToLiveProfile] Calcul final: ${remainingToLive}€`)
   return remainingToLive
@@ -113,14 +216,15 @@ export function calculateRemainingToLiveProfile(
  * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
  * - Calcul précis des bonus/déficits par revenu associé (pas global)
  */
-export function calculateRemainingToLiveGroup(
+export async function calculateRemainingToLiveGroup(
   estimatedIncomes: number,
   realIncomes: number,
   profileContributions: number,
   estimatedBudgets: number,
   exceptionalExpenses: number,
+  groupId: string,
   realExpensesOnBudgets?: number
-): number {
+): Promise<number> {
   const totalIncomes = estimatedIncomes + realIncomes + profileContributions
 
   let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
@@ -133,7 +237,11 @@ export function calculateRemainingToLiveGroup(
     console.log(`📉 [calculateRemainingToLiveGroup] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // ANCIENNE RÈGLE SUPPRIMÉE: Plus de bonus/déficit sur les revenus estimés
+  // NOUVELLE RÈGLE 2: Compensation revenus estimés vs réels pour les groupes
+  // Pour chaque revenu estimé du groupe, calculer la différence avec ses revenus réels associés
+  const incomeCompensation = await calculateIncomeCompensationGroup(groupId)
+  remainingToLive += incomeCompensation
+  console.log(`💰 [calculateRemainingToLiveGroup] Compensation revenus: ${incomeCompensation}€`)
 
   console.log(`💰 [calculateRemainingToLiveGroup] Calcul final: ${remainingToLive}€`)
   return remainingToLive
@@ -243,11 +351,11 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // Utiliser la fonction dédiée pour calculer le solde disponible
     console.log('📊 [getProfileFinancialData] Calcul du solde disponible pour le profil:', profileId)
     const availableBalance = calculateAvailableCash(userBankBalance, totalRealIncome, totalRealExpenses)
-    const remainingToLive = calculateRemainingToLiveProfile(
+    const remainingToLive = await calculateRemainingToLiveProfile(
       totalEstimatedIncome,
       totalEstimatedBudgets,
       exceptionalExpenses,
-      totalRealIncome,
+      profileId,
       realExpensesOnBudgets
     )
 
@@ -379,12 +487,13 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // Utiliser la fonction dédiée pour calculer le solde disponible du groupe
     console.log('📊 [getGroupFinancialData] Calcul du solde disponible pour le groupe:', groupId)
     const availableBalance = calculateAvailableCash(totalGroupBankBalance, totalRealIncome, totalRealExpenses)
-    const remainingToLive = calculateRemainingToLiveGroup(
+    const remainingToLive = await calculateRemainingToLiveGroup(
       totalEstimatedIncome,
       totalRealIncome,
       totalProfileContributions,
       totalEstimatedBudgets,
       exceptionalExpenses,
+      groupId,
       realExpensesOnBudgets
     )
 

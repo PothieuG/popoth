@@ -3,6 +3,8 @@
  * Centralized logging system for financial operations
  */
 
+import { NextResponse } from 'next/server'
+
 export interface LogContext {
   timestamp?: string
   level: 'debug' | 'info' | 'warn' | 'error' | 'critical'

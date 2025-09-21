@@ -108,6 +108,11 @@ export async function POST(request: NextRequest) {
     // Vérifier que le snapshot appartient au bon utilisateur/groupe
     const snapshotOwnerField = context === 'profile' ? 'profile_id' : 'group_id'
 
+    console.log(`🔍 [Monthly Recap Complete] Recherche du snapshot:`)
+    console.log(`🔍 [Monthly Recap Complete] - snapshot_id: ${snapshot_id}`)
+    console.log(`🔍 [Monthly Recap Complete] - snapshotOwnerField: ${snapshotOwnerField}`)
+    console.log(`🔍 [Monthly Recap Complete] - contextId: ${contextId}`)
+
     const { data: snapshot, error: snapshotError } = await supabaseServer
       .from('recap_snapshots')
       .select('id, snapshot_data')
@@ -115,6 +120,27 @@ export async function POST(request: NextRequest) {
       .eq(snapshotOwnerField, contextId)
       .eq('is_active', true)
       .single()
+
+    if (snapshotError) {
+      console.error('❌ [Monthly Recap Complete] Erreur snapshot:', snapshotError)
+    }
+
+    if (!snapshot) {
+      console.error('❌ [Monthly Recap Complete] Snapshot non trouvé avec les critères spécifiés')
+
+      // Debug: Vérifier si le snapshot existe sans les restrictions
+      const { data: debugSnapshot } = await supabaseServer
+        .from('recap_snapshots')
+        .select('id, profile_id, group_id, is_active')
+        .eq('id', snapshot_id)
+        .single()
+
+      if (debugSnapshot) {
+        console.log(`🔍 [Monthly Recap Complete] Snapshot existe avec profile_id: ${debugSnapshot.profile_id}, group_id: ${debugSnapshot.group_id}, is_active: ${debugSnapshot.is_active}`)
+      } else {
+        console.log(`🔍 [Monthly Recap Complete] Snapshot avec ID ${snapshot_id} n'existe pas du tout`)
+      }
+    }
 
     if (snapshotError || !snapshot) {
       return NextResponse.json(
