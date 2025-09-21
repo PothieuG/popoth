@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       // Get group's estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*')
+        .select('*, carryover_spent_amount, carryover_applied_date')
         .eq('group_id', profile.group_id)
         .order('created_at', { ascending: false })
       
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       // Get user's personal estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*')
+        .select('*, carryover_spent_amount, carryover_applied_date')
         .eq('profile_id', session.userId)
         .order('created_at', { ascending: false })
       
@@ -96,17 +96,23 @@ export async function GET(request: NextRequest) {
 
       const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-      // Si monthly_surplus est négatif, c'est un carryover de déficit du mois précédent
-      const carryoverSpent = budget.monthly_surplus && budget.monthly_surplus < 0
-        ? Math.abs(budget.monthly_surplus)
-        : 0
+      // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
+      let carryoverSpent = 0
+      if (budget.carryover_spent_amount !== undefined) {
+        // Nouveau système de carryover
+        carryoverSpent = budget.carryover_spent_amount || 0
+      } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+        // Ancien système de fallback
+        carryoverSpent = Math.abs(budget.monthly_surplus)
+      }
 
       // Total dépensé = dépenses réelles + carryover du mois précédent
       const spentThisMonth = realExpensesThisMonth + carryoverSpent
 
       return {
         ...budget,
-        spent_this_month: spentThisMonth
+        spent_this_month: spentThisMonth,
+        carryover_spent_amount: carryoverSpent // Inclure dans la réponse pour le frontend
       }
     }))
 

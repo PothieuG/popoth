@@ -192,7 +192,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 3. Récupérer tous les budgets estimés du profile
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus')
+      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date')
       .eq('profile_id', profileId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -311,7 +311,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 2. Récupérer les budgets estimés du groupe
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus')
+      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date')
       .eq('group_id', groupId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -437,7 +437,7 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
   try {
     const { data: budgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus')
+      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date')
       .eq('profile_id', profileId)
 
     if (!budgets) return []
@@ -455,8 +455,15 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
         ?.filter(expense => expense.estimated_budget_id === budget.id)
         ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-      // Si monthly_surplus est négatif, c'est un carryover de déficit du mois précédent
-      const carryoverSpent = budget.monthly_surplus < 0 ? Math.abs(budget.monthly_surplus) : 0
+      // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
+      let carryoverSpent = 0
+      if (budget.carryover_spent_amount !== undefined) {
+        // Nouveau système de carryover
+        carryoverSpent = budget.carryover_spent_amount || 0
+      } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+        // Ancien système de fallback
+        carryoverSpent = Math.abs(budget.monthly_surplus)
+      }
 
       // Total dépensé = dépenses réelles + carryover du mois précédent
       const totalSpentThisMonth = realExpensesThisMonth + carryoverSpent

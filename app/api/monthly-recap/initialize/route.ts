@@ -177,10 +177,15 @@ export async function POST(request: NextRequest) {
           .filter((expense: any) => expense.estimated_budget_id === budget.id)
           .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
 
-        // Ajouter le carryover du mois précédent (déficit reporté stocké comme surplus négatif)
-        const carryoverSpent = budget.monthly_surplus && budget.monthly_surplus < 0
-          ? Math.abs(budget.monthly_surplus)
-          : 0
+        // Ajouter le carryover du mois précédent
+        let carryoverSpent = 0
+        if (budget.carryover_spent_amount !== undefined) {
+          // Nouveau système de carryover
+          carryoverSpent = budget.carryover_spent_amount || 0
+        } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+          // Ancien système de fallback
+          carryoverSpent = Math.abs(budget.monthly_surplus)
+        }
         const totalSpent = spentThisMonth + carryoverSpent
 
         const estimated = parseFloat(budget.estimated_amount)

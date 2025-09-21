@@ -34,6 +34,9 @@ export interface FinancialDashboardData {
     estimated_amount: number
     spent_this_month: number
     is_monthly_recurring: boolean
+    monthly_surplus?: number
+    carryover_spent_amount?: number
+    carryover_applied_date?: string
   }>
   
   // Expense data
@@ -228,7 +231,7 @@ export async function GET(request: NextRequest) {
     // Get estimated budgets with spending calculation
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, is_monthly_recurring')
+      .select('id, name, estimated_amount, is_monthly_recurring, monthly_surplus, carryover_spent_amount, carryover_applied_date')
       .match(ownerCondition)
       .order('created_at', { ascending: false })
 
@@ -241,11 +244,25 @@ export async function GET(request: NextRequest) {
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+      const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
+      // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
+      let carryoverSpent = 0
+      if (budget.carryover_spent_amount !== undefined) {
+        // Nouveau système de carryover
+        carryoverSpent = budget.carryover_spent_amount || 0
+      } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+        // Ancien système de fallback
+        carryoverSpent = Math.abs(budget.monthly_surplus)
+      }
+
+      // Total dépensé = dépenses réelles + carryover du mois précédent
+      const spentThisMonth = realExpensesThisMonth + carryoverSpent
 
       return {
         ...budget,
-        spent_this_month: spentThisMonth
+        spent_this_month: spentThisMonth,
+        carryover_spent_amount: carryoverSpent
       }
     }))
 
