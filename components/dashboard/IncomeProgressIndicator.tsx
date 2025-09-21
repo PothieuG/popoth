@@ -12,7 +12,7 @@ interface IncomeProgressIndicatorProps {
  * Composant d'indicateur de progression pour les revenus
  * Affiche visuellement la progression d'un revenu avec :
  * - En haut : montant reçu/total sur toute la largeur
- * - En bas : pourcentage, nom du revenu, et surplus alignés
+ * - En bas : pourcentage et nom du revenu alignés
  *
  * Codes couleur pour revenus estimés :
  * - si valeur du revenu estimé ou supérieur : vert
@@ -77,12 +77,9 @@ export default function IncomeProgressIndicator({
           {Math.round(progress.percentage)}%
         </div>
 
-        {/* Nom du revenu et surplus - alignés à gauche */}
+        {/* Nom du revenu - aligné à gauche */}
         <div className="flex-1 flex flex-col justify-center">
           <h5 className="font-medium text-gray-900 text-sm text-left">{progress.incomeName}</h5>
-          <div className="text-xs font-medium text-purple-600 text-left">
-            Surplus: <span className="font-bold text-purple-800">{formatAmount(progress.surplus)}</span>
-          </div>
         </div>
       </div>
     </div>

@@ -12,7 +12,6 @@ export interface IncomeProgress {
   estimatedAmount: number
   receivedAmount: number
   percentage: number
-  surplus: number
   colorClass: string
   textColorClass: string
 }
@@ -98,9 +97,6 @@ export function useIncomeProgress(
           ? Math.round((receivedAmount / income.estimated_amount) * 100 * 100) / 100 // 2 décimales
           : 0
 
-        // Calculer le surplus (montant reçu - montant estimé)
-        const surplus = receivedAmount - income.estimated_amount
-
         // Déterminer les classes de couleur
         const { colorClass, textColorClass } = getIncomeColorClass(percentage)
 
@@ -110,7 +106,6 @@ export function useIncomeProgress(
           estimatedAmount: income.estimated_amount,
           receivedAmount,
           percentage,
-          surplus,
           colorClass,
           textColorClass
         }

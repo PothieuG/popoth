@@ -24,6 +24,8 @@ interface EstimatedBudget {
   id: string
   name: string
   estimated_amount: number
+  monthly_surplus?: number // Pour le carryover de déficit
+  spent_this_month?: number // Déjà calculé par l'API avec carryover
 }
 
 interface UseBudgetProgressReturn {
@@ -88,10 +90,11 @@ export function useBudgetProgress(
           expense => expense.estimated_budget_id === budget.id
         )
 
-        // Calculer le montant total dépensé pour ce budget
-        const spentAmount = relatedExpenses.reduce(
-          (sum, expense) => sum + expense.amount, 0
-        )
+        // Utiliser le montant déjà calculé par l'API (qui inclut le carryover)
+        // ou recalculer si pas disponible
+        const spentAmount = budget.spent_this_month !== undefined
+          ? budget.spent_this_month
+          : relatedExpenses.reduce((sum, expense) => sum + expense.amount, 0)
 
         // Calculer le pourcentage de consommation
         const percentage = budget.estimated_amount > 0

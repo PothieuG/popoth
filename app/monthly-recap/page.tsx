@@ -24,29 +24,33 @@ export default function MonthlyRecapPage() {
     setIsChecking(false)
   }, [searchParams])
 
-  // Vérifier si un récap est vraiment requis
+  // TEMPORAIREMENT DÉSACTIVÉ : Double vérification pour éviter les boucles
+  // La redirection est déjà gérée par le middleware
+  // useEffect(() => {
+  //   const checkRecapRequired = async () => {
+  //     try {
+  //       const response = await fetch(`/api/monthly-recap/status?context=${context}`)
+  //       const data = await response.json()
+
+  //       if (response.ok && !data.required) {
+  //         console.log('📅 [MonthlyRecapPage] Récap non requis, redirection vers le dashboard')
+  //         const dashboardUrl = context === 'profile' ? '/dashboard' : '/group-dashboard'
+  //         router.replace(dashboardUrl)
+  //       }
+  //     } catch (error) {
+  //       console.error('❌ Erreur lors de la vérification du récap requis:', error)
+  //     }
+  //   }
+
+  //   if (!isChecking) {
+  //     checkRecapRequired()
+  //   }
+  // }, [context, router, isChecking])
+
+  // Debug: Log pour voir si la page se charge
   useEffect(() => {
-    const checkRecapRequired = async () => {
-      try {
-        const response = await fetch(`/api/monthly-recap/status?context=${context}`)
-        const data = await response.json()
-
-        if (response.ok && !data.required) {
-          console.log('📅 [MonthlyRecapPage] Récap non requis, redirection vers le dashboard')
-          // Si le récap n'est pas requis, rediriger vers le dashboard approprié
-          const dashboardUrl = context === 'profile' ? '/dashboard' : '/group-dashboard'
-          router.replace(dashboardUrl)
-        }
-      } catch (error) {
-        console.error('❌ Erreur lors de la vérification du récap requis:', error)
-        // En cas d'erreur, rester sur la page du récap pour être sûr
-      }
-    }
-
-    if (!isChecking) {
-      checkRecapRequired()
-    }
-  }, [context, router, isChecking])
+    console.log('📅 [MonthlyRecapPage] Page chargée avec contexte:', context)
+  }, [context])
 
   // Gestionnaire de fin de récap
   const handleRecapComplete = () => {

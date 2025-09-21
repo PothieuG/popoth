@@ -12,6 +12,8 @@ interface EstimatedBudget {
   is_monthly_recurring: boolean
   created_at: string
   updated_at: string
+  monthly_surplus?: number // Pour le carryover de déficit
+  spent_this_month?: number // Déjà calculé par l'API avec carryover
 }
 
 interface UseBudgetsReturn {
@@ -48,7 +50,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       setLoading(true)
       setError(null)
 
-      const url = context ? `/api/budgets?context=${context}` : '/api/budgets'
+      const url = context ? `/api/finances/budgets/estimated?group=${context === 'group'}` : '/api/finances/budgets/estimated'
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
@@ -61,7 +63,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       }
 
       const data = await response.json()
-      setBudgets(data.budgets || [])
+      setBudgets(data.estimated_budgets || [])
     } catch (err) {
       console.error('Erreur lors de la récupération des budgets:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -82,7 +84,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         estimatedAmount: budgetData.estimatedAmount
       }
 
-      const url = context ? `/api/budgets?context=${context}` : '/api/budgets'
+      const url = `/api/budgets`
       const response = await fetch(url, {
         method: 'POST',
         headers: {

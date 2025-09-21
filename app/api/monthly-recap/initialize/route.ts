@@ -73,15 +73,23 @@ export async function POST(request: NextRequest) {
 
     // Vérifier s'il n'y a pas déjà un récap pour ce mois
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
-    const { data: existingRecap } = await supabaseServer
+    const { data: existingRecaps, error: recapCheckError } = await supabaseServer
       .from('monthly_recaps')
       .select('id')
       .eq(ownerField, contextId)
       .eq('recap_month', currentMonth)
       .eq('recap_year', currentYear)
-      .single()
+      .limit(1)
 
-    if (existingRecap) {
+    if (recapCheckError && recapCheckError.code !== 'PGRST116') {
+      console.error('❌ Erreur lors de la vérification des récaps existants:', recapCheckError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la vérification des récaps existants' },
+        { status: 500 }
+      )
+    }
+
+    if (existingRecaps && existingRecaps.length > 0) {
       return NextResponse.json(
         { error: 'Un récapitulatif existe déjà pour ce mois' },
         { status: 409 }
@@ -169,14 +177,22 @@ export async function POST(request: NextRequest) {
           .filter((expense: any) => expense.estimated_budget_id === budget.id)
           .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
 
+        // Ajouter le carryover du mois précédent (déficit reporté stocké comme surplus négatif)
+        const carryoverSpent = budget.monthly_surplus && budget.monthly_surplus < 0
+          ? Math.abs(budget.monthly_surplus)
+          : 0
+        const totalSpent = spentThisMonth + carryoverSpent
+
         const estimated = parseFloat(budget.estimated_amount)
-        const difference = estimated - spentThisMonth
+        const difference = estimated - totalSpent
 
         const budgetStat = {
           id: budget.id,
           name: budget.name,
           estimated_amount: estimated,
           spent_amount: spentThisMonth,
+          carryover_spent_amount: carryoverSpent,
+          total_spent_amount: totalSpent, // Nouveau champ pour clarté
           difference, // Positif = économie, Négatif = déficit
           surplus: Math.max(0, difference), // Économies
           deficit: Math.max(0, -difference) // Déficit

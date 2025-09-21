@@ -86,7 +86,6 @@ export function calculateRemainingToLiveProfile(
   exceptionalExpenses: number,
   realIncomes?: number,
   realExpensesOnBudgets?: number,
-  incomeDifference?: number
 ): number {
   let remainingToLive = estimatedIncomes - estimatedBudgets - exceptionalExpenses
 
@@ -98,16 +97,7 @@ export function calculateRemainingToLiveProfile(
     console.log(`📉 [calculateRemainingToLiveProfile] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // NOUVELLE RÈGLE 2: Addition/soustraction des bonus/déficits revenus calculés précisément
-  // Utilise le bonus/déficit calculé par getProfileFinancialData basé sur les revenus associés
-  if (incomeDifference !== undefined && incomeDifference !== 0) {
-    remainingToLive += incomeDifference
-    if (incomeDifference > 0) {
-      console.log(`📈 [calculateRemainingToLiveProfile] Bonus revenus précis de +${incomeDifference}€, addition appliquée`)
-    } else {
-      console.log(`📉 [calculateRemainingToLiveProfile] Déficit revenus précis de ${incomeDifference}€, soustraction appliquée`)
-    }
-  }
+  // ANCIENNE RÈGLE SUPPRIMÉE: Plus de bonus/déficit sur les revenus estimés
 
   console.log(`💰 [calculateRemainingToLiveProfile] Calcul final: ${remainingToLive}€`)
   return remainingToLive
@@ -129,10 +119,10 @@ export function calculateRemainingToLiveGroup(
   profileContributions: number,
   estimatedBudgets: number,
   exceptionalExpenses: number,
-  realExpensesOnBudgets?: number,
-  incomeDifference?: number
+  realExpensesOnBudgets?: number
 ): number {
   const totalIncomes = estimatedIncomes + realIncomes + profileContributions
+
   let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
 
   // NOUVELLE RÈGLE 1: Déduction si budget dépassé
@@ -143,16 +133,7 @@ export function calculateRemainingToLiveGroup(
     console.log(`📉 [calculateRemainingToLiveGroup] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
   }
 
-  // NOUVELLE RÈGLE 2: Addition/soustraction des bonus/déficits revenus calculés précisément
-  // Utilise le bonus/déficit calculé par getGroupFinancialData basé sur les revenus associés
-  if (incomeDifference !== undefined && incomeDifference !== 0) {
-    remainingToLive += incomeDifference
-    if (incomeDifference > 0) {
-      console.log(`📈 [calculateRemainingToLiveGroup] Bonus revenus précis de +${incomeDifference}€, addition appliquée`)
-    } else {
-      console.log(`📉 [calculateRemainingToLiveGroup] Déficit revenus précis de ${incomeDifference}€, soustraction appliquée`)
-    }
-  }
+  // ANCIENNE RÈGLE SUPPRIMÉE: Plus de bonus/déficit sur les revenus estimés
 
   console.log(`💰 [calculateRemainingToLiveGroup] Calcul final: ${remainingToLive}€`)
   return remainingToLive
@@ -211,7 +192,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 3. Récupérer tous les budgets estimés du profile
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount')
+      .select('id, name, estimated_amount, monthly_surplus')
       .eq('profile_id', profileId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -242,48 +223,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 5.2. Calculer les différences revenus précises par revenu associé (bonus ou déficits)
-    let totalIncomeDifference = 0
-    if (estimatedIncomes && realIncomes) {
-      // Récupérer les revenus réels avec leur estimation associée
-      const { data: realIncomesWithEstimated } = await supabaseServer
-        .from('real_income_entries')
-        .select(`
-          amount,
-          estimated_income_id,
-          estimated_income:estimated_incomes(estimated_amount)
-        `)
-        .eq('profile_id', profileId)
-        .not('estimated_income_id', 'is', null)
-
-      if (realIncomesWithEstimated) {
-        // Grouper les revenus réels par estimation
-        const groupedByEstimated = realIncomesWithEstimated.reduce((acc, income) => {
-          const estimatedId = income.estimated_income_id!
-          if (!acc[estimatedId]) {
-            acc[estimatedId] = {
-              totalReal: 0,
-              estimatedAmount: (income.estimated_income as any)?.estimated_amount || 0
-            }
-          }
-          acc[estimatedId].totalReal += income.amount
-          return acc
-        }, {} as Record<string, { totalReal: number; estimatedAmount: number }>)
-
-        // Calculer les bonus/déficits pour chaque revenu estimé
-        for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
-          const difference = data.totalReal - data.estimatedAmount
-          if (difference !== 0) {
-            totalIncomeDifference += difference
-            if (difference > 0) {
-              console.log(`📈 [getProfileFinancialData] Bonus revenu ${estimatedId}: +${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
-            } else {
-              console.log(`📉 [getProfileFinancialData] Déficit revenu ${estimatedId}: ${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
-            }
-          }
-        }
-      }
-    }
+    // 5.2. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
     // 6. Calculer les économies pour chaque budget
     let totalSavings = 0
@@ -308,8 +248,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       totalEstimatedBudgets,
       exceptionalExpenses,
       totalRealIncome,
-      realExpensesOnBudgets,
-      totalIncomeDifference
+      realExpensesOnBudgets
     )
 
     // Calculs terminés
@@ -372,7 +311,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 2. Récupérer les budgets estimés du groupe
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount')
+      .select('id, name, estimated_amount, monthly_surplus')
       .eq('group_id', groupId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -412,48 +351,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 6.2. Calculer les différences revenus précises par revenu associé pour le groupe (bonus ou déficits)
-    let totalIncomeDifference = 0
-    if (estimatedIncomes && realIncomes) {
-      // Récupérer les revenus réels du groupe avec leur estimation associée
-      const { data: realIncomesWithEstimated } = await supabaseServer
-        .from('real_income_entries')
-        .select(`
-          amount,
-          estimated_income_id,
-          estimated_income:estimated_incomes(estimated_amount)
-        `)
-        .eq('group_id', groupId)
-        .not('estimated_income_id', 'is', null)
-
-      if (realIncomesWithEstimated) {
-        // Grouper les revenus réels par estimation
-        const groupedByEstimated = realIncomesWithEstimated.reduce((acc, income) => {
-          const estimatedId = income.estimated_income_id!
-          if (!acc[estimatedId]) {
-            acc[estimatedId] = {
-              totalReal: 0,
-              estimatedAmount: (income.estimated_income as any)?.estimated_amount || 0
-            }
-          }
-          acc[estimatedId].totalReal += income.amount
-          return acc
-        }, {} as Record<string, { totalReal: number; estimatedAmount: number }>)
-
-        // Calculer les bonus/déficits pour chaque revenu estimé du groupe
-        for (const [estimatedId, data] of Object.entries(groupedByEstimated)) {
-          const difference = data.totalReal - data.estimatedAmount
-          if (difference !== 0) {
-            totalIncomeDifference += difference
-            if (difference > 0) {
-              console.log(`📈 [getGroupFinancialData] Bonus revenu groupe ${estimatedId}: +${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
-            } else {
-              console.log(`📉 [getGroupFinancialData] Déficit revenu groupe ${estimatedId}: ${difference}€ (${data.totalReal}€ - ${data.estimatedAmount}€)`)
-            }
-          }
-        }
-      }
-    }
+    // 6.2. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
     // 7. Calculer les économies des budgets
     let totalSavings = 0
@@ -487,8 +385,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       totalProfileContributions,
       totalEstimatedBudgets,
       exceptionalExpenses,
-      realExpensesOnBudgets,
-      totalIncomeDifference
+      realExpensesOnBudgets
     )
 
     console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)
@@ -540,7 +437,7 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
   try {
     const { data: budgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount')
+      .select('id, name, estimated_amount, monthly_surplus')
       .eq('profile_id', profileId)
 
     if (!budgets) return []
@@ -554,17 +451,25 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
     const result: BudgetSavings[] = []
 
     for (const budget of budgets) {
-      const spentThisMonth = expenses
+      const realExpensesThisMonth = expenses
         ?.filter(expense => expense.estimated_budget_id === budget.id)
         ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-      const savings = calculateBudgetSavings(budget.estimated_amount, spentThisMonth, false)
+      // Si monthly_surplus est négatif, c'est un carryover de déficit du mois précédent
+      const carryoverSpent = budget.monthly_surplus < 0 ? Math.abs(budget.monthly_surplus) : 0
+
+      // Total dépensé = dépenses réelles + carryover du mois précédent
+      const totalSpentThisMonth = realExpensesThisMonth + carryoverSpent
+
+      const savings = calculateBudgetSavings(budget.estimated_amount, totalSpentThisMonth, false)
+
+      console.log(`📊 [getBudgetSavingsDetail] "${budget.name}": ${realExpensesThisMonth}€ réel + ${carryoverSpent}€ carryover = ${totalSpentThisMonth}€ total`)
 
       result.push({
         budgetId: budget.id,
         budgetName: budget.name,
         estimatedAmount: budget.estimated_amount,
-        spentThisMonth,
+        spentThisMonth: totalSpentThisMonth, // Maintenant inclut le carryover
         savings
       })
     }

@@ -94,7 +94,15 @@ export async function GET(request: NextRequest) {
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+      const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
+      // Si monthly_surplus est négatif, c'est un carryover de déficit du mois précédent
+      const carryoverSpent = budget.monthly_surplus && budget.monthly_surplus < 0
+        ? Math.abs(budget.monthly_surplus)
+        : 0
+
+      // Total dépensé = dépenses réelles + carryover du mois précédent
+      const spentThisMonth = realExpensesThisMonth + carryoverSpent
 
       return {
         ...budget,

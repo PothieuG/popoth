@@ -127,10 +127,36 @@ export default function MonthlyRecapStep1({
             </p>
 
             {budgetsWithSurplus.length === 0 ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-700 text-sm">
-                  ⚠️ Aucun budget avec des économies disponibles. Vous devrez peut-être ajuster vos budgets manuellement.
-                </p>
+              <div className="space-y-4">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm">
+                    ⚠️ Aucun budget avec des économies disponibles.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setSelectedChoice('carry_forward')}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-colors ${
+                    selectedChoice === 'carry_forward'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className={`w-4 h-4 rounded-full border-2 mt-1 ${
+                      selectedChoice === 'carry_forward'
+                        ? 'border-orange-500 bg-orange-500'
+                        : 'border-gray-300'
+                    }`} />
+                    <div>
+                      <h4 className="font-medium text-gray-900">Continuer avec le déficit</h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Votre reste à vivre restera à {currentRemainingToLive.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}.
+                        Vous pourrez gérer ce déficit dans l'étape suivante en transférant des économies entre budgets.
+                      </p>
+                    </div>
+                  </div>
+                </button>
               </div>
             ) : (
               <div className="space-y-3">
