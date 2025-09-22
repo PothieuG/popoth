@@ -385,18 +385,24 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   const goToStep = useCallback((step: number) => {
     if (step >= 1 && step <= 3) {
       setCurrentStep(step)
+      // Scroll vers le haut de la page
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [])
 
   const goToNextStep = useCallback(() => {
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1)
+      // Scroll vers le haut de la page
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [currentStep])
 
   const goToPreviousStep = useCallback(() => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1)
+      // Scroll vers le haut de la page
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [currentStep])
 

@@ -194,30 +194,50 @@ export async function POST(request: NextRequest) {
           throw new Error(`Erreur lors de la mise à jour des économies du budget ${action.budget_name}`)
         }
       } else {
-        // Réduire le montant estimé du budget au lieu de créer une fausse dépense
-        const originalBudget = budgetStats.find(b => b.id === action.budget_id)
-        if (originalBudget) {
-          const newEstimatedAmount = Math.max(0, originalBudget.estimated_amount - action.amount)
+        // Créer une dépense réelle pour utiliser l'excédent (les budgets estimés restent immuables)
+        const { error: expenseError } = await supabaseServer
+          .from('real_expenses')
+          .insert({
+            [context === 'profile' ? 'profile_id' : 'group_id']: contextId,
+            estimated_budget_id: action.budget_id,
+            amount: action.amount,
+            description: `Équilibrage automatique du reste à vivre - Utilisation excédent (${action.amount.toFixed(2)}€)`,
+            expense_date: new Date().toISOString(),
+            is_exceptional: false
+          })
 
-          const { error: updateError } = await supabaseServer
-            .from('estimated_budgets')
-            .update({
-              estimated_amount: newEstimatedAmount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', action.budget_id)
-
-          if (updateError) {
-            console.error(`❌ [Balance API] Erreur mise à jour budget estimé ${action.budget_id}:`, updateError)
-            throw new Error(`Erreur lors de la mise à jour du budget estimé ${action.budget_name}`)
-          }
-
-          console.log(`📝 [Balance API] Budget ${action.budget_name}: ${originalBudget.estimated_amount}€ → ${newEstimatedAmount}€`)
+        if (expenseError) {
+          console.error(`❌ [Balance API] Erreur création dépense équilibrage ${action.budget_id}:`, expenseError)
+          throw new Error(`Erreur lors de la création de la dépense d'équilibrage pour ${action.budget_name}`)
         }
+
+        console.log(`📝 [Balance API] Dépense d'équilibrage créée pour ${action.budget_name}: +${action.amount.toFixed(2)}€`)
       }
     }
 
-    // 5. Recalculer l'état final avec les nouveaux montants estimés mis à jour
+    // 5. Créer un revenu réel équivalent au montant redistribué pour équilibrer le reste à vivre
+    if (totalRedistributed > 0) {
+      console.log(`💰 [Balance API] Création d'un revenu d'équilibrage de ${totalRedistributed.toFixed(2)}€`)
+
+      const { error: incomeError } = await supabaseServer
+        .from('real_income_entries')
+        .insert({
+          [context === 'profile' ? 'profile_id' : 'group_id']: contextId,
+          amount: totalRedistributed,
+          description: `Équilibrage automatique du reste à vivre - Redistribution de ${totalRedistributed.toFixed(2)}€ depuis les budgets`,
+          entry_date: new Date().toISOString().split('T')[0], // Format YYYY-MM-DD pour le type date
+          is_exceptional: true
+        })
+
+      if (incomeError) {
+        console.error(`❌ [Balance API] Erreur création revenu équilibrage:`, incomeError)
+        throw new Error(`Erreur lors de la création du revenu d'équilibrage`)
+      }
+
+      console.log(`✅ [Balance API] Revenu d'équilibrage créé: +${totalRedistributed.toFixed(2)}€`)
+    }
+
+    // 6. Recalculer l'état final avec les nouvelles dépenses et le revenu d'équilibrage
     const { remainingToLive: finalRemainingToLive, budgetStats: finalBudgetStats } =
       await calculateCurrentState(context, contextId)
 
@@ -290,19 +310,19 @@ async function calculateCurrentState(context: 'profile' | 'group', contextId: st
     throw new Error(`Erreur récupération revenus réels: ${realIncomesError.message}`)
   }
 
-  // Séparer les dépenses de redistribution des vraies dépenses
-  const redistributionExpenses = expenses.filter(e =>
-    e.description && e.description.includes('Équilibrage automatique du reste à vivre - Redistribution')
+  // Séparer les dépenses d'équilibrage des vraies dépenses
+  const balancingExpenses = expenses.filter(e =>
+    e.description && e.description.includes('Équilibrage automatique du reste à vivre')
   )
   const realExpensesOnly = expenses.filter(e =>
-    !e.description || !e.description.includes('Équilibrage automatique du reste à vivre - Redistribution')
+    !e.description || !e.description.includes('Équilibrage automatique du reste à vivre')
   )
 
   // Calculer les statistiques des budgets
   const budgetStats = budgets.map(budget => {
-    // Pour le calcul des dépenses, exclure les dépenses de redistribution
-    const budgetExpenses = realExpensesOnly.filter(e => e.estimated_budget_id === budget.id)
-    const spentAmount = budgetExpenses.reduce((sum, e) => sum + e.amount, 0)
+    // Pour le calcul des dépenses, inclure toutes les dépenses (vraies + équilibrage)
+    const allBudgetExpenses = expenses.filter(e => e.estimated_budget_id === budget.id)
+    const spentAmount = allBudgetExpenses.reduce((sum, e) => sum + e.amount, 0)
     const surplus = Math.max(0, budget.estimated_amount - spentAmount)
     const deficit = Math.max(0, spentAmount - budget.estimated_amount)
 
@@ -326,7 +346,7 @@ async function calculateCurrentState(context: 'profile' | 'group', contextId: st
 
   const totalRealExpenses = realExpensesOnly.reduce((sum, e) => sum + e.amount, 0)
   const exceptionalExpenses = realExpensesOnly.filter(e => !e.estimated_budget_id).reduce((sum, e) => sum + e.amount, 0)
-  const totalRedistributionAmount = redistributionExpenses.reduce((sum, e) => sum + e.amount, 0)
+  const totalBalancingAmount = balancingExpenses.reduce((sum, e) => sum + e.amount, 0)
 
   console.log(`🔍 [Balance API] Calcul reste à vivre:`)
   console.log(`  - Revenus estimés: ${totalEstimatedIncome}€`)
@@ -334,14 +354,16 @@ async function calculateCurrentState(context: 'profile' | 'group', contextId: st
   console.log(`  - Budgets estimés: ${totalEstimatedBudgets}€`)
   console.log(`  - Vraies dépenses réelles: ${totalRealExpenses}€`)
   console.log(`  - Dépenses exceptionnelles: ${exceptionalExpenses}€`)
-  console.log(`  - Dépenses de redistribution: ${totalRedistributionAmount}€`)
+  console.log(`  - Dépenses d'équilibrage: ${totalBalancingAmount}€`)
   console.log(`  - Économies: ${totalSavings}€`)
 
-  // Après redistribution, les budgets estimés ont été mis à jour
-  // Le calcul est maintenant automatiquement correct car les montants estimés reflètent la redistribution
+  // Après équilibrage, des dépenses réelles ont été créées pour utiliser les excédents
+  // Les budgets estimés restent immuables, les dépenses d'équilibrage sont incluses dans les budgets
+  // Formule: Revenus - Budgets estimés - Dépenses exceptionnelles + Économies
+  // Les dépenses d'équilibrage sont déjà comptées dans le calcul des surplus/déficits des budgets
   let remainingToLive = totalEstimatedIncome + totalRealIncome - totalEstimatedBudgets - exceptionalExpenses + totalSavings
 
-  console.log(`🔍 [Balance API] Calcul final (budgets mis à jour): ${totalEstimatedIncome} + ${totalRealIncome} - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}€`)
+  console.log(`🔍 [Balance API] Calcul final: ${totalEstimatedIncome} + ${totalRealIncome} - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}€`)
 
   // Pour les groupes, ajouter les contributions des profils
   if (context === 'group') {
