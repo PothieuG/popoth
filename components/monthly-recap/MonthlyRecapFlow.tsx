@@ -36,6 +36,7 @@ export default function MonthlyRecapFlow({
     initializeRecap,
     transferBetweenBudgets,
     autoBalanceBudgets,
+    balanceRemainingToLive,
     completeRecap,
     goToNextStep,
     goToPreviousStep,
@@ -44,6 +45,7 @@ export default function MonthlyRecapFlow({
 
   const [remainingToLiveChoice, setRemainingToLiveChoice] = useState<RemainingToLiveChoice | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // Initialiser le récap au montage du composant
   useEffect(() => {
@@ -114,6 +116,38 @@ export default function MonthlyRecapFlow({
     return await autoBalanceBudgets()
   }
 
+  const handleBalanceRemainingToLive = async () => {
+    setIsProcessing(true)
+    try {
+      const result = await balanceRemainingToLive()
+      if (result) {
+        // L'équilibrage a réussi, on peut automatiquement définir le choix pour l'étape 3
+        setRemainingToLiveChoice({
+          action: 'carry_forward',
+          final_amount: result.final_remaining_to_live || 0
+        })
+
+        // Avancer automatiquement à l'étape suivante après équilibrage
+        console.log('✅ [Flow] Équilibrage terminé, passage à l\'étape suivante')
+        goToNextStep()
+      }
+      return result
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleStep1Next = () => {
+    // Si aucun choix n'a été fait, utiliser carry_forward par défaut
+    if (!remainingToLiveChoice && recapData) {
+      setRemainingToLiveChoice({
+        action: 'carry_forward',
+        final_amount: recapData.current_remaining_to_live
+      })
+    }
+    goToNextStep()
+  }
+
   const handleComplete = async () => {
     if (!remainingToLiveChoice) {
       console.error('❌ Aucun choix de reste à vivre défini')
@@ -151,9 +185,10 @@ export default function MonthlyRecapFlow({
       return (
         <MonthlyRecapStep1
           recapData={recapData}
-          onNext={goToNextStep}
-          onRemainingToLiveChoice={handleRemainingToLiveChoice}
+          onNext={handleStep1Next}
+          onBalanceRemainingToLive={handleBalanceRemainingToLive}
           isLoading={isLoading}
+          isProcessing={isProcessing}
         />
       )
 

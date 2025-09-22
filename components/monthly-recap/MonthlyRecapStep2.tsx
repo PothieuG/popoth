@@ -47,13 +47,17 @@ export default function MonthlyRecapStep2({
   const currentMonthName = monthNames[recapData.month - 1]
   const budgetsWithSurplus = recapData.budget_stats.filter(budget => budget.surplus > 0)
   const budgetsWithDeficit = recapData.budget_stats.filter(budget => budget.deficit > 0)
-  const generalRatio = recapData.total_surplus - recapData.total_deficit
+
+  // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
+  const currentTotalSurplus = recapData.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
+  const currentTotalDeficit = recapData.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
+  const generalRatio = currentTotalSurplus - currentTotalDeficit
 
   // Reset modal state when recapData changes (after successful transfers)
   useEffect(() => {
     console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
-      totalSurplus: recapData.total_surplus,
-      totalDeficit: recapData.total_deficit,
+      totalSurplus: currentTotalSurplus,
+      totalDeficit: currentTotalDeficit,
       budgets: recapData.budget_stats.map(b => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`)
     })
 
@@ -310,7 +314,7 @@ export default function MonthlyRecapStep2({
             <div className="text-center">
               <h4 className="font-medium text-green-900">Total Économies</h4>
               <p className="text-xl font-bold text-green-600 mt-1">
-                {formatCurrency(recapData.total_surplus)}
+                {formatCurrency(currentTotalSurplus)}
               </p>
               <p className="text-xs text-green-700 mt-1">
                 {budgetsWithSurplus.length} budget(s) excédentaire(s)

@@ -269,6 +269,71 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [context, refreshRecapData])
 
   /**
+   * Équilibre automatiquement un reste à vivre négatif
+   * en redistribuant les économies et excédents de manière proportionnelle
+   */
+  const balanceRemainingToLive = useCallback(async () => {
+    if (!recapData?.snapshot_id) {
+      console.log('⚠️ [Hook] Pas de snapshot_id pour l\'équilibrage')
+      return null
+    }
+
+    try {
+      setError(null)
+      console.log('🔄 [Hook] Démarrage de l\'équilibrage automatique du reste à vivre')
+
+      const response = await fetch('/api/monthly-recap/balance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          context,
+          snapshot_id: recapData.snapshot_id
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'équilibrage automatique')
+      }
+
+      console.log('✅ [Hook] Équilibrage automatique réussi côté serveur')
+      console.log('📊 [Hook] Résultat:', {
+        original: data.original_remaining_to_live,
+        final: data.final_remaining_to_live,
+        redistributed: data.deficit_covered
+      })
+
+      // Mettre à jour directement les données avec le résultat de l'équilibrage
+      // au lieu de rafraîchir via l'API initialize qui ne prend pas en compte la redistribution
+      if (recapData && data.final_remaining_to_live !== undefined) {
+        console.log('🔄 [Hook] Mise à jour directe du reste à vivre après équilibrage')
+        console.log(`📊 [Hook] ${recapData.current_remaining_to_live}€ → ${data.final_remaining_to_live}€`)
+
+        setRecapData({
+          ...recapData,
+          current_remaining_to_live: data.final_remaining_to_live,
+          budget_stats: data.budget_stats || recapData.budget_stats
+        })
+
+        console.log('📊 [Hook] Budget stats mis à jour:', data.budget_stats?.length || 0, 'budgets')
+
+        console.log('✅ [Hook] Données mises à jour avec le nouveau reste à vivre')
+      }
+
+      return data
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+      setError(errorMessage)
+      console.error('❌ Erreur lors de l\'équilibrage automatique:', err)
+      return null
+    }
+  }, [context, recapData?.snapshot_id, refreshRecapData])
+
+  /**
    * Finalise le récapitulatif mensuel
    */
   const completeRecap = useCallback(async (remainingToLiveChoice: RemainingToLiveChoice) => {
@@ -379,6 +444,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     initializeRecap,
     transferBetweenBudgets,
     autoBalanceBudgets,
+    balanceRemainingToLive,
     completeRecap,
     refreshRecapData,
 
