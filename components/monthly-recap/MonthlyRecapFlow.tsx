@@ -29,6 +29,7 @@ export default function MonthlyRecapFlow({
   const router = useRouter()
   const {
     isLoading,
+    isRefreshing,
     error,
     recapData,
     currentStep,
@@ -165,6 +166,7 @@ export default function MonthlyRecapFlow({
           onTransfer={handleTransfer}
           onAutoBalance={handleAutoBalance}
           isLoading={isLoading}
+          isRefreshing={isRefreshing}
         />
       )
 

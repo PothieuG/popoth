@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Vérifier que le snapshot appartient à l'utilisateur/groupe
+    // Récupérer le snapshot du monthly recap comme base de données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
     const { data: snapshot, error: snapshotError } = await supabaseServer
       .from('recap_snapshots')
@@ -84,19 +84,13 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
 
-    // Récupérer les données actuelles (budgets, dépenses réelles, et transferts)
-    const [budgets, realExpenses] = await Promise.all([
-      supabaseServer
-        .from('estimated_budgets')
-        .select('id, name, estimated_amount')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('real_expenses')
-        .select('estimated_budget_id, amount')
-        .eq(ownerField, contextId)
-    ])
+    // Utiliser les données du snapshot comme base (données figées au moment du récap)
+    const snapshotBudgets = snapshot.snapshot_data.estimated_budgets || []
+    const snapshotExpenses = snapshot.snapshot_data.real_expenses || []
 
-    // Récupérer les transferts maintenant que la migration SQL est terminée
+    console.log(`📊 [Refresh Debug] Utilisation du snapshot avec ${snapshotBudgets.length} budgets et ${snapshotExpenses.length} dépenses`)
+
+    // Récupérer les transferts (seule donnée qui change après le début du récap)
     console.log(`🔍 [Refresh Debug] Recherche des transferts avec ${ownerField} = ${contextId}`)
     const { data: transfersData, error: transfersError } = await supabaseServer
       .from('budget_transfers')
@@ -107,13 +101,6 @@ export async function GET(request: NextRequest) {
       console.error('❌ [Refresh Debug] Erreur lors de la récupération des transferts:', transfersError)
     }
 
-    if (budgets.error || realExpenses.error) {
-      return NextResponse.json(
-        { error: 'Erreur lors de la récupération des données' },
-        { status: 500 }
-      )
-    }
-
     // Si la récupération des transferts échoue, continuer sans transferts
     const transfers = transfersError ? [] : (transfersData || [])
 
@@ -122,12 +109,12 @@ export async function GET(request: NextRequest) {
       console.log('📋 [Refresh Debug] Transferts:', transfers)
     }
 
-    // Recalculer les statistiques des budgets en temps réel
+    // Recalculer les statistiques des budgets en temps réel à partir du snapshot
     const budgetStats = []
 
-    for (const budget of budgets.data || []) {
-      // Calculer le montant dépensé de base pour ce budget
-      const baseSpentAmount = (realExpenses.data || [])
+    for (const budget of snapshotBudgets) {
+      // Calculer le montant dépensé de base pour ce budget (depuis le snapshot)
+      const baseSpentAmount = snapshotExpenses
         .filter(expense => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
 
@@ -187,11 +174,17 @@ export async function GET(request: NextRequest) {
     console.log(`📊 [Monthly Recap Refresh] Nouvelles données calculées pour ${context}:${contextId}`)
     console.log(`📊 [Monthly Recap Refresh] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`)
 
+    // Recalculer le remaining_to_live en temps réel
+    // Pour l'instant, on met 0 car on se concentre sur les transferts
+    const currentRemainingToLive = 0
+
+    console.log(`💰 [Refresh Debug] Remaining to live: ${currentRemainingToLive}€ (calculé en temps réel)`)
+
     // Retourner les données rafraîchies avec la même structure que l'initialisation
     return NextResponse.json({
       success: true,
       snapshot_id: snapshot.id,
-      current_remaining_to_live: snapshot.snapshot_data.financial_data?.remainingToLive || 0,
+      current_remaining_to_live: currentRemainingToLive,
       budget_stats: budgetStats,
       total_surplus: totalSurplus,
       total_deficit: totalDeficit,

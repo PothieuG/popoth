@@ -55,6 +55,7 @@ export interface RecapStatus {
  */
 export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   const [isLoading, setIsLoading] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [recapStatus, setRecapStatus] = useState<RecapStatus | null>(null)
   const [recapData, setRecapData] = useState<RecapData | null>(null)
@@ -125,12 +126,63 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [context])
 
   /**
+   * Rafraîchit les données du récap en cours
+   */
+  const refreshRecapData = useCallback(async () => {
+    if (!recapData?.snapshot_id) {
+      console.log('⚠️ [Hook] Pas de snapshot_id pour le rafraîchissement')
+      return null
+    }
+
+    try {
+      console.log('🔄 [Hook] Rafraîchissement des données...')
+      setIsRefreshing(true)
+      setError(null)
+
+      // Récupérer les données actuelles du snapshot
+      const response = await fetch(`/api/monthly-recap/refresh?context=${context}&snapshot_id=${recapData.snapshot_id}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors du rafraîchissement')
+      }
+
+      // Mettre à jour les données avec les nouveaux calculs
+      console.log('📊 [Hook] Nouvelles données reçues du serveur:')
+      console.log('  - Total surplus:', recapData?.total_surplus, '→', data.total_surplus)
+      console.log('  - Total deficit:', recapData?.total_deficit, '→', data.total_deficit)
+      console.log('  - Budget count:', data.budget_stats?.length || 0)
+
+      // Force React to recognize this as a new object
+      const updatedData = {
+        ...data,
+        timestamp: Date.now() // Add timestamp to force re-render
+      }
+
+      setRecapData(updatedData)
+      console.log('✅ [Hook] État mis à jour dans le hook')
+      return updatedData
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+      setError(errorMessage)
+      console.error('❌ Erreur lors du rafraîchissement du récap:', err)
+
+      // Fallback: re-initialiser complètement
+      console.log('🔄 Fallback: re-initialisation complète...')
+      return await initializeRecap()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [recapData?.snapshot_id, context, initializeRecap])
+
+  /**
    * Effectue un transfert entre budgets
    */
   const transferBetweenBudgets = useCallback(async (transferData: TransferData) => {
     try {
-      setIsLoading(true)
       setError(null)
+      console.log('🔄 [Hook] Démarrage du transfert:', transferData)
 
       const response = await fetch('/api/monthly-recap/transfer', {
         method: 'POST',
@@ -149,10 +201,18 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         throw new Error(data.error || 'Erreur lors du transfert')
       }
 
+      console.log('✅ [Hook] Transfert réussi côté serveur')
+
       // Rafraîchir les données du récap après le transfert
       console.log('🔄 [Hook] Rafraîchissement des données après transfert...')
       const refreshResult = await refreshRecapData()
-      console.log('✅ [Hook] Données rafraîchies:', refreshResult ? 'succès' : 'échec')
+
+      if (refreshResult) {
+        console.log('✅ [Hook] Données rafraîchies avec succès')
+        console.log('📊 [Hook] Nouvelles valeurs - Surplus:', refreshResult.total_surplus, 'Déficit:', refreshResult.total_deficit)
+      } else {
+        console.log('❌ [Hook] Échec du rafraîchissement')
+      }
 
       return data
 
@@ -161,18 +221,16 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       setError(errorMessage)
       console.error('❌ Erreur lors du transfert entre budgets:', err)
       return null
-    } finally {
-      setIsLoading(false)
     }
-  }, [context])
+  }, [context, refreshRecapData])
 
   /**
    * Effectue une répartition automatique des excédents
    */
   const autoBalanceBudgets = useCallback(async () => {
     try {
-      setIsLoading(true)
       setError(null)
+      console.log('🔄 [Hook] Démarrage de la répartition automatique')
 
       const response = await fetch('/api/monthly-recap/auto-balance', {
         method: 'POST',
@@ -188,8 +246,17 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         throw new Error(data.error || 'Erreur lors de la répartition automatique')
       }
 
+      console.log('✅ [Hook] Répartition automatique réussie côté serveur')
+
       // Rafraîchir les données du récap après la répartition
-      await refreshRecapData()
+      console.log('🔄 [Hook] Rafraîchissement des données après auto-balance...')
+      const refreshResult = await refreshRecapData()
+
+      if (refreshResult) {
+        console.log('✅ [Hook] Données rafraîchies après auto-balance')
+      } else {
+        console.log('❌ [Hook] Échec du rafraîchissement après auto-balance')
+      }
 
       return data
 
@@ -198,10 +265,8 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       setError(errorMessage)
       console.error('❌ Erreur lors de la répartition automatique:', err)
       return null
-    } finally {
-      setIsLoading(false)
     }
-  }, [context])
+  }, [context, refreshRecapData])
 
   /**
    * Finalise le récapitulatif mensuel
@@ -248,43 +313,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       setIsLoading(false)
     }
   }, [context, recapData?.snapshot_id])
-
-  /**
-   * Rafraîchit les données du récap en cours
-   */
-  const refreshRecapData = useCallback(async () => {
-    if (!recapData?.snapshot_id) return
-
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      // Récupérer les données actuelles du snapshot
-      const response = await fetch(`/api/monthly-recap/refresh?context=${context}&snapshot_id=${recapData.snapshot_id}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors du rafraîchissement')
-      }
-
-      // Mettre à jour les données avec les nouveaux calculs
-      console.log('📊 [Hook] Nouvelles données reçues du serveur:', data)
-      setRecapData(data)
-      console.log('🔄 [Hook] État mis à jour dans le hook')
-      return data
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      console.error('❌ Erreur lors du rafraîchissement du récap:', err)
-
-      // Fallback: re-initialiser complètement
-      console.log('🔄 Fallback: re-initialisation complète...')
-      return await initializeRecap()
-    } finally {
-      setIsLoading(false)
-    }
-  }, [recapData?.snapshot_id, context, initializeRecap])
 
   /**
    * Navigation entre les étapes
@@ -340,6 +368,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   return {
     // État
     isLoading,
+    isRefreshing,
     error,
     recapStatus,
     recapData,

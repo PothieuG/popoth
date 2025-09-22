@@ -14,6 +14,7 @@ interface MonthlyRecapStep2Props {
   onTransfer: (fromBudgetId: string, toBudgetId: string, amount: number) => Promise<any>
   onAutoBalance: () => Promise<any>
   isLoading?: boolean
+  isRefreshing?: boolean
 }
 
 /**
@@ -28,7 +29,8 @@ export default function MonthlyRecapStep2({
   onPrevious,
   onTransfer,
   onAutoBalance,
-  isLoading = false
+  isLoading = false,
+  isRefreshing = false
 }: MonthlyRecapStep2Props) {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [selectedFromBudget, setSelectedFromBudget] = useState<BudgetStat | null>(null)
@@ -46,20 +48,21 @@ export default function MonthlyRecapStep2({
   const budgetsWithDeficit = recapData.budget_stats.filter(budget => budget.deficit > 0)
   const generalRatio = recapData.total_surplus - recapData.total_deficit
 
-  // Debug: Log quand les données changent
+  // Reset modal state when recapData changes (after successful transfers)
   useEffect(() => {
-    console.log('🎯 [Component] Données reçues dans MonthlyRecapStep2:', {
+    console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
       totalSurplus: recapData.total_surplus,
       totalDeficit: recapData.total_deficit,
-      budgetStats: recapData.budget_stats.map(b => ({
-        name: b.name,
-        spent: b.spent_amount,
-        estimated: b.estimated_amount,
-        surplus: b.surplus,
-        deficit: b.deficit
-      }))
+      budgets: recapData.budget_stats.map(b => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`)
     })
-  }, [recapData])
+
+    // Reset modal state when data changes to prevent stale states
+    if (isTransferModalOpen) {
+      console.log('🔄 [Component] Data updated, resetting modal state')
+      setSelectedToBudget('')
+      setTransferAmount('')
+    }
+  }, [recapData, isTransferModalOpen])
 
   // Helper function to convert budget stats to dropdown options for transfer mode
   const getTransferDestinationOptions = (): DropdownOption[] => {
@@ -134,22 +137,29 @@ export default function MonthlyRecapStep2({
       let result
       if (selectedFromBudget.surplus > 0) {
         // Mode transfert: de selectedFromBudget vers selectedToBudget
+        console.log('🔄 [Frontend] Transfer:', selectedFromBudget.id, '→', selectedToBudget, `${amount}€`)
         result = await onTransfer(selectedFromBudget.id, selectedToBudget, amount)
       } else {
         // Mode récupération: de selectedToBudget vers selectedFromBudget
+        console.log('🔄 [Frontend] Recovery:', selectedToBudget, '→', selectedFromBudget.id, `${amount}€`)
         result = await onTransfer(selectedToBudget, selectedFromBudget.id, amount)
       }
 
       if (result) {
-        console.log('✅ [Frontend] Transfert réussi, résultat:', result)
+        console.log('✅ [Frontend] Transfert réussi')
+        // Close modal immediately without waiting for data refresh
         setIsTransferModalOpen(false)
         setSelectedFromBudget(null)
         setSelectedToBudget('')
         setTransferAmount('')
-        console.log('🔄 [Frontend] Modal fermée, refresh des données en cours...')
+        // Data will be updated automatically by the hook's refreshRecapData call
       } else {
         console.log('❌ [Frontend] Transfert échoué')
+        alert('Erreur lors du transfert. Veuillez réessayer.')
       }
+    } catch (error) {
+      console.error('❌ [Frontend] Erreur lors du transfert:', error)
+      alert('Erreur lors du transfert. Veuillez réessayer.')
     } finally {
       setIsProcessing(false)
     }
@@ -193,9 +203,14 @@ export default function MonthlyRecapStep2({
       {/* Main Content */}
       <div className="flex-1 p-4 space-y-6 overflow-y-auto">
         {/* Ratio général */}
-        <Card className="p-4 bg-white">
+        <Card className={`p-4 bg-white ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
           <div className="text-center">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Ratio général de vos budgets</h2>
+            <div className="flex items-center justify-center mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Ratio général de vos budgets</h2>
+              {isRefreshing && (
+                <div className="ml-2 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </div>
             <div className={`text-2xl font-bold mb-2 ${
               generalRatio > 0 ? 'text-green-600' : generalRatio < 0 ? 'text-red-600' : 'text-blue-600'
             }`}>
@@ -235,7 +250,7 @@ export default function MonthlyRecapStep2({
 
          {/* Résumé des totaux */}
         <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 bg-green-50 border border-green-200">
+          <Card className={`p-4 bg-green-50 border border-green-200 ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
             <div className="text-center">
               <h4 className="font-medium text-green-900">Total Économies</h4>
               <p className="text-xl font-bold text-green-600 mt-1">
@@ -247,7 +262,7 @@ export default function MonthlyRecapStep2({
             </div>
           </Card>
 
-          <Card className="p-4 bg-red-50 border border-red-200">
+          <Card className={`p-4 bg-red-50 border border-red-200 ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
             <div className="text-center">
               <h4 className="font-medium text-red-900">Total Déficits</h4>
               <p className="text-xl font-bold text-red-600 mt-1">

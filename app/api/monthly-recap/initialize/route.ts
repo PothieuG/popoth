@@ -167,34 +167,68 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Calculer les économies/déficits des budgets pour ce mois
+    // 2. Récupérer les transferts existants pour ce contexte
+    const { data: existingTransfers, error: transfersError } = await supabaseServer
+      .from('budget_transfers')
+      .select('from_budget_id, to_budget_id, transfer_amount')
+      .eq(ownerField, contextId)
+
+    if (transfersError) {
+      console.error('❌ [Initialize] Erreur lors de la récupération des transferts:', transfersError)
+    }
+
+    const transfers = transfersError ? [] : (existingTransfers || [])
+    console.log(`🔍 [Initialize] ${transfers.length} transferts existants trouvés`)
+
+    // 3. Calculer les économies/déficits des budgets pour ce mois (avec transferts)
     const budgetStats = []
 
     if (snapshotData.estimated_budgets && snapshotData.real_expenses) {
       for (const budget of snapshotData.estimated_budgets) {
-        // Calculer le montant dépensé pour ce budget ce mois
-        const spentThisMonth = snapshotData.real_expenses
+        // Calculer le montant dépensé de base pour ce budget
+        const baseSpentAmount = snapshotData.real_expenses
           .filter((expense: any) => expense.estimated_budget_id === budget.id)
           .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
 
-        const estimated = parseFloat(budget.estimated_amount)
+        // Calculer les ajustements de transfert pour ce budget
+        let transferAdjustment = 0
 
-        // SIMPLIFIÉ: Calcul simple sans carryover
-        const difference = estimated - spentThisMonth
+        // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
+        const outgoingTransfers = transfers
+          .filter(transfer => transfer.from_budget_id === budget.id)
+          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+
+        // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
+        const incomingTransfers = transfers
+          .filter(transfer => transfer.to_budget_id === budget.id)
+          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+
+        transferAdjustment = outgoingTransfers - incomingTransfers
+
+        // Montant dépensé final avec ajustements de transfert
+        const adjustedSpentAmount = baseSpentAmount + transferAdjustment
+
+        const estimated = parseFloat(budget.estimated_amount)
+        const difference = estimated - adjustedSpentAmount
 
         console.log(`🔍 [Initialize Debug] Budget "${budget.name}":`)
-        console.log(`  - spentThisMonth: ${spentThisMonth}€`)
-        console.log(`  - estimated: ${budget.estimated_amount}€`)
-        console.log(`  - difference: ${estimated} - ${spentThisMonth} = ${difference}€`)
+        console.log(`  - baseSpentAmount: ${baseSpentAmount}€`)
+        console.log(`  - outgoingTransfers: ${outgoingTransfers}€`)
+        console.log(`  - incomingTransfers: ${incomingTransfers}€`)
+        console.log(`  - transferAdjustment: ${transferAdjustment}€`)
+        console.log(`  - adjustedSpentAmount: ${adjustedSpentAmount}€`)
+        console.log(`  - estimated: ${estimated}€`)
+        console.log(`  - difference: ${estimated} - ${adjustedSpentAmount} = ${difference}€`)
         console.log(`  - surplus: ${Math.max(0, difference)}€`)
+        console.log(`  - deficit: ${Math.max(0, -difference)}€`)
 
         const budgetStat = {
           id: budget.id,
           name: budget.name,
           estimated_amount: estimated,
-          spent_amount: spentThisMonth,
+          spent_amount: adjustedSpentAmount, // Montant dépensé avec transferts
           carryover_spent_amount: 0, // Plus utilisé
-          total_spent_amount: spentThisMonth,
+          total_spent_amount: adjustedSpentAmount,
           difference, // Positif = économie, Négatif = déficit
           surplus: Math.max(0, difference), // Économies (budget - dépenses)
           deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
