@@ -45,6 +45,10 @@ export default function MonthlyRecapStep3({
     ? recapData.budget_stats.find(b => b.id === remainingToLiveChoice.budget_id)
     : null
 
+  // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
+  const currentTotalSurplus = recapData.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
+  const currentTotalDeficit = recapData.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
+
   const estimatedIncomes = recapData.budget_stats.reduce((sum, budget) => sum + budget.estimated_amount, 0)
 
   const handleComplete = async () => {
@@ -81,42 +85,36 @@ export default function MonthlyRecapStep3({
             Gestion du reste à vivre
           </h2>
 
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <h4 className="font-medium text-gray-700">Reste à vivre initial</h4>
-                <p className={`text-xl font-bold ${
-                  recapData.current_remaining_to_live >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {recapData.current_remaining_to_live >= 0 ? '+' : ''}
-                  {formatCurrency(recapData.current_remaining_to_live)}
-                </p>
-              </div>
-              <div>
-                <h4 className="font-medium text-gray-700">Reste à vivre final</h4>
-                <p className="text-xl font-bold text-blue-600">
-                  {formatCurrency(remainingToLiveChoice.final_amount)}
-                </p>
-              </div>
-            </div>
+          <div className="bg-gray-50 rounded-lg p-6 text-center">
+            <h4 className="font-medium text-gray-700 mb-2">Reste à vivre final</h4>
+            <p className={`text-3xl font-bold ${
+              remainingToLiveChoice.final_amount > 0
+                ? 'text-green-600'
+                : remainingToLiveChoice.final_amount === 0
+                  ? 'text-gray-600'
+                  : 'text-red-600'
+            }`}>
+              {remainingToLiveChoice.final_amount > 0 ? '+' : ''}
+              {formatCurrency(remainingToLiveChoice.final_amount)}
+            </p>
+          </div>
 
-            <div className="mt-4 p-3 bg-blue-50 rounded-md">
-              <h4 className="font-medium text-blue-900">Action effectuée:</h4>
-              <p className="text-blue-700 mt-1">
-                {remainingToLiveChoice.action === 'carry_forward' ? (
-                  <>
-                    ✅ Votre reste à vivre de {formatCurrency(recapData.current_remaining_to_live)}
-                    sera reporté comme solde de départ pour {nextMonthName} {nextYear}.
-                  </>
-                ) : (
-                  <>
-                    ✅ Le déficit de {formatCurrency(Math.abs(recapData.current_remaining_to_live))}
-                    a été compensé par le budget "{budgetUsedForRemainingToLive?.name}".
-                    Votre reste à vivre est maintenant à 0€.
-                  </>
-                )}
-              </p>
-            </div>
+          <div className="mt-4 p-3 bg-blue-50 rounded-md">
+            <h4 className="font-medium text-blue-900">Action effectuée:</h4>
+            <p className="text-blue-700 mt-1">
+              {remainingToLiveChoice.action === 'carry_forward' ? (
+                <>
+                  ✅ Votre reste à vivre de {formatCurrency(recapData.current_remaining_to_live)}
+                  sera reporté comme solde de départ pour {nextMonthName} {nextYear}.
+                </>
+              ) : (
+                <>
+                  ✅ Le déficit de {formatCurrency(Math.abs(recapData.current_remaining_to_live))}
+                  a été compensé par le budget "{budgetUsedForRemainingToLive?.name}".
+                  Votre reste à vivre est maintenant à 0€.
+                </>
+              )}
+            </p>
           </div>
         </Card>
 
@@ -131,27 +129,31 @@ export default function MonthlyRecapStep3({
 
           <div className="space-y-3">
             {recapData.budget_stats.map((budget) => (
-              <div key={budget.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div>
+              <div
+                key={budget.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+              >
+                <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{budget.name}</h4>
-                  <p className="text-sm text-gray-600">
-                    Budgété: {formatCurrency(budget.estimated_amount)} -
-                    Dépensé: {formatCurrency(budget.spent_amount)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  {budget.surplus > 0 && (
-                    <p className="text-green-600 font-medium">
-                      +{formatCurrency(budget.surplus)} économisés
-                    </p>
-                  )}
-                  {budget.deficit > 0 && (
-                    <p className="text-red-600 font-medium">
-                      -{formatCurrency(budget.deficit)} de dépassement
-                    </p>
-                  )}
-                  {budget.surplus === 0 && budget.deficit === 0 && (
-                    <p className="text-blue-600 font-medium">Budget respecté</p>
+                  <div className="text-sm text-gray-600 mt-1">
+                    <div>Budgété: {formatCurrency(budget.estimated_amount)}</div>
+                    <div>Dépensé: {formatCurrency(budget.spent_amount)}</div>
+                  </div>
+                  <div className={`text-sm font-medium mt-1 ${
+                    budget.surplus > 0
+                      ? 'text-green-600'
+                      : budget.deficit > 0
+                        ? 'text-red-600'
+                        : 'text-blue-600'
+                  }`}>
+                    {budget.surplus > 0 && `+${formatCurrency(budget.surplus)} économisés`}
+                    {budget.deficit > 0 && `-${formatCurrency(budget.deficit)} de dépassement`}
+                    {budget.surplus === 0 && budget.deficit === 0 && 'Budget respecté'}
+                  </div>
+                  {(budget.cumulated_savings || 0) > 0 && (
+                    <div className="text-sm text-purple-600 mt-1">
+                      +{formatCurrency(budget.cumulated_savings || 0)} d'économies
+                    </div>
                   )}
                 </div>
               </div>
@@ -162,13 +164,13 @@ export default function MonthlyRecapStep3({
             <div className="p-3 bg-green-50 rounded-lg text-center">
               <h4 className="font-medium text-green-900">Total Économies</h4>
               <p className="text-lg font-bold text-green-600">
-                {formatCurrency(recapData.total_surplus)}
+                {formatCurrency(currentTotalSurplus)}
               </p>
             </div>
             <div className="p-3 bg-red-50 rounded-lg text-center">
               <h4 className="font-medium text-red-900">Total Déficits</h4>
               <p className="text-lg font-bold text-red-600">
-                {formatCurrency(recapData.total_deficit)}
+                {formatCurrency(currentTotalDeficit)}
               </p>
             </div>
           </div>
