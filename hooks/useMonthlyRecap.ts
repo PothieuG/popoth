@@ -90,53 +90,139 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [context])
 
   /**
-   * Sauvegarde et restauration de l'étape courante
+   * Sauvegarde et restauration de l'étape courante via base de données
    */
-  const saveCurrentStep = useCallback((step: number, sessionId?: string) => {
-    if (typeof window !== 'undefined' && sessionId) {
-      const stepData = {
-        step,
-        sessionId,
-        timestamp: Date.now(),
-        context
+  const saveCurrentStep = useCallback(async (step: number, sessionId?: string) => {
+    if (!sessionId) {
+      console.log('⚠️ [Hook] Pas de session_id pour sauvegarder l\'étape')
+      return false
+    }
+
+    try {
+      const response = await fetch('/api/monthly-recap/update-step', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          context,
+          session_id: sessionId,
+          current_step: step
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la sauvegarde de l\'étape')
       }
-      localStorage.setItem('monthly-recap-step', JSON.stringify(stepData))
-      console.log(`💾 [Hook] Étape ${step} sauvegardée pour session ${sessionId}`)
+
+      console.log(`💾 [Hook] Étape ${step} sauvegardée en base pour session ${sessionId}`)
+      return true
+    } catch (error) {
+      console.error('❌ [Hook] Erreur lors de la sauvegarde de l\'étape:', error)
+      return false
     }
   }, [context])
 
-  const restoreCurrentStep = useCallback((sessionId?: string) => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('monthly-recap-step')
-        if (saved) {
-          const stepData = JSON.parse(saved)
-          // Vérifier que c'est la même session et pas trop vieux (24h max)
-          if (stepData.sessionId === sessionId &&
-              stepData.context === context &&
-              (Date.now() - stepData.timestamp) < 24 * 60 * 60 * 1000) {
-            console.log(`🔄 [Hook] Restauration étape ${stepData.step} pour session ${sessionId}`)
-            setCurrentStep(stepData.step)
-            return stepData.step
-          } else {
-            // Nettoyer les anciennes données
-            localStorage.removeItem('monthly-recap-step')
-          }
-        }
-      } catch (error) {
-        console.error('❌ Erreur lors de la restauration de l\'étape:', error)
-        localStorage.removeItem('monthly-recap-step')
-      }
+  const restoreCurrentStep = useCallback(async (sessionId?: string) => {
+    if (!sessionId) {
+      console.log('⚠️ [Hook] Pas de session_id pour restaurer l\'étape')
+      return 1
     }
-    return 1
+
+    try {
+      const response = await fetch(`/api/monthly-recap/update-step?context=${context}&session_id=${sessionId}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la restauration de l\'étape')
+      }
+
+      const restoredStep = data.current_step || 1
+
+      // Si le récap est déjà complété, ne pas restaurer l'étape
+      if (data.is_completed) {
+        console.log(`🔄 [Hook] Récap déjà complété, démarrage à l'étape 1`)
+        return 1
+      }
+
+      console.log(`🔄 [Hook] Restauration étape ${restoredStep} pour session ${sessionId}`)
+      setCurrentStep(restoredStep)
+      return restoredStep
+    } catch (error) {
+      console.error('❌ [Hook] Erreur lors de la restauration de l\'étape:', error)
+      return 1
+    }
   }, [context])
 
-  const clearSavedStep = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('monthly-recap-step')
-      console.log('🗑️ [Hook] Données d\'étape supprimées')
-    }
+  const clearSavedStep = useCallback(async (sessionId?: string) => {
+    // Plus besoin de nettoyer explicitement car l'étape est automatiquement
+    // mise à 3 lors de la completion du récap dans l'API complete
+    console.log('🗑️ [Hook] Étape sera automatiquement marquée comme complétée')
+    return true
   }, [])
+
+  /**
+   * Essaie de reprendre un récap existant, sinon initialise un nouveau
+   */
+  const resumeOrInitializeRecap = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // D'abord, essayer de reprendre un récap existant
+      console.log('🔍 [Hook] Vérification d\'un récap existant...')
+      const resumeResponse = await fetch(`/api/monthly-recap/resume?context=${context}`)
+      const resumeData = await resumeResponse.json()
+
+      if (resumeResponse.ok) {
+        if (resumeData.exists && !resumeData.completed) {
+          // Un récap en cours existe, le reprendre
+          console.log(`🔄 [Hook] Récap existant trouvé à l'étape ${resumeData.current_step}`)
+          setRecapData(resumeData)
+          setCurrentStep(resumeData.current_step)
+          return resumeData
+        } else if (resumeData.completed) {
+          // Récap déjà complété, ne pas permettre de recommencer
+          console.log('✅ [Hook] Récap déjà complété pour ce mois')
+          setError('Le récapitulatif mensuel a déjà été complété pour ce mois')
+          return null
+        }
+      }
+
+      // Aucun récap existant ou erreur, créer un nouveau
+      console.log('✨ [Hook] Aucun récap existant, création d\'un nouveau...')
+
+      const initResponse = await fetch('/api/monthly-recap/initialize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ context })
+      })
+
+      const initData = await initResponse.json()
+
+      if (!initResponse.ok) {
+        throw new Error(initData.error || 'Erreur lors de l\'initialisation')
+      }
+
+      setRecapData(initData)
+      // Restaurer l'étape sauvegardée si disponible
+      const restoredStep = await restoreCurrentStep(initData.session_id)
+      setCurrentStep(restoredStep)
+      return initData
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+      setError(errorMessage)
+      console.error('❌ Erreur lors de la reprise/initialisation du récap:', err)
+      return null
+    } finally {
+      setIsLoading(false)
+    }
+  }, [context])
 
   /**
    * Initialise un nouveau récapitulatif mensuel
@@ -162,7 +248,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
 
       setRecapData(data)
       // Restaurer l'étape sauvegardée si disponible
-      const restoredStep = restoreCurrentStep(data.session_id)
+      const restoredStep = await restoreCurrentStep(data.session_id)
       setCurrentStep(restoredStep)
       return data
 
@@ -435,30 +521,30 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   /**
    * Navigation entre les étapes
    */
-  const goToStep = useCallback((step: number) => {
+  const goToStep = useCallback(async (step: number) => {
     if (step >= 1 && step <= 3) {
       setCurrentStep(step)
-      saveCurrentStep(step, recapData?.session_id)
+      await saveCurrentStep(step, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [saveCurrentStep, recapData?.session_id])
 
-  const goToNextStep = useCallback(() => {
+  const goToNextStep = useCallback(async () => {
     if (currentStep < 3) {
       const nextStep = currentStep + 1
       setCurrentStep(nextStep)
-      saveCurrentStep(nextStep, recapData?.session_id)
+      await saveCurrentStep(nextStep, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }, [currentStep, saveCurrentStep, recapData?.session_id])
 
-  const goToPreviousStep = useCallback(() => {
+  const goToPreviousStep = useCallback(async () => {
     if (currentStep > 1) {
       const prevStep = currentStep - 1
       setCurrentStep(prevStep)
-      saveCurrentStep(prevStep, recapData?.session_id)
+      await saveCurrentStep(prevStep, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -507,6 +593,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     // Actions principales
     checkRecapStatus,
     initializeRecap,
+    resumeOrInitializeRecap,
     transferBetweenBudgets,
     autoBalanceBudgets,
     balanceRemainingToLive,

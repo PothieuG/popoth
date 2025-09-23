@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
       final_remaining_to_live: final_amount,
       total_surplus: totalSurplus,
       total_deficit: totalDeficit,
+      current_step: 3, // Marquer comme complété (étape 3)
       completed_at: new Date().toISOString()
     }
 
@@ -177,19 +178,61 @@ export async function POST(request: NextRequest) {
 
     // Démarrer une transaction
     try {
-      // 1. Insérer le récap mensuel
-      const { data: monthlyRecap, error: recapError } = await supabaseServer
+      // 1. Vérifier s'il existe déjà un enregistrement en cours pour ce mois
+      const { data: existingRecap, error: checkError } = await supabaseServer
         .from('monthly_recaps')
-        .insert(recapData)
-        .select('id')
-        .single()
+        .select('id, completed_at')
+        .eq(ownerField, contextId)
+        .eq('recap_month', currentMonth)
+        .eq('recap_year', currentYear)
+        .maybeSingle()
 
-      if (recapError) {
-        console.error('❌ Erreur lors de l\'insertion du récap:', recapError)
+      if (checkError) {
+        console.error('❌ Erreur lors de la vérification du récap existant:', checkError)
         return NextResponse.json(
-          { error: 'Erreur lors de la sauvegarde du récap' },
+          { error: 'Erreur lors de la vérification du récap existant' },
           { status: 500 }
         )
+      }
+
+      let monthlyRecap
+      if (existingRecap) {
+        // Mettre à jour l'enregistrement existant
+        console.log(`🔄 [Monthly Recap Complete] Mise à jour du récap existant ID: ${existingRecap.id}`)
+        const { data: updatedRecap, error: updateError } = await supabaseServer
+          .from('monthly_recaps')
+          .update(recapData)
+          .eq('id', existingRecap.id)
+          .select('id')
+          .single()
+
+        if (updateError) {
+          console.error('❌ Erreur lors de la mise à jour du récap:', updateError)
+          return NextResponse.json(
+            { error: 'Erreur lors de la sauvegarde du récap' },
+            { status: 500 }
+          )
+        }
+
+        monthlyRecap = updatedRecap
+      } else {
+        // Créer un nouvel enregistrement
+        console.log(`✨ [Monthly Recap Complete] Création d'un nouveau récap`)
+        const { data: newRecap, error: insertError } = await supabaseServer
+          .from('monthly_recaps')
+          .insert(recapData)
+          .select('id')
+          .single()
+
+        if (insertError) {
+          console.error('❌ Erreur lors de l\'insertion du récap:', insertError)
+          return NextResponse.json(
+            { error: 'Erreur lors de la sauvegarde du récap' },
+            { status: 500 }
+          )
+        }
+
+        monthlyRecap = newRecap
       }
 
       // 2. NE PAS MODIFIER LE SOLDE BANCAIRE - Le reste à vivre est déjà inclus dans le calcul global

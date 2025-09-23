@@ -33,7 +33,7 @@ export default function MonthlyRecapFlow({
     error,
     recapData,
     currentStep,
-    initializeRecap,
+    resumeOrInitializeRecap,
     transferBetweenBudgets,
     autoBalanceBudgets,
     balanceRemainingToLive,
@@ -50,14 +50,15 @@ export default function MonthlyRecapFlow({
   // Initialiser le récap au montage du composant
   useEffect(() => {
     if (!isInitialized && !hasData && !isLoading) {
-      console.log('🚀 [MonthlyRecapFlow] Initialisation du récap mensuel')
-      initializeRecap().then((result) => {
-        if (result) {
-          setIsInitialized(true)
+      console.log('🚀 [MonthlyRecapFlow] Reprise ou initialisation du récap mensuel')
+      resumeOrInitializeRecap().then((result) => {
+        setIsInitialized(true) // Toujours marquer comme initialisé
+        if (!result) {
+          console.log('⚠️ [MonthlyRecapFlow] Aucun résultat retourné')
         }
       })
     }
-  }, [isInitialized, hasData, isLoading, initializeRecap])
+  }, [isInitialized, hasData, isLoading, resumeOrInitializeRecap])
 
   // Gestion des erreurs
   if (error) {
@@ -129,7 +130,7 @@ export default function MonthlyRecapFlow({
 
         // Avancer automatiquement à l'étape suivante après équilibrage
         console.log('✅ [Flow] Équilibrage terminé, passage à l\'étape suivante')
-        goToNextStep()
+        await goToNextStep()
       }
       return result
     } finally {
@@ -137,7 +138,7 @@ export default function MonthlyRecapFlow({
     }
   }
 
-  const handleStep1Next = () => {
+  const handleStep1Next = async () => {
     // Si aucun choix n'a été fait, utiliser carry_forward par défaut
     if (!remainingToLiveChoice && recapData) {
       setRemainingToLiveChoice({
@@ -145,7 +146,7 @@ export default function MonthlyRecapFlow({
         final_amount: recapData.current_remaining_to_live
       })
     }
-    goToNextStep()
+    await goToNextStep()
   }
 
   const handleComplete = async () => {
@@ -209,8 +210,9 @@ export default function MonthlyRecapFlow({
       if (!remainingToLiveChoice) {
         // Si on arrive à l'étape 3 sans choix de reste à vivre, revenir à l'étape 1
         console.warn('⚠️ Étape 3 atteinte sans choix de reste à vivre, retour à l\'étape 1')
-        goToPreviousStep()
-        goToPreviousStep()
+        // Ces appels asynchrones ne peuvent pas être await dans un return statement,
+        // donc on les lance de façon asynchrone
+        goToPreviousStep().then(() => goToPreviousStep())
         return null
       }
 
