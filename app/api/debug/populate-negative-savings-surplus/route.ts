@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
 
     await supabaseServer.from('budget_transfers').delete().eq('profile_id', userId)
     await supabaseServer.from('real_expenses').delete().eq('profile_id', userId)
+    await supabaseServer.from('real_income_entries').delete().eq('profile_id', userId)
     await supabaseServer.from('estimated_budgets').delete().eq('profile_id', userId)
 
     // 2. Désactiver les snapshots

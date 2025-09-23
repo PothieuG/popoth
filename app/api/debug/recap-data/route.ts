@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { calculateBudgetStatistics } from '@/lib/budget-calculations'
 
 /**
  * API GET /api/debug/recap-data
@@ -115,8 +116,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const totalSurplus = budgetStats.reduce((sum, b) => sum + b.surplus, 0)
-    const totalDeficit = budgetStats.reduce((sum, b) => sum + b.deficit, 0)
+    // SINGLE SOURCE OF TRUTH - Utilisation de la fonction centralisée
+    const { totalSurplus, totalDeficit } = calculateBudgetStatistics(budgetStats)
 
     return NextResponse.json({
       success: true,
