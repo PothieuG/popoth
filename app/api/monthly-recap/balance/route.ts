@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { context, snapshot_id } = await request.json()
+    const { context, session_id } = await request.json()
 
     // Validation des paramètres
     if (!context || !['profile', 'group'].includes(context)) {
@@ -35,9 +35,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!snapshot_id) {
+    if (!session_id) {
       return NextResponse.json(
-        { error: 'snapshot_id requis' },
+        { error: 'session_id requis' },
         { status: 400 }
       )
     }

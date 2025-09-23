@@ -13,7 +13,7 @@ import { supabaseServer } from '@/lib/supabase-server'
  *
  * Body: {
  *   context: 'profile' | 'group',
- *   snapshot_id: string,
+ *   session_id: string,
  *   remaining_to_live_choice: {
  *     action: 'carry_forward' | 'deduct_from_budget',
  *     budget_id?: string, // requis si action = 'deduct_from_budget'
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       context = 'profile',
-      snapshot_id,
+      session_id,
       remaining_to_live_choice
     } = body
 
@@ -47,9 +47,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!snapshot_id || !remaining_to_live_choice) {
+    if (!session_id || !remaining_to_live_choice) {
       return NextResponse.json(
-        { error: 'snapshot_id et remaining_to_live_choice sont requis' },
+        { error: 'session_id et remaining_to_live_choice sont requis' },
         { status: 400 }
       )
     }
@@ -105,53 +105,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Vérifier que le snapshot appartient au bon utilisateur/groupe
-    const snapshotOwnerField = context === 'profile' ? 'profile_id' : 'group_id'
+    // Récupérer les données financières en temps réel
+    const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/financial-calculations')
 
-    console.log(`🔍 [Monthly Recap Complete] Recherche du snapshot:`)
-    console.log(`🔍 [Monthly Recap Complete] - snapshot_id: ${snapshot_id}`)
-    console.log(`🔍 [Monthly Recap Complete] - snapshotOwnerField: ${snapshotOwnerField}`)
-    console.log(`🔍 [Monthly Recap Complete] - contextId: ${contextId}`)
-
-    const { data: snapshot, error: snapshotError } = await supabaseServer
-      .from('recap_snapshots')
-      .select('id, snapshot_data')
-      .eq('id', snapshot_id)
-      .eq(snapshotOwnerField, contextId)
-      .eq('is_active', true)
-      .single()
-
-    if (snapshotError) {
-      console.error('❌ [Monthly Recap Complete] Erreur snapshot:', snapshotError)
+    let financialData: any
+    if (context === 'profile') {
+      financialData = await getProfileFinancialData(contextId)
+    } else {
+      financialData = await getGroupFinancialData(contextId)
     }
 
-    if (!snapshot) {
-      console.error('❌ [Monthly Recap Complete] Snapshot non trouvé avec les critères spécifiés')
-
-      // Debug: Vérifier si le snapshot existe sans les restrictions
-      const { data: debugSnapshot } = await supabaseServer
-        .from('recap_snapshots')
-        .select('id, profile_id, group_id, is_active')
-        .eq('id', snapshot_id)
-        .single()
-
-      if (debugSnapshot) {
-        console.log(`🔍 [Monthly Recap Complete] Snapshot existe avec profile_id: ${debugSnapshot.profile_id}, group_id: ${debugSnapshot.group_id}, is_active: ${debugSnapshot.is_active}`)
-      } else {
-        console.log(`🔍 [Monthly Recap Complete] Snapshot avec ID ${snapshot_id} n'existe pas du tout`)
-      }
-    }
-
-    if (snapshotError || !snapshot) {
-      return NextResponse.json(
-        { error: 'Snapshot non trouvé ou non autorisé' },
-        { status: 404 }
-      )
-    }
-
-    // Récupérer les données initiales du snapshot
-    const snapshotData = snapshot.snapshot_data as any
-    const initialRemainingToLive = snapshotData.financial_data?.remainingToLive || 0
+    const initialRemainingToLive = financialData.remainingToLive
 
     console.log(`🏁 [Monthly Recap Complete] Finalisation pour ${context}:${contextId}`)
     console.log(`🏁 [Monthly Recap Complete] Reste à vivre initial: ${initialRemainingToLive}€`)
@@ -380,16 +344,8 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça
       }
 
-      // 4. Désactiver le snapshot (marquer comme utilisé)
-      const { error: snapshotUpdateError } = await supabaseServer
-        .from('recap_snapshots')
-        .update({ is_active: false })
-        .eq('id', snapshot_id)
-
-      if (snapshotUpdateError) {
-        console.error('❌ Erreur lors de la mise à jour du snapshot:', snapshotUpdateError)
-        // Ne pas faire échouer pour ça non plus
-      }
+      // 4. Log de session (plus de snapshot à désactiver)
+      console.log(`📝 [Monthly Recap Complete] Session ${session_id} terminée avec succès`)
 
       console.log(`✅ [Monthly Recap Complete] Récap mensuel finalisé avec ID: ${monthlyRecap.id}`)
 

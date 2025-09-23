@@ -15,7 +15,7 @@ export interface BudgetStat {
 }
 
 export interface RecapData {
-  snapshot_id: string
+  session_id: string
   current_remaining_to_live: number
   budget_stats: BudgetStat[]
   total_surplus: number
@@ -90,6 +90,55 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [context])
 
   /**
+   * Sauvegarde et restauration de l'étape courante
+   */
+  const saveCurrentStep = useCallback((step: number, sessionId?: string) => {
+    if (typeof window !== 'undefined' && sessionId) {
+      const stepData = {
+        step,
+        sessionId,
+        timestamp: Date.now(),
+        context
+      }
+      localStorage.setItem('monthly-recap-step', JSON.stringify(stepData))
+      console.log(`💾 [Hook] Étape ${step} sauvegardée pour session ${sessionId}`)
+    }
+  }, [context])
+
+  const restoreCurrentStep = useCallback((sessionId?: string) => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('monthly-recap-step')
+        if (saved) {
+          const stepData = JSON.parse(saved)
+          // Vérifier que c'est la même session et pas trop vieux (24h max)
+          if (stepData.sessionId === sessionId &&
+              stepData.context === context &&
+              (Date.now() - stepData.timestamp) < 24 * 60 * 60 * 1000) {
+            console.log(`🔄 [Hook] Restauration étape ${stepData.step} pour session ${sessionId}`)
+            setCurrentStep(stepData.step)
+            return stepData.step
+          } else {
+            // Nettoyer les anciennes données
+            localStorage.removeItem('monthly-recap-step')
+          }
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la restauration de l\'étape:', error)
+        localStorage.removeItem('monthly-recap-step')
+      }
+    }
+    return 1
+  }, [context])
+
+  const clearSavedStep = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('monthly-recap-step')
+      console.log('🗑️ [Hook] Données d\'étape supprimées')
+    }
+  }, [])
+
+  /**
    * Initialise un nouveau récapitulatif mensuel
    */
   const initializeRecap = useCallback(async () => {
@@ -112,7 +161,9 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       }
 
       setRecapData(data)
-      setCurrentStep(1)
+      // Restaurer l'étape sauvegardée si disponible
+      const restoredStep = restoreCurrentStep(data.session_id)
+      setCurrentStep(restoredStep)
       return data
 
     } catch (err) {
@@ -123,14 +174,14 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     } finally {
       setIsLoading(false)
     }
-  }, [context])
+  }, [context, restoreCurrentStep])
 
   /**
    * Rafraîchit les données du récap en cours
    */
   const refreshRecapData = useCallback(async () => {
-    if (!recapData?.snapshot_id) {
-      console.log('⚠️ [Hook] Pas de snapshot_id pour le rafraîchissement')
+    if (!recapData?.session_id) {
+      console.log('⚠️ [Hook] Pas de session_id pour le rafraîchissement')
       return null
     }
 
@@ -139,8 +190,8 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       setIsRefreshing(true)
       setError(null)
 
-      // Récupérer les données actuelles du snapshot
-      const response = await fetch(`/api/monthly-recap/refresh?context=${context}&snapshot_id=${recapData.snapshot_id}`)
+      // Récupérer les données actuelles en temps réel
+      const response = await fetch(`/api/monthly-recap/refresh?context=${context}&session_id=${recapData.session_id}`)
       const data = await response.json()
 
       if (!response.ok) {
@@ -174,7 +225,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     } finally {
       setIsRefreshing(false)
     }
-  }, [recapData?.snapshot_id, context, initializeRecap])
+  }, [recapData?.session_id, context, initializeRecap])
 
   /**
    * Effectue un transfert entre budgets
@@ -273,8 +324,8 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
    * en redistribuant les économies et excédents de manière proportionnelle
    */
   const balanceRemainingToLive = useCallback(async () => {
-    if (!recapData?.snapshot_id) {
-      console.log('⚠️ [Hook] Pas de snapshot_id pour l\'équilibrage')
+    if (!recapData?.session_id) {
+      console.log('⚠️ [Hook] Pas de session_id pour l\'équilibrage')
       return null
     }
 
@@ -289,7 +340,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         },
         body: JSON.stringify({
           context,
-          snapshot_id: recapData.snapshot_id
+          session_id: recapData.session_id
         })
       })
 
@@ -331,7 +382,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       console.error('❌ Erreur lors de l\'équilibrage automatique:', err)
       return null
     }
-  }, [context, recapData?.snapshot_id, refreshRecapData])
+  }, [context, recapData?.session_id, refreshRecapData])
 
   /**
    * Finalise le récapitulatif mensuel
@@ -341,13 +392,13 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       setIsLoading(true)
       setError(null)
 
-      if (!recapData?.snapshot_id) {
-        throw new Error('Aucun snapshot trouvé pour finaliser le récap')
+      if (!recapData?.session_id) {
+        throw new Error('Aucune session trouvée pour finaliser le récap')
       }
 
       const requestData = {
         context,
-        snapshot_id: recapData.snapshot_id,
+        session_id: recapData.session_id,
         remaining_to_live_choice: remainingToLiveChoice
       }
 
@@ -367,6 +418,8 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         throw new Error(data.error || 'Erreur lors de la finalisation')
       }
 
+      // Nettoyer les données sauvegardées une fois terminé
+      clearSavedStep()
       return data
 
     } catch (err) {
@@ -377,7 +430,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     } finally {
       setIsLoading(false)
     }
-  }, [context, recapData?.snapshot_id])
+  }, [context, recapData?.session_id, clearSavedStep])
 
   /**
    * Navigation entre les étapes
@@ -385,26 +438,31 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   const goToStep = useCallback((step: number) => {
     if (step >= 1 && step <= 3) {
       setCurrentStep(step)
+      saveCurrentStep(step, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }, [])
+  }, [saveCurrentStep, recapData?.session_id])
 
   const goToNextStep = useCallback(() => {
     if (currentStep < 3) {
-      setCurrentStep(currentStep + 1)
+      const nextStep = currentStep + 1
+      setCurrentStep(nextStep)
+      saveCurrentStep(nextStep, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }, [currentStep])
+  }, [currentStep, saveCurrentStep, recapData?.session_id])
 
   const goToPreviousStep = useCallback(() => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
+      const prevStep = currentStep - 1
+      setCurrentStep(prevStep)
+      saveCurrentStep(prevStep, recapData?.session_id)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }, [currentStep])
+  }, [currentStep, saveCurrentStep, recapData?.session_id])
 
   /**
    * Utilitaires pour les calculs
@@ -429,7 +487,8 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     setRecapData(null)
     setCurrentStep(1)
     setError(null)
-  }, [])
+    clearSavedStep()
+  }, [clearSavedStep])
 
   // Vérifier le statut au montage du composant
   useEffect(() => {
@@ -464,6 +523,11 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     getBudgetsWithDeficit,
     canTransfer,
     resetRecap,
+
+    // Sauvegarde d'étape
+    saveCurrentStep,
+    restoreCurrentStep,
+    clearSavedStep,
 
     // État dérivé
     hasData: !!recapData,

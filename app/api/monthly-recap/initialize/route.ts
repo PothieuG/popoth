@@ -96,73 +96,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Créer le snapshot de sécurité
-    console.log(`📸 [Monthly Recap] Création du snapshot de sécurité pour ${context}:${contextId}`)
+    // 1. Récupérer les données actuelles en temps réel (plus de snapshot)
+    console.log(`📊 [Monthly Recap] Récupération des données en temps réel pour ${context}:${contextId}`)
 
-    // Récupérer toutes les données actuelles pour le snapshot
-    const snapshotData: any = {
-      context,
-      timestamp: new Date().toISOString(),
-      financial_data: financialData
-    }
+    // Récupérer les budgets estimés
+    const { data: budgets, error: budgetsError } = await supabaseServer
+      .from('estimated_budgets')
+      .select('*')
+      .eq(ownerField, contextId)
 
-    if (context === 'profile') {
-      // Récupérer toutes les données du profil
-      const [incomes, budgets, realIncomes, realExpenses, bankBalance] = await Promise.all([
-        supabaseServer.from('estimated_incomes').select('*').eq('profile_id', contextId),
-        supabaseServer.from('estimated_budgets').select('*').eq('profile_id', contextId),
-        supabaseServer.from('real_income_entries').select('*').eq('profile_id', contextId),
-        supabaseServer.from('real_expenses').select('*').eq('profile_id', contextId),
-        supabaseServer.from('bank_balances').select('balance').eq('profile_id', contextId).single()
-      ])
-
-      snapshotData.estimated_incomes = incomes.data
-      snapshotData.estimated_budgets = budgets.data
-      snapshotData.real_income_entries = realIncomes.data
-      snapshotData.real_expenses = realExpenses.data
-      snapshotData.bank_balance = bankBalance.data?.balance || 0
-
-    } else {
-      // Récupérer toutes les données du groupe
-      const [incomes, budgets, realIncomes, realExpenses, bankBalance] = await Promise.all([
-        supabaseServer.from('estimated_incomes').select('*').eq('group_id', contextId),
-        supabaseServer.from('estimated_budgets').select('*').eq('group_id', contextId),
-        supabaseServer.from('real_income_entries').select('*').eq('group_id', contextId),
-        supabaseServer.from('real_expenses').select('*').eq('group_id', contextId),
-        supabaseServer.from('bank_balances').select('balance').eq('group_id', contextId).single()
-      ])
-
-      snapshotData.estimated_incomes = incomes.data
-      snapshotData.estimated_budgets = budgets.data
-      snapshotData.real_income_entries = realIncomes.data
-      snapshotData.real_expenses = realExpenses.data
-      snapshotData.bank_balance = bankBalance.data?.balance || 0
-    }
-
-    // Insérer le snapshot en base
-    const snapshotRecord: any = {
-      snapshot_month: currentMonth,
-      snapshot_year: currentYear,
-      snapshot_data: snapshotData,
-      is_active: true
-    }
-
-    if (context === 'profile') {
-      snapshotRecord.profile_id = contextId
-    } else {
-      snapshotRecord.group_id = contextId
-    }
-
-    const { data: snapshot, error: snapshotError } = await supabaseServer
-      .from('recap_snapshots')
-      .insert(snapshotRecord)
-      .select('id')
-      .single()
-
-    if (snapshotError) {
-      console.error('❌ Erreur lors de la création du snapshot:', snapshotError)
+    if (budgetsError) {
+      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
-        { error: 'Erreur lors de la sauvegarde du snapshot' },
+        { error: 'Erreur lors de la récupération des budgets' },
+        { status: 500 }
+      )
+    }
+
+    // Récupérer les dépenses réelles
+    const { data: expenses, error: expensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('*')
+      .eq(ownerField, contextId)
+
+    if (expensesError) {
+      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des dépenses' },
         { status: 500 }
       )
     }
@@ -183,10 +143,10 @@ export async function POST(request: NextRequest) {
     // 3. Calculer les économies/déficits des budgets pour ce mois (avec transferts)
     const budgetStats = []
 
-    if (snapshotData.estimated_budgets && snapshotData.real_expenses) {
-      for (const budget of snapshotData.estimated_budgets) {
+    if (budgets && expenses) {
+      for (const budget of budgets) {
         // Calculer le montant dépensé de base pour ce budget
-        const baseSpentAmount = snapshotData.real_expenses
+        const baseSpentAmount = expenses
           .filter((expense: any) => expense.estimated_budget_id === budget.id)
           .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
 
@@ -248,10 +208,13 @@ export async function POST(request: NextRequest) {
     console.log(`📊 [Monthly Recap] Reste à vivre actuel: ${financialData.remainingToLive}€`)
     console.log(`📊 [Monthly Recap] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`)
 
+    // Créer une session_id simple pour le suivi de page
+    const sessionId = `${context}_${contextId}_${currentMonth}_${currentYear}_${Date.now()}`
+
     // Retourner les données pour l'étape 1
     return NextResponse.json({
       success: true,
-      snapshot_id: snapshot.id,
+      session_id: sessionId,
       current_remaining_to_live: financialData.remainingToLive,
       budget_stats: budgetStats,
       total_surplus: totalSurplus,

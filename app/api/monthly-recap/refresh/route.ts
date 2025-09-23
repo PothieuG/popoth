@@ -8,7 +8,7 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Rafraîchit les données du récapitulatif mensuel avec les calculs en temps réel
  * Query: {
  *   context: 'profile' | 'group',
- *   snapshot_id: string
+ *   session_id: string
  * }
  */
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     const url = new URL(request.url)
     const context = url.searchParams.get('context') || 'profile'
-    const snapshotId = url.searchParams.get('snapshot_id')
+    const sessionId = url.searchParams.get('session_id')
 
     // Validations
     if (!['profile', 'group'].includes(context)) {
@@ -34,9 +34,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    if (!snapshotId) {
+    if (!sessionId) {
       return NextResponse.json(
-        { error: 'snapshot_id est requis' },
+        { error: 'session_id est requis' },
         { status: 400 }
       )
     }
@@ -66,29 +66,41 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Récupérer le snapshot du monthly recap comme base de données
-    const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
-    const { data: snapshot, error: snapshotError } = await supabaseServer
-      .from('recap_snapshots')
-      .select('id, snapshot_month, snapshot_year, snapshot_data')
-      .eq('id', snapshotId)
-      .eq(ownerField, contextId)
-      .single()
+    console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
 
-    if (snapshotError || !snapshot) {
+    const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
+    const currentDate = new Date()
+    const currentMonth = currentDate.getMonth() + 1
+    const currentYear = currentDate.getFullYear()
+
+    // Récupérer les données en temps réel (plus de snapshot)
+    const { data: budgets, error: budgetsError } = await supabaseServer
+      .from('estimated_budgets')
+      .select('*')
+      .eq(ownerField, contextId)
+
+    if (budgetsError) {
+      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
-        { error: 'Snapshot non trouvé ou non autorisé' },
-        { status: 404 }
+        { error: 'Erreur lors de la récupération des budgets' },
+        { status: 500 }
       )
     }
 
-    console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
+    const { data: expenses, error: expensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('*')
+      .eq(ownerField, contextId)
 
-    // Utiliser les données du snapshot comme base (données figées au moment du récap)
-    const snapshotBudgets = snapshot.snapshot_data.estimated_budgets || []
-    const snapshotExpenses = snapshot.snapshot_data.real_expenses || []
+    if (expensesError) {
+      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des dépenses' },
+        { status: 500 }
+      )
+    }
 
-    console.log(`📊 [Refresh Debug] Utilisation du snapshot avec ${snapshotBudgets.length} budgets et ${snapshotExpenses.length} dépenses`)
+    console.log(`📊 [Refresh Debug] Utilisation des données temps réel avec ${budgets.length} budgets et ${expenses.length} dépenses`)
 
     // Récupérer les transferts (seule donnée qui change après le début du récap)
     console.log(`🔍 [Refresh Debug] Recherche des transferts avec ${ownerField} = ${contextId}`)
@@ -109,12 +121,12 @@ export async function GET(request: NextRequest) {
       console.log('📋 [Refresh Debug] Transferts:', transfers)
     }
 
-    // Recalculer les statistiques des budgets en temps réel à partir du snapshot
+    // Recalculer les statistiques des budgets en temps réel
     const budgetStats = []
 
-    for (const budget of snapshotBudgets) {
-      // Calculer le montant dépensé de base pour ce budget (depuis le snapshot)
-      const baseSpentAmount = snapshotExpenses
+    for (const budget of budgets) {
+      // Calculer le montant dépensé de base pour ce budget (données temps réel)
+      const baseSpentAmount = expenses
         .filter(expense => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
 
@@ -183,15 +195,15 @@ export async function GET(request: NextRequest) {
     // Retourner les données rafraîchies avec la même structure que l'initialisation
     return NextResponse.json({
       success: true,
-      snapshot_id: snapshot.id,
+      session_id: sessionId,
       current_remaining_to_live: currentRemainingToLive,
       budget_stats: budgetStats,
       total_surplus: totalSurplus,
       total_deficit: totalDeficit,
       general_ratio: generalRatio,
       context,
-      month: snapshot.snapshot_month,
-      year: snapshot.snapshot_year,
+      month: currentMonth,
+      year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`
     })
 

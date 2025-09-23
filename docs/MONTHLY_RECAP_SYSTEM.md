@@ -11,6 +11,8 @@ Le système de Monthly Recap permet aux utilisateurs de finaliser leur mois fina
 - **Surplus** : Sont ajoutés aux économies cumulées du budget
 - **Budget estimé** : Reste toujours inchangé
 - **Pas de système complexe** : Plus de carryover ou de colonnes dédiées
+- **Données temps réel** : Plus de snapshots, toujours les données actuelles
+- **Sauvegarde simple** : Seule la page courante est retenue en cas de refresh
 
 ## Architecture du système
 
@@ -19,12 +21,15 @@ Le système de Monthly Recap permet aux utilisateurs de finaliser leur mois fina
 1. **`useMonthlyRecap`** (`hooks/useMonthlyRecap.ts`)
    - Hook principal pour la gestion du récapitulatif
    - Gère les 3 étapes et la navigation
+   - Sauvegarde/restauration de l'étape courante via localStorage
    - Types : `RecapData`, `BudgetStat`, `RemainingToLiveChoice`
 
 2. **API Routes**
    - `/api/monthly-recap/status` - Vérifie si un récap est requis
-   - `/api/monthly-recap/initialize` - Démarre le processus (étape 1)
+   - `/api/monthly-recap/initialize` - Démarre le processus, génère session_id
+   - `/api/monthly-recap/refresh` - Actualise les données en temps réel
    - `/api/monthly-recap/complete` - Finalise le récap (étape 3)
+   - `/api/monthly-recap/balance` - Équilibrage automatique du reste à vivre
 
 3. **Composants UI**
    - `MonthlyRecapStep1.tsx` - Gestion du reste à vivre
@@ -43,7 +48,8 @@ Le système de Monthly Recap permet aux utilisateurs de finaliser leur mois fina
 - **Reste à vivre négatif** : Choisir un budget avec surplus pour compenser
 
 **API** : `POST /api/monthly-recap/initialize`
-- Crée un snapshot de sécurité
+- Génère un `session_id` unique pour le suivi
+- Récupère les données financières en temps réel
 - Calcule les surplus/déficits de chaque budget
 - Retourne les données pour l'étape 1
 
@@ -62,9 +68,10 @@ Dépensé: 150€
 ```
 
 **Fonctionnalités** :
-- Transferts manuels entre budgets (fonctionnalité future)
-- Auto-répartition des excédents (fonctionnalité future)
+- Transferts manuels entre budgets ✅ Implémenté
+- Auto-répartition des excédents ✅ Implémenté
 - Ratio général des budgets
+- Actualisation automatique des données après chaque action
 
 ### Étape 3 : Finalisation
 **Composant** : `MonthlyRecapStep3.tsx`
@@ -115,6 +122,19 @@ const newSavingsAmount = (currentSavings || 0) + surplus
 
 ### Types de données
 ```typescript
+interface RecapData {
+  session_id: string                    // Identifiant de session (remplace snapshot_id)
+  current_remaining_to_live: number
+  budget_stats: BudgetStat[]
+  total_surplus: number
+  total_deficit: number
+  general_ratio: number
+  context: 'profile' | 'group'
+  month: number
+  year: number
+  user_name: string
+}
+
 interface BudgetStat {
   id: string
   name: string
@@ -135,8 +155,10 @@ Le système vérifie automatiquement si un récap est requis :
 - Pas de récap existant pour le mois précédent
 - Présence de données financières
 
-### Sécurité
-- **Snapshot system** : Sauvegarde complète avant traitement
+### Continuité et fiabilité
+- **Session tracking** : Suivi via `session_id` temporaire
+- **Sauvegarde d'étape** : localStorage pour reprendre à la bonne page
+- **Données temps réel** : Toujours les informations les plus récentes
 - **Validation des données** : Vérification de cohérence
 - **Transactions atomiques** : Tout réussit ou tout échoue
 
@@ -157,16 +179,50 @@ Le système vérifie automatiquement si un récap est requis :
 
 ## Maintenance et évolution
 
-### Nettoyage effectué
+### Refactorisation 2025
+- ✅ **Suppression complète du système de snapshots** : Plus de données figées
+- ✅ **Migration vers session_id** : Identifiant temporaire au lieu de snapshot_id
+- ✅ **Données temps réel** : Récupération directe depuis la base à chaque fois
+- ✅ **Sauvegarde d'étape** : localStorage pour reprendre à la bonne page (24h max)
+- ✅ **Simplification des API** : Moins de complexité, plus de réactivité
+
+### Nettoyage historique
 - Suppression de l'ancien système carryover complexe
 - Simplification des calculs
 - Suppression des colonnes `carryover_spent_amount` (legacy)
 
 ### Améliorations futures possibles
-- Transferts entre budgets dans l'étape 2
-- Auto-répartition des excédents
 - Historique des récaps mensuels
 - Notifications de récap requis
+- Sauvegarde cloud de l'étape courante (au lieu de localStorage)
+- Optimisation performance avec cache intelligent
+
+## Système de sauvegarde d'étape
+
+### Fonctionnement
+Le système utilise `localStorage` pour sauvegarder l'étape courante :
+
+```typescript
+// Sauvegarde automatique à chaque changement d'étape
+const stepData = {
+  step: currentStep,
+  sessionId: recapData.session_id,
+  timestamp: Date.now(),
+  context: 'profile' | 'group'
+}
+localStorage.setItem('monthly-recap-step', JSON.stringify(stepData))
+```
+
+### Restauration
+- **Condition** : Même `session_id` + même `context` + < 24h
+- **Au refresh** : Restauration automatique de l'étape
+- **Nettoyage** : Suppression automatique à la fin ou si expiré
+
+### Avantages
+- ✅ Reprendre exactement où on en était après refresh/reconnexion
+- ✅ Données toujours actuelles (pas de snapshots figés)
+- ✅ Simple et performant
+- ✅ Auto-nettoyage (24h max)
 
 ## Fichiers de référence
 
