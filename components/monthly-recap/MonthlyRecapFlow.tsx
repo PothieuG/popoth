@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMonthlyRecap } from '@/hooks/useMonthlyRecap'
+import { useMonthlyRecap, RemainingToLiveChoice } from '@/hooks/useMonthlyRecap'
 import MonthlyRecapStep1 from './MonthlyRecapStep1'
 import MonthlyRecapStep2 from './MonthlyRecapStep2'
 import MonthlyRecapStep3 from './MonthlyRecapStep3'
@@ -12,15 +12,9 @@ interface MonthlyRecapFlowProps {
   onComplete?: () => void
 }
 
-interface RemainingToLiveChoice {
-  action: 'carry_forward' | 'deduct_from_budget'
-  budget_id?: string
-  final_amount: number
-}
-
 /**
  * Composant principal pour le flux de récapitulatif mensuel
- * Gère les 3 étapes obligatoires et la navigation entre elles
+ * VERSION SIMPLIFIÉE SANS CACHE - Chaque étape gère ses propres données live
  */
 export default function MonthlyRecapFlow({
   context,
@@ -28,39 +22,20 @@ export default function MonthlyRecapFlow({
 }: MonthlyRecapFlowProps) {
   const router = useRouter()
   const {
-    isLoading,
-    isRefreshing,
     error,
-    recapData,
     currentStep,
-    resumeOrInitializeRecap,
     transferBetweenBudgets,
     autoBalanceBudgets,
     balanceRemainingToLive,
     completeRecap,
+    goToStep,
     goToNextStep,
-    goToPreviousStep,
-    hasData
+    goToPreviousStep
   } = useMonthlyRecap(context)
 
   const [remainingToLiveChoice, setRemainingToLiveChoice] = useState<RemainingToLiveChoice | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
 
-  // Initialiser le récap au montage du composant
-  useEffect(() => {
-    if (!isInitialized && !hasData && !isLoading) {
-      console.log('🚀 [MonthlyRecapFlow] Reprise ou initialisation du récap mensuel')
-      resumeOrInitializeRecap().then((result) => {
-        setIsInitialized(true) // Toujours marquer comme initialisé
-        if (!result) {
-          console.log('⚠️ [MonthlyRecapFlow] Aucun résultat retourné')
-        }
-      })
-    }
-  }, [isInitialized, hasData, isLoading, resumeOrInitializeRecap])
-
-  // Gestion des erreurs
+  // Gestion des erreurs globales du hook (très rare car chaque étape gère ses erreurs)
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
@@ -83,28 +58,7 @@ export default function MonthlyRecapFlow({
     )
   }
 
-  // État de chargement initial
-  if (isLoading || !isInitialized || !recapData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Préparation du récapitulatif mensuel
-          </h2>
-          <p className="text-gray-600">
-            Calcul de vos données financières en cours...
-          </p>
-        </div>
-      </div>
-    )
-  }
-
   // Handlers pour les actions
-  const handleRemainingToLiveChoice = (choice: RemainingToLiveChoice) => {
-    setRemainingToLiveChoice(choice)
-  }
-
   const handleTransfer = async (fromBudgetId: string, toBudgetId: string, amount: number) => {
     return await transferBetweenBudgets({
       from_budget_id: fromBudgetId,
@@ -118,35 +72,21 @@ export default function MonthlyRecapFlow({
   }
 
   const handleBalanceRemainingToLive = async () => {
-    setIsProcessing(true)
-    try {
-      const result = await balanceRemainingToLive()
-      if (result) {
-        // L'équilibrage a réussi, on peut automatiquement définir le choix pour l'étape 3
-        setRemainingToLiveChoice({
-          action: 'carry_forward',
-          final_amount: result.final_remaining_to_live || 0
-        })
-
-        // Avancer automatiquement à l'étape suivante après équilibrage
-        console.log('✅ [Flow] Équilibrage terminé, passage à l\'étape suivante')
-        await goToNextStep()
-      }
-      return result
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const handleStep1Next = async () => {
-    // Si aucun choix n'a été fait, utiliser carry_forward par défaut
-    if (!remainingToLiveChoice && recapData) {
+    const result = await balanceRemainingToLive()
+    if (result) {
+      // L'équilibrage a réussi, définir automatiquement le choix pour l'étape 3
       setRemainingToLiveChoice({
         action: 'carry_forward',
-        final_amount: recapData.current_remaining_to_live
+        final_amount: result.final_remaining_to_live || 0
       })
+      console.log('✅ [Flow] Équilibrage terminé, choix défini pour l\'étape 3')
     }
-    await goToNextStep()
+    return result
+  }
+
+  const handleStep1Next = () => {
+    // La navigation est maintenant simple car les données sont récupérées live à chaque étape
+    goToNextStep()
   }
 
   const handleComplete = async () => {
@@ -185,44 +125,35 @@ export default function MonthlyRecapFlow({
     case 1:
       return (
         <MonthlyRecapStep1
-          recapData={recapData}
+          context={context}
           onNext={handleStep1Next}
           onBalanceRemainingToLive={handleBalanceRemainingToLive}
-          isLoading={isLoading}
-          isProcessing={isProcessing}
         />
       )
 
     case 2:
       return (
         <MonthlyRecapStep2
-          recapData={recapData}
+          context={context}
           onNext={goToNextStep}
-          onPrevious={goToPreviousStep}
           onTransfer={handleTransfer}
           onAutoBalance={handleAutoBalance}
-          isLoading={isLoading}
-          isRefreshing={isRefreshing}
         />
       )
 
     case 3:
       if (!remainingToLiveChoice) {
-        // Si on arrive à l'étape 3 sans choix de reste à vivre, revenir à l'étape 1
-        console.warn('⚠️ Étape 3 atteinte sans choix de reste à vivre, retour à l\'étape 1')
-        // Ces appels asynchrones ne peuvent pas être await dans un return statement,
-        // donc on les lance de façon asynchrone
-        goToPreviousStep().then(() => goToPreviousStep())
+        // Si on arrive à l'étape 3 sans choix de reste à vivre, rediriger vers l'étape 1
+        console.warn('⚠️ Étape 3 atteinte sans choix de reste à vivre, redirection vers l\'étape 1')
+        goToStep(1)
         return null
       }
 
       return (
         <MonthlyRecapStep3
-          recapData={recapData}
-          onPrevious={goToPreviousStep}
+          context={context}
           onComplete={handleComplete}
           remainingToLiveChoice={remainingToLiveChoice}
-          isLoading={isLoading}
         />
       )
 

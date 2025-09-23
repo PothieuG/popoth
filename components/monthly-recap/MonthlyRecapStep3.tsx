@@ -7,7 +7,6 @@ import { RecapData } from '@/hooks/useMonthlyRecap'
 
 interface MonthlyRecapStep3Props {
   recapData: RecapData
-  onPrevious: () => void
   onComplete: () => Promise<any>
   remainingToLiveChoice: {
     action: 'carry_forward' | 'deduct_from_budget'
@@ -24,7 +23,6 @@ interface MonthlyRecapStep3Props {
  */
 export default function MonthlyRecapStep3({
   recapData,
-  onPrevious,
   onComplete,
   remainingToLiveChoice,
   isLoading = false
@@ -215,14 +213,6 @@ export default function MonthlyRecapStep3({
       {/* Footer avec navigation */}
       <div className="bg-white border-t border-gray-200 p-4">
         <div className="flex justify-between items-center">
-          <Button
-            onClick={onPrevious}
-            variant="outline"
-            disabled={isLoading || isCompleting}
-            className="px-6 py-2"
-          >
-            Précédent
-          </Button>
           <div className="text-sm text-gray-500">
             Étape 3 sur 3
           </div>

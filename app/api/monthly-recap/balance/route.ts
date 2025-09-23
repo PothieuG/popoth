@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
 
 /**
  * API POST /api/monthly-recap/balance
  *
- * Équilibre automatiquement un reste à vivre négatif en redistribuant
- * les économies et excédents des budgets de manière proportionnelle
- *
- * Logique :
- * 1. Priorité aux économies (current_savings) - répartition proportionnelle
- * 2. Si insuffisant, utilise les excédents (estimated - spent) - répartition proportionnelle
- * 3. Met à jour les budgets en base de données
- * 4. Sauvegarde un snapshot du résultat
+ * NOUVELLE LOGIQUE PROPORTIONNELLE:
+ * 1. Phase 1: Utiliser toutes les économies (current_savings) de manière PROPORTIONNELLE
+ * 2. Phase 2: Utiliser tous les excédents (estimated - spent) de manière PROPORTIONNELLE
+ * 3. Objectif: Remettre le reste à vivre à 0€ si possible
+ * 4. Ajustement du solde bancaire pour refléter les changements
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,19 +23,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { context, session_id } = await request.json()
+    const { context } = await request.json()
 
     // Validation des paramètres
     if (!context || !['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
-      )
-    }
-
-    if (!session_id) {
-      return NextResponse.json(
-        { error: 'session_id requis' },
         { status: 400 }
       )
     }
@@ -72,34 +63,109 @@ export async function POST(request: NextRequest) {
       contextId = profile.group_id
     }
 
-    console.log(`🎯 [Balance API] Début équilibrage pour ${context}:${contextId}`)
+    console.log(`🎯 [Balance API] Début équilibrage PROPORTIONNEL pour ${context}:${contextId}`)
 
     // 1. Calculer le reste à vivre actuel
-    const { remainingToLive, budgetStats } = await calculateCurrentState(context, contextId)
+    let financialData: any
+    if (context === 'profile') {
+      financialData = await getProfileFinancialData(contextId)
+    } else {
+      financialData = await getGroupFinancialData(contextId)
+    }
 
-    console.log(`💰 [Balance API] Reste à vivre actuel: ${remainingToLive}€`)
+    const initialRAV = financialData.remainingToLive
+    console.log(`💰 [Balance API] RAV initial: ${initialRAV}€`)
 
     // Vérifier que le reste à vivre est négatif
-    if (remainingToLive >= 0) {
+    if (initialRAV >= 0) {
       return NextResponse.json(
         { error: 'Le reste à vivre n\'est pas négatif, aucun équilibrage nécessaire' },
         { status: 400 }
       )
     }
 
-    const deficit = Math.abs(remainingToLive)
+    const deficit = Math.abs(initialRAV)
     console.log(`📉 [Balance API] Déficit à combler: ${deficit}€`)
 
-    // 2. Identifier les budgets avec économies et excédents
-    const budgetsWithSavings = budgetStats.filter(b => b.current_savings > 0)
-    const budgetsWithSurplus = budgetStats.filter(b => b.surplus > 0)
+    // 2. Récupérer les budgets et calculer économies/excédents disponibles
+    const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
+    const { data: budgets, error: budgetsError } = await supabaseServer
+      .from('estimated_budgets')
+      .select('*')
+      .eq(ownerField, contextId)
 
-    const totalSavings = budgetsWithSavings.reduce((sum, b) => sum + b.current_savings, 0)
-    const totalSurplus = budgetsWithSurplus.reduce((sum, b) => sum + b.surplus, 0)
-    const totalAvailable = totalSavings + totalSurplus
+    if (budgetsError) {
+      throw new Error(`Erreur récupération budgets: ${budgetsError.message}`)
+    }
 
-    console.log(`💎 [Balance API] Total économies: ${totalSavings}€`)
-    console.log(`📊 [Balance API] Total excédents: ${totalSurplus}€`)
+    // Récupérer les dépenses réelles pour calculer les excédents
+    const { data: expenses, error: expensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('*')
+      .eq(ownerField, contextId)
+
+    if (expensesError) {
+      throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
+    }
+
+    // 3. Analyser les budgets et préparer les données pour l'équilibrage proportionnel
+    const budgetsWithSavings: Array<{
+      id: string
+      name: string
+      savings: number
+      estimated_amount: number
+      spent_amount: number
+    }> = []
+
+    const budgetsWithSurplus: Array<{
+      id: string
+      name: string
+      surplus: number
+      estimated_amount: number
+      spent_amount: number
+    }> = []
+
+    let totalSavingsAvailable = 0
+    let totalSurplusAvailable = 0
+
+    for (const budget of budgets) {
+      const savings = budget.cumulated_savings || 0
+      const spentAmount = expenses
+        .filter(expense => expense.estimated_budget_id === budget.id)
+        .reduce((sum, expense) => sum + expense.amount, 0)
+
+      const surplus = Math.max(0, budget.estimated_amount - spentAmount)
+
+      // Ajouter aux listes appropriées si des montants sont disponibles
+      if (savings > 0) {
+        budgetsWithSavings.push({
+          id: budget.id,
+          name: budget.name,
+          savings,
+          estimated_amount: budget.estimated_amount,
+          spent_amount: spentAmount
+        })
+        totalSavingsAvailable += savings
+      }
+
+      if (surplus > 0) {
+        budgetsWithSurplus.push({
+          id: budget.id,
+          name: budget.name,
+          surplus,
+          estimated_amount: budget.estimated_amount,
+          spent_amount: spentAmount
+        })
+        totalSurplusAvailable += surplus
+      }
+
+      console.log(`📊 [Balance API] Budget "${budget.name}": ${savings}€ économies, ${surplus}€ excédent`)
+    }
+
+    console.log(`💎 [Balance API] Total économies disponibles: ${totalSavingsAvailable}€`)
+    console.log(`📊 [Balance API] Total excédents disponibles: ${totalSurplusAvailable}€`)
+
+    const totalAvailable = totalSavingsAvailable + totalSurplusAvailable
     console.log(`💰 [Balance API] Total disponible: ${totalAvailable}€`)
 
     if (totalAvailable === 0) {
@@ -109,277 +175,219 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Redistribution proportionnelle
+    // 4. LOGIQUE PROPORTIONNELLE: Répartir équitablement selon les disponibilités
     let remainingDeficit = deficit
-    const redistributionActions: Array<{
+    let totalUsedFromSavings = 0
+    let totalUsedFromSurplus = 0
+    const changes: Array<{
       budget_id: string
       budget_name: string
       type: 'savings' | 'surplus'
-      amount: number
-      proportion: number
+      amount_used: number
     }> = []
 
-    // Phase 1: Utiliser les économies en priorité
-    if (totalSavings > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 1: Utilisation des économies`)
+    // PHASE 1: Utiliser les économies de manière PROPORTIONNELLE
+    if (totalSavingsAvailable > 0 && remainingDeficit > 0) {
+      console.log(`🔄 [Balance API] Phase 1: Utilisation proportionnelle des économies`)
+
+      const amountToUseFromSavings = Math.min(remainingDeficit, totalSavingsAvailable)
+      console.log(`💎 [Balance API] Montant à utiliser des économies: ${amountToUseFromSavings}€ sur ${totalSavingsAvailable}€ disponibles`)
 
       for (const budget of budgetsWithSavings) {
-        if (remainingDeficit <= 0) break
+        // Calculer la proportion de ce budget par rapport au total
+        const proportion = budget.savings / totalSavingsAvailable
+        const amountToUse = proportion * amountToUseFromSavings
 
-        // Prendre toutes les économies disponibles du budget, limitées par le déficit restant
-        const amountToTake = Math.min(remainingDeficit, budget.current_savings)
-        const proportion = budget.current_savings / totalSavings
+        totalUsedFromSavings += amountToUse
+        remainingDeficit -= amountToUse
 
-        if (amountToTake > 0) {
-          redistributionActions.push({
-            budget_id: budget.id,
-            budget_name: budget.name,
-            type: 'savings',
-            amount: amountToTake,
-            proportion
-          })
+        changes.push({
+          budget_id: budget.id,
+          budget_name: budget.name,
+          type: 'savings',
+          amount_used: amountToUse
+        })
 
-          remainingDeficit -= amountToTake
-          console.log(`  💎 ${budget.name}: -${amountToTake.toFixed(2)}€ économies (total: ${budget.current_savings}€)`)
-        }
+        console.log(`  💎 ${budget.name}: -${amountToUse.toFixed(2)}€ économies (${(proportion * 100).toFixed(1)}% du total)`)
       }
     }
 
-    // Phase 2: Utiliser les excédents si nécessaire
-    if (totalSurplus > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 2: Utilisation des excédents`)
+    // PHASE 2: Utiliser les excédents de manière PROPORTIONNELLE
+    if (totalSurplusAvailable > 0 && remainingDeficit > 0) {
+      console.log(`🔄 [Balance API] Phase 2: Utilisation proportionnelle des excédents`)
+
+      const amountToUseFromSurplus = Math.min(remainingDeficit, totalSurplusAvailable)
+      console.log(`📊 [Balance API] Montant à utiliser des excédents: ${amountToUseFromSurplus}€ sur ${totalSurplusAvailable}€ disponibles`)
 
       for (const budget of budgetsWithSurplus) {
-        if (remainingDeficit <= 0) break
+        // Calculer la proportion de ce budget par rapport au total
+        const proportion = budget.surplus / totalSurplusAvailable
+        const amountToUse = proportion * amountToUseFromSurplus
 
-        // Prendre tout le surplus disponible du budget, limité par le déficit restant
-        const amountToTake = Math.min(remainingDeficit, budget.surplus)
-        const proportion = budget.surplus / totalSurplus
+        totalUsedFromSurplus += amountToUse
+        remainingDeficit -= amountToUse
 
-        if (amountToTake > 0) {
-          redistributionActions.push({
-            budget_id: budget.id,
-            budget_name: budget.name,
-            type: 'surplus',
-            amount: amountToTake,
-            proportion
-          })
+        changes.push({
+          budget_id: budget.id,
+          budget_name: budget.name,
+          type: 'surplus',
+          amount_used: amountToUse
+        })
 
-          remainingDeficit -= amountToTake
-          console.log(`  📊 ${budget.name}: -${amountToTake.toFixed(2)}€ excédent (surplus: ${budget.surplus}€)`)
-        }
+        console.log(`  📊 ${budget.name}: -${amountToUse.toFixed(2)}€ excédent (${(proportion * 100).toFixed(1)}% du total)`)
       }
     }
 
-    const totalRedistributed = deficit - remainingDeficit
-    console.log(`✅ [Balance API] Total redistribué: ${totalRedistributed.toFixed(2)}€`)
-    console.log(`📉 [Balance API] Déficit restant: ${remainingDeficit.toFixed(2)}€`)
+    const totalUsed = totalUsedFromSavings + totalUsedFromSurplus
+    console.log(`✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`)
 
-    // 4. Appliquer les modifications en base de données
-    console.log(`🔄 [Balance API] Application des modifications en base`)
+    // 5. Ajuster le solde bancaire pour refléter l'équilibrage
+    console.log(`💾 [Balance API] Ajustement du solde bancaire`)
 
-    for (const action of redistributionActions) {
-      if (action.type === 'savings') {
-        // Réduire les économies du budget
-        const { error: updateError } = await supabaseServer
+    // 5.1. Récupérer le solde bancaire actuel
+    const { data: currentBankBalance, error: bankError } = await supabaseServer
+      .from('bank_balances')
+      .select('balance')
+      .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
+      .single()
+
+    if (bankError) {
+      throw new Error(`Erreur récupération solde bancaire: ${bankError.message}`)
+    }
+
+    const currentBalance = currentBankBalance?.balance || 0
+    const newBalance = currentBalance + totalUsed
+
+    console.log(`💰 [Balance API] Solde bancaire: ${currentBalance}€ → ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
+
+    // 5.2. Mettre à jour le solde bancaire
+    const { error: updateBankError } = await supabaseServer
+      .from('bank_balances')
+      .update({
+        balance: newBalance,
+        updated_at: new Date().toISOString()
+      })
+      .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
+
+    if (updateBankError) {
+      throw new Error(`Erreur mise à jour solde bancaire: ${updateBankError.message}`)
+    }
+
+    console.log(`✅ [Balance API] Solde bancaire mis à jour avec succès`)
+
+    // 6. Appliquer les changements proportionnels aux budgets
+    console.log(`🔄 [Balance API] Application des changements proportionnels`)
+
+    for (const change of changes) {
+      if (change.type === 'savings') {
+        // Réduire les économies proportionnellement
+        const originalBudget = budgetsWithSavings.find(b => b.id === change.budget_id)!
+        const newSavings = originalBudget.savings - change.amount_used
+
+        const { error: savingsError } = await supabaseServer
           .from('estimated_budgets')
           .update({
-            current_savings: Math.max(0, budgetStats.find(b => b.id === action.budget_id)!.current_savings - action.amount),
+            cumulated_savings: newSavings,
             updated_at: new Date().toISOString()
           })
-          .eq('id', action.budget_id)
+          .eq('id', change.budget_id)
 
-        if (updateError) {
-          console.error(`❌ [Balance API] Erreur mise à jour économies budget ${action.budget_id}:`, updateError)
-          throw new Error(`Erreur lors de la mise à jour des économies du budget ${action.budget_name}`)
+        if (savingsError) {
+          throw new Error(`Erreur mise à jour économies ${change.budget_name}: ${savingsError.message}`)
         }
+
+        console.log(`✅ Économies réduites pour ${change.budget_name}: ${originalBudget.savings}€ → ${newSavings.toFixed(2)}€`)
+
       } else {
-        // Créer une dépense réelle pour utiliser l'excédent (les budgets estimés restent immuables)
+        // Créer une dépense pour consommer l'excédent proportionnellement
         const { error: expenseError } = await supabaseServer
           .from('real_expenses')
           .insert({
-            [context === 'profile' ? 'profile_id' : 'group_id']: contextId,
-            estimated_budget_id: action.budget_id,
-            amount: action.amount,
-            description: `Équilibrage automatique du reste à vivre - Utilisation excédent (${action.amount.toFixed(2)}€)`,
-            expense_date: new Date().toISOString(),
+            [ownerField]: contextId,
+            estimated_budget_id: change.budget_id,
+            amount: change.amount_used,
+            description: `Équilibrage RAV proportionnel - Excédent utilisé ${change.budget_name}`,
+            expense_date: new Date().toISOString().split('T')[0],
             is_exceptional: false
           })
 
         if (expenseError) {
-          console.error(`❌ [Balance API] Erreur création dépense équilibrage ${action.budget_id}:`, expenseError)
-          throw new Error(`Erreur lors de la création de la dépense d'équilibrage pour ${action.budget_name}`)
+          throw new Error(`Erreur création dépense ${change.budget_name}: ${expenseError.message}`)
         }
 
-        console.log(`📝 [Balance API] Dépense d'équilibrage créée pour ${action.budget_name}: +${action.amount.toFixed(2)}€`)
+        console.log(`✅ Excédent consommé pour ${change.budget_name}: +${change.amount_used.toFixed(2)}€ dépense`)
       }
     }
 
-    // 5. Créer un revenu réel équivalent au montant redistribué pour équilibrer le reste à vivre
-    if (totalRedistributed > 0) {
-      console.log(`💰 [Balance API] Création d'un revenu d'équilibrage de ${totalRedistributed.toFixed(2)}€`)
-
-      const { error: incomeError } = await supabaseServer
-        .from('real_income_entries')
-        .insert({
-          [context === 'profile' ? 'profile_id' : 'group_id']: contextId,
-          amount: totalRedistributed,
-          description: `Équilibrage automatique du reste à vivre - Redistribution de ${totalRedistributed.toFixed(2)}€ depuis les budgets`,
-          entry_date: new Date().toISOString().split('T')[0], // Format YYYY-MM-DD pour le type date
-          is_exceptional: true
-        })
-
-      if (incomeError) {
-        console.error(`❌ [Balance API] Erreur création revenu équilibrage:`, incomeError)
-        throw new Error(`Erreur lors de la création du revenu d'équilibrage`)
-      }
-
-      console.log(`✅ [Balance API] Revenu d'équilibrage créé: +${totalRedistributed.toFixed(2)}€`)
+    // 7. Vérification finale avec les nouvelles données
+    let finalFinancialData: any
+    if (context === 'profile') {
+      finalFinancialData = await getProfileFinancialData(contextId)
+    } else {
+      finalFinancialData = await getGroupFinancialData(contextId)
     }
 
-    // 6. Recalculer l'état final avec les nouvelles dépenses et le revenu d'équilibrage
-    const { remainingToLive: finalRemainingToLive, budgetStats: finalBudgetStats } =
-      await calculateCurrentState(context, contextId)
+    const finalRAV = finalFinancialData.remainingToLive
+    const finalAvailableBalance = finalFinancialData.availableBalance
 
-    console.log(`🎯 [Balance API] Reste à vivre final: ${finalRemainingToLive}€`)
+    console.log(`🎯 [Balance API] VÉRIFICATION ÉQUILIBRAGE PROPORTIONNEL:`)
+    console.log(`  Solde bancaire initial: ${currentBalance}€`)
+    console.log(`  Solde bancaire final: ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
+    console.log(`  Solde disponible final: ${finalAvailableBalance}€`)
+    console.log(`  RAV initial: ${initialRAV}€`)
+    console.log(`  RAV final: ${finalRAV}€`)
+    console.log(`  OBJECTIF: Équilibrage vers 0€`)
+    console.log(`  MATH CHECK: ${initialRAV}€ + ${totalUsed.toFixed(2)}€ = ${(initialRAV + totalUsed).toFixed(2)}€`)
+    console.log(`  EXPECTED: Final RAV should be ${(initialRAV + totalUsed).toFixed(2)}€`)
+    console.log(`  ACTUAL: Final RAV is ${finalRAV}€`)
+    console.log(`  ✅ SUCCESS: ${Math.abs(finalRAV - (initialRAV + totalUsed)) < 0.01 ? 'YES' : 'NO'}`)
 
-    // 6. Log du résultat final (pas de snapshot pour éviter les erreurs de colonnes)
-    console.log(`✅ [Balance API] Équilibrage terminé avec succès`)
-    console.log(`📊 [Balance API] Résultat final: ${finalRemainingToLive}€`)
+    // Construire les budgetStats finaux pour l'affichage
+    const finalBudgetStats = []
+    for (const budget of budgets) {
+      const usedFromSavings = changes.find(c => c.budget_id === budget.id && c.type === 'savings')?.amount_used || 0
+      const usedFromSurplus = changes.find(c => c.budget_id === budget.id && c.type === 'surplus')?.amount_used || 0
+
+      const updatedSpentAmount = expenses
+        .filter(expense => expense.estimated_budget_id === budget.id)
+        .reduce((sum, expense) => sum + expense.amount, 0) + usedFromSurplus
+
+      const updatedSavings = (budget.cumulated_savings || 0) - usedFromSavings
+      const finalSurplus = Math.max(0, budget.estimated_amount - updatedSpentAmount)
+
+      finalBudgetStats.push({
+        id: budget.id,
+        name: budget.name,
+        estimated_amount: budget.estimated_amount,
+        spent_amount: updatedSpentAmount,
+        difference: budget.estimated_amount - updatedSpentAmount,
+        surplus: finalSurplus,
+        deficit: Math.max(0, updatedSpentAmount - budget.estimated_amount),
+        cumulated_savings: updatedSavings
+      })
+    }
+
+    console.log(`✅ [Balance API] Équilibrage proportionnel terminé avec succès`)
 
     return NextResponse.json({
       success: true,
-      original_remaining_to_live: remainingToLive,
-      final_remaining_to_live: finalRemainingToLive,
-      deficit_covered: totalRedistributed,
-      remaining_deficit: remainingDeficit,
-      actions: redistributionActions,
+      method: 'proportional',
+      original_remaining_to_live: initialRAV,
+      final_remaining_to_live: finalRAV,
+      deficit_covered: totalUsed,
+      remaining_deficit: Math.max(0, deficit - totalUsed),
+      savings_used: totalUsedFromSavings,
+      surplus_used: totalUsedFromSurplus,
+      bank_balance_increase: totalUsed,
+      proportional_changes: changes,
       budget_stats: finalBudgetStats
     })
 
   } catch (error) {
-    console.error('❌ [Balance API] Erreur lors de l\'équilibrage automatique:', error)
+    console.error('❌ [Balance API] Erreur lors de l\'équilibrage proportionnel:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
       { status: 500 }
     )
-  }
-}
-
-/**
- * Calcule l'état financier actuel (reste à vivre + statistiques budgets)
- */
-async function calculateCurrentState(context: 'profile' | 'group', contextId: string) {
-  // Récupérer tous les budgets estimés
-  const { data: budgets, error: budgetsError } = await supabaseServer
-    .from('estimated_budgets')
-    .select('*')
-    .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
-
-  if (budgetsError) {
-    throw new Error(`Erreur récupération budgets: ${budgetsError.message}`)
-  }
-
-  // Récupérer toutes les dépenses réelles
-  const { data: expenses, error: expensesError } = await supabaseServer
-    .from('real_expenses')
-    .select('*')
-    .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
-
-  if (expensesError) {
-    throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
-  }
-
-  // Récupérer tous les revenus estimés
-  const { data: estimatedIncomes, error: estimatedIncomesError } = await supabaseServer
-    .from('estimated_incomes')
-    .select('*')
-    .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
-
-  if (estimatedIncomesError) {
-    throw new Error(`Erreur récupération revenus estimés: ${estimatedIncomesError.message}`)
-  }
-
-  // Récupérer tous les revenus réels
-  const { data: realIncomes, error: realIncomesError } = await supabaseServer
-    .from('real_income_entries')
-    .select('*')
-    .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
-
-  if (realIncomesError) {
-    throw new Error(`Erreur récupération revenus réels: ${realIncomesError.message}`)
-  }
-
-  // Séparer les dépenses d'équilibrage des vraies dépenses
-  const balancingExpenses = expenses.filter(e =>
-    e.description && e.description.includes('Équilibrage automatique du reste à vivre')
-  )
-  const realExpensesOnly = expenses.filter(e =>
-    !e.description || !e.description.includes('Équilibrage automatique du reste à vivre')
-  )
-
-  // Calculer les statistiques des budgets
-  const budgetStats = budgets.map(budget => {
-    // Pour le calcul des dépenses, inclure toutes les dépenses (vraies + équilibrage)
-    const allBudgetExpenses = expenses.filter(e => e.estimated_budget_id === budget.id)
-    const spentAmount = allBudgetExpenses.reduce((sum, e) => sum + e.amount, 0)
-    const surplus = Math.max(0, budget.estimated_amount - spentAmount)
-    const deficit = Math.max(0, spentAmount - budget.estimated_amount)
-
-    return {
-      id: budget.id,
-      name: budget.name,
-      estimated_amount: budget.estimated_amount,
-      spent_amount: spentAmount,
-      current_savings: budget.current_savings || 0,
-      surplus,
-      deficit,
-      difference: budget.estimated_amount - spentAmount
-    }
-  })
-
-  // Calculer le reste à vivre
-  const totalEstimatedIncome = estimatedIncomes.reduce((sum, income) => sum + income.estimated_amount, 0)
-  const totalRealIncome = realIncomes.reduce((sum, income) => sum + income.amount, 0)
-  const totalEstimatedBudgets = budgets.reduce((sum, budget) => sum + budget.estimated_amount, 0)
-  const totalSavings = budgets.reduce((sum, budget) => sum + (budget.current_savings || 0), 0)
-
-  const totalRealExpenses = realExpensesOnly.reduce((sum, e) => sum + e.amount, 0)
-  const exceptionalExpenses = realExpensesOnly.filter(e => !e.estimated_budget_id).reduce((sum, e) => sum + e.amount, 0)
-  const totalBalancingAmount = balancingExpenses.reduce((sum, e) => sum + e.amount, 0)
-
-  console.log(`🔍 [Balance API] Calcul reste à vivre:`)
-  console.log(`  - Revenus estimés: ${totalEstimatedIncome}€`)
-  console.log(`  - Revenus réels: ${totalRealIncome}€`)
-  console.log(`  - Budgets estimés: ${totalEstimatedBudgets}€`)
-  console.log(`  - Vraies dépenses réelles: ${totalRealExpenses}€`)
-  console.log(`  - Dépenses exceptionnelles: ${exceptionalExpenses}€`)
-  console.log(`  - Dépenses d'équilibrage: ${totalBalancingAmount}€`)
-  console.log(`  - Économies: ${totalSavings}€`)
-
-  // Après équilibrage, des dépenses réelles ont été créées pour utiliser les excédents
-  // Les budgets estimés restent immuables, les dépenses d'équilibrage sont incluses dans les budgets
-  // Formule: Revenus - Budgets estimés - Dépenses exceptionnelles + Économies
-  // Les dépenses d'équilibrage sont déjà comptées dans le calcul des surplus/déficits des budgets
-  let remainingToLive = totalEstimatedIncome + totalRealIncome - totalEstimatedBudgets - exceptionalExpenses + totalSavings
-
-  console.log(`🔍 [Balance API] Calcul final: ${totalEstimatedIncome} + ${totalRealIncome} - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}€`)
-
-  // Pour les groupes, ajouter les contributions des profils
-  if (context === 'group') {
-    const { data: contributions, error: contributionsError } = await supabaseServer
-      .from('group_contributions')
-      .select('contribution_amount')
-      .eq('group_id', contextId)
-
-    if (!contributionsError && contributions) {
-      const totalContributions = contributions.reduce((sum, c) => sum + c.contribution_amount, 0)
-      remainingToLive += totalContributions
-    }
-  }
-
-  return {
-    remainingToLive,
-    budgetStats
   }
 }

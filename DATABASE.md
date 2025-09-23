@@ -170,23 +170,31 @@ CREATE TABLE public.estimated_budgets (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   profile_id uuid,
   group_id uuid,
-  name text NOT NULL,
-  estimated_amount numeric NOT NULL CHECK (estimated_amount >= 0),
-  current_savings numeric NOT NULL DEFAULT 0 CHECK (current_savings >= 0),
+  name text NOT NULL CHECK (TRIM(BOTH FROM name) <> ''::text),
+  estimated_amount numeric NOT NULL CHECK (estimated_amount >= 0::numeric),
   is_monthly_recurring boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  monthly_surplus numeric DEFAULT 0 CHECK (monthly_surplus >= 0::numeric),
+  monthly_deficit numeric DEFAULT 0 CHECK (monthly_deficit >= 0::numeric),
+  last_monthly_update date,
+  carryover_spent_amount numeric DEFAULT 0 CHECK (carryover_spent_amount >= 0::numeric),
+  carryover_applied_date date,
+  cumulated_savings numeric DEFAULT 0 CHECK (cumulated_savings >= 0::numeric),
+  last_savings_update date,
   CONSTRAINT estimated_budgets_pkey PRIMARY KEY (id),
-  CONSTRAINT estimated_budgets_owner_exclusive_check CHECK (
-    (profile_id IS NOT NULL AND group_id IS NULL) OR
-    (profile_id IS NULL AND group_id IS NOT NULL)
-  )
+  CONSTRAINT estimated_budgets_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT estimated_budgets_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
 );
 ```
 
-**Table Purpose**: Budget categories with automatic savings calculation
-- **Auto-calculated**: `current_savings = MAX(0, estimated_amount - spent_this_month)`
-- **Updated By**: Triggers when expenses change
+**Table Purpose**: Budget categories with savings tracking and monthly carryover functionality
+- **XOR Ownership**: Each budget belongs to either a profile OR a group (never both)
+- **Required Fields**: `name` (non-empty), `estimated_amount` (≥ 0)
+- **Savings System**: `cumulated_savings` tracks accumulated budget savings over time
+- **Monthly Recap Integration**: Used by Monthly Recap V2 system for proportional rebalancing
+- **Carryover Support**: `carryover_spent_amount` for monthly budget rollovers
+- **Monthly Tracking**: `monthly_surplus`/`monthly_deficit` for period-based analysis
 
 ### **`public.real_expenses`**
 ```sql

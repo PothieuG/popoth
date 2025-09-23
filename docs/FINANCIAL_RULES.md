@@ -34,11 +34,12 @@ Cash Disponible = Revenus Réels - Dépenses Réelles
 #### 📱 Pour les Profiles (utilisateurs individuels)
 **Définition** : L'argent disponible pour le mois après avoir soustrait les budgets et ajouté les revenus
 
-**Formule CORRIGÉE (2025-09-21)** :
+**Formule CORRIGÉE (2025-09-23)** :
 ```
-Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus
-                - Budgets Estimés - Dépenses Exceptionnelles + Économies des Budgets
+Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels
+                - Budgets Estimés - Dépenses Exceptionnelles
 ```
+**⚠️ CHANGEMENT MAJEUR**: Les économies des budgets ont été **SUPPRIMÉES** de la formule à la demande utilisateur
 
 **Logique des Revenus Estimés** :
 - **Non utilisé** (0€ reçu) : +montant estimé complet
@@ -47,15 +48,16 @@ Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus
 #### 👥 Pour les Groups
 **Définition** : Budget collectif disponible incluant les contributions des membres
 
-**Formule CORRIGÉE (2025-09-21)** :
+**Formule CORRIGÉE (2025-09-23)** :
 ```
-Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Contributions des Profiles
-                - Budgets Estimés - Dépenses Exceptionnelles + Économies des Budgets
+Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions des Profiles
+                - Budgets Estimés - Dépenses Exceptionnelles
 ```
+**⚠️ CHANGEMENT MAJEUR**: Les économies des budgets ont été **SUPPRIMÉES** de la formule à la demande utilisateur
 
 **Caractéristiques** :
 - ✅ Peut être négatif (budget dépassé)
-- ✅ Inclut les économies des budgets précédents
+- ❌ N'inclut PLUS les économies des budgets (supprimé 2025-09-23)
 - ✅ Recalculé en temps réel lors des modifications de planification
 
 ### 3. Budgets Estimés

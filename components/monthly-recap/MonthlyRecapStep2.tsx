@@ -10,7 +10,6 @@ import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropd
 interface MonthlyRecapStep2Props {
   recapData: RecapData
   onNext: () => void
-  onPrevious: () => void
   onTransfer: (fromBudgetId: string, toBudgetId: string, amount: number) => Promise<any>
   onAutoBalance: () => Promise<any>
   isLoading?: boolean
@@ -26,7 +25,6 @@ interface MonthlyRecapStep2Props {
 export default function MonthlyRecapStep2({
   recapData,
   onNext,
-  onPrevious,
   onTransfer,
   onAutoBalance,
   isLoading = false,
@@ -407,14 +405,6 @@ export default function MonthlyRecapStep2({
       {/* Footer avec navigation */}
       <div className="bg-white border-t border-gray-200 p-4">
         <div className="flex justify-between items-center">
-          <Button
-            onClick={onPrevious}
-            variant="outline"
-            disabled={isLoading}
-            className="px-6 py-2"
-          >
-            Précédent
-          </Button>
           <div className="text-sm text-gray-500">
             Étape 2 sur 3
           </div>

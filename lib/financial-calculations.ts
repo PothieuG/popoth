@@ -187,86 +187,41 @@ export function calculateAvailableCash(bankBalance: number, realIncomes: number,
 }
 
 /**
- * Règle reste à vivre pour PROFILES (nouvelle règle 2025 + améliorations 2025-09-20):
- * "l'ensemble des entrées d'argent moins ce qui a été budgété pour le mois
- * moins les dépenses non-budgété (exceptionnelles)"
+ * CALCUL CORRECT du reste à vivre pour PROFILES selon les règles métier:
+ * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles
  *
- * NOUVELLES RÈGLES AJOUTÉES:
- * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
- * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
- * - Calcul précis des bonus/déficits par revenu associé (pas global)
+ * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
  */
 export async function calculateRemainingToLiveProfile(
-  estimatedIncomes: number,
+  totalIncomeContribution: number,
+  exceptionalIncomes: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number,
-  profileId: string,
-  realExpensesOnBudgets?: number,
+  exceptionalExpenses: number
 ): Promise<number> {
-  // NOUVELLE LOGIQUE: Ne plus inclure automatiquement les revenus estimés
-  // Ils seront ajoutés via la compensation uniquement s'ils ne sont pas utilisés
-  let remainingToLive = 0 - estimatedBudgets - exceptionalExpenses
-
-  // NOUVELLE RÈGLE 1: Déduction si budget dépassé
-  // Si les dépenses réelles sur budgets > budgets estimés, déduire la différence
-  if (realExpensesOnBudgets !== undefined && realExpensesOnBudgets > estimatedBudgets) {
-    const budgetOverrun = realExpensesOnBudgets - estimatedBudgets
-    remainingToLive -= budgetOverrun
-    console.log(`📉 [calculateRemainingToLiveProfile] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
-  }
-
-  // NOUVELLE RÈGLE 2: Compensation revenus estimés vs réels
-  // Pour chaque revenu estimé, calculer la différence avec ses revenus réels associés
-  const incomeCompensation = await calculateIncomeCompensationProfile(profileId)
-  remainingToLive += incomeCompensation
-  console.log(`💰 [calculateRemainingToLiveProfile] Compensation revenus: ${incomeCompensation}€`)
-
-  console.log(`💰 [calculateRemainingToLiveProfile] Calcul final: ${remainingToLive}€`)
+  const remainingToLive = totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses
+  console.log(`💰 [calculateRemainingToLiveProfile] RAV = ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
   return remainingToLive
 }
+
 
 /**
- * Règle reste à vivre pour GROUPS (nouvelle règle 2025 + améliorations 2025-09-20):
- * "l'ensemble des entrées d'argent estimées et entrées réelles (les contributions des profiles du groupe + entrées d'argent exceptionnels),
- * moins l'ensemble de ce qui a été budgété moins les dépenses non-budgétées (ou réelles dépenses qui ne sont pas liées à un budget)"
+ * CALCUL CORRECT du reste à vivre pour GROUPS selon les règles métier:
+ * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles
  *
- * NOUVELLES RÈGLES AJOUTÉES:
- * - Si budget dépassé (dépenses réelles > budgets estimés): déduction de la différence
- * - Si différence revenus (revenus réels ≠ revenus estimés): ajout/soustraction de la différence
- * - Calcul précis des bonus/déficits par revenu associé (pas global)
+ * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
  */
 export async function calculateRemainingToLiveGroup(
-  estimatedIncomes: number,
-  realIncomes: number,
-  profileContributions: number,
+  totalIncomeContribution: number,
+  exceptionalIncomes: number,
+  totalGroupContributions: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number,
-  groupId: string,
-  realExpensesOnBudgets?: number
+  exceptionalExpenses: number
 ): Promise<number> {
-  // NOUVELLE LOGIQUE: Ne plus inclure automatiquement les revenus estimés du groupe
-  // Ils seront ajoutés via la compensation uniquement s'ils ne sont pas utilisés
-  const totalIncomes = realIncomes + profileContributions
-
-  let remainingToLive = totalIncomes - estimatedBudgets - exceptionalExpenses
-
-  // NOUVELLE RÈGLE 1: Déduction si budget dépassé
-  // Si les dépenses réelles sur budgets > budgets estimés, déduire la différence
-  if (realExpensesOnBudgets !== undefined && realExpensesOnBudgets > estimatedBudgets) {
-    const budgetOverrun = realExpensesOnBudgets - estimatedBudgets
-    remainingToLive -= budgetOverrun
-    console.log(`📉 [calculateRemainingToLiveGroup] Budget dépassé de ${budgetOverrun}€, déduction appliquée`)
-  }
-
-  // NOUVELLE RÈGLE 2: Compensation revenus estimés vs réels pour les groupes
-  // Pour chaque revenu estimé du groupe, calculer la différence avec ses revenus réels associés
-  const incomeCompensation = await calculateIncomeCompensationGroup(groupId)
-  remainingToLive += incomeCompensation
-  console.log(`💰 [calculateRemainingToLiveGroup] Compensation revenus: ${incomeCompensation}€`)
-
-  console.log(`💰 [calculateRemainingToLiveGroup] Calcul final: ${remainingToLive}€`)
+  const remainingToLive = totalIncomeContribution + exceptionalIncomes + totalGroupContributions - estimatedBudgets - exceptionalExpenses
+  console.log(`💰 [calculateRemainingToLiveGroup] RAV = ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
   return remainingToLive
 }
+
 
 /**
  * Calcul des économies d'un budget (battleplan ligne 28):
@@ -329,7 +284,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 4. Récupérer tous les revenus réels du profile
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
-      .select('amount')
+      .select('amount, estimated_income_id')
       .eq('profile_id', profileId)
 
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
@@ -352,7 +307,12 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 5.2. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
+    // 5.2. Calculer les revenus exceptionnels (non liés à un revenu estimé)
+    const totalExceptionalIncomes = realIncomes
+      ?.filter(income => !income.estimated_income_id)
+      ?.reduce((sum, income) => sum + income.amount, 0) || 0
+
+    // 5.3. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
     // 6. Calculer les économies pour chaque budget
     let totalSavings = 0
@@ -368,16 +328,20 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       }
     }
 
-    // 7. Appliquer les règles de calcul du battleplan avec nouvelles règles
+    // 7. Appliquer les règles de calcul SIMPLIFIÉES
     // Utiliser la fonction dédiée pour calculer le solde disponible
     console.log('📊 [getProfileFinancialData] Calcul du solde disponible pour le profil:', profileId)
     const availableBalance = calculateAvailableCash(userBankBalance, totalRealIncome, totalRealExpenses)
+
+    // Calculer la contribution des revenus au RAV selon les règles métier
+    const incomeContribution = await calculateIncomeCompensationProfile(profileId)
+
+    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels - Budgets - Dépenses Exceptionnelles
     const remainingToLive = await calculateRemainingToLiveProfile(
-      totalEstimatedIncome,
+      incomeContribution,
+      totalExceptionalIncomes,
       totalEstimatedBudgets,
-      exceptionalExpenses,
-      profileId,
-      realExpensesOnBudgets
+      exceptionalExpenses
     )
 
     // Calculs terminés
@@ -448,7 +412,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 3. Récupérer les revenus réels du groupe
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
-      .select('amount')
+      .select('amount, estimated_income_id')
       .eq('group_id', groupId)
 
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
@@ -480,7 +444,12 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 6.2. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
+    // 6.2. Calculer les revenus exceptionnels (non liés à un revenu estimé)
+    const totalExceptionalIncomes = realIncomes
+      ?.filter(income => !income.estimated_income_id)
+      ?.reduce((sum, income) => sum + income.amount, 0) || 0
+
+    // 6.3. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
     // 7. Calculer les économies des budgets
     let totalSavings = 0
@@ -504,18 +473,21 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
 
     const totalProfileContributions = groupContributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
 
-    // 9. Appliquer les règles de calcul pour groupe avec nouvelles règles
+    // 9. Appliquer les règles de calcul SIMPLIFIÉES pour groupe
     // Utiliser la fonction dédiée pour calculer le solde disponible du groupe
     console.log('📊 [getGroupFinancialData] Calcul du solde disponible pour le groupe:', groupId)
     const availableBalance = calculateAvailableCash(totalGroupBankBalance, totalRealIncome, totalRealExpenses)
+
+    // Calculer la contribution des revenus au RAV selon les règles métier
+    const incomeContribution = await calculateIncomeCompensationGroup(groupId)
+
+    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels + Contributions - Budgets - Dépenses Exceptionnelles
     const remainingToLive = await calculateRemainingToLiveGroup(
-      totalEstimatedIncome,
-      totalRealIncome,
+      incomeContribution,
+      totalExceptionalIncomes,
       totalProfileContributions,
       totalEstimatedBudgets,
-      exceptionalExpenses,
-      groupId,
-      realExpensesOnBudgets
+      exceptionalExpenses
     )
 
     console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)

@@ -22,12 +22,17 @@ export async function POST(request: NextRequest) {
     const userId = sessionData.userId
     console.log(`🏗️ [Massive Savings] Création de budgets avec énormes économies pour userId: ${userId}`)
 
-    // 1. Supprimer les données existantes
+    // 1. Supprimer les données existantes + MONTHLY RECAPS
     console.log('🗑️ [Massive Savings] Nettoyage des données existantes...')
 
     await supabaseServer.from('budget_transfers').delete().eq('profile_id', userId)
     await supabaseServer.from('real_expenses').delete().eq('profile_id', userId)
+    await supabaseServer.from('real_income_entries').delete().eq('profile_id', userId)
     await supabaseServer.from('estimated_budgets').delete().eq('profile_id', userId)
+
+    // NOUVEAU: Supprimer les monthly recaps pour forcer le recalcul
+    await supabaseServer.from('monthly_recaps').delete().eq('profile_id', userId)
+    console.log('🧹 [Massive Savings] Monthly recaps supprimés pour forcer le recalcul')
 
     // 2. Désactiver les snapshots
     await supabaseServer
