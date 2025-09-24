@@ -315,10 +315,6 @@ export default function MonthlyRecapStep2({
     return 'Budget respecté'
   }
 
-  const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
-  }
-
   // État de chargement
   if (isLoading) {
     return (
