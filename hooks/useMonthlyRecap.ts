@@ -25,7 +25,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
    * Navigation entre les étapes
    */
   const goToStep = useCallback((step: number) => {
-    if (step >= 1 && step <= 3) {
+    if (step >= 1 && step <= 2) {
       setCurrentStep(step)
       // Scroll vers le haut de la page
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -33,7 +33,7 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [])
 
   const goToNextStep = useCallback(() => {
-    if (currentStep < 3) {
+    if (currentStep < 2) {
       const nextStep = currentStep + 1
       setCurrentStep(nextStep)
       // Scroll vers le haut de la page
@@ -165,8 +165,12 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     try {
       setError(null)
 
+      // Generate a unique session_id for this completion
+      const session_id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
       const requestData = {
         context,
+        session_id,
         remaining_to_live_choice: remainingToLiveChoice
       }
 

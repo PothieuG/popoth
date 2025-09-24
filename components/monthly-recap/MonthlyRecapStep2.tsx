@@ -522,7 +522,7 @@ export default function MonthlyRecapStep2({
             disabled={isLoading}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
           >
-            Continuer
+            Terminer le récapitulatif
           </Button>
         </div>
       </div>

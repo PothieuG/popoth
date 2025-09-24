@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { useMonthlyRecap, RemainingToLiveChoice } from '@/hooks/useMonthlyRecap'
 import MonthlyRecapStep1 from './MonthlyRecapStep1'
 import MonthlyRecapStep2 from './MonthlyRecapStep2'
-import MonthlyRecapStep3 from './MonthlyRecapStep3'
 
 interface MonthlyRecapFlowProps {
   context: 'profile' | 'group'
@@ -33,7 +32,6 @@ export default function MonthlyRecapFlow({
     goToPreviousStep
   } = useMonthlyRecap(context)
 
-  const [remainingToLiveChoice, setRemainingToLiveChoice] = useState<RemainingToLiveChoice | null>(null)
 
   // Gestion des erreurs globales du hook (très rare car chaque étape gère ses erreurs)
   if (error) {
@@ -73,14 +71,6 @@ export default function MonthlyRecapFlow({
 
   const handleBalanceRemainingToLive = async () => {
     const result = await balanceRemainingToLive()
-    if (result) {
-      // L'équilibrage a réussi, définir automatiquement le choix pour l'étape 3
-      setRemainingToLiveChoice({
-        action: 'carry_forward',
-        final_amount: result.final_remaining_to_live || 0
-      })
-      console.log('✅ [Flow] Équilibrage terminé, choix défini pour l\'étape 3')
-    }
     return result
   }
 
@@ -89,14 +79,13 @@ export default function MonthlyRecapFlow({
     goToNextStep()
   }
 
-  const handleComplete = async () => {
-    if (!remainingToLiveChoice) {
-      console.error('❌ Aucun choix de reste à vivre défini')
-      return null
-    }
-
+  const handleCompleteFromStep2 = async () => {
     try {
-      const result = await completeRecap(remainingToLiveChoice)
+      // Complete the recap with carry forward action
+      const result = await completeRecap({
+        action: 'carry_forward',
+        final_amount: 0 // Will be calculated by the backend
+      })
 
       if (result?.success) {
         console.log('✅ Récapitulatif mensuel finalisé avec succès')
@@ -135,25 +124,9 @@ export default function MonthlyRecapFlow({
       return (
         <MonthlyRecapStep2
           context={context}
-          onNext={goToNextStep}
+          onNext={handleCompleteFromStep2}
           onTransfer={handleTransfer}
           onAutoBalance={handleAutoBalance}
-        />
-      )
-
-    case 3:
-      if (!remainingToLiveChoice) {
-        // Si on arrive à l'étape 3 sans choix de reste à vivre, rediriger vers l'étape 1
-        console.warn('⚠️ Étape 3 atteinte sans choix de reste à vivre, redirection vers l\'étape 1')
-        goToStep(1)
-        return null
-      }
-
-      return (
-        <MonthlyRecapStep3
-          context={context}
-          onComplete={handleComplete}
-          remainingToLiveChoice={remainingToLiveChoice}
         />
       )
 
