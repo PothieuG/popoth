@@ -130,6 +130,39 @@ After successful auto-rebalancing:
 
 3. **Continue Button**: "Continuer vers l'étape 2"
 
+### Step 1 to Step 2 Transition Logic
+
+**🎯 User can proceed to Step 2 in ALL scenarios:**
+
+The "Continue" button (`canContinue`) is displayed when ANY of these conditions is met:
+
+1. **✅ No Balancing Needed**: `step1Data.is_positive === true`
+   - Remaining to live is positive or zero
+   - Automatic carryover message displayed
+   - No action required from user
+
+2. **✅ Balancing Completed**: `isBalanceCompleted === true`
+   - User successfully executed auto-rebalancing
+   - Deficit was covered (fully or partially)
+   - Success message and results displayed
+
+3. **✅ No Balancing Possible**: `step1Data.can_balance === false`
+   - No surpluses or savings available to cover deficit
+   - User has negative remaining to live but no funds to rebalance
+   - Warning message displayed: "Aucun excédent ou économie disponible"
+   - User can proceed to Step 2 to handle deficit with manual transfers
+
+**Implementation in Code** (`MonthlyRecapStep1.tsx:158-162`):
+```typescript
+const canContinue = step1Data ? (
+  step1Data.is_positive ||        // Case 1: No balancing needed
+  isBalanceCompleted ||          // Case 2: Balancing completed
+  !step1Data.can_balance         // Case 3: No balancing possible
+) : false
+```
+
+**🚨 Critical Rule**: User should NEVER be stuck on Step 1. There is always a path forward to Step 2, regardless of their financial situation.
+
 ## 🔧 Technical Implementation
 
 ### API Endpoints

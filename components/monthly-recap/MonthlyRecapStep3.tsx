@@ -1,12 +1,33 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { RecapData } from '@/hooks/useMonthlyRecap'
+
+interface BudgetStat {
+  id: string
+  name: string
+  estimated_amount: number
+  spent_amount: number
+  difference: number
+  surplus: number
+  deficit: number
+  cumulated_savings: number
+}
+
+interface Step3Data {
+  current_remaining_to_live: number
+  budget_stats: BudgetStat[]
+  month: number
+  year: number
+  total_surplus: number
+  total_deficit: number
+  context: string
+  user_name: string
+}
 
 interface MonthlyRecapStep3Props {
-  recapData: RecapData
+  context: 'profile' | 'group'
   onComplete: () => Promise<any>
   remainingToLiveChoice: {
     action: 'carry_forward' | 'deduct_from_budget'
@@ -17,37 +38,115 @@ interface MonthlyRecapStep3Props {
 }
 
 /**
- * Étape 3: Récapitulatif final
+ * Étape 3: Récapitulatif final - VERSION STATELESS SANS CACHE
+ * - Récupère toutes les données en temps réel depuis l'API step2-data
  * - Résumé de toutes les actions effectuées
  * - Validation finale et reset des revenus estimés
  */
 export default function MonthlyRecapStep3({
-  recapData,
+  context,
   onComplete,
   remainingToLiveChoice,
   isLoading = false
 }: MonthlyRecapStep3Props) {
+  const [step3Data, setStep3Data] = useState<Step3Data | null>(null)
+  const [loadingData, setLoadingData] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
+
+  // Récupérer les données en temps réel
+  useEffect(() => {
+    const fetchStep3Data = async () => {
+      try {
+        setLoadingData(true)
+        setError(null)
+
+        const response = await fetch(`/api/monthly-recap/step2-data?context=${context}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de la récupération des données')
+        }
+
+        console.log('📊 [Step3] Données récupérées:', data)
+        setStep3Data(data)
+
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+        console.error('❌ [Step3] Erreur lors de la récupération des données:', err)
+        setError(errorMessage)
+      } finally {
+        setLoadingData(false)
+      }
+    }
+
+    fetchStep3Data()
+  }, [context])
+
+  // Loading state
+  if (loadingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Chargement</h2>
+          <p className="text-gray-600">Récupération des données de récapitulatif...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
+          <div className="text-red-600 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button
+            onClick={() => window.location.reload()}
+            className="w-full bg-red-600 text-white hover:bg-red-700"
+          >
+            Recharger la page
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Data not available
+  if (!step3Data) {
+    return null
+  }
 
   const monthNames = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
   ]
 
-  const currentMonthName = monthNames[recapData.month - 1]
-  const nextMonth = recapData.month === 12 ? 1 : recapData.month + 1
-  const nextYear = recapData.month === 12 ? recapData.year + 1 : recapData.year
+  const currentMonthName = monthNames[step3Data.month - 1]
+  const nextMonth = step3Data.month === 12 ? 1 : step3Data.month + 1
+  const nextYear = step3Data.month === 12 ? step3Data.year + 1 : step3Data.year
   const nextMonthName = monthNames[nextMonth - 1]
 
   const budgetUsedForRemainingToLive = remainingToLiveChoice.budget_id
-    ? recapData.budget_stats.find(b => b.id === remainingToLiveChoice.budget_id)
+    ? step3Data.budget_stats.find(b => b.id === remainingToLiveChoice.budget_id)
     : null
 
   // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
-  const currentTotalSurplus = recapData.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
-  const currentTotalDeficit = recapData.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
+  const currentTotalSurplus = step3Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
+  const currentTotalDeficit = step3Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
 
-  const estimatedIncomes = recapData.budget_stats.reduce((sum, budget) => sum + budget.estimated_amount, 0)
+  const estimatedIncomes = step3Data.budget_stats.reduce((sum, budget) => sum + budget.estimated_amount, 0)
 
   const handleComplete = async () => {
     setIsCompleting(true)
@@ -67,7 +166,7 @@ export default function MonthlyRecapStep3({
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {recapData.year}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {step3Data.year}</h1>
           <p className="text-sm text-gray-600 mt-1">Étape 3 sur 3 - Validation finale</p>
         </div>
       </div>
@@ -102,12 +201,12 @@ export default function MonthlyRecapStep3({
             <p className="text-blue-700 mt-1">
               {remainingToLiveChoice.action === 'carry_forward' ? (
                 <>
-                  ✅ Votre reste à vivre de {formatCurrency(recapData.current_remaining_to_live)}
+                  ✅ Votre reste à vivre de {formatCurrency(step3Data.current_remaining_to_live)}
                   sera reporté comme solde de départ pour {nextMonthName} {nextYear}.
                 </>
               ) : (
                 <>
-                  ✅ Le déficit de {formatCurrency(Math.abs(recapData.current_remaining_to_live))}
+                  ✅ Le déficit de {formatCurrency(Math.abs(step3Data.current_remaining_to_live))}
                   a été compensé par le budget "{budgetUsedForRemainingToLive?.name}".
                   Votre reste à vivre est maintenant à 0€.
                 </>
@@ -126,7 +225,7 @@ export default function MonthlyRecapStep3({
           </h2>
 
           <div className="space-y-3">
-            {recapData.budget_stats.map((budget) => (
+            {step3Data.budget_stats.map((budget) => (
               <div
                 key={budget.id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -203,7 +302,7 @@ export default function MonthlyRecapStep3({
               Félicitations ! 🎉
             </h3>
             <p className="text-blue-700 text-sm">
-              Vous avez terminé votre récapitulatif mensuel pour {currentMonthName} {recapData.year}.
+              Vous avez terminé votre récapitulatif mensuel pour {currentMonthName} {step3Data.year}.
               Vos finances sont maintenant prêtes pour {nextMonthName} {nextYear} !
             </p>
           </div>

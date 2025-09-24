@@ -151,7 +151,15 @@ export default function MonthlyRecapStep1({
   }
 
   // Déterminer si le bouton "Continuer" doit être affiché
-  const canContinue = step1Data ? (step1Data.is_positive || isBalanceCompleted) : false
+  // L'utilisateur peut continuer si:
+  // 1. Le reste à vivre est positif/nul (pas besoin d'équilibrer)
+  // 2. L'équilibrage a été fait avec succès
+  // 3. Il ne peut pas équilibrer (aucun excédent disponible)
+  const canContinue = step1Data ? (
+    step1Data.is_positive ||
+    isBalanceCompleted ||
+    !step1Data.can_balance
+  ) : false
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
