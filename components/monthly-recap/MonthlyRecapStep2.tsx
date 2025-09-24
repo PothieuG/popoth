@@ -4,32 +4,53 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { RecapData, BudgetStat } from '@/hooks/useMonthlyRecap'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
+interface BudgetStat {
+  id: string
+  name: string
+  estimated_amount: number
+  spent_amount: number
+  difference: number
+  surplus: number
+  deficit: number
+  cumulated_savings: number
+}
+
+interface Step2Data {
+  current_remaining_to_live: number
+  budget_stats: BudgetStat[]
+  month: number
+  year: number
+  total_surplus: number
+  total_deficit: number
+  context: string
+  user_name: string
+}
+
 interface MonthlyRecapStep2Props {
-  recapData: RecapData
+  context: 'profile' | 'group'
   onNext: () => void
   onTransfer: (fromBudgetId: string, toBudgetId: string, amount: number) => Promise<any>
   onAutoBalance: () => Promise<any>
-  isLoading?: boolean
-  isRefreshing?: boolean
 }
 
 /**
- * Étape 2: Affichage et gestion des économies/déficits entre budgets
+ * Étape 2: Affichage et gestion des économies/déficits entre budgets - VERSION STATELESS SANS CACHE
+ * - Récupère toutes les données en temps réel depuis l'API step2-data
  * - Liste des budgets avec leurs excédents/déficits
  * - Possibilité de transfert manuel entre budgets
  * - Répartition automatique des excédents
  */
 export default function MonthlyRecapStep2({
-  recapData,
+  context,
   onNext,
   onTransfer,
-  onAutoBalance,
-  isLoading = false,
-  isRefreshing = false
+  onAutoBalance
 }: MonthlyRecapStep2Props) {
+  const [step2Data, setStep2Data] = useState<Step2Data | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [selectedFromBudget, setSelectedFromBudget] = useState<BudgetStat | null>(null)
   const [selectedToBudget, setSelectedToBudget] = useState<string>('')
@@ -42,35 +63,73 @@ export default function MonthlyRecapStep2({
     'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
   ]
 
-  const currentMonthName = monthNames[recapData.month - 1]
-  const budgetsWithSurplus = recapData.budget_stats.filter(budget => budget.surplus > 0)
-  const budgetsWithDeficit = recapData.budget_stats.filter(budget => budget.deficit > 0)
+  /**
+   * Récupère les données live depuis l'API step2-data
+   */
+  const fetchStep2Data = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      console.log('🔄 [Step2] Récupération des données live depuis l\'API step2-data')
+
+      const response = await fetch(`/api/monthly-recap/step2-data?context=${context}`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la récupération des données')
+      }
+
+      console.log('✅ [Step2] Données live récupérées:', data)
+      setStep2Data(data)
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+      console.error('❌ [Step2] Erreur lors de la récupération des données:', err)
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Récupérer les données au montage du composant
+  useEffect(() => {
+    fetchStep2Data()
+  }, [context])
+
+  // Calculer les variables dérivées seulement si on a des données
+  const currentMonthName = step2Data ? monthNames[step2Data.month - 1] : ''
+  const budgetsWithSurplus = step2Data ? step2Data.budget_stats.filter(budget => budget.surplus > 0) : []
+  const budgetsWithDeficit = step2Data ? step2Data.budget_stats.filter(budget => budget.deficit > 0) : []
 
   // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
-  const currentTotalSurplus = recapData.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
-  const currentTotalDeficit = recapData.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
+  const currentTotalSurplus = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0) : 0
+  const currentTotalDeficit = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0) : 0
   const generalRatio = currentTotalSurplus - currentTotalDeficit
 
-  // Reset modal state when recapData changes (after successful transfers)
+  // Reset modal state when step2Data changes (after successful transfers)
   useEffect(() => {
-    console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
-      totalSurplus: currentTotalSurplus,
-      totalDeficit: currentTotalDeficit,
-      budgets: recapData.budget_stats.map(b => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`)
-    })
+    if (step2Data) {
+      console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
+        totalSurplus: currentTotalSurplus,
+        totalDeficit: currentTotalDeficit,
+        budgets: step2Data.budget_stats.map(b => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`)
+      })
 
-    // Reset modal state when data changes to prevent stale states
-    if (isTransferModalOpen) {
-      console.log('🔄 [Component] Data updated, resetting modal state')
-      setSelectedToBudget('')
-      setTransferAmount('')
-      setValidationError('')
+      // Reset modal state when data changes to prevent stale states
+      if (isTransferModalOpen) {
+        console.log('🔄 [Component] Data updated, resetting modal state')
+        setSelectedToBudget('')
+        setTransferAmount('')
+        setValidationError('')
+      }
     }
-  }, [recapData, isTransferModalOpen])
+  }, [step2Data, isTransferModalOpen, currentTotalSurplus, currentTotalDeficit])
 
   // Helper function to convert budget stats to dropdown options for transfer mode
   const getTransferDestinationOptions = (): DropdownOption[] => {
-    return recapData.budget_stats
+    if (!step2Data) return []
+    return step2Data.budget_stats
       .filter(budget => budget.id !== selectedFromBudget?.id)
       .map(budget => ({
         id: budget.id,
@@ -84,7 +143,8 @@ export default function MonthlyRecapStep2({
 
   // Helper function to convert budget stats to dropdown options for recovery mode
   const getRecoverySourceOptions = (): DropdownOption[] => {
-    return recapData.budget_stats
+    if (!step2Data) return []
+    return step2Data.budget_stats
       .filter(budget => budget.id !== selectedFromBudget?.id && budget.surplus > 0)
       .map(budget => ({
         id: budget.id,
@@ -102,6 +162,42 @@ export default function MonthlyRecapStep2({
     setTransferAmount('')
     setValidationError('')
     setIsTransferModalOpen(true)
+  }
+
+  const handleTransfer = async (fromBudgetId: string, toBudgetId: string, amount: number) => {
+    try {
+      setIsProcessing(true)
+      await onTransfer(fromBudgetId, toBudgetId, amount)
+
+      // Fermer la modale et réinitialiser
+      setIsTransferModalOpen(false)
+      setSelectedFromBudget(null)
+      setSelectedToBudget('')
+      setTransferAmount('')
+      setValidationError('')
+
+      // Rafraîchir les données
+      await fetchStep2Data()
+    } catch (error) {
+      console.error('❌ [Step2] Erreur lors du transfert:', error)
+      setValidationError('Erreur lors du transfert. Veuillez réessayer.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleAutoBalance = async () => {
+    try {
+      setIsProcessing(true)
+      await onAutoBalance()
+
+      // Rafraîchir les données après équilibrage automatique
+      await fetchStep2Data()
+    } catch (error) {
+      console.error('❌ [Step2] Erreur lors de l\'équilibrage automatique:', error)
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleRecoverClick = (budget: BudgetStat) => {
@@ -138,47 +234,18 @@ export default function MonthlyRecapStep2({
       }
     }
 
-    setIsProcessing(true)
-    try {
-      let result
-      if (selectedFromBudget.surplus > 0) {
-        // Mode transfert: de selectedFromBudget vers selectedToBudget
-        console.log('🔄 [Frontend] Transfer:', selectedFromBudget.id, '→', selectedToBudget, `${amount}€`)
-        result = await onTransfer(selectedFromBudget.id, selectedToBudget, amount)
-      } else {
-        // Mode récupération: de selectedToBudget vers selectedFromBudget
-        console.log('🔄 [Frontend] Recovery:', selectedToBudget, '→', selectedFromBudget.id, `${amount}€`)
-        result = await onTransfer(selectedToBudget, selectedFromBudget.id, amount)
-      }
-
-      if (result) {
-        console.log('✅ [Frontend] Transfert réussi')
-        // Close modal immediately without waiting for data refresh
-        setIsTransferModalOpen(false)
-        setSelectedFromBudget(null)
-        setSelectedToBudget('')
-        setTransferAmount('')
-        // Data will be updated automatically by the hook's refreshRecapData call
-      } else {
-        console.log('❌ [Frontend] Transfert échoué')
-        alert('Erreur lors du transfert. Veuillez réessayer.')
-      }
-    } catch (error) {
-      console.error('❌ [Frontend] Erreur lors du transfert:', error)
-      alert('Erreur lors du transfert. Veuillez réessayer.')
-    } finally {
-      setIsProcessing(false)
+    // Appeler notre fonction locale qui gère tout
+    if (selectedFromBudget.surplus > 0) {
+      // Mode transfert: de selectedFromBudget vers selectedToBudget
+      console.log('🔄 [Frontend] Transfer:', selectedFromBudget.id, '→', selectedToBudget, `${amount}€`)
+      await handleTransfer(selectedFromBudget.id, selectedToBudget, amount)
+    } else {
+      // Mode récupération: de selectedToBudget vers selectedFromBudget
+      console.log('🔄 [Frontend] Recovery:', selectedToBudget, '→', selectedFromBudget.id, `${amount}€`)
+      await handleTransfer(selectedToBudget, selectedFromBudget.id, amount)
     }
   }
 
-  const handleAutoBalance = async () => {
-    setIsProcessing(true)
-    try {
-      await onAutoBalance()
-    } finally {
-      setIsProcessing(false)
-    }
-  }
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -216,8 +283,8 @@ export default function MonthlyRecapStep2({
       }
 
       // Vérifier aussi que le budget source (selectedToBudget) a assez de surplus
-      if (selectedToBudget) {
-        const sourceBudget = recapData.budget_stats.find(b => b.id === selectedToBudget)
+      if (selectedToBudget && step2Data) {
+        const sourceBudget = step2Data.budget_stats.find(b => b.id === selectedToBudget)
         if (sourceBudget && numAmount > sourceBudget.surplus) {
           return {
             isValid: false,
@@ -234,7 +301,7 @@ export default function MonthlyRecapStep2({
   useEffect(() => {
     const validation = validateTransferAmount(transferAmount)
     setValidationError(validation.error)
-  }, [transferAmount, selectedFromBudget, selectedToBudget, recapData])
+  }, [transferAmount, selectedFromBudget, selectedToBudget, step2Data])
 
   const getBudgetStatusColor = (budget: BudgetStat) => {
     if (budget.surplus > 0) return 'text-green-600'
@@ -248,12 +315,61 @@ export default function MonthlyRecapStep2({
     return 'Budget respecté'
   }
 
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
+  }
+
+  // État de chargement
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Récupération des données live
+          </h2>
+          <p className="text-gray-600">
+            Calcul en temps réel de vos budgets...
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // État d'erreur
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
+          <div className="text-red-600 mb-4">
+            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button
+            onClick={fetchStep2Data}
+            className="w-full bg-red-600 text-white hover:bg-red-700"
+          >
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // Pas de données
+  if (!step2Data) {
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {recapData.year}</h1>
+          <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {step2Data.year}</h1>
           <p className="text-sm text-gray-600 mt-1">Étape 2 sur 3 - Gestion des économies</p>
         </div>
       </div>
@@ -261,13 +377,10 @@ export default function MonthlyRecapStep2({
       {/* Main Content */}
       <div className="flex-1 p-4 space-y-6 overflow-y-auto">
         {/* Ratio général */}
-        <Card className={`p-4 bg-white ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
+        <Card className="p-4 bg-white">
           <div className="text-center">
             <div className="flex items-center justify-center mb-2">
               <h2 className="text-lg font-semibold text-gray-900">Ratio général de vos budgets</h2>
-              {isRefreshing && (
-                <div className="ml-2 w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              )}
             </div>
             <div className={`text-2xl font-bold mb-2 ${
               generalRatio > 0 ? 'text-green-600' : generalRatio < 0 ? 'text-red-600' : 'text-blue-600'
@@ -308,7 +421,7 @@ export default function MonthlyRecapStep2({
 
          {/* Résumé des totaux */}
         <div className="grid grid-cols-2 gap-4">
-          <Card className={`p-4 bg-green-50 border border-green-200 ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
+          <Card className="p-4 bg-green-50 border border-green-200">
             <div className="text-center">
               <h4 className="font-medium text-green-900">Total Économies</h4>
               <p className="text-xl font-bold text-green-600 mt-1">
@@ -320,11 +433,11 @@ export default function MonthlyRecapStep2({
             </div>
           </Card>
 
-          <Card className={`p-4 bg-red-50 border border-red-200 ${isRefreshing ? 'opacity-75' : ''} transition-opacity duration-200`}>
+          <Card className="p-4 bg-red-50 border border-red-200">
             <div className="text-center">
               <h4 className="font-medium text-red-900">Total Déficits</h4>
               <p className="text-xl font-bold text-red-600 mt-1">
-                {formatCurrency(recapData.total_deficit)}
+                {formatCurrency(step2Data.total_deficit)}
               </p>
               <p className="text-xs text-red-700 mt-1">
                 {budgetsWithDeficit.length} budget(s) déficitaire(s)
@@ -338,7 +451,7 @@ export default function MonthlyRecapStep2({
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Détail par budget</h3>
 
           <div className="space-y-3">
-            {recapData.budget_stats.map((budget) => (
+            {step2Data.budget_stats.map((budget) => (
               <div
                 key={budget.id}
                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
@@ -392,7 +505,7 @@ export default function MonthlyRecapStep2({
             ))}
           </div>
 
-          {recapData.budget_stats.length === 0 && (
+          {step2Data.budget_stats.length === 0 && (
             <div className="text-center py-8 text-gray-500">
               <p>Aucun budget estimé configuré</p>
             </div>

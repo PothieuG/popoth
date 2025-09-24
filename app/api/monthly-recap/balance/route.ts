@@ -241,10 +241,10 @@ export async function POST(request: NextRequest) {
     const totalUsed = totalUsedFromSavings + totalUsedFromSurplus
     console.log(`✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`)
 
-    // 5. Ajuster le solde bancaire pour refléter l'équilibrage
-    console.log(`💾 [Balance API] Ajustement du solde bancaire`)
+    // 5. Créer une entrée de revenu exceptionnel pour refléter l'équilibrage dans le RAV
+    console.log(`💾 [Balance API] Création d'une entrée de revenu exceptionnel pour l'équilibrage`)
 
-    // 5.1. Récupérer le solde bancaire actuel
+    // 5.1. Récupérer le solde bancaire actuel pour les logs
     const { data: currentBankBalance, error: bankError } = await supabaseServer
       .from('bank_balances')
       .select('balance')
@@ -258,9 +258,27 @@ export async function POST(request: NextRequest) {
     const currentBalance = currentBankBalance?.balance || 0
     const newBalance = currentBalance + totalUsed
 
-    console.log(`💰 [Balance API] Solde bancaire: ${currentBalance}€ → ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
+    console.log(`💰 [Balance API] Solde bancaire sera: ${currentBalance}€ → ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
 
-    // 5.2. Mettre à jour le solde bancaire
+    // 5.2. Créer une entrée de revenu exceptionnel pour que le RAV reflète l'équilibrage
+    const { error: exceptionalIncomeError } = await supabaseServer
+      .from('real_income_entries')
+      .insert({
+        [ownerField]: contextId,
+        amount: totalUsed,
+        description: `Équilibrage RAV proportionnel - Récupération ${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents`,
+        entry_date: new Date().toISOString().split('T')[0],
+        is_exceptional: true,
+        estimated_income_id: null
+      })
+
+    if (exceptionalIncomeError) {
+      throw new Error(`Erreur création revenu exceptionnel: ${exceptionalIncomeError.message}`)
+    }
+
+    console.log(`✅ [Balance API] Revenu exceptionnel créé: +${totalUsed.toFixed(2)}€`)
+
+    // 5.3. Mettre à jour le solde bancaire
     const { error: updateBankError } = await supabaseServer
       .from('bank_balances')
       .update({
