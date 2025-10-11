@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidation } from '@/hooks/useFinancialData'
+import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 interface EstimatedBudget {
   id: string
@@ -39,7 +39,6 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   const [budgets, setBudgets] = useState<EstimatedBudget[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidation()
 
   /**
    * Calcule le total des budgets estimés
@@ -108,8 +107,8 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       const data = await response.json()
       setBudgets(prev => [data.budget, ...prev])
 
-      // Invalider le cache des données financières
-      const cacheInvalidated = await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -154,8 +153,8 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         budget.id === budgetId ? data.budget : budget
       ))
 
-      // Invalider le cache des données financières
-      await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -183,8 +182,8 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
 
       setBudgets(prev => prev.filter(budget => budget.id !== budgetId))
 
-      // Invalider le cache des données financières
-      await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {

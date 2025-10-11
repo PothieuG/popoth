@@ -1,0 +1,150 @@
+====================================================================================================
+                    API DEBUG - SCÉNARIOS DE SIMULATION DE BUDGET
+====================================================================================================
+
+IMPORTANT: Ces appels nécessitent d'être connecté (session valide)
+           Ils NETTOIENT toutes vos données existantes avant de créer le scénario
+
+====================================================================================================
+                              APPELS DEPUIS LA CONSOLE CHROME
+====================================================================================================
+
+// 1. RAV ÉQUILIBRÉ MAIS RISQUÉ (Situation précaire, un imprévu peut tout faire basculer)
+fetch('/api/debug/populate-balanced-risky', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 2. DÉFICIT EXTRÊME 🚨 (Crise financière majeure, découvert bancaire, urgences multiples)
+fetch('/api/debug/populate-extreme-deficit', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 3. ÉNORMES ÉCONOMIES 💰 (70-90% d'économies sur la plupart des budgets)
+fetch('/api/debug/populate-massive-savings', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 4. RAV NÉGATIF 🔴 (Dépenses excessives, solde bancaire faible, situation critique)
+fetch('/api/debug/populate-negative-rav', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 5. RAV POSITIF AVEC ÉCONOMIES ✅ (Situation financière saine avec épargne)
+fetch('/api/debug/populate-positive-rav-savings', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 6. ÉCONOMIES NÉGATIVES UNIQUEMENT (Tous les budgets en déficit d'économies)
+fetch('/api/debug/populate-negative-savings-only', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 7. ÉCONOMIES ET SURPLUS NÉGATIFS (Double problème: pas d'économies ET dépassements)
+fetch('/api/debug/populate-negative-savings-surplus', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 8. SURPLUS NÉGATIF UNIQUEMENT (Dépassements budgétaires sans compensation)
+fetch('/api/debug/populate-negative-surplus-only', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 9. NÉGATIF NON COMPENSÉ (Déficits qui ne peuvent pas être compensés)
+fetch('/api/debug/populate-negative-uncompensated', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 10. POPULATION BUDGETS STANDARD (Scénario de base équilibré)
+fetch('/api/debug/populate-budgets', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+====================================================================================================
+                              APPELS AVEC GESTION D'ERREURS
+====================================================================================================
+
+// Version avec gestion d'erreurs et affichage formaté
+fetch('/api/debug/populate-massive-savings', {
+  method: 'POST'
+})
+.then(r => r.json())
+.then(data => {
+  console.log('✅ Scénario créé avec succès:');
+  console.table(data.summary);
+  console.log('📊 Statistiques:', data.statistics);
+  console.log('💰 Impact financier:', data.financial_impact);
+})
+.catch(err => console.error('❌ Erreur:', err))
+
+====================================================================================================
+                              APPELS SÉQUENTIELS (TESTER PLUSIEURS)
+====================================================================================================
+
+// Tester plusieurs scénarios l'un après l'autre (attendre 2 secondes entre chaque)
+const scenarios = [
+  'populate-balanced-risky',
+  'populate-massive-savings',
+  'populate-negative-rav'
+];
+
+let index = 0;
+const testNextScenario = () => {
+  if (index >= scenarios.length) {
+    console.log('✅ Tous les scénarios ont été testés');
+    return;
+  }
+
+  console.log(`🧪 Test du scénario ${index + 1}/${scenarios.length}: ${scenarios[index]}`);
+
+  fetch(`/api/debug/${scenarios[index]}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      console.log(`✅ ${scenarios[index]} terminé:`, data);
+      index++;
+      setTimeout(testNextScenario, 2000);
+    })
+    .catch(err => {
+      console.error(`❌ Erreur avec ${scenarios[index]}:`, err);
+      index++;
+      setTimeout(testNextScenario, 2000);
+    });
+};
+
+// Lancer les tests
+testNextScenario();
+
+====================================================================================================
+                              AUTRES ROUTES DEBUG UTILES
+====================================================================================================
+
+// Réinitialiser tous les budgets
+fetch('/api/debug/reset-budgets', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// Obtenir les données de récapitulatif mensuel
+fetch('/api/debug/recap-data').then(r => r.json()).then(console.log)
+
+// Test du solde bancaire
+fetch('/api/debug/test-balance').then(r => r.json()).then(console.log)
+
+// Données financières complètes
+fetch('/api/debug/financial').then(r => r.json()).then(console.log)
+
+// Données financières du groupe
+fetch('/api/debug/group-financial').then(r => r.json()).then(console.log)
+
+// Données "remaining to live"
+fetch('/api/debug/remaining-to-live').then(r => r.json()).then(console.log)
+
+// Test rapide
+fetch('/api/debug/quick-test').then(r => r.json()).then(console.log)
+
+====================================================================================================
+                              NOTES IMPORTANTES
+====================================================================================================
+
+1. ⚠️ ATTENTION: Ces routes SUPPRIMENT toutes vos données existantes
+   - Budgets estimés
+   - Dépenses réelles
+   - Revenus
+   - Récapitulatifs mensuels
+   - Snapshots
+
+2. 🔒 Authentification requise
+   - Vous devez être connecté pour utiliser ces routes
+   - La session est automatiquement vérifiée via les cookies
+
+3. 📊 Retour des API
+   - Toutes les routes retournent un JSON détaillé avec:
+     * success: boolean
+     * scenario: string (nom du scénario)
+     * message: string (description)
+     * statistics: object (statistiques détaillées)
+     * summary: array (résumé budget par budget)
+     * financial_impact: object (impact financier global)
+
+4. 🧪 Utilisation recommandée
+   - Utilisez ces routes en développement uniquement
+   - Parfait pour tester l'interface avec différentes situations
+   - Permet de valider les calculs financiers dans divers cas
+
+====================================================================================================

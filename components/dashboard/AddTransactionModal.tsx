@@ -169,7 +169,7 @@ export default function AddTransactionModal({
       }
 
       if (success) {
-        // L'invalidation automatique du cache se charge du rafraîchissement
+        // Le rafraîchissement automatique se charge de la mise à jour
         onTransactionAdded?.()
         onClose()
       }

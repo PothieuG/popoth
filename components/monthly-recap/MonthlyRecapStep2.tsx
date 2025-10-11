@@ -80,7 +80,17 @@ export default function MonthlyRecapStep2({
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
 
-      console.log('✅ [Step2] Données live récupérées:', data)
+      console.log(``)
+      console.log(`📊📊📊 ========================================================`)
+      console.log(`📊📊📊 [FRONTEND] ÉTAPE 2 - DONNÉES REÇUES`)
+      console.log(`📊📊📊 ========================================================`)
+      console.log(`💰 RESTE À VIVRE: ${data.current_remaining_to_live}€`)
+      console.log(`📊 Total surplus: ${data.total_surplus}€`)
+      console.log(`📉 Total déficit: ${data.total_deficit}€`)
+      console.log(`📊 Nombre de budgets: ${data.budget_stats?.length || 0}`)
+      console.log(`📊📊📊 ========================================================`)
+      console.log(``)
+
       setStep2Data(data)
 
     } catch (err) {

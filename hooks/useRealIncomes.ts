@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidationWithRefresh } from '@/hooks/useFinancialData'
+import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 export interface RealIncome {
   id: string
@@ -53,8 +53,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   const [incomes, setIncomes] = useState<RealIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidationWithRefresh()
-
+  
   /**
    * Calculate total amount of all incomes
    */
@@ -125,8 +124,8 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       const data = await response.json()
       setIncomes(prev => [data.real_income_entry, ...prev])
 
-      // Invalidate financial cache to refresh dashboard
-      await invalidateCache()
+      // Refresh financial dashboard
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -134,7 +133,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [context, invalidateCache])
+  }, [context])
 
   /**
    * Update an existing income entry
@@ -165,8 +164,8 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         income.id === incomeData.id ? data.real_income_entry : income
       ))
 
-      // Invalidate financial cache
-      await invalidateCache()
+      // Refresh financial data
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -174,7 +173,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [invalidateCache])
+  }, [])
 
   /**
    * Delete an income entry
@@ -198,10 +197,10 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       setIncomes(prev => prev.filter(income => income.id !== incomeId))
       console.log('✅ [useRealIncomes] Income removed from local state')
 
-      // Invalidate financial cache
-      console.log('🔄 [useRealIncomes] Invalidating financial cache...')
-      await invalidateCache()
-      console.log('✅ [useRealIncomes] Financial cache invalidated')
+      // Refresh financial data
+      console.log('🔄 [useRealIncomes] Refreshing financial data...')
+      triggerFinancialRefresh()
+      console.log('✅ [useRealIncomes] Financial data refreshed')
 
       return true
     } catch (err) {
@@ -209,7 +208,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [invalidateCache])
+  }, [])
 
   /**
    * Refresh the income entries list

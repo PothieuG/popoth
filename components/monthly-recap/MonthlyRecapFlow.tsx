@@ -81,6 +81,14 @@ export default function MonthlyRecapFlow({
 
   const handleCompleteFromStep2 = async () => {
     try {
+      console.log(``)
+      console.log(`🏁🏁🏁 ========================================================`)
+      console.log(`🏁🏁🏁 [FRONTEND] FINALISATION DU RÉCAP`)
+      console.log(`🏁🏁🏁 ========================================================`)
+      console.log(`🏁 Action: carry_forward`)
+      console.log(`🏁🏁🏁 ========================================================`)
+      console.log(``)
+
       // Complete the recap with carry forward action
       const result = await completeRecap({
         action: 'carry_forward',
@@ -88,7 +96,16 @@ export default function MonthlyRecapFlow({
       })
 
       if (result?.success) {
-        console.log('✅ Récapitulatif mensuel finalisé avec succès')
+        console.log(``)
+        console.log(`🏁🏁🏁 ========================================================`)
+        console.log(`🏁🏁🏁 [FRONTEND] FINALISATION RÉUSSIE`)
+        console.log(`🏁🏁🏁 ========================================================`)
+        console.log(`💰 RAV initial: ${result.summary?.initial_remaining_to_live}€`)
+        console.log(`💰 RAV final: ${result.summary?.final_remaining_to_live}€`)
+        console.log(`📊 Surplus total: ${result.summary?.total_surplus}€`)
+        console.log(`📉 Déficit total: ${result.summary?.total_deficit}€`)
+        console.log(`🏁🏁🏁 ========================================================`)
+        console.log(``)
 
         // Callback personnalisé si fourni
         if (onComplete) {

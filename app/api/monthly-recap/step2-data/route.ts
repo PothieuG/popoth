@@ -71,18 +71,41 @@ export async function GET(request: NextRequest) {
       contextId = profile.group_id
     }
 
-    console.log(`📊 [Step2 Data] Récupération données live pour ${context}:${contextId}`)
+    console.log(`🔍 [DEBUG STEP2] ====================================`)
+    console.log(`🔍 [DEBUG STEP2] ÉTAPE 2 - RÉCUPÉRATION RAV POUR ${context.toUpperCase()}:${contextId}`)
+    console.log(`🔍 [DEBUG STEP2] TIMESTAMP: ${new Date().toISOString()}`)
+    console.log(`🔍 [DEBUG STEP2] ====================================`)
 
     // 1. Récupérer le reste à vivre actuel
     let financialData: any
     if (context === 'profile') {
+      console.log(`🔍 [DEBUG STEP2] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`)
       financialData = await getProfileFinancialData(contextId)
     } else {
+      console.log(`🔍 [DEBUG STEP2] Appel getGroupFinancialData pour ${contextId} - ${new Date().toISOString()}`)
       financialData = await getGroupFinancialData(contextId)
     }
 
     const currentRemainingToLive = financialData.remainingToLive
-    console.log(`💰 [Step2 Data] Reste à vivre actuel: ${currentRemainingToLive}€`)
+    console.log(``)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(`📊📊📊 ÉTAPE 2 - RESTE À VIVRE`)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(`📊 CONTEXTE: ${context.toUpperCase()}`)
+    console.log(`📊 ID: ${contextId}`)
+    console.log(`📊 TIMESTAMP: ${new Date().toISOString()}`)
+    console.log(``)
+    console.log(`💰 RESTE À VIVRE (RAV): ${currentRemainingToLive}€`)
+    console.log(``)
+    console.log(`📊 DÉTAILS FINANCIERS:`)
+    console.log(`   - Solde bancaire: ${financialData.bankBalance}€`)
+    console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
+    console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
+    console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget}€`)
+    console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
+    console.log(`   - Solde disponible: ${financialData.availableBalance}€`)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(``)
 
     // 2. Récupérer les budgets avec leurs données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'

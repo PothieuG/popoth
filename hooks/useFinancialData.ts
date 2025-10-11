@@ -1,45 +1,40 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import type { FinancialData } from '@/lib/financial-calculations'
 
 interface UseFinancialDataReturn {
   financialData: FinancialData | null
   loading: boolean
   error: string | null
-  cached: boolean
   context: 'profile' | 'group' | null
   refreshFinancialData: () => Promise<void>
-  invalidateCache: () => Promise<boolean>
 }
 
 interface FinancialApiResponse {
   data: FinancialData
-  cached: boolean
   context: 'profile' | 'group'
   timestamp: number
   error?: string
 }
 
 /**
- * Hook personnalisé pour gérer les données financières avec cache
+ * Hook personnalisé pour gérer les données financières en temps réel
  * - Récupère les données financières via l'API
- * - Gère le cache et les états de chargement
- * - Fournit des méthodes pour rafraîchir et invalider le cache
- * - Invalidation automatique lors des modifications de budgets/revenus
+ * - Gère les états de chargement
+ * - Fournit des méthodes pour rafraîchir les données
+ * - Calcul toujours en temps réel sans cache
  */
 export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinancialDataReturn {
   const [financialData, setFinancialData] = useState<FinancialData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [cached, setCached] = useState(false)
   const [context, setContext] = useState<'profile' | 'group' | null>(null)
-
 
   /**
    * Récupère les données financières depuis l'API
    */
-  const fetchFinancialData = useCallback(async () => {
+  const fetchFinancialData = async () => {
     try {
       setLoading(true)
       setError(null)
@@ -60,15 +55,33 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
 
       const apiResponse: FinancialApiResponse = await response.json()
 
+      // Log détaillé des données reçues
+      console.log(``)
+      console.log(`🏠🏠🏠 ========================================================`)
+      console.log(`🏠🏠🏠 [FRONTEND] DONNÉES FINANCIÈRES REÇUES`)
+      console.log(`🏠🏠🏠 ========================================================`)
+      console.log(`🏠 CONTEXTE: ${apiResponse.context}`)
+      console.log(`🏠 TIMESTAMP: ${new Date().toISOString()}`)
+      console.log(``)
+      console.log(`💰 RESTE À VIVRE (RAV): ${apiResponse.data.remainingToLive}€`)
+      console.log(``)
+      console.log(`📊 DÉTAILS FINANCIERS:`)
+      console.log(`   - Solde disponible: ${apiResponse.data.availableBalance}€`)
+      console.log(`   - Revenus estimés: ${apiResponse.data.totalEstimatedIncome}€`)
+      console.log(`   - Revenus réels: ${apiResponse.data.totalRealIncome}€`)
+      console.log(`   - Budgets estimés: ${apiResponse.data.totalEstimatedBudgets || apiResponse.data.totalEstimatedBudget}€`)
+      console.log(`   - Dépenses réelles: ${apiResponse.data.totalRealExpenses}€`)
+      console.log(`   - Total économies: ${apiResponse.data.totalSavings}€`)
+      console.log(`🏠🏠🏠 ========================================================`)
+      console.log(``)
+
       setFinancialData(apiResponse.data)
-      setCached(apiResponse.cached)
       setContext(apiResponse.context)
 
       // Si il y a un message d'erreur dans la réponse, l'afficher
       if (apiResponse.error) {
         setError(apiResponse.error)
       }
-
 
     } catch (err) {
       console.error('❌ Erreur dans useFinancialData:', err)
@@ -92,45 +105,19 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     } finally {
       setLoading(false)
     }
-  }, [forceContext])
+  }
 
   /**
-   * Invalide le cache côté serveur
+   * Force le rafraîchissement des données
    */
-  const invalidateCache = useCallback(async (): Promise<boolean> => {
-    try {
-
-      const response = await fetch('/api/financial/dashboard', {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (!response.ok) {
-        console.error('❌ Erreur lors de l\'invalidation du cache:', response.status)
-        return false
-      }
-
-      const result = await response.json()
-      return true
-
-    } catch (err) {
-      console.error('❌ Erreur lors de l\'invalidation du cache:', err)
-      return false
-    }
-  }, [])
-
-  /**
-   * Force le rafraîchissement des données (ignore le cache)
-   */
-  const refreshFinancialData = useCallback(async () => {
-    // Forcer un nouveau fetch directement
+  const refreshFinancialData = async () => {
     await fetchFinancialData()
-  }, [fetchFinancialData])
+  }
 
   // Charger les données financières au montage du composant
   useEffect(() => {
     fetchFinancialData()
-  }, [fetchFinancialData])
+  }, [forceContext])
 
   // Register for global financial refresh notifications
   useEffect(() => {
@@ -140,45 +127,15 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     }
     const unregister = registerFinancialRefreshCallback(refreshHandler)
     return unregister
-  }, [fetchFinancialData])
+  }, [])
 
   return {
     financialData,
     loading,
     error,
-    cached,
     context,
-    refreshFinancialData,
-    invalidateCache
+    refreshFinancialData
   }
-}
-
-/**
- * Hook pour invalider automatiquement le cache lors des modifications
- * À utiliser dans les composants qui modifient les budgets/revenus
- */
-export function useFinancialCacheInvalidation() {
-  const invalidateCache = useCallback(async (): Promise<boolean> => {
-    try {
-
-      const response = await fetch('/api/financial/dashboard', {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-
-      if (response.ok) {
-        const result = await response.json()
-        return true
-      } else {
-        return false
-      }
-    } catch (error) {
-      return false
-    }
-  }, [])
-
-  return { invalidateCache }
 }
 
 /**
@@ -202,33 +159,4 @@ export function triggerFinancialRefresh() {
       console.error('❌ Error in financial refresh callback:', error)
     }
   })
-}
-
-/**
- * Enhanced hook for financial cache invalidation with automatic refresh
- * This combines cache invalidation with triggering refreshes in all listening components
- */
-export function useFinancialCacheInvalidationWithRefresh() {
-  const invalidateCache = useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/financial/dashboard', {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        // After successful cache invalidation, trigger refresh in all registered components
-        setTimeout(() => {
-          triggerFinancialRefresh()
-        }, 100)
-        return true
-      } else {
-        return false
-      }
-    } catch (error) {
-      return false
-    }
-  }, [])
-
-  return { invalidateCache }
 }

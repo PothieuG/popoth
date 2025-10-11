@@ -174,22 +174,38 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    const { data: remainingToLive, error: remainingError } = await supabaseServer
-      .rpc('calculate_remaining_to_live', {
-        target_profile_id: forGroup ? null : userId,
-        target_group_id: forGroup ? groupId : null
-      })
-    
-    if (remainingError) {
+    // Use consistent calculation functions instead of database function
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] DASHBOARD - RÉCUPÉRATION RAV POUR ${forGroup ? 'GROUP' : 'PROFILE'}:${forGroup ? groupId : userId}`)
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] TIMESTAMP: ${new Date().toISOString()}`)
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
+
+    const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/financial-calculations')
+    let remainingToLiveData: any
+    try {
+      if (forGroup) {
+        console.log(`🔍 [DEBUG FINANCES DASHBOARD] Appel getGroupFinancialData pour ${groupId} - ${new Date().toISOString()}`)
+        remainingToLiveData = await getGroupFinancialData(groupId!)
+      } else {
+        console.log(`🔍 [DEBUG FINANCES DASHBOARD] Appel getProfileFinancialData pour ${userId} - ${new Date().toISOString()}`)
+        remainingToLiveData = await getProfileFinancialData(userId)
+      }
+    } catch (error) {
       console.error('❌ Remaining to live calculation error', {
         timestamp: new Date().toISOString(),
         level: 'error',
         component: '/api/finances/dashboard',
         operation: 'remaining_calculation_error',
         operationId: operationId,
-        error: remainingError
+        error: error
       })
+      remainingToLiveData = { remainingToLive: 0 }
     }
+    const remainingToLive = remainingToLiveData.remainingToLive
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] *** RÉSULTAT DASHBOARD - RAV: ${remainingToLive}€ ***`)
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] *** FINANCIAL DATA COMPLÈTE:`, JSON.stringify(remainingToLiveData, null, 2))
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] *** CONTEXTE: ${forGroup ? 'GROUP' : 'PROFILE'} | ID: ${forGroup ? groupId : userId} ***`)
+    console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
 
     // Get financial snapshot (for comparison/backup)
     const { data: snapshot, error: snapshotError } = await supabaseServer

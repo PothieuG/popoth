@@ -53,7 +53,7 @@ export default function RemainingToLivePreview({
   /**
    * Calcule le nouveau reste à vivre avec la transaction ajoutée
    */
-  const { newRemainingToLive, change } = useMemo(() => {
+  const { newRemainingToLive, change } = (() => {
     if (!financialData || loading || isNaN(amount) || amount <= 0) {
       return { newRemainingToLive: financialData?.remainingToLive || 0, change: 0 }
     }
@@ -137,7 +137,7 @@ export default function RemainingToLivePreview({
 
     // Fallback: pas d'impact
     return { newRemainingToLive: currentRemainingToLive, change: 0 }
-  }, [financialData, loading, amount, type, isExceptional, selectedId, expenseProgress, incomeProgress, budgets, incomes])
+  })()
 
   /**
    * Détermine la couleur selon la valeur

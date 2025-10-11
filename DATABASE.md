@@ -131,13 +131,14 @@ CREATE TABLE public.real_income_entries (
 - **Optional Link**: `estimated_income_id` (NULL for exceptional income)
 - **Automatic Triggers**: Updates financial snapshots on changes
 
-### **`public.bank_balances` (Extended for Groups)**
+### **`public.bank_balances` (Extended for Groups + RAV Persistence)**
 ```sql
 CREATE TABLE public.bank_balances (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   profile_id uuid,
   group_id uuid,
   balance numeric NOT NULL DEFAULT 0 CHECK (balance >= 0::numeric),
+  current_remaining_to_live numeric DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT bank_balances_pkey PRIMARY KEY (id),
@@ -155,14 +156,28 @@ ON public.bank_balances(profile_id) WHERE profile_id IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_balances_group_id_unique
 ON public.bank_balances(group_id) WHERE group_id IS NOT NULL;
+
+-- Performance indexes for RAV retrieval
+CREATE INDEX IF NOT EXISTS idx_bank_balances_profile_rav
+ON public.bank_balances(profile_id, current_remaining_to_live)
+WHERE profile_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_bank_balances_group_rav
+ON public.bank_balances(group_id, current_remaining_to_live)
+WHERE group_id IS NOT NULL;
 ```
 
-**Table Purpose**: Stores editable bank balances for both profiles and groups
+**Table Purpose**: Stores editable bank balances AND current remaining to live (RAV) for both profiles and groups
 - **XOR Ownership**: Each balance belongs to either a profile OR a group (never both)
 - **Partial Indexes**: Ensure one balance per profile and one per group
 - **Independent Balances**: Profiles and groups have completely separate bank balances
+- **RAV Persistence** ⭐ NEW: `current_remaining_to_live` field stores the latest calculated RAV value
+  - Updated automatically when financial data changes (income, expense, budget modifications)
+  - Single source of truth for displaying RAV in the UI
+  - Improves performance by avoiding recalculation on every page load
 - **RLS Policies**: Users can only access their own profile balance or their group's balance
 - **Context Support**: APIs use `?context=profile|group` to determine which balance to access
+- **Migration**: Added in `20251011_add_current_rav_to_bank_balances.sql`
 
 ### **`public.estimated_budgets`**
 ```sql

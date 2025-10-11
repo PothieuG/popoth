@@ -348,17 +348,34 @@ export async function POST(request: NextRequest) {
     const finalRAV = finalFinancialData.remainingToLive
     const finalAvailableBalance = finalFinancialData.availableBalance
 
-    console.log(`🎯 [Balance API] VÉRIFICATION ÉQUILIBRAGE PROPORTIONNEL:`)
-    console.log(`  Solde bancaire initial: ${currentBalance}€`)
-    console.log(`  Solde bancaire final: ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
-    console.log(`  Solde disponible final: ${finalAvailableBalance}€`)
-    console.log(`  RAV initial: ${initialRAV}€`)
-    console.log(`  RAV final: ${finalRAV}€`)
-    console.log(`  OBJECTIF: Équilibrage vers 0€`)
-    console.log(`  MATH CHECK: ${initialRAV}€ + ${totalUsed.toFixed(2)}€ = ${(initialRAV + totalUsed).toFixed(2)}€`)
-    console.log(`  EXPECTED: Final RAV should be ${(initialRAV + totalUsed).toFixed(2)}€`)
-    console.log(`  ACTUAL: Final RAV is ${finalRAV}€`)
-    console.log(`  ✅ SUCCESS: ${Math.abs(finalRAV - (initialRAV + totalUsed)) < 0.01 ? 'YES' : 'NO'}`)
+    console.log(``)
+    console.log(`🔄🔄🔄 ========================================================`)
+    console.log(`🔄🔄🔄 APRÈS RÉÉQUILIBRAGE - RESTE À VIVRE`)
+    console.log(`🔄🔄🔄 ========================================================`)
+    console.log(`🔄 CONTEXTE: ${context.toUpperCase()}`)
+    console.log(`🔄 ID: ${contextId}`)
+    console.log(`🔄 TIMESTAMP: ${new Date().toISOString()}`)
+    console.log(``)
+    console.log(`💰 RESTE À VIVRE INITIAL: ${initialRAV}€`)
+    console.log(`💰 RESTE À VIVRE APRÈS RÉÉQUILIBRAGE: ${finalRAV}€`)
+    console.log(`📈 CHANGEMENT: ${(finalRAV - initialRAV) > 0 ? '+' : ''}${(finalRAV - initialRAV).toFixed(2)}€`)
+    console.log(``)
+    console.log(`💵 RÉCUPÉRÉ:`)
+    console.log(`   - Économies utilisées: ${totalUsedFromSavings.toFixed(2)}€`)
+    console.log(`   - Excédents utilisés: ${totalUsedFromSurplus.toFixed(2)}€`)
+    console.log(`   - TOTAL RÉCUPÉRÉ: ${totalUsed.toFixed(2)}€`)
+    console.log(``)
+    console.log(`🏦 SOLDE BANCAIRE:`)
+    console.log(`   - Initial: ${currentBalance}€`)
+    console.log(`   - Final: ${newBalance.toFixed(2)}€`)
+    console.log(`   - Changement: +${totalUsed.toFixed(2)}€`)
+    console.log(``)
+    console.log(`✅ VÉRIFICATION MATHÉMATIQUE:`)
+    console.log(`   - Attendu: ${initialRAV}€ + ${totalUsed.toFixed(2)}€ = ${(initialRAV + totalUsed).toFixed(2)}€`)
+    console.log(`   - Réel: ${finalRAV}€`)
+    console.log(`   - Match: ${Math.abs(finalRAV - (initialRAV + totalUsed)) < 0.01 ? '✅ OUI' : '❌ NON'}`)
+    console.log(`🔄🔄🔄 ========================================================`)
+    console.log(``)
 
     // Construire les budgetStats finaux pour l'affichage
     const finalBudgetStats = []
@@ -386,6 +403,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ [Balance API] Équilibrage proportionnel terminé avec succès`)
+
+    // Attente pour garantir la cohérence de la base de données
+    console.log(`🔄 [Balance API] Attente pour garantir la cohérence de la base de données...`)
+    await new Promise(resolve => setTimeout(resolve, 500))
 
     return NextResponse.json({
       success: true,

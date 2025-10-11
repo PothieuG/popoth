@@ -274,9 +274,15 @@ export async function getMonthlyRecapSummary(
       (sum, expense) => sum + parseFloat(expense.amount.toString()), 0
     ) || 0
 
-    // Calculer le reste à vivre (formule simplifiée pour le récap)
-    const totalEstimatedBudgets = budgetStats.reduce((sum, budget) => sum + budget.estimated_amount, 0)
-    const currentRemainingToLive = estimatedIncomesTotal - totalEstimatedBudgets
+    // Calculer le reste à vivre avec la logique complète (JAMAIS de simplification)
+    const { getProfileFinancialData, getGroupFinancialData } = await import('./financial-calculations')
+    let financialData: any
+    if (context === 'profile') {
+      financialData = await getProfileFinancialData(contextId)
+    } else {
+      financialData = await getGroupFinancialData(contextId)
+    }
+    const currentRemainingToLive = financialData.remainingToLive
 
     const summary: MonthlyRecapSummary = {
       context,

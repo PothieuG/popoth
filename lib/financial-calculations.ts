@@ -54,13 +54,21 @@ export interface RemainingToLiveSnapshot {
  */
 async function calculateIncomeCompensationProfile(profileId: string): Promise<number> {
   try {
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] CALCUL CONTRIBUTION REVENUS PROFILE: ${profileId}`)
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
+
     // 1. Récupérer tous les revenus estimés du profile
     const { data: estimatedIncomes } = await supabaseServer
       .from('estimated_incomes')
       .select('id, estimated_amount')
       .eq('profile_id', profileId)
 
-    if (!estimatedIncomes || estimatedIncomes.length === 0) return 0
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] Revenus estimés trouvés: ${estimatedIncomes?.length || 0}`)
+    if (!estimatedIncomes || estimatedIncomes.length === 0) {
+      console.log(`🔍 [DEBUG INCOME COMPENSATION] Aucun revenu estimé - Contribution: 0€`)
+      return 0
+    }
 
     // 2. Récupérer tous les revenus réels liés aux revenus estimés
     const { data: realIncomes } = await supabaseServer
@@ -95,7 +103,8 @@ async function calculateIncomeCompensationProfile(profileId: string): Promise<nu
       totalToAdd += amountToAdd
     }
 
-    console.log(`💰 [Income Addition Profile] Total à ajouter: ${totalToAdd}€`)
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] RÉSULTAT FINAL - Contribution: ${totalToAdd}€`)
+    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
     return totalToAdd
 
   } catch (error) {
@@ -199,7 +208,15 @@ export async function calculateRemainingToLiveProfile(
   exceptionalExpenses: number
 ): Promise<number> {
   const remainingToLive = totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses
-  console.log(`💰 [calculateRemainingToLiveProfile] RAV = ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
+  console.log(`🔍 [DEBUG RAV PROFILE] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
+  console.log(`🔍 [DEBUG RAV PROFILE] - Contribution revenus: +${totalIncomeContribution}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] - Revenus exceptionnels: +${exceptionalIncomes}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] - Budgets estimés: -${estimatedBudgets}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] RÉSULTAT FINAL: ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
   return remainingToLive
 }
 
@@ -218,7 +235,16 @@ export async function calculateRemainingToLiveGroup(
   exceptionalExpenses: number
 ): Promise<number> {
   const remainingToLive = totalIncomeContribution + exceptionalIncomes + totalGroupContributions - estimatedBudgets - exceptionalExpenses
-  console.log(`💰 [calculateRemainingToLiveGroup] RAV = ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
+  console.log(`🔍 [DEBUG RAV GROUP] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Contribution revenus: +${totalIncomeContribution}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Revenus exceptionnels: +${exceptionalIncomes}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Contributions groupe: +${totalGroupContributions}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Budgets estimés: -${estimatedBudgets}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] RÉSULTAT FINAL: ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
   return remainingToLive
 }
 
@@ -251,10 +277,94 @@ export function calculateBudgetSavings(
 // ============================================
 
 /**
+ * Saves the calculated RAV to the database for a profile or group
+ */
+async function saveRavToDatabase(profileId: string | null, groupId: string | null, remainingToLive: number): Promise<void> {
+  try {
+    // Determine which field to use for the update
+    if (profileId) {
+      const { error } = await supabaseServer
+        .from('bank_balances')
+        .update({
+          current_remaining_to_live: remainingToLive,
+          updated_at: new Date().toISOString()
+        })
+        .eq('profile_id', profileId)
+
+      if (error) {
+        console.error('❌ Error saving RAV to database (profile):', error)
+      } else {
+        console.log(`✅ RAV saved to database for profile ${profileId}: ${remainingToLive}€`)
+      }
+    } else if (groupId) {
+      const { error } = await supabaseServer
+        .from('bank_balances')
+        .update({
+          current_remaining_to_live: remainingToLive,
+          updated_at: new Date().toISOString()
+        })
+        .eq('group_id', groupId)
+
+      if (error) {
+        console.error('❌ Error saving RAV to database (group):', error)
+      } else {
+        console.log(`✅ RAV saved to database for group ${groupId}: ${remainingToLive}€`)
+      }
+    }
+  } catch (error) {
+    console.error('❌ Exception while saving RAV to database:', error)
+  }
+}
+
+/**
+ * Retrieves the RAV from database for a profile
+ * Falls back to calculating if not found in database
+ */
+export async function getRavFromDatabase(profileId: string | null, groupId: string | null): Promise<number> {
+  try {
+    if (profileId) {
+      const { data, error } = await supabaseServer
+        .from('bank_balances')
+        .select('current_remaining_to_live')
+        .eq('profile_id', profileId)
+        .single()
+
+      if (error) {
+        console.warn('⚠️ Could not retrieve RAV from database for profile, will calculate:', error)
+        return 0
+      }
+
+      return data?.current_remaining_to_live ?? 0
+    } else if (groupId) {
+      const { data, error } = await supabaseServer
+        .from('bank_balances')
+        .select('current_remaining_to_live')
+        .eq('group_id', groupId)
+        .single()
+
+      if (error) {
+        console.warn('⚠️ Could not retrieve RAV from database for group, will calculate:', error)
+        return 0
+      }
+
+      return data?.current_remaining_to_live ?? 0
+    }
+
+    return 0
+  } catch (error) {
+    console.error('❌ Exception while retrieving RAV from database:', error)
+    return 0
+  }
+}
+
+/**
  * Récupère les données financières pour un utilisateur (profile)
  */
 export async function getProfileFinancialData(profileId: string): Promise<FinancialData> {
   try {
+    console.log(`🔍 [DEBUG getProfileFinancialData] ====================================`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] DÉBUT CALCUL POUR PROFILE: ${profileId}`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] ====================================`)
 
     // 1. Récupérer le solde bancaire éditable de l'utilisateur
     const { data: bankBalance } = await supabaseServer
@@ -284,18 +394,36 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 4. Récupérer tous les revenus réels du profile
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
-      .select('amount, estimated_income_id')
+      .select('amount, estimated_income_id, description, entry_date')
       .eq('profile_id', profileId)
 
+    console.log(`💵 [DEBUG DB QUERY] Revenus réels récupérés: ${realIncomes?.length || 0} entrées`)
+    if (realIncomes && realIncomes.length > 0) {
+      console.log(`💵 [DEBUG DB QUERY] Détail des revenus:`)
+      realIncomes.forEach((income, idx) => {
+        console.log(`   ${idx + 1}. ${income.amount}€ - ${income.description || 'Sans description'} (${income.entry_date})`)
+      })
+    }
+
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
+    console.log(`💵 [DEBUG DB QUERY] TOTAL revenus réels: ${totalRealIncome}€`)
 
     // 5. Récupérer toutes les dépenses réelles du profile
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount, estimated_budget_id, is_exceptional')
+      .select('amount, estimated_budget_id, is_exceptional, description, expense_date')
       .eq('profile_id', profileId)
 
+    console.log(`💸 [DEBUG DB QUERY] Dépenses réelles récupérées: ${realExpenses?.length || 0} entrées`)
+    if (realExpenses && realExpenses.length > 0) {
+      console.log(`💸 [DEBUG DB QUERY] Détail des dépenses:`)
+      realExpenses.forEach((expense, idx) => {
+        console.log(`   ${idx + 1}. ${expense.amount}€ - ${expense.description || 'Sans description'} (${expense.expense_date}) ${expense.is_exceptional ? '[EXCEPTIONNELLE]' : ''}`)
+      })
+    }
+
     const totalRealExpenses = realExpenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+    console.log(`💸 [DEBUG DB QUERY] TOTAL dépenses réelles: ${totalRealExpenses}€`)
 
     // 5. Calculer les dépenses exceptionnelles (non liées à un budget)
     const exceptionalExpenses = realExpenses
@@ -334,7 +462,15 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     const availableBalance = calculateAvailableCash(userBankBalance, totalRealIncome, totalRealExpenses)
 
     // Calculer la contribution des revenus au RAV selon les règles métier
+    console.log(`🔍 [DEBUG getProfileFinancialData] Calcul contribution revenus pour profile ${profileId}`)
     const incomeContribution = await calculateIncomeCompensationProfile(profileId)
+    console.log(`🔍 [DEBUG getProfileFinancialData] Contribution revenus calculée: ${incomeContribution}€`)
+
+    console.log(`🔍 [DEBUG getProfileFinancialData] DONNÉES POUR CALCUL RAV:`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] - incomeContribution: ${incomeContribution}€`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] - totalExceptionalIncomes: ${totalExceptionalIncomes}€`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] - totalEstimatedBudgets: ${totalEstimatedBudgets}€`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] - exceptionalExpenses: ${exceptionalExpenses}€`)
 
     // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels - Budgets - Dépenses Exceptionnelles
     const remainingToLive = await calculateRemainingToLiveProfile(
@@ -345,22 +481,31 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     )
 
     // Calculs terminés
-    console.log('💰 [getProfileFinancialData] Calculs financiers terminés pour le profil:', profileId)
-    console.log('💰 [getProfileFinancialData] Détail des calculs:', {
-      profileId,
-      // Données de base
-      userBankBalance,
-      totalRealIncome,
-      totalRealExpenses,
-      // Résultat final
-      availableBalance: `${userBankBalance} + ${totalRealIncome} - ${totalRealExpenses} = ${availableBalance}`,
-      // Autres données
-      totalEstimatedIncome,
-      totalEstimatedBudgets,
-      exceptionalExpenses,
-      remainingToLive,
-      totalSavings
-    })
+    console.log(``)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(`📊📊📊 RÉSUMÉ CALCULS FINANCIERS - PROFILE`)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(`📊 PROFILE ID: ${profileId}`)
+    console.log(``)
+    console.log(`🏦 DONNÉES BASE:`)
+    console.log(`   - Solde bancaire: ${userBankBalance}€`)
+    console.log(`   - Revenus réels (${realIncomes?.length || 0} entrées): ${totalRealIncome}€`)
+    console.log(`   - Dépenses réelles (${realExpenses?.length || 0} entrées): ${totalRealExpenses}€`)
+    console.log(``)
+    console.log(`📈 CALCULS DÉRIVÉS:`)
+    console.log(`   - Solde disponible: ${userBankBalance} + ${totalRealIncome} - ${totalRealExpenses} = ${availableBalance}€`)
+    console.log(`   - Contribution revenus: ${incomeContribution}€`)
+    console.log(`   - Revenus exceptionnels: ${totalExceptionalIncomes}€`)
+    console.log(`   - Budgets estimés: ${totalEstimatedBudgets}€`)
+    console.log(`   - Dépenses exceptionnelles: ${exceptionalExpenses}€`)
+    console.log(``)
+    console.log(`💰 RESTE À VIVRE: ${remainingToLive}€`)
+    console.log(`💎 TOTAL ÉCONOMIES: ${totalSavings}€`)
+    console.log(`📊📊📊 ========================================================`)
+    console.log(``)
+
+    // Save RAV to database for persistence
+    await saveRavToDatabase(profileId, null, remainingToLive)
 
     return {
       availableBalance,
@@ -507,6 +652,9 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       remainingToLive,
       totalSavings
     })
+
+    // Save RAV to database for persistence
+    await saveRavToDatabase(null, groupId, remainingToLive)
 
     return {
       availableBalance,

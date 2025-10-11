@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { registerFinancialRefreshCallback } from '@/hooks/useFinancialData'
 
 interface ExpenseProgress {
@@ -37,12 +37,15 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const contextRef = useRef(context)
+  contextRef.current = context
+
   const fetchProgressData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
 
-      const contextParam = context ? `?context=${context}` : ''
+      const contextParam = contextRef.current ? `?context=${contextRef.current}` : ''
 
       // Récupérer les progressions des dépenses et revenus en parallèle
       const [expenseResponse, incomeResponse] = await Promise.all([
@@ -87,7 +90,7 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
     } finally {
       setLoading(false)
     }
-  }, [context])
+  }, [])
 
   const refreshProgressData = useCallback(async () => {
     await fetchProgressData()
@@ -96,6 +99,11 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
   useEffect(() => {
     fetchProgressData()
   }, [fetchProgressData])
+
+  // Watch for context changes and refetch
+  useEffect(() => {
+    fetchProgressData()
+  }, [context, fetchProgressData])
 
   // S'enregistrer pour les rafraîchissements globaux
   useEffect(() => {

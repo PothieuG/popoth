@@ -96,6 +96,31 @@ export default function DashboardPage() {
     }
   }, [profile?.group_id, isLoading, fetchContributions])
 
+  // Log des données financières quand elles changent
+  useEffect(() => {
+    if (!financialLoading && financialData) {
+      console.log(``)
+      console.log(`📱📱📱 ========================================================`)
+      console.log(`📱📱📱 [DASHBOARD PAGE] AFFICHAGE DES DONNÉES`)
+      console.log(`📱📱📱 ========================================================`)
+      console.log(`📱 Utilisateur: ${profile?.first_name} ${profile?.last_name}`)
+      console.log(`📱 Context: ${context}`)
+      console.log(`📱 Cached: ${cached}`)
+      console.log(``)
+      console.log(`💰 RESTE À VIVRE AFFICHÉ: ${financialData.remainingToLive}€`)
+      console.log(`💵 SOLDE DISPONIBLE AFFICHÉ: ${financialData.availableBalance}€`)
+      console.log(`💎 ÉCONOMIES AFFICHÉES: ${financialData.totalSavings}€`)
+      console.log(``)
+      console.log(`📊 AUTRES DONNÉES:`)
+      console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
+      console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget || financialData.totalEstimatedBudgets}€`)
+      console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
+      console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
+      console.log(`📱📱📱 ========================================================`)
+      console.log(``)
+    }
+  }, [financialData, financialLoading, profile, context, cached])
+
 
   // Créer un composant de loader centralisé
   const renderCentralLoader = (message: string) => (

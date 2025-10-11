@@ -114,7 +114,7 @@ export function useIncomeProgress(
     []
   )
 
-  // Calculer les progressions quand les revenus estimés ou réels changent
+  // Calculer les progressions - toujours recalculer en temps réel
   const calculatedProgresses = useMemo(() => {
     if (!incomes.length || incomesLoading) {
       return []

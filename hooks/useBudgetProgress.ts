@@ -126,7 +126,7 @@ export function useBudgetProgress(
     []
   )
 
-  // Calculer les progressions quand les budgets ou dépenses changent
+  // Calculer les progressions - toujours recalculer en temps réel
   const calculatedProgresses = useMemo(() => {
     if (!budgets.length || expensesLoading) {
       return []

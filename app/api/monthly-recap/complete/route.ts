@@ -9,7 +9,7 @@ import { supabaseServer } from '@/lib/supabase-server'
  * 1. Valide et enregistre le récap en base
  * 2. Reset les revenus estimés à 0
  * 3. Met à jour les colonnes de dernier récap
- * 4. Invalide le cache financier
+ * 4. Finalise le processus
  *
  * Body: {
  *   context: 'profile' | 'group',
@@ -117,10 +117,29 @@ export async function POST(request: NextRequest) {
 
     const initialRemainingToLive = financialData.remainingToLive
 
-    console.log(`🏁 [Monthly Recap Complete] Finalisation pour ${context}:${contextId}`)
-    console.log(`🏁 [Monthly Recap Complete] Reste à vivre initial: ${initialRemainingToLive}€`)
-    console.log(`🏁 [Monthly Recap Complete] Reste à vivre final: ${final_amount}€`)
-    console.log(`🏁 [Monthly Recap Complete] Action: ${action}`)
+    console.log(``)
+    console.log(`🏁🏁🏁 ========================================================`)
+    console.log(`🏁🏁🏁 FINALISATION - RESTE À VIVRE FINAL`)
+    console.log(`🏁🏁🏁 ========================================================`)
+    console.log(`🏁 CONTEXTE: ${context.toUpperCase()}`)
+    console.log(`🏁 ID: ${contextId}`)
+    console.log(`🏁 TIMESTAMP: ${new Date().toISOString()}`)
+    console.log(``)
+    console.log(`💰 RESTE À VIVRE AVANT VALIDATION: ${initialRemainingToLive}€`)
+    console.log(`💰 RESTE À VIVRE FINAL (après choix): ${final_amount}€`)
+    console.log(``)
+    console.log(`🎯 ACTION CHOISIE: ${action}`)
+    console.log(`${action === 'deduct_from_budget' ? `🎯 BUDGET UTILISÉ: ${budget_id}` : '🎯 MODE: Report sur le mois suivant'}`)
+    console.log(``)
+    console.log(`📊 DÉTAILS FINANCIERS AVANT FINALISATION:`)
+    console.log(`   - Solde bancaire: ${financialData.bankBalance}€`)
+    console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
+    console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
+    console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget}€`)
+    console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
+    console.log(`   - Solde disponible: ${financialData.availableBalance}€`)
+    console.log(`🏁🏁🏁 ========================================================`)
+    console.log(``)
 
     // Calculer les totaux de surplus/déficit actuels
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -469,23 +488,7 @@ export async function POST(request: NextRequest) {
         console.log('✅ [Monthly Recap Complete] Champs surplus/déficit remis à zéro')
       }
 
-      // 5. Invalider le cache financier (appel à l'API dashboard pour vider le cache)
-      try {
-        const baseUrl = request.nextUrl.origin
-        const cacheInvalidateUrl = `${baseUrl}/api/financial/dashboard?context=${context}&invalidate_cache=true`
-
-        await fetch(cacheInvalidateUrl, {
-          method: 'GET',
-          headers: {
-            'Cookie': request.headers.get('Cookie') || ''
-          }
-        })
-
-        console.log(`🔄 [Monthly Recap Complete] Cache financier invalidé pour ${context}`)
-      } catch (cacheError) {
-        console.error('⚠️ Erreur lors de l\'invalidation du cache:', cacheError)
-        // Ne pas faire échouer pour ça
-      }
+      console.log(`✅ [Monthly Recap Complete] Processus finalisé pour ${context}`)
 
       // Préparer le résumé final
       const summary = {

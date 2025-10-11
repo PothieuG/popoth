@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidation } from '@/hooks/useFinancialData'
+import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 interface EstimatedIncome {
   id: string
@@ -33,7 +33,6 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
   const [incomes, setIncomes] = useState<EstimatedIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidation()
 
   /**
    * Calcule le total des revenus estimés
@@ -102,8 +101,8 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       const data = await response.json()
       setIncomes(prev => [data.income, ...prev])
 
-      // Invalider le cache des données financières
-      await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -148,8 +147,8 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
         income.id === incomeId ? data.income : income
       ))
 
-      // Invalider le cache des données financières
-      await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -177,8 +176,8 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
 
       setIncomes(prev => prev.filter(income => income.id !== incomeId))
 
-      // Invalider le cache des données financières
-      await invalidateCache()
+      // Rafraîchir les données financières
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {

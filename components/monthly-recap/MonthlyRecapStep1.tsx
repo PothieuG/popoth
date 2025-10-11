@@ -75,13 +75,26 @@ export default function MonthlyRecapStep1({
 
       const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
       const data = await response.json()
-      console.log(data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
 
-      console.log('✅ [Step1] Données live récupérées:', data)
+      console.log(``)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(`🎯🎯🎯 [FRONTEND] ÉTAPE 1 - DONNÉES REÇUES`)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(`💰 RESTE À VIVRE: ${data.current_remaining_to_live}€`)
+      console.log(`📊 Est positif: ${data.is_positive}`)
+      console.log(`📉 Déficit: ${data.deficit}€`)
+      console.log(`💎 Économies disponibles: ${data.total_savings_available}€`)
+      console.log(`📊 Excédents disponibles: ${data.total_surplus_available}€`)
+      console.log(`💰 Total disponible: ${data.total_available}€`)
+      console.log(`✅ Peut équilibrer: ${data.can_balance}`)
+      console.log(`✅ Peut équilibrer complètement: ${data.can_fully_balance}`)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(``)
+
       setStep1Data(data)
 
     } catch (err) {
@@ -130,10 +143,28 @@ export default function MonthlyRecapStep1({
   const handleBalanceClick = async () => {
     try {
       setIsProcessing(true)
-      console.log('🔄 [Step1] Début du rééquilibrage')
+      console.log(``)
+      console.log(`🔄🔄🔄 ========================================================`)
+      console.log(`🔄🔄🔄 [FRONTEND] RÉÉQUILIBRAGE EN COURS`)
+      console.log(`🔄🔄🔄 ========================================================`)
+      console.log(`💰 RAV avant rééquilibrage: ${step1Data?.current_remaining_to_live}€`)
+      console.log(`🔄🔄🔄 ========================================================`)
+      console.log(``)
 
       const result = await onBalanceRemainingToLive()
       if (result) {
+        console.log(``)
+        console.log(`🔄🔄🔄 ========================================================`)
+        console.log(`🔄🔄🔄 [FRONTEND] RÉSULTAT RÉÉQUILIBRAGE`)
+        console.log(`🔄🔄🔄 ========================================================`)
+        console.log(`💰 RAV initial: ${result.original_remaining_to_live}€`)
+        console.log(`💰 RAV final: ${result.final_remaining_to_live}€`)
+        console.log(`📈 Changement: ${(result.final_remaining_to_live - result.original_remaining_to_live).toFixed(2)}€`)
+        console.log(`💎 Économies utilisées: ${result.savings_used}€`)
+        console.log(`📊 Excédents utilisés: ${result.surplus_used}€`)
+        console.log(`🔄🔄🔄 ========================================================`)
+        console.log(``)
+
         console.log('✅ [Step1] Rééquilibrage terminé avec succès')
         setBalanceResult(result)
         setIsBalanceCompleted(true)

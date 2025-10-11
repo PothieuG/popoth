@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useFinancialCacheInvalidationWithRefresh } from '@/hooks/useFinancialData'
+import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 export interface RealExpense {
   id: string
@@ -53,8 +53,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   const [expenses, setExpenses] = useState<RealExpense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { invalidateCache } = useFinancialCacheInvalidationWithRefresh()
-
+  
   /**
    * Calculate total amount of all expenses
    */
@@ -125,8 +124,8 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       const data = await response.json()
       setExpenses(prev => [data.real_expense, ...prev])
 
-      // Invalidate financial cache to refresh dashboard
-      await invalidateCache()
+      // Refresh financial dashboard
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -134,7 +133,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [context, invalidateCache])
+  }, [context])
 
   /**
    * Update an existing expense
@@ -165,8 +164,8 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         expense.id === expenseData.id ? data.real_expense : expense
       ))
 
-      // Invalidate financial cache
-      await invalidateCache()
+      // Refresh financial data
+      triggerFinancialRefresh()
 
       return true
     } catch (err) {
@@ -174,7 +173,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [invalidateCache])
+  }, [])
 
   /**
    * Delete an expense
@@ -198,10 +197,10 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       setExpenses(prev => prev.filter(expense => expense.id !== expenseId))
       console.log('✅ [useRealExpenses] Expense removed from local state')
 
-      // Invalidate financial cache
-      console.log('🔄 [useRealExpenses] Invalidating financial cache...')
-      await invalidateCache()
-      console.log('✅ [useRealExpenses] Financial cache invalidated')
+      // Refresh financial data
+      console.log('🔄 [useRealExpenses] Refreshing financial data...')
+      triggerFinancialRefresh()
+      console.log('✅ [useRealExpenses] Financial data refreshed')
 
       return true
     } catch (err) {
@@ -209,7 +208,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [invalidateCache])
+  }, [])
 
   /**
    * Refresh the expenses list
