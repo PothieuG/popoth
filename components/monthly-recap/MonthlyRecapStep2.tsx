@@ -332,10 +332,10 @@ export default function MonthlyRecapStep2({
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Récupération des données live
+            Récupération des données
           </h2>
           <p className="text-gray-600">
-            Calcul en temps réel de vos budgets...
+            Calcul de vos budgets...
           </p>
         </div>
       </div>
@@ -376,7 +376,7 @@ export default function MonthlyRecapStep2({
       <div className="bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {step2Data.year}</h1>
-          <p className="text-sm text-gray-600 mt-1">Étape 2 sur 3 - Gestion des économies</p>
+          <p className="text-sm text-gray-600 mt-1">Étape 2 sur 2 - Gestion des économies</p>
         </div>
       </div>
 
@@ -525,7 +525,7 @@ export default function MonthlyRecapStep2({
       <div className="bg-white border-t border-gray-200 p-4">
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            Étape 2 sur 3
+            Étape 2 sur 2
           </div>
           <Button
             onClick={onNext}

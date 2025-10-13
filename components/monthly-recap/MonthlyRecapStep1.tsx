@@ -203,10 +203,10 @@ export default function MonthlyRecapStep1({
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Récupération des données live
+            Récupération des données
           </h2>
           <p className="text-gray-600">
-            Calcul en temps réel de votre situation financière...
+            Calcul de votre situation financière...
           </p>
         </div>
       </div>
@@ -245,8 +245,7 @@ export default function MonthlyRecapStep1({
       <div className="bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {currentYear}</h1>
-          <p className="text-sm text-gray-600 mt-1">Étape 1 sur 3 - Gestion du reste à vivre</p>
-          <p className="text-xs text-blue-600 mt-1">📡 Données live depuis la base de données</p>
+          <p className="text-sm text-gray-600 mt-1">Étape 1 sur 2 - Gestion du reste à vivre</p>
         </div>
       </div>
 
@@ -391,7 +390,7 @@ export default function MonthlyRecapStep1({
                           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                           </svg>
-                          Équilibrer automatiquement le reste à vivre
+                          Équilibrer automatiquement
                         </>
                       )}
                     </Button>
@@ -487,7 +486,7 @@ export default function MonthlyRecapStep1({
               <h4 className="text-sm font-medium text-blue-900">Fonctionnement de l'équilibrage</h4>
               <p className="text-xs text-blue-700 mt-1">
                 L'équilibrage automatique répartit proportionnellement les montants disponibles
-                pour optimiser votre situation financière. Données mises à jour en temps réel depuis la base.
+                pour optimiser votre situation financière.
               </p>
             </div>
           </div>
@@ -498,7 +497,7 @@ export default function MonthlyRecapStep1({
       <div className="bg-white border-t border-gray-200 p-4">
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            Étape 1 sur 3
+            Étape 1 sur 2
           </div>
           {canContinue && (
             <Button

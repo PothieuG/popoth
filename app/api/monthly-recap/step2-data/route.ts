@@ -129,6 +129,18 @@ export async function GET(request: NextRequest) {
       throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
     }
 
+    // 3b. Récupérer les transferts de budgets pour ce mois
+    const { data: transfers, error: transfersError } = await supabaseServer
+      .from('budget_transfers')
+      .select('from_budget_id, to_budget_id, transfer_amount')
+      .eq(ownerField, contextId)
+
+    if (transfersError) {
+      throw new Error(`Erreur récupération transferts: ${transfersError.message}`)
+    }
+
+    console.log(`🔄 [Step2 Data] ${transfers?.length || 0} transferts trouvés`)
+
     // 4. Calculer les statistiques pour chaque budget
     const budgetStats = []
     let totalSurplus = 0
@@ -140,8 +152,22 @@ export async function GET(request: NextRequest) {
         .filter(expense => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + expense.amount, 0)
 
-      // Calculer l'excédent/déficit
-      const difference = budget.estimated_amount - spentAmount
+      // Calculer les ajustements dus aux transferts
+      const transfersFrom = (transfers || [])
+        .filter(t => t.from_budget_id === budget.id)
+        .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+      const transfersTo = (transfers || [])
+        .filter(t => t.to_budget_id === budget.id)
+        .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+      // Le spent_amount ajusté prend en compte les transferts
+      // Transferts FROM = augmente le spent (on donne de l'argent)
+      // Transferts TO = diminue le spent (on reçoit de l'argent)
+      const adjustedSpentAmount = spentAmount + transfersFrom - transfersTo
+
+      // Calculer l'excédent/déficit avec le montant ajusté
+      const difference = budget.estimated_amount - adjustedSpentAmount
       const surplus = Math.max(0, difference)
       const deficit = Math.max(0, -difference)
 
@@ -149,7 +175,7 @@ export async function GET(request: NextRequest) {
         id: budget.id,
         name: budget.name,
         estimated_amount: budget.estimated_amount,
-        spent_amount: spentAmount,
+        spent_amount: adjustedSpentAmount,
         difference: difference,
         surplus: surplus,
         deficit: deficit,
@@ -160,7 +186,7 @@ export async function GET(request: NextRequest) {
       totalSurplus += surplus
       totalDeficit += deficit
 
-      console.log(`📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, différence=${difference}€`)
+      console.log(`📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€`)
     }
 
     // 5. Informations sur le mois actuel

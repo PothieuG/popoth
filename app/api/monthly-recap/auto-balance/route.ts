@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     const { data: budgets, error: budgetsError } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus, monthly_deficit')
+      .select('id, name, estimated_amount')
       .eq(ownerField, contextId)
 
     if (budgetsError || !budgets) {
@@ -81,9 +81,65 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Récupérer les dépenses réelles
+    const { data: expenses, error: expensesError } = await supabaseServer
+      .from('real_expenses')
+      .select('estimated_budget_id, amount')
+      .eq(ownerField, contextId)
+      .not('estimated_budget_id', 'is', null)
+
+    if (expensesError) {
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des dépenses' },
+        { status: 500 }
+      )
+    }
+
+    // Récupérer les transferts existants
+    const { data: existingTransfers, error: transfersError } = await supabaseServer
+      .from('budget_transfers')
+      .select('from_budget_id, to_budget_id, transfer_amount')
+      .eq(ownerField, contextId)
+
+    if (transfersError) {
+      return NextResponse.json(
+        { error: 'Erreur lors de la récupération des transferts' },
+        { status: 500 }
+      )
+    }
+
+    // Calculer les surplus/déficits en temps réel pour chaque budget
+    const budgetsWithStats = budgets.map(budget => {
+      // Calculer le montant dépensé
+      const spentAmount = (expenses || [])
+        .filter(e => e.estimated_budget_id === budget.id)
+        .reduce((sum, e) => sum + e.amount, 0)
+
+      // Calculer les ajustements dus aux transferts
+      const transfersFrom = (existingTransfers || [])
+        .filter(t => t.from_budget_id === budget.id)
+        .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+      const transfersTo = (existingTransfers || [])
+        .filter(t => t.to_budget_id === budget.id)
+        .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+      const adjustedSpentAmount = spentAmount + transfersFrom - transfersTo
+      const difference = budget.estimated_amount - adjustedSpentAmount
+
+      return {
+        id: budget.id,
+        name: budget.name,
+        estimated_amount: budget.estimated_amount,
+        spent_amount: adjustedSpentAmount,
+        monthly_surplus: Math.max(0, difference),
+        monthly_deficit: Math.max(0, -difference)
+      }
+    })
+
     // Séparer les budgets avec surplus et déficit
-    const budgetsWithSurplus = budgets.filter(b => (b.monthly_surplus || 0) > 0)
-    const budgetsWithDeficit = budgets.filter(b => (b.monthly_deficit || 0) > 0)
+    const budgetsWithSurplus = budgetsWithStats.filter(b => b.monthly_surplus > 0)
+    const budgetsWithDeficit = budgetsWithStats.filter(b => b.monthly_deficit > 0)
 
     console.log(`⚖️ [Auto Balance] Démarrage pour ${context}:${contextId}`)
     console.log(`⚖️ [Auto Balance] Budgets avec surplus: ${budgetsWithSurplus.length}`)
@@ -122,60 +178,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Stratégie de répartition équilibrée
+    // Stratégie de répartition équilibrée:
+    // Chaque budget avec surplus contribue proportionnellement à son surplus
+    // pour couvrir TOUS les déficits en une seule fois
     const transfers = []
-    let remainingSurplus = totalSurplus
-    const surplusBudgets = [...budgetsWithSurplus] // Copie pour manipulation
-    const deficitBudgets = [...budgetsWithDeficit] // Copie pour manipulation
 
-    // Trier les budgets déficitaires par ordre de déficit (plus petit en premier)
-    deficitBudgets.sort((a, b) => (a.monthly_deficit || 0) - (b.monthly_deficit || 0))
+    // Montant total à redistribuer (le minimum entre surplus total et déficit total)
+    const amountToRedistribute = Math.min(totalSurplus, totalDeficit)
 
-    for (const deficitBudget of deficitBudgets) {
-      if (remainingSurplus <= 0) break
+    console.log(`⚖️ [Auto Balance] Montant total à redistribuer: ${amountToRedistribute}€`)
+    console.log(`⚖️ [Auto Balance] Surplus disponible: ${totalSurplus}€`)
+    console.log(`⚖️ [Auto Balance] Déficit total: ${totalDeficit}€`)
 
-      const deficitAmount = deficitBudget.monthly_deficit || 0
-      let neededAmount = deficitAmount
-      let amountToTransfer = Math.min(neededAmount, remainingSurplus)
+    // Pour chaque budget en déficit
+    for (const deficitBudget of budgetsWithDeficit) {
+      const deficitAmount = deficitBudget.monthly_deficit
 
       console.log(`⚖️ [Auto Balance] Compensation pour "${deficitBudget.name}": ${deficitAmount}€ de déficit`)
 
-      // Répartir proportionnellement depuis les budgets avec surplus
-      const activeSurplusBudgets = surplusBudgets.filter(b => (b.monthly_surplus || 0) > 0)
+      // Chaque budget avec surplus contribue proportionnellement
+      for (const surplusBudget of budgetsWithSurplus) {
+        const surplusAmount = surplusBudget.monthly_surplus
 
-      if (activeSurplusBudgets.length === 0) break
+        // Calculer la contribution de ce budget surplus au déficit actuel
+        // Contribution = (surplus de ce budget / surplus total) * déficit à couvrir
+        const proportion = surplusAmount / totalSurplus
+        const contributionAmount = Math.round(deficitAmount * proportion * 100) / 100
 
-      const totalActiveSurplus = activeSurplusBudgets.reduce((sum, b) => sum + (b.monthly_surplus || 0), 0)
-
-      for (const surplusBudget of activeSurplusBudgets) {
-        if (amountToTransfer <= 0) break
-
-        const surplusAmount = surplusBudget.monthly_surplus || 0
-        if (surplusAmount <= 0) continue
-
-        // Calculer la proportion de ce budget dans le surplus total
-        const proportion = surplusAmount / totalActiveSurplus
-        const maxFromThisBudget = Math.min(
-          Math.floor(amountToTransfer * proportion * 100) / 100, // Arrondi à 2 décimales
-          surplusAmount,
-          amountToTransfer
-        )
-
-        if (maxFromThisBudget > 0) {
+        if (contributionAmount > 0) {
           transfers.push({
             from_budget_id: surplusBudget.id,
             from_budget_name: surplusBudget.name,
             to_budget_id: deficitBudget.id,
             to_budget_name: deficitBudget.name,
-            amount: maxFromThisBudget
+            amount: contributionAmount
           })
 
-          // Mettre à jour les montants temporaires
-          surplusBudget.monthly_surplus = (surplusBudget.monthly_surplus || 0) - maxFromThisBudget
-          amountToTransfer -= maxFromThisBudget
-          remainingSurplus -= maxFromThisBudget
-
-          console.log(`⚖️ [Auto Balance] Planifié: ${maxFromThisBudget}€ de "${surplusBudget.name}" vers "${deficitBudget.name}"`)
+          console.log(`⚖️ [Auto Balance] Planifié: ${contributionAmount}€ (${(proportion * 100).toFixed(1)}%) de "${surplusBudget.name}" vers "${deficitBudget.name}"`)
         }
       }
     }
@@ -189,69 +228,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Exécuter tous les transferts planifiés
+    // Exécuter tous les transferts planifiés en les enregistrant dans budget_transfers
     console.log(`⚖️ [Auto Balance] Exécution de ${transfers.length} transferts`)
 
-    const updates = []
+    const transferInserts = transfers.map(transfer => ({
+      [ownerField]: contextId,
+      from_budget_id: transfer.from_budget_id,
+      to_budget_id: transfer.to_budget_id,
+      transfer_amount: transfer.amount,
+      transfer_reason: 'Auto-balance via monthly recap',
+      transfer_date: new Date().toISOString().split('T')[0]
+    }))
 
-    // Grouper les transferts par budget pour optimiser les mises à jour
-    const budgetUpdates = new Map()
+    // Insérer tous les transferts
+    const { error: insertError } = await supabaseServer
+      .from('budget_transfers')
+      .insert(transferInserts)
 
-    // Initialiser avec les valeurs actuelles
-    for (const budget of budgets) {
-      budgetUpdates.set(budget.id, {
-        id: budget.id,
-        name: budget.name,
-        surplus: budget.monthly_surplus || 0,
-        deficit: budget.monthly_deficit || 0
-      })
-    }
-
-    // Appliquer tous les transferts
-    for (const transfer of transfers) {
-      const fromBudget = budgetUpdates.get(transfer.from_budget_id)
-      const toBudget = budgetUpdates.get(transfer.to_budget_id)
-
-      // Réduire le surplus du budget source
-      fromBudget.surplus -= transfer.amount
-
-      // Réduire le déficit du budget destination
-      const deficitReduction = Math.min(transfer.amount, toBudget.deficit)
-      const surplusIncrease = transfer.amount - deficitReduction
-
-      toBudget.deficit -= deficitReduction
-      toBudget.surplus += surplusIncrease
-    }
-
-    // Créer les mises à jour SQL
-    for (const [budgetId, budgetUpdate] of budgetUpdates) {
-      updates.push(
-        supabaseServer
-          .from('estimated_budgets')
-          .update({
-            monthly_surplus: Math.max(0, budgetUpdate.surplus),
-            monthly_deficit: Math.max(0, budgetUpdate.deficit),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', budgetId)
-      )
-    }
-
-    // Exécuter toutes les mises à jour
-    const results = await Promise.all(updates)
-    const hasErrors = results.some(result => result.error)
-
-    if (hasErrors) {
-      console.error('❌ Erreur lors de la répartition automatique:', results.map(r => r.error).filter(Boolean))
+    if (insertError) {
+      console.error('❌ Erreur lors de l\'enregistrement des transferts:', insertError)
       return NextResponse.json(
-        { error: 'Erreur lors de la répartition automatique' },
+        { error: 'Erreur lors de l\'enregistrement des transferts' },
         { status: 500 }
       )
     }
 
     const totalTransferred = transfers.reduce((sum, t) => sum + t.amount, 0)
 
+    // Calculer ce qui reste après répartition
+    const remainingDeficit = Math.max(0, totalDeficit - totalTransferred)
+    const remainingSurplus = Math.max(0, totalSurplus - totalTransferred)
+
     console.log(`✅ [Auto Balance] Répartition automatique terminée: ${totalTransferred}€ répartis en ${transfers.length} transferts`)
+    console.log(`✅ [Auto Balance] Surplus restant: ${remainingSurplus}€`)
+    console.log(`✅ [Auto Balance] Déficit restant: ${remainingDeficit}€`)
 
     return NextResponse.json({
       success: true,
@@ -259,7 +269,8 @@ export async function POST(request: NextRequest) {
       transfers,
       total_transferred: totalTransferred,
       transfers_count: transfers.length,
-      remaining_surplus: remainingSurplus
+      remaining_surplus: remainingSurplus,
+      remaining_deficit: remainingDeficit
     })
 
   } catch (error) {
