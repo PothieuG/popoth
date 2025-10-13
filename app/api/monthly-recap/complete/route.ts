@@ -406,6 +406,70 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça
       }
 
+      // 3.6. Calculer l'écart de reste à vivre et créer une dépense exceptionnelle si nécessaire
+      console.log(`📊 [RAV Difference Processing] Début du calcul de l'écart de reste à vivre pour ${context}:${contextId}`)
+
+      try {
+        // Calculer le reste à vivre de base: revenus estimés - dépenses estimées
+        const baseRemainingToLive = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
+
+        // Récupérer le reste à vivre actuel de la BDD
+        const { data: bankBalance, error: bankBalanceError } = await supabaseServer
+          .from('bank_balances')
+          .select('current_remaining_to_live')
+          .eq(ownerField, contextId)
+          .single()
+
+        if (bankBalanceError) {
+          console.error('❌ [RAV Difference Processing] Erreur lors de la récupération du reste à vivre actuel:', bankBalanceError)
+        } else {
+          const currentRemainingToLive = bankBalance?.current_remaining_to_live || 0
+
+          console.log(`📊 [RAV Difference Processing] Reste à vivre de base (calcul): ${baseRemainingToLive}€`)
+          console.log(`📊 [RAV Difference Processing] Reste à vivre actuel (BDD): ${currentRemainingToLive}€`)
+
+          // Calculer l'écart: BDD - calcul de base
+          const difference = currentRemainingToLive - baseRemainingToLive
+
+          console.log(`📊 [RAV Difference Processing] Écart calculé: ${difference}€`)
+
+          // Si l'écart est négatif (BDD < calcul de base), on reporte la valeur absolue comme dépense exceptionnelle
+          if (difference < 0) {
+            const exceptionalExpenseAmount = Math.abs(difference)
+
+            console.log(`⚠️ [RAV Difference Processing] Écart négatif détecté: ${difference}€`)
+            console.log(`📝 [RAV Difference Processing] Création d'une dépense exceptionnelle de ${exceptionalExpenseAmount}€ pour le mois prochain`)
+
+            // Créer une dépense exceptionnelle (sera insérée après le reset des dépenses)
+            const exceptionalExpense = {
+              amount: exceptionalExpenseAmount,
+              description: `Écart de reste à vivre reporté du récap ${currentMonth}/${currentYear}`,
+              expense_date: currentDate.toISOString().split('T')[0],
+              is_exceptional: true,
+              estimated_budget_id: null, // Pas de lien avec un budget
+              created_at: new Date().toISOString()
+            }
+
+            // Ajouter les champs de propriétaire
+            if (context === 'profile') {
+              exceptionalExpense.profile_id = contextId
+            } else {
+              exceptionalExpense.group_id = contextId
+            }
+
+            // Stocker dans un tableau séparé pour insertion après reset
+            global.exceptionalExpenseToInsert = exceptionalExpense
+
+            console.log(`✅ [RAV Difference Processing] Dépense exceptionnelle préparée pour insertion`)
+          } else {
+            console.log(`✅ [RAV Difference Processing] Pas d'écart négatif, aucune dépense exceptionnelle à créer`)
+          }
+        }
+      } catch (ravDifferenceError) {
+        console.error('❌ [RAV Difference Processing] Erreur générale lors du traitement de l\'écart de reste à vivre:', ravDifferenceError)
+        // Ne pas faire échouer la transaction pour ça
+      }
+
       // 4. Log de session (plus de snapshot à désactiver)
       console.log(`📝 [Monthly Recap Complete] Session ${session_id} terminée avec succès`)
 
@@ -454,6 +518,24 @@ export async function POST(request: NextRequest) {
 
         // Nettoyer la variable globale
         delete global.deficitExpensesToInsert
+      }
+
+      // 4.2.2. Insérer la dépense exceptionnelle pour l'écart de reste à vivre
+      if (global.exceptionalExpenseToInsert) {
+        console.log(`🔄 [RAV Difference Processing] Insertion de la dépense exceptionnelle`)
+
+        const { error: insertExceptionalError } = await supabaseServer
+          .from('real_expenses')
+          .insert([global.exceptionalExpenseToInsert])
+
+        if (insertExceptionalError) {
+          console.error('❌ [RAV Difference Processing] Erreur lors de l\'insertion de la dépense exceptionnelle:', insertExceptionalError)
+        } else {
+          console.log(`✅ [RAV Difference Processing] Dépense exceptionnelle de ${global.exceptionalExpenseToInsert.amount}€ insérée avec succès`)
+        }
+
+        // Nettoyer la variable globale
+        delete global.exceptionalExpenseToInsert
       }
 
       // 4.3. Mettre à jour la date de dernière mise à jour mensuelle des budgets
