@@ -6,10 +6,34 @@ import { supabaseServer } from '@/lib/supabase-server'
  * API POST /api/monthly-recap/auto-balance
  *
  * Répartit automatiquement les excédents dans les budgets déficitaires
- * de manière équilibrée
+ * de manière proportionnelle et équitable
+ *
+ * ALGORITHME DE RÉPARTITION PROPORTIONNELLE :
+ * - Chaque budget avec surplus contribue selon sa proportion du total
+ * - Formule : Contribution = (Surplus du budget / Surplus total) × Déficit à couvrir
+ * - Tous les déficits sont traités simultanément en une seule fois
+ * - Distribution équitable et prévisible
+ *
+ * EXEMPLE :
+ * Surplus : Budget A (+100€), Budget B (+50€) → Total: 150€
+ * Déficits : Budget C (-90€), Budget D (-60€)
+ *
+ * Répartition :
+ * - Budget A (66.67%) contribue : 60€ vers C, 40€ vers D
+ * - Budget B (33.33%) contribue : 30€ vers C, 20€ vers D
+ *
+ * Résultat : Tous les déficits couverts proportionnellement
  *
  * Body: {
  *   context: 'profile' | 'group'
+ * }
+ *
+ * Returns: {
+ *   success: true,
+ *   transfers: Array<{from_budget_id, to_budget_id, amount}>,
+ *   total_transferred: number,
+ *   remaining_surplus: number,
+ *   remaining_deficit: number
  * }
  */
 export async function POST(request: NextRequest) {

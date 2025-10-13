@@ -147,7 +147,7 @@ export default function FinancialIndicators({
                 </svg>
               </div>
             </div>
-            
+
             {/* Content */}
             <div>
               <p className="text-sm font-medium text-purple-800">
@@ -196,6 +196,8 @@ export default function FinancialIndicators({
       <SavingsDrawer
         isOpen={isSavingsOpen}
         onClose={() => setIsSavingsOpen(false)}
+        context={context}
+        onSavingsChange={onPlanningChange}
       />
     </div>
   )

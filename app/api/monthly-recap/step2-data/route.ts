@@ -6,18 +6,27 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
 /**
  * API GET /api/monthly-recap/step2-data
  *
- * Récupère les données live nécessaires pour l'étape 2 du monthly recap
- * AUCUN CACHE - Données récupérées directement depuis la base
+ * Récupère les données nécessaires pour l'étape 2 du monthly recap
+ * CALCUL EN TEMPS RÉEL - Prend en compte les transferts entre budgets
+ *
+ * LOGIQUE DE CALCUL DES SURPLUS/DÉFICITS :
+ * 1. spentAmount = SUM(real_expenses pour ce budget)
+ * 2. transfersFrom = SUM(budget_transfers FROM ce budget)
+ * 3. transfersTo = SUM(budget_transfers TO ce budget)
+ * 4. adjustedSpent = spentAmount + transfersFrom - transfersTo
+ * 5. surplus/déficit calculé depuis adjustedSpent
+ *
+ * Cela permet de voir immédiatement l'effet des transferts sur les budgets
  *
  * Query: { context: 'profile' | 'group' }
  *
  * Retourne:
  * - current_remaining_to_live: nombre
- * - budget_stats: Array avec statistiques complètes des budgets
+ * - budget_stats: Array avec statistiques complètes (incluant ajustements)
  * - month: nombre (1-12)
  * - year: nombre
- * - total_surplus: nombre
- * - total_deficit: nombre
+ * - total_surplus: nombre (après transferts)
+ * - total_deficit: nombre (après transferts)
  */
 export async function GET(request: NextRequest) {
   try {

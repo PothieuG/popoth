@@ -5,13 +5,33 @@ import { supabaseServer } from '@/lib/supabase-server'
 /**
  * API POST /api/monthly-recap/transfer
  *
- * Effectue un transfert d'économies entre budgets
+ * Effectue un transfert manuel entre budgets
+ *
+ * FONCTIONNEMENT :
+ * - Valide que le budget source a assez de surplus disponible
+ * - Enregistre le transfert dans la table budget_transfers
+ * - Les calculs de surplus/déficit sont automatiquement ajustés
+ *   dans l'API step2-data qui prend en compte les transferts
+ *
+ * VALIDATION :
+ * - Le montant ne peut pas dépasser le surplus du budget source
+ * - Les deux budgets doivent appartenir au même propriétaire (profile/group)
+ *
  * Body: {
  *   context: 'profile' | 'group',
  *   from_budget_id: string,
  *   to_budget_id: string,
  *   amount: number,
- *   monthly_recap_id?: string (optionnel pour l'instant)
+ *   monthly_recap_id?: string (optionnel)
+ * }
+ *
+ * Returns: {
+ *   success: true,
+ *   transfer: {
+ *     from_budget: { id, name, new_spent, new_surplus, new_deficit },
+ *     to_budget: { id, name, new_spent, new_surplus, new_deficit },
+ *     amount: number
+ *   }
  * }
  */
 export async function POST(request: NextRequest) {

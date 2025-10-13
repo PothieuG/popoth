@@ -386,7 +386,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 3. Récupérer tous les budgets estimés du profile
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date')
+      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date, cumulated_savings')
       .eq('profile_id', profileId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -442,17 +442,13 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     // 5.3. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
-    // 6. Calculer les économies pour chaque budget
+    // 6. Calculer le total des économies cumulées de tous les budgets
     let totalSavings = 0
-    if (estimatedBudgets && realExpenses) {
+    if (estimatedBudgets) {
       for (const budget of estimatedBudgets) {
-        const spentOnBudget = realExpenses
-          .filter(expense => expense.estimated_budget_id === budget.id)
-          .reduce((sum, expense) => sum + expense.amount, 0)
-
-        // Utiliser les économies mensuelles calculées si disponibles, sinon calculer
-        const budgetSavings = budget.monthly_surplus || calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
-        totalSavings += budgetSavings
+        // Utiliser cumulated_savings qui contient toutes les économies accumulées
+        const cumulatedSavings = budget.cumulated_savings || 0
+        totalSavings += cumulatedSavings
       }
     }
 
@@ -549,7 +545,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 2. Récupérer les budgets estimés du groupe
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date')
+      .select('id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date, cumulated_savings')
       .eq('group_id', groupId)
 
     const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
@@ -596,17 +592,13 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
 
     // 6.3. SUPPRIMÉ: Calcul des différences revenus (bonus/déficits)
 
-    // 7. Calculer les économies des budgets
+    // 7. Calculer le total des économies cumulées de tous les budgets
     let totalSavings = 0
-    if (estimatedBudgets && realExpenses) {
+    if (estimatedBudgets) {
       for (const budget of estimatedBudgets) {
-        const spentOnBudget = realExpenses
-          .filter(expense => expense.estimated_budget_id === budget.id)
-          .reduce((sum, expense) => sum + expense.amount, 0)
-
-        // Utiliser les économies mensuelles calculées si disponibles, sinon calculer
-        const budgetSavings = budget.monthly_surplus || calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false)
-        totalSavings += budgetSavings
+        // Utiliser cumulated_savings qui contient toutes les économies accumulées
+        const cumulatedSavings = budget.cumulated_savings || 0
+        totalSavings += cumulatedSavings
       }
     }
 

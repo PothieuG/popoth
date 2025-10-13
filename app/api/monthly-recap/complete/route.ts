@@ -261,8 +261,8 @@ export async function POST(request: NextRequest) {
       // 2.1. NE PAS remettre les revenus estimés à 0 - ils restent pour le mois suivant
       console.log(`📝 [Monthly Recap Complete] Les revenus estimés restent inchangés pour le mois suivant`)
 
-      // 3. SIMPLIFIÉ: Reporter le déficit comme dépense du mois suivant
-      console.log(`🔄 [Deficit Processing] Début du traitement simplifié des déficits pour ${context}:${contextId}`)
+      // 3. Reporter le déficit comme dépense du mois suivant (avec prise en compte des transferts)
+      console.log(`🔄 [Deficit Processing] Début du traitement des déficits avec transferts pour ${context}:${contextId}`)
 
       try {
         // Récupérer TOUS les budgets pour calculer les déficits
@@ -278,6 +278,18 @@ export async function POST(request: NextRequest) {
         } else {
           console.log(`🔄 [Deficit Processing] ${allBudgets.length} budget(s) trouvé(s), calcul des déficits...`)
 
+          // Récupérer les transferts de budgets pour ce mois
+          const { data: transfers, error: transfersError } = await supabaseServer
+            .from('budget_transfers')
+            .select('from_budget_id, to_budget_id, transfer_amount')
+            .eq(ownerField, contextId)
+
+          if (transfersError) {
+            console.error('❌ [Deficit Processing] Erreur lors de la récupération des transferts:', transfersError)
+          }
+
+          console.log(`🔄 [Deficit Processing] ${transfers?.length || 0} transfert(s) trouvé(s)`)
+
           // Calculer les déficits pour chaque budget
           const deficitExpenses = []
 
@@ -290,10 +302,22 @@ export async function POST(request: NextRequest) {
 
             const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-            // Calculer le déficit simple: dépenses - budget estimé
-            const deficit = Math.max(0, realExpensesThisMonth - budget.estimated_amount)
+            // Calculer les ajustements dus aux transferts
+            const transfersFrom = (transfers || [])
+              .filter(t => t.from_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
 
-            console.log(`📊 [Deficit Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé = ${deficit}€ déficit`)
+            const transfersTo = (transfers || [])
+              .filter(t => t.to_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+            // Le spent_amount ajusté prend en compte les transferts
+            const adjustedSpentAmount = realExpensesThisMonth + transfersFrom - transfersTo
+
+            // Calculer le déficit avec le montant ajusté: dépenses ajustées - budget estimé
+            const deficit = Math.max(0, adjustedSpentAmount - budget.estimated_amount)
+
+            console.log(`📊 [Deficit Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté: ${adjustedSpentAmount}€ = ${deficit}€ déficit`)
 
             if (deficit > 0) {
               // Créer une dépense réelle pour le déficit (APRÈS reset des dépenses)
@@ -328,8 +352,8 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça
       }
 
-      // 3.5. Calculer et reporter les économies (surplus) simples
-      console.log(`💰 [Savings Processing] Début du traitement simplifié des économies pour ${context}:${contextId}`)
+      // 3.5. Calculer et reporter les économies (surplus) avec prise en compte des transferts
+      console.log(`💰 [Savings Processing] Début du traitement des économies avec transferts pour ${context}:${contextId}`)
 
       try {
         // Récupérer tous les budgets pour calculer les économies
@@ -345,6 +369,18 @@ export async function POST(request: NextRequest) {
         } else {
           console.log(`💰 [Savings Processing] ${allBudgetsForSavings.length} budget(s) trouvé(s), calcul des économies...`)
 
+          // Récupérer les transferts de budgets pour ce mois
+          const { data: transfers, error: transfersError } = await supabaseServer
+            .from('budget_transfers')
+            .select('from_budget_id, to_budget_id, transfer_amount')
+            .eq(ownerField, contextId)
+
+          if (transfersError) {
+            console.error('❌ [Savings Processing] Erreur lors de la récupération des transferts:', transfersError)
+          }
+
+          console.log(`🔄 [Savings Processing] ${transfers?.length || 0} transfert(s) trouvé(s)`)
+
           const budgetsWithSavings = []
 
           for (const budget of allBudgetsForSavings) {
@@ -356,10 +392,24 @@ export async function POST(request: NextRequest) {
 
             const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-            // Calculer les économies simples: budget - dépenses
-            const surplus = Math.max(0, budget.estimated_amount - realExpensesThisMonth)
+            // Calculer les ajustements dus aux transferts
+            const transfersFrom = (transfers || [])
+              .filter(t => t.from_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
 
-            console.log(`💰 [Savings Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé = ${surplus}€ économies`)
+            const transfersTo = (transfers || [])
+              .filter(t => t.to_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+            // Le spent_amount ajusté prend en compte les transferts
+            // Transferts FROM = augmente le spent (on donne de l'argent)
+            // Transferts TO = diminue le spent (on reçoit de l'argent)
+            const adjustedSpentAmount = realExpensesThisMonth + transfersFrom - transfersTo
+
+            // Calculer les économies avec le montant ajusté
+            const surplus = Math.max(0, budget.estimated_amount - adjustedSpentAmount)
+
+            console.log(`💰 [Savings Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté: ${adjustedSpentAmount}€ = ${surplus}€ économies`)
 
             if (surplus > 0) {
               budgetsWithSavings.push({
@@ -500,6 +550,19 @@ export async function POST(request: NextRequest) {
         console.error('❌ Erreur lors de la suppression des dépenses réelles:', deleteRealExpensesError)
       } else {
         console.log(`✅ [Monthly Recap Complete] Dépenses réelles supprimées avec succès`)
+      }
+
+      // 4.2.5. Supprimer tous les transferts entre budgets (déjà pris en compte dans les calculs)
+      console.log(`🗑️ [Monthly Recap Complete] Suppression des transferts entre budgets pour ${context}:${contextId}`)
+      const { error: deleteTransfersError } = await supabaseServer
+        .from('budget_transfers')
+        .delete()
+        .eq(ownerField, contextId)
+
+      if (deleteTransfersError) {
+        console.error('❌ Erreur lors de la suppression des transferts:', deleteTransfersError)
+      } else {
+        console.log(`✅ [Monthly Recap Complete] Transferts entre budgets supprimés avec succès`)
       }
 
       // 4.2.1. Insérer les déficits reportés APRÈS le reset
