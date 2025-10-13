@@ -113,6 +113,7 @@ export default function MonthlyRecapStep2({
   const budgetsWithDeficit = step2Data ? step2Data.budget_stats.filter(budget => budget.deficit > 0) : []
 
   // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
+  const currentTotalSavings = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) : 0
   const currentTotalSurplus = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0) : 0
   const currentTotalDeficit = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0) : 0
   const generalRatio = currentTotalSurplus - currentTotalDeficit
@@ -426,27 +427,37 @@ export default function MonthlyRecapStep2({
         )}
 
          {/* Résumé des totaux */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4 bg-green-50 border border-green-200">
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="p-3 bg-purple-50 border border-purple-200">
             <div className="text-center">
-              <h4 className="font-medium text-green-900">Total Économies</h4>
-              <p className="text-xl font-bold text-green-600 mt-1">
+              <h4 className="font-medium text-purple-900 text-sm">Économies</h4>
+              <p className="text-lg font-bold text-purple-600 mt-1">
+                {formatCurrency(currentTotalSavings)}
+              </p>
+              <p className="text-xs text-purple-700 mt-1">Cumulées</p>
+            </div>
+          </Card>
+
+          <Card className="p-3 bg-green-50 border border-green-200">
+            <div className="text-center">
+              <h4 className="font-medium text-green-900 text-sm">Surplus</h4>
+              <p className="text-lg font-bold text-green-600 mt-1">
                 {formatCurrency(currentTotalSurplus)}
               </p>
               <p className="text-xs text-green-700 mt-1">
-                {budgetsWithSurplus.length} budget(s) excédentaire(s)
+                {budgetsWithSurplus.length} budget(s)
               </p>
             </div>
           </Card>
 
-          <Card className="p-4 bg-red-50 border border-red-200">
+          <Card className="p-3 bg-red-50 border border-red-200">
             <div className="text-center">
-              <h4 className="font-medium text-red-900">Total Déficits</h4>
-              <p className="text-xl font-bold text-red-600 mt-1">
-                {formatCurrency(step2Data.total_deficit)}
+              <h4 className="font-medium text-red-900 text-sm">Déficits</h4>
+              <p className="text-lg font-bold text-red-600 mt-1">
+                {formatCurrency(currentTotalDeficit)}
               </p>
               <p className="text-xs text-red-700 mt-1">
-                {budgetsWithDeficit.length} budget(s) déficitaire(s)
+                {budgetsWithDeficit.length} budget(s)
               </p>
             </div>
           </Card>

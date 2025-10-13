@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
     // 3b. Récupérer les transferts de budgets pour ce mois
     const { data: transfers, error: transfersError } = await supabaseServer
       .from('budget_transfers')
-      .select('from_budget_id, to_budget_id, transfer_amount')
+      .select('from_budget_id, to_budget_id, transfer_amount, transfer_reason')
       .eq(ownerField, contextId)
 
     if (transfersError) {
@@ -162,8 +162,11 @@ export async function GET(request: NextRequest) {
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       // Calculer les ajustements dus aux transferts
+      // IMPORTANT: Les transferts depuis savings (économies cumulées) ne doivent PAS
+      // augmenter le spent_amount du budget source, car les économies sont déjà "mises de côté"
       const transfersFrom = (transfers || [])
         .filter(t => t.from_budget_id === budget.id)
+        .filter(t => !t.transfer_reason?.includes('économies cumulées')) // Exclure transferts depuis savings
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       const transfersTo = (transfers || [])
@@ -171,7 +174,7 @@ export async function GET(request: NextRequest) {
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       // Le spent_amount ajusté prend en compte les transferts
-      // Transferts FROM = augmente le spent (on donne de l'argent)
+      // Transferts FROM (surplus uniquement) = augmente le spent (on donne de l'argent)
       // Transferts TO = diminue le spent (on reçoit de l'argent)
       const adjustedSpentAmount = spentAmount + transfersFrom - transfersTo
 

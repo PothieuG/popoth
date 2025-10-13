@@ -39,12 +39,15 @@ fetch('/api/debug/populate-negative-uncompensated', { method: 'POST' }).then(r =
 // 10. POPULATION BUDGETS STANDARD (Scénario de base équilibré)
 fetch('/api/debug/populate-budgets', { method: 'POST' }).then(r => r.json()).then(console.log)
 
+// 11. REVENUS ÉLEVÉS AVEC ÉCONOMIES 💰✅ (Revenus suffisants pour couvrir tous les budgets + économies sur plusieurs postes)
+fetch('/api/debug/populate-high-income-savings', { method: 'POST' }).then(r => r.json()).then(console.log)
+
 ====================================================================================================
                               APPELS AVEC GESTION D'ERREURS
 ====================================================================================================
 
 // Version avec gestion d'erreurs et affichage formaté
-fetch('/api/debug/populate-massive-savings', {
+fetch('/api/debug/populate-high-income-savings', {
   method: 'POST'
 })
 .then(r => r.json())
@@ -53,6 +56,7 @@ fetch('/api/debug/populate-massive-savings', {
   console.table(data.summary);
   console.log('📊 Statistiques:', data.statistics);
   console.log('💰 Impact financier:', data.financial_impact);
+  console.log('💵 Revenus:', data.income_entries);
 })
 .catch(err => console.error('❌ Erreur:', err))
 
@@ -146,5 +150,44 @@ fetch('/api/debug/quick-test').then(r => r.json()).then(console.log)
    - Utilisez ces routes en développement uniquement
    - Parfait pour tester l'interface avec différentes situations
    - Permet de valider les calculs financiers dans divers cas
+
+====================================================================================================
+                     TESTS MONTHLY RECAP - SURPLUS ET ÉCONOMIES
+====================================================================================================
+
+// NOUVEAU: Test du système de répartition automatique avec économies + surplus
+// Scénario idéal pour tester l'étape 2 du monthly recap avec les 2 phases:
+// - Phase 1: Utilisation des économies cumulées (proportionnelle)
+// - Phase 2: Utilisation des surplus mensuels (proportionnelle)
+
+// 1. Créer un scénario avec économies et surplus disponibles
+fetch('/api/debug/populate-high-income-savings', { method: 'POST' }).then(r => r.json()).then(console.log)
+
+// 2. Ensuite, tester la répartition automatique (Step 2 du monthly recap)
+fetch('/api/monthly-recap/auto-balance', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ context: 'profile' })
+}).then(r => r.json()).then(data => {
+  console.log('✅ Répartition automatique:', data);
+  console.log('💎 Économies utilisées:', data.savings_used, '€');
+  console.log('📊 Surplus utilisés:', data.surplus_used, '€');
+  console.log('💰 Total transféré:', data.total_transferred, '€');
+  console.log('📋 Nombre de transferts:', data.transfers_count);
+  console.table(data.transfers);
+})
+
+// 3. Test de l'équilibrage automatique du RAV (Step 1 du monthly recap)
+fetch('/api/monthly-recap/balance', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ context: 'profile' })
+}).then(r => r.json()).then(data => {
+  console.log('✅ Équilibrage RAV:', data);
+  console.log('💎 Économies utilisées:', data.savings_used, '€');
+  console.log('📊 Surplus utilisés:', data.surplus_used, '€');
+  console.log('💰 RAV initial:', data.original_remaining_to_live, '€');
+  console.log('💰 RAV final:', data.final_remaining_to_live, '€');
+})
 
 ====================================================================================================
