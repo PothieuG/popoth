@@ -12,6 +12,12 @@ interface MonthlyRecapStep1Props {
 
 interface Step1Data {
   current_remaining_to_live: number
+  budgetary_remaining_to_live: number
+  normal_remaining_to_live: number
+  factual_remaining_to_live: number
+  needs_balancing: boolean
+  balance_amount: number
+  surplus_for_next_step: number
   is_positive: boolean
   deficit: number
   budgets_with_surplus: Array<{
@@ -183,11 +189,11 @@ export default function MonthlyRecapStep1({
 
   // Déterminer si le bouton "Continuer" doit être affiché
   // L'utilisateur peut continuer si:
-  // 1. Le reste à vivre est positif/nul (pas besoin d'équilibrer)
+  // 1. Pas besoin d'équilibrage (écart positif ou nul)
   // 2. L'équilibrage a été fait avec succès
   // 3. Il ne peut pas équilibrer (aucun excédent disponible)
   const canContinue = step1Data ? (
-    step1Data.is_positive ||
+    !step1Data.needs_balancing ||
     isBalanceCompleted ||
     !step1Data.can_balance
   ) : false
@@ -251,24 +257,82 @@ export default function MonthlyRecapStep1({
 
       {/* Main Content */}
       <div className="flex-1 p-4 space-y-6">
-        {/* Reste à vivre actuel */}
+        {/* Reste à vivre - Vue d'ensemble */}
         <Card className="p-6 bg-white">
-          <div className="text-center">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Votre reste à vivre actuel</h2>
-            <div className={`text-3xl font-bold mb-4 ${step1Data.is_positive ? 'text-green-600' : 'text-red-600'}`}>
-              {step1Data.is_positive ? '+' : ''}{formatCurrency(step1Data.current_remaining_to_live)}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900 text-center mb-4">Vue d&apos;ensemble de votre situation</h2>
+
+            {/* Reste à vivre budgétaire (CIBLE) */}
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900">Reste à vivre budgétaire 🎯</h3>
+                  <p className="text-xs text-blue-700 mt-1">Objectif à atteindre</p>
+                </div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(step1Data.budgetary_remaining_to_live)}
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-gray-600">
-              {step1Data.is_positive
-                ? 'Félicitations ! Vous avez un excédent ce mois-ci.'
-                : 'Votre reste à vivre est négatif, vous pouvez l\'équilibrer automatiquement.'
-              }
-            </p>
+
+            {/* Reste à vivre actuel */}
+            <div className={`p-4 rounded-lg border ${step1Data.is_positive ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className={`text-sm font-medium ${step1Data.is_positive ? 'text-green-900' : 'text-red-900'}`}>
+                    Reste à vivre
+                  </h3>
+                  <p className={`text-xs mt-1 ${step1Data.is_positive ? 'text-green-700' : 'text-red-700'}`}>
+                    Situation actuelle
+                  </p>
+                </div>
+                <div className={`text-2xl font-bold ${step1Data.is_positive ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(step1Data.normal_remaining_to_live)}
+                </div>
+              </div>
+            </div>
+
+            {/* Total des économies */}
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium text-purple-900">
+                    Économies totales
+                  </h3>
+                  <p className="text-xs text-purple-700 mt-1">
+                    Cumulées sur tous les budgets
+                  </p>
+                </div>
+                <div className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(step1Data.total_savings_available)}
+                </div>
+              </div>
+            </div>
+
+            {/* Message d'explication */}
+            <div className="text-center pt-2">
+              <p className="text-sm text-gray-600">
+                {!step1Data.needs_balancing ? (
+                  <>
+                    🎉 Votre reste à vivre ({formatCurrency(step1Data.normal_remaining_to_live)})
+                    {step1Data.surplus_for_next_step > 0 ? (
+                      <> dépasse l&apos;objectif budgétaire de {formatCurrency(step1Data.surplus_for_next_step)}.</>
+                    ) : (
+                      <> atteint l&apos;objectif budgétaire.</>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    ⚠️ Il manque {formatCurrency(step1Data.balance_amount)} pour atteindre l&apos;objectif budgétaire.
+                  </>
+                )}
+              </p>
+            </div>
           </div>
         </Card>
 
-        {/* Reste à vivre positif ou nul - Report automatique */}
-        {step1Data.is_positive ? (
+        {/* Objectif atteint - Aucune action nécessaire */}
+        {!step1Data.needs_balancing ? (
           <Card className="p-6 bg-green-50 border border-green-200">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -277,25 +341,36 @@ export default function MonthlyRecapStep1({
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-green-900 mb-2">
-                Reste à vivre reporté automatiquement
+                🎯 Objectif budgétaire atteint !
               </h3>
               <p className="text-green-700 mb-4">
-                Votre reste à vivre de {formatCurrency(step1Data.current_remaining_to_live)} sera automatiquement
-                reporté comme solde de départ pour le mois prochain.
+                Votre reste à vivre ({formatCurrency(step1Data.normal_remaining_to_live)})
+                {step1Data.surplus_for_next_step > 0 ? (
+                  <> dépasse l&apos;objectif budgétaire de {formatCurrency(step1Data.surplus_for_next_step)}.</>
+                ) : (
+                  <> correspond exactement à l&apos;objectif budgétaire.</>
+                )}
               </p>
+              {step1Data.surplus_for_next_step > 0 && (
+                <div className="p-3 bg-green-100 rounded-lg mb-4">
+                  <p className="text-green-800 text-sm font-medium">
+                    💰 Surplus de {formatCurrency(step1Data.surplus_for_next_step)} disponible pour l&apos;étape suivante
+                  </p>
+                </div>
+              )}
               <div className="inline-flex items-center px-3 py-1 bg-green-200 text-green-800 text-sm font-medium rounded-full">
                 ✅ Aucune action nécessaire
               </div>
             </div>
           </Card>
         ) : (
-          /* Reste à vivre négatif - Équilibrage automatique */
+          /* Objectif non atteint - Équilibrage nécessaire */
           <>
             {/* Affichage des budgets avec excédents et économies */}
             {(step1Data.budgets_with_surplus.length > 0 || step1Data.budgets_with_savings.length > 0) && (
               <Card className="p-4 bg-white">
                 <h3 className="font-medium text-gray-900 mb-4">
-                  💰 Budgets disponibles pour équilibrage
+                  💰 Budgets disponibles pour atteindre l&apos;objectif
                 </h3>
 
                 <div className="space-y-3">
@@ -340,19 +415,25 @@ export default function MonthlyRecapStep1({
             <Card className="p-6 bg-white">
               <div className="text-center">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Équilibrage automatique du reste à vivre
+                  🎯 Équilibrage pour atteindre l&apos;objectif budgétaire
                 </h3>
 
-                <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-                  <div className="p-3 bg-red-50 rounded-lg">
-                    <div className="font-medium text-red-900">Déficit à combler</div>
-                    <div className="text-xl font-bold text-red-600 mt-1">
-                      {formatCurrency(step1Data.deficit)}
+                <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="font-medium text-blue-900">Objectif</div>
+                    <div className="text-lg font-bold text-blue-600 mt-1">
+                      {formatCurrency(step1Data.budgetary_remaining_to_live)}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-orange-50 rounded-lg">
+                    <div className="font-medium text-orange-900">Manque</div>
+                    <div className="text-lg font-bold text-orange-600 mt-1">
+                      {formatCurrency(step1Data.balance_amount)}
                     </div>
                   </div>
                   <div className="p-3 bg-green-50 rounded-lg">
-                    <div className="font-medium text-green-900">Total disponible</div>
-                    <div className="text-xl font-bold text-green-600 mt-1">
+                    <div className="font-medium text-green-900">Disponible</div>
+                    <div className="text-lg font-bold text-green-600 mt-1">
                       {formatCurrency(step1Data.total_available)}
                     </div>
                   </div>
@@ -361,17 +442,17 @@ export default function MonthlyRecapStep1({
                 {step1Data.can_balance ? (
                   <div className="space-y-4">
                     <div className="text-sm text-gray-600">
-                      L'équilibrage utilisera en priorité les économies, puis les excédents,
-                      de manière proportionnelle et équitable.
+                      L&apos;équilibrage utilisera en priorité les économies, puis les excédents,
+                      de manière proportionnelle pour atteindre votre objectif budgétaire.
                     </div>
 
-                    {step1Data.can_fully_balance ? (
+                    {step1Data.total_available >= step1Data.balance_amount ? (
                       <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full mb-4">
-                        ✅ Équilibrage complet possible
+                        ✅ Vous pouvez atteindre l&apos;objectif complet
                       </div>
                     ) : (
                       <div className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full mb-4">
-                        ⚠️ Équilibrage partiel ({formatCurrency(step1Data.deficit - step1Data.total_available)} restera en déficit)
+                        ⚠️ Équilibrage partiel ({formatCurrency(step1Data.balance_amount - step1Data.total_available)} manquants)
                       </div>
                     )}
 
@@ -399,11 +480,11 @@ export default function MonthlyRecapStep1({
                   <div className="space-y-4">
                     <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
                       <p className="text-orange-700 text-sm">
-                        ⚠️ Aucun excédent ou économie disponible pour équilibrer le déficit.
+                        ⚠️ Aucun excédent ou économie disponible pour atteindre l&apos;objectif budgétaire.
                       </p>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Vous pouvez continuer avec le déficit et le gérer dans l'étape suivante
+                      Vous pouvez continuer et gérer la situation dans l&apos;étape suivante
                       en utilisant les fonctionnalités de transfert entre budgets.
                     </div>
                   </div>
@@ -483,10 +564,11 @@ export default function MonthlyRecapStep1({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <h4 className="text-sm font-medium text-blue-900">Fonctionnement de l'équilibrage</h4>
+              <h4 className="text-sm font-medium text-blue-900">Fonctionnement de l&apos;équilibrage</h4>
               <p className="text-xs text-blue-700 mt-1">
-                L'équilibrage automatique répartit proportionnellement les montants disponibles
-                pour optimiser votre situation financière.
+                L&apos;objectif est d&apos;atteindre votre reste à vivre budgétaire ({formatCurrency(step1Data.budgetary_remaining_to_live)}).
+                L&apos;équilibrage automatique répartit proportionnellement les économies et excédents disponibles
+                pour vous rapprocher au maximum de cet objectif.
               </p>
             </div>
           </div>

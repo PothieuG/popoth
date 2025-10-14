@@ -74,9 +74,44 @@ export default function MonthlyRecapFlow({
     return result
   }
 
-  const handleStep1Next = () => {
-    // La navigation est maintenant simple car les données sont récupérées live à chaque étape
-    goToNextStep()
+  const handleStep1Next = async () => {
+    try {
+      // Avant de passer à l'étape 2, récupérer le surplus de l'étape 1
+      // et l'accumuler dans la tirelire
+      const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
+      const step1Data = await response.json()
+
+      if (response.ok && step1Data.surplus_for_next_step > 0) {
+        console.log(`🐷 [Frontend] Accumulation de ${step1Data.surplus_for_next_step}€ dans la tirelire`)
+
+        // Appeler l'API pour accumuler le surplus dans la tirelire
+        const accumulateResponse = await fetch('/api/monthly-recap/accumulate-piggy-bank', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            context,
+            amount: step1Data.surplus_for_next_step
+          })
+        })
+
+        const accumulateData = await accumulateResponse.json()
+
+        if (accumulateResponse.ok) {
+          console.log(`✅ [Frontend] Tirelire mise à jour: ${accumulateData.old_amount}€ → ${accumulateData.new_amount}€`)
+        } else {
+          console.error('❌ [Frontend] Erreur lors de l\'accumulation:', accumulateData.error)
+        }
+      }
+
+      // La navigation est maintenant simple car les données sont récupérées live à chaque étape
+      goToNextStep()
+    } catch (error) {
+      console.error('❌ [Frontend] Erreur lors de la validation de l\'étape 1:', error)
+      // On continue quand même vers l'étape 2 même en cas d'erreur
+      goToNextStep()
+    }
   }
 
   const handleCompleteFromStep2 = async () => {

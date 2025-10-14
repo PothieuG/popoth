@@ -191,10 +191,58 @@ export async function GET(request: NextRequest) {
     console.log(`  - Déficit: ${deficit}€`)
     console.log(`  - Peut équilibrer complètement: ${canFullyBalance}`)
 
+    // 6. Calculer le reste à vivre budgétaire (simple différence revenus estimés - budgets estimés)
+    const budgetaryRemainingToLive = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
+
+    // 7. Le reste à vivre normal est le currentRemainingToLive (avec toutes les dépenses exceptionnelles, etc.)
+    const normalRemainingToLive = currentRemainingToLive
+
+    // 8. Calculer le reste à vivre factuel (écart entre normal et budgétaire)
+    const factualRemainingToLive = normalRemainingToLive - budgetaryRemainingToLive
+
+    // 9. Déterminer si l'équilibrage est nécessaire
+    // LOGIQUE CIBLE: On veut atteindre le RAV budgétaire, pas 0€
+    // Si RAV normal < RAV budgétaire → il faut combler l'écart (équilibrage nécessaire)
+    // Si RAV normal >= RAV budgétaire → surplus disponible pour l'étape suivante
+    const needsBalancing = normalRemainingToLive < budgetaryRemainingToLive
+    const balanceAmount = needsBalancing ? (budgetaryRemainingToLive - normalRemainingToLive) : 0
+    const surplus = !needsBalancing ? (normalRemainingToLive - budgetaryRemainingToLive) : 0
+
+    console.log(``)
+    console.log(`🎯🎯🎯 ========================================================`)
+    console.log(`🎯🎯🎯 NOUVEAUX CALCULS - RESTE À VIVRE`)
+    console.log(`🎯🎯🎯 ========================================================`)
+    console.log(`💰 RESTE À VIVRE BUDGÉTAIRE (CIBLE): ${budgetaryRemainingToLive}€`)
+    console.log(`   = Revenus estimés (${financialData.totalEstimatedIncome}€) - Budgets estimés (${financialData.totalEstimatedBudgets}€)`)
+    console.log(``)
+    console.log(`💰 RESTE À VIVRE NORMAL (RÉEL): ${normalRemainingToLive}€`)
+    console.log(`   = Calcul complet avec dépenses exceptionnelles, revenus réels, etc.`)
+    console.log(``)
+    console.log(`📊 RESTE À VIVRE FACTUEL (ÉCART): ${factualRemainingToLive}€`)
+    console.log(`   = RAV normal (${normalRemainingToLive}€) - RAV budgétaire (${budgetaryRemainingToLive}€)`)
+    console.log(``)
+    console.log(`🎯 OBJECTIF: Atteindre le RAV budgétaire de ${budgetaryRemainingToLive}€`)
+    console.log(`⚖️ BESOIN D'ÉQUILIBRAGE: ${needsBalancing ? 'OUI' : 'NON'}`)
+    if (needsBalancing) {
+      console.log(`💡 Montant à équilibrer pour atteindre la cible: ${balanceAmount}€`)
+      console.log(`   (il faut ajouter ${balanceAmount}€ au RAV normal pour atteindre le RAV budgétaire)`)
+    } else {
+      console.log(`✅ Surplus disponible pour l'étape suivante: ${surplus}€`)
+      console.log(`   (le RAV normal dépasse le RAV budgétaire de ${surplus}€)`)
+    }
+    console.log(`🎯🎯🎯 ========================================================`)
+    console.log(``)
+
     // Retourner les données structurées pour l'étape 1
     return NextResponse.json({
       success: true,
       current_remaining_to_live: currentRemainingToLive,
+      budgetary_remaining_to_live: budgetaryRemainingToLive,
+      normal_remaining_to_live: normalRemainingToLive,
+      factual_remaining_to_live: factualRemainingToLive,
+      needs_balancing: needsBalancing,
+      balance_amount: balanceAmount,
+      surplus_for_next_step: surplus,
       is_positive: isPositiveRAV,
       deficit: deficit,
       budgets_with_surplus: budgetsWithSurplus,

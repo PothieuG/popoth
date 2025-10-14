@@ -169,6 +169,8 @@ export async function GET(request: NextRequest) {
         .filter(t => !t.transfer_reason?.includes('économies cumulées')) // Exclure transferts depuis savings
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
+      // Les transferts TO incluent les transferts depuis d'autres budgets ET depuis la tirelire
+      // (from_budget_id = null représente la tirelire)
       const transfersTo = (transfers || [])
         .filter(t => t.to_budget_id === budget.id)
         .reduce((sum, t) => sum + t.transfer_amount, 0)
@@ -209,10 +211,51 @@ export async function GET(request: NextRequest) {
     console.log(`💎 [Step2 Data] Total surplus: ${totalSurplus}€`)
     console.log(`📉 [Step2 Data] Total deficit: ${totalDeficit}€`)
 
+    // 6. Calculer le reste à vivre budgétaire
+    const budgetaryRemainingToLive = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
+
+    // 7. Récupérer la tirelire depuis la table piggy_bank
+    // Note: La tirelire est maintenant accumulée depuis l'étape 1,
+    // donc on ne l'initialise plus automatiquement ici
+    const { data: piggyBankData, error: piggyBankError } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .eq(ownerField, contextId)
+      .maybeSingle()
+
+    let piggyBank = 0
+
+    if (piggyBankData && !piggyBankError) {
+      // La tirelire existe déjà, on utilise le montant stocké
+      piggyBank = piggyBankData.amount || 0
+      console.log(`🐷 [Step2 Data] Tirelire existante récupérée: ${piggyBank}€`)
+    } else if (!piggyBankData && !piggyBankError) {
+      // Pas d'entrée trouvée, la tirelire est à 0
+      // Elle sera créée lors de la validation de l'étape 1
+      console.log(`🐷 [Step2 Data] Aucune tirelire trouvée, montant à 0€`)
+      piggyBank = 0
+    } else {
+      console.warn('⚠️ [Step2 Data] Erreur lors de la récupération de la tirelire:', piggyBankError)
+      piggyBank = 0
+    }
+
+    console.log(``)
+    console.log(`🏦🏦🏦 ========================================================`)
+    console.log(`🏦 TIRELIRE (depuis table piggy_bank)`)
+    console.log(`🏦🏦🏦 ========================================================`)
+    console.log(`💰 RAV budgétaire: ${budgetaryRemainingToLive}€`)
+    console.log(`💰 RAV actuel: ${currentRemainingToLive}€`)
+    console.log(`💎 Total surplus budgets: ${totalSurplus}€`)
+    console.log(`🏦 TIRELIRE disponible: ${piggyBank}€`)
+    console.log(`🏦🏦🏦 ========================================================`)
+    console.log(``)
+
     // Retourner les données structurées pour l'étape 2
     return NextResponse.json({
       success: true,
       current_remaining_to_live: currentRemainingToLive,
+      budgetary_remaining_to_live: budgetaryRemainingToLive,
+      piggy_bank: piggyBank,
       budget_stats: budgetStats,
       month: currentMonth,
       year: currentYear,

@@ -19,6 +19,8 @@ interface BudgetStat {
 
 interface Step2Data {
   current_remaining_to_live: number
+  budgetary_remaining_to_live: number
+  piggy_bank: number
   budget_stats: BudgetStat[]
   month: number
   year: number
@@ -383,28 +385,6 @@ export default function MonthlyRecapStep2({
 
       {/* Main Content */}
       <div className="flex-1 p-4 space-y-6 overflow-y-auto">
-        {/* Ratio général */}
-        <Card className="p-4 bg-white">
-          <div className="text-center">
-            <div className="flex items-center justify-center mb-2">
-              <h2 className="text-lg font-semibold text-gray-900">Ratio général de vos budgets</h2>
-            </div>
-            <div className={`text-2xl font-bold mb-2 ${
-              generalRatio > 0 ? 'text-green-600' : generalRatio < 0 ? 'text-red-600' : 'text-blue-600'
-            }`}>
-              {generalRatio > 0 ? '+' : ''}{formatCurrency(generalRatio)}
-            </div>
-            <p className="text-sm text-gray-600">
-              {generalRatio > 0
-                ? 'Excédent général - Vous avez bien géré vos budgets !'
-                : generalRatio < 0
-                ? 'Déficit général - Certains budgets ont été dépassés'
-                : 'Budgets équilibrés - Vos prévisions étaient parfaites !'
-              }
-            </p>
-          </div>
-        </Card>
-
         {/* Bouton de répartition automatique */}
         {budgetsWithSurplus.length > 0 && budgetsWithDeficit.length > 0 && (
           <Card className="p-4 bg-orange-50 border border-orange-200">
@@ -427,7 +407,7 @@ export default function MonthlyRecapStep2({
         )}
 
          {/* Résumé des totaux */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card className="p-3 bg-purple-50 border border-purple-200">
             <div className="text-center">
               <h4 className="font-medium text-purple-900 text-sm">Économies</h4>
@@ -461,6 +441,19 @@ export default function MonthlyRecapStep2({
               </p>
             </div>
           </Card>
+
+          {/* Tirelire (Revenus exceptionnels) */}
+          {step2Data.piggy_bank > 0 && (
+            <Card className="p-3 bg-yellow-50 border border-yellow-200">
+              <div className="text-center">
+                <h4 className="font-medium text-yellow-900 text-sm">Tirelire 🐷</h4>
+                <p className="text-lg font-bold text-yellow-600 mt-1">
+                  {formatCurrency(step2Data.piggy_bank)}
+                </p>
+                <p className="text-xs text-yellow-700 mt-1">Revenus exceptionnels</p>
+              </div>
+            </Card>
+          )}
         </div>
 
         {/* Liste des budgets */}
