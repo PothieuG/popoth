@@ -67,15 +67,33 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Calculate totals
-    const totalSavings = budgets?.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) || 0
+    // Calculate totals from budgets
+    const budgetsSavings = budgets?.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) || 0
     const budgetsWithSavings = budgets?.filter(b => (b.cumulated_savings || 0) > 0) || []
     const budgetsWithoutSavings = budgets?.filter(b => (b.cumulated_savings || 0) === 0) || []
+
+    // Get piggy bank amount using the same context filter
+    const { data: piggyBankData, error: piggyBankError } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .match(contextFilter)
+      .maybeSingle()
+
+    const piggyBankAmount = piggyBankData?.amount || 0
+
+    if (piggyBankError) {
+      console.warn('⚠️ Erreur récupération tirelire:', piggyBankError)
+    }
+
+    // Total savings = budgets savings + piggy bank
+    const totalSavings = budgetsSavings + piggyBankAmount
 
     console.log(``)
     console.log(`📊 RÉSULTAT:`)
     console.log(`   - Total budgets: ${budgets?.length || 0}`)
     console.log(`   - Budgets avec économies: ${budgetsWithSavings.length}`)
+    console.log(`   - Économies budgets: ${budgetsSavings}€`)
+    console.log(`   - Tirelire: ${piggyBankAmount}€`)
     console.log(`   - Total économies: ${totalSavings}€`)
     console.log(`💰💰💰 ========================================================`)
     console.log(``)
@@ -85,10 +103,13 @@ export async function GET(request: NextRequest) {
       context,
       user_name: `${profile.first_name} ${profile.last_name}`,
       budgets: budgets || [],
+      piggy_bank: piggyBankAmount,
       statistics: {
         total_budgets: budgets?.length || 0,
         budgets_with_savings: budgetsWithSavings.length,
         budgets_without_savings: budgetsWithoutSavings.length,
+        budgets_savings: budgetsSavings,
+        piggy_bank: piggyBankAmount,
         total_savings: totalSavings
       }
     })

@@ -19,10 +19,13 @@ interface SavingsData {
   context: 'profile' | 'group'
   user_name: string
   budgets: BudgetSavings[]
+  piggy_bank: number
   statistics: {
     total_budgets: number
     budgets_with_savings: number
     budgets_without_savings: number
+    budgets_savings: number
+    piggy_bank: number
     total_savings: number
   }
 }
@@ -305,7 +308,21 @@ export default function SavingsDistributionDrawer({
                   <p className="text-3xl font-bold text-purple-600">
                     {formatCurrency(savingsData.statistics.total_savings)}
                   </p>
-                  <p className="text-xs text-purple-700 mt-2">
+                  <div className="mt-3 pt-3 border-t border-purple-200">
+                    <div className="flex justify-between items-center text-sm mb-1">
+                      <span className="text-purple-700">Économies budgets:</span>
+                      <span className="font-medium text-purple-900">
+                        {formatCurrency(savingsData.statistics.budgets_savings)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-purple-700">Tirelire:</span>
+                      <span className="font-medium text-purple-900">
+                        {formatCurrency(savingsData.piggy_bank)}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-purple-700 mt-3">
                     {savingsData.statistics.budgets_with_savings} budget(s) avec économies
                   </p>
                 </div>
