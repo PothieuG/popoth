@@ -91,12 +91,18 @@ export async function GET(request: NextRequest) {
 
       const { data: expenses } = await supabaseServer
         .from('real_expenses')
-        .select('amount')
+        .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('estimated_budget_id', budget.id)
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+      const spentThisMonth = expenses?.reduce((sum, expense) => {
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+          ? parseFloat(expense.amount_from_budget.toString())
+          : parseFloat(expense.amount.toString())
+        return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+      }, 0) || 0
 
       return {
         ...budget,
@@ -251,12 +257,17 @@ export async function PUT(request: NextRequest) {
 
       const { data: expenses } = await supabaseServer
         .from('real_expenses')
-        .select('amount')
+        .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('estimated_budget_id', id)
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+      const spentThisMonth = expenses?.reduce((sum, expense) => {
+        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+          ? parseFloat(expense.amount_from_budget.toString())
+          : parseFloat(expense.amount.toString())
+        return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+      }, 0) || 0
       // current_savings calculated dynamically in application, not stored
     }
 
@@ -294,12 +305,17 @@ export async function PUT(request: NextRequest) {
 
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount')
+      .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('estimated_budget_id', id)
       .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
       .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-    const spentThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+    const spentThisMonth = expenses?.reduce((sum, expense) => {
+      const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+        ? parseFloat(expense.amount_from_budget.toString())
+        : parseFloat(expense.amount.toString())
+      return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+    }, 0) || 0
 
     return NextResponse.json({
       estimated_budget: { ...data, spent_this_month: spentThisMonth },

@@ -10,6 +10,7 @@ import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
@@ -56,10 +57,17 @@ export default function AddTransactionModal({
   const previewAmount = parseFloat(formData.amount) || 0
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
+  // Ne compte QUE amount_from_budget (pas tirelire ni savings)
   const calculateRealSpentAmount = (budgetId: string): number => {
     return realExpenses
       .filter(expense => expense.estimated_budget_id === budgetId)
-      .reduce((sum, expense) => sum + expense.amount, 0)
+      .reduce((sum, expense) => {
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+          ? expense.amount_from_budget
+          : expense.amount
+        return sum + amountFromBudget
+      }, 0)
   }
 
   // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
@@ -78,7 +86,7 @@ export default function AddTransactionModal({
       type: 'expense' as const,
       spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.current_savings || 0 // 🔥 Directement depuis la base
+      economyAmount: budget.cumulated_savings || 0 // ✅ Utilise cumulated_savings depuis la base
     }
   })
 
@@ -201,9 +209,9 @@ export default function AddTransactionModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             Ajouter une transaction
           </h2>
@@ -220,8 +228,8 @@ export default function AddTransactionModal({
           </Button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Form - Scrollable */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Transaction Type Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-gray-900">Type de transaction</Label>
@@ -362,8 +370,17 @@ export default function AddTransactionModal({
             </div>
           </div>
 
-          {/* Remaining to Live Preview */}
-          {previewAmount > 0 && (
+          {/* Preview for expenses - show breakdown */}
+          {previewAmount > 0 && transactionType === 'expense' && !isExceptional && formData.budgetId && (
+            <ExpenseBreakdownPreview
+              amount={previewAmount}
+              budgetId={formData.budgetId}
+              context={context}
+            />
+          )}
+
+          {/* Preview for incomes or exceptional expenses - show remaining to live */}
+          {previewAmount > 0 && (transactionType === 'income' || isExceptional) && (
             <RemainingToLivePreview
               amount={previewAmount}
               type={transactionType}

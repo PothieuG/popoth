@@ -96,9 +96,16 @@ export function useBudgetProgress(
 
         // Utiliser le montant déjà calculé par l'API (qui inclut le carryover)
         // ou recalculer si pas disponible
+        // Ne compter QUE amount_from_budget (pas tirelire ni savings)
         const spentAmount = budget.spent_this_month !== undefined
           ? budget.spent_this_month
-          : relatedExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+          : relatedExpenses.reduce((sum, expense) => {
+              // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+              const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+                ? parseFloat(expense.amount_from_budget.toString())
+                : parseFloat(expense.amount.toString())
+              return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+            }, 0)
 
         // Calculer le pourcentage de consommation
         const percentage = budget.estimated_amount > 0

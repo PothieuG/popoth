@@ -252,15 +252,22 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     // Calculate spending for each budget this month
+    // Only count amount_from_budget (not piggy bank or savings)
     const budgetsWithSpending = await Promise.all((estimatedBudgets || []).map(async (budget) => {
       const { data: expenses } = await supabaseServer
         .from('real_expenses')
-        .select('amount')
+        .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('estimated_budget_id', budget.id)
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+      const realExpensesThisMonth = expenses?.reduce((sum, expense) => {
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+          ? expense.amount_from_budget
+          : expense.amount
+        return sum + amountFromBudget
+      }, 0) || 0
 
       // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
       let carryoverSpent = 0

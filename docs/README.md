@@ -6,6 +6,7 @@
 
 - **[Financial Planning System](./FINANCIAL_PLANNING_SYSTEM.md)** - Système de planification financière globale
 - **[Financial Rules](./FINANCIAL_RULES.md)** - Règles de calcul financier et logique métier
+- **[Expense Allocation System](./EXPENSE_ALLOCATION_SYSTEM.md)** - Système d'allocation des dépenses (tirelire → économies → budget)
 - **[Monthly Recap System](./MONTHLY_RECAP_SYSTEM.md)** - Système de récapitulatif mensuel (déficits/surplus)
 - **[Salary Contribution System](./SALARY_CONTRIBUTION_SYSTEM.md)** - Système de contribution aux revenus de groupe
 

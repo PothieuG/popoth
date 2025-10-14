@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       // Récupérer les dépenses réelles associées aux budgets
       const { data: expensesData } = await supabaseServer
         .from('real_expenses')
-        .select('amount, estimated_budget_id')
+        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('profile_id', userId)
         .not('estimated_budget_id', 'is', null)
 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
       // Récupérer les dépenses réelles du groupe associées aux budgets
       const { data: expensesData } = await supabaseServer
         .from('real_expenses')
-        .select('amount, estimated_budget_id')
+        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('group_id', profileData.group_id)
         .not('estimated_budget_id', 'is', null)
 
@@ -78,10 +78,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculer la progression pour chaque budget
+    // Ne compter QUE amount_from_budget (pas tirelire ni savings)
     const progressData = budgets.map(budget => {
-      const spentAmount = expenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
-        .reduce((sum, expense) => sum + expense.amount, 0)
+      const relatedExpenses = expenses.filter(expense => expense.estimated_budget_id === budget.id)
+
+      console.log(``)
+      console.log(`🔍 [PROGRESS DEBUG] Budget: ${budget.name} (${budget.id})`)
+      console.log(`🔍 [PROGRESS DEBUG] Nombre de dépenses: ${relatedExpenses.length}`)
+
+      const spentAmount = relatedExpenses.reduce((sum, expense) => {
+          // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+          const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? parseFloat(expense.amount_from_budget)
+            : parseFloat(expense.amount)
+
+          console.log(`🔍 [PROGRESS DEBUG]   - Dépense: ${expense.description || 'N/A'}`)
+          console.log(`🔍 [PROGRESS DEBUG]     amount: ${expense.amount}`)
+          console.log(`🔍 [PROGRESS DEBUG]     amount_from_budget: ${expense.amount_from_budget}`)
+          console.log(`🔍 [PROGRESS DEBUG]     amountFromBudget calculé: ${amountFromBudget}`)
+
+          return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+        }, 0)
+
+      console.log(`🔍 [PROGRESS DEBUG] Total spentAmount: ${spentAmount}`)
+      console.log(``)
 
       const remainingAmount = budget.estimated_amount - spentAmount
       // Utiliser les économies stockées en base (current_savings)

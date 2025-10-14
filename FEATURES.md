@@ -298,6 +298,19 @@
 - **Elimination of Compensation Logic**: Replaced complex compensation with simple addition-based logic
 - **Enhanced User Experience**: Clear visual feedback and predictable financial calculations
 
+### 💸 Expense Allocation System (2025-10-14 - COMPLETE)
+- **Priority-Based Allocation**: Automatic expense coverage following priority: Piggy Bank → Budget Savings → Budget Itself
+- **Accurate Budget Tracking**: Expenses covered by savings (piggy bank/budget savings) do NOT impact budget percentage
+- **Database Schema Enhancement**: Three new fields in `real_expenses`: `amount_from_piggy_bank`, `amount_from_budget_savings`, `amount_from_budget`
+- **Smart Allocation Logic**: Automatic calculation of expense breakdown based on available savings balances
+- **Visual Breakdown Indicators**: Purple badges (🪙) for piggy bank coverage, green badges (💰) for savings coverage in transaction lists
+- **Real-time Allocation Preview**: ExpenseBreakdownPreview component showing how expense will be allocated before creation
+- **New API Endpoint**: `/api/finances/expenses/add-with-logic` implementing complete allocation logic with balance updates
+- **Comprehensive Calculation Fix**: Updated ALL budget calculation endpoints to use `amount_from_budget` instead of `amount`
+- **Critical API Fix**: Corrected `/api/finances/budgets/estimated` endpoint's `spent_this_month` calculation (fixed 533% bug)
+- **Backward Compatibility**: Seamless fallback to `amount` field for expenses created before breakdown tracking
+- **Complete Documentation**: Detailed system documentation in [EXPENSE_ALLOCATION_SYSTEM.md](./docs/EXPENSE_ALLOCATION_SYSTEM.md)
+
 ## 🏗️ Authentication System Architecture
 
 ### 📁 File Structure

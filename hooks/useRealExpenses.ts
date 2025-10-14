@@ -13,6 +13,9 @@ export interface RealExpense {
   expense_date: string
   is_exceptional: boolean
   created_at: string
+  amount_from_piggy_bank?: number
+  amount_from_budget_savings?: number
+  amount_from_budget?: number
   estimated_budget?: {
     name: string
   }
@@ -95,7 +98,8 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   }, [context])
 
   /**
-   * Add a new expense
+   * Add a new expense with smart allocation logic
+   * Uses piggy bank → savings → budget priority
    */
   const addExpense = useCallback(async (expenseData: CreateRealExpenseRequest): Promise<boolean> => {
     try {
@@ -106,7 +110,8 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         is_for_group: context === 'group'
       }
 
-      const response = await fetch('/api/finances/expenses/real', {
+      // Use the new smart allocation endpoint
+      const response = await fetch('/api/finances/expenses/add-with-logic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -122,7 +127,11 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       }
 
       const data = await response.json()
-      setExpenses(prev => [data.real_expense, ...prev])
+
+      // Only add to state if a real expense was created (fromBudget > 0)
+      if (data.real_expense) {
+        setExpenses(prev => [data.real_expense, ...prev])
+      }
 
       // Refresh financial dashboard
       triggerFinancialRefresh()

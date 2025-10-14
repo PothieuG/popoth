@@ -172,7 +172,7 @@ export default function TransactionListItem({
 
             {/* 3-line layout */}
             <div className="flex-1 min-w-0 space-y-0.5">
-              {/* Line 1: Amount - Description */}
+              {/* Line 1: Amount - Description with breakdown badges */}
               <div className="flex items-baseline space-x-2">
                 <span className={cn(
                   'text-lg font-bold',
@@ -180,6 +180,23 @@ export default function TransactionListItem({
                 )}>
                   {type === 'expense' ? '-' : '+'}{formatAmount(transaction.amount)}
                 </span>
+
+                {/* Breakdown badges for expenses with smart allocation */}
+                {type === 'expense' && (transaction as RealExpense).amount_from_piggy_bank !== undefined && (
+                  <div className="flex items-center gap-1">
+                    {(transaction as RealExpense).amount_from_piggy_bank! > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">
+                        🪙 {formatAmount((transaction as RealExpense).amount_from_piggy_bank!)}
+                      </span>
+                    )}
+                    {(transaction as RealExpense).amount_from_budget_savings! > 0 && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">
+                        💰 {formatAmount((transaction as RealExpense).amount_from_budget_savings!)}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <span className="text-sm font-bold text-gray-900 truncate flex-1">
                   - {transaction.description}
                 </span>

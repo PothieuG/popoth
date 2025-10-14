@@ -411,7 +411,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     // 5. Récupérer toutes les dépenses réelles du profile
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount, estimated_budget_id, is_exceptional, description, expense_date')
+      .select('amount, estimated_budget_id, is_exceptional, description, expense_date, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('profile_id', profileId)
 
     console.log(`💸 [DEBUG DB QUERY] Dépenses réelles récupérées: ${realExpenses?.length || 0} entrées`)
@@ -561,7 +561,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 4. Récupérer les dépenses réelles du groupe
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount, estimated_budget_id, is_exceptional')
+      .select('amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('group_id', groupId)
 
     const totalRealExpenses = realExpenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
@@ -686,16 +686,23 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
 
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount, estimated_budget_id')
+      .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('profile_id', profileId)
       .not('estimated_budget_id', 'is', null)
 
     const result: BudgetSavings[] = []
 
     for (const budget of budgets) {
+      // Only count amount_from_budget (not piggy bank or savings)
       const realExpensesThisMonth = expenses
         ?.filter(expense => expense.estimated_budget_id === budget.id)
-        ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+        ?.reduce((sum, expense) => {
+          // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+          const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? expense.amount_from_budget
+            : expense.amount
+          return sum + amountFromBudget
+        }, 0) || 0
 
       // Utiliser carryover_spent_amount si disponible, sinon fallback sur monthly_surplus négatif
       let carryoverSpent = 0
