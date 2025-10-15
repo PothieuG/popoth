@@ -548,9 +548,22 @@ export default function MonthlyRecapStep1({
                 </div>
               )}
 
-              <div className="mt-4 p-3 bg-green-200 rounded-lg">
-                <p className="text-green-800 text-sm">
-                  🎉 Votre situation financière a été équilibrée ! Vous pouvez maintenant continuer vers l'étape suivante.
+              {/* Message de déficit partiel si applicable */}
+              {balanceResult.deficit_message && !balanceResult.is_fully_balanced && (
+                <div className="mt-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
+                  <p className="text-orange-800 text-sm font-medium">
+                    {balanceResult.deficit_message}
+                  </p>
+                </div>
+              )}
+
+              <div className={`mt-4 p-3 rounded-lg ${balanceResult.is_fully_balanced ? 'bg-green-200' : 'bg-blue-100'}`}>
+                <p className={`text-sm ${balanceResult.is_fully_balanced ? 'text-green-800' : 'text-blue-800'}`}>
+                  {balanceResult.is_fully_balanced ? (
+                    <>🎉 Votre situation financière a été équilibrée ! Vous pouvez maintenant continuer vers l'étape suivante.</>
+                  ) : (
+                    <>💡 Équilibrage partiel effectué. Vous avez utilisé tous les excédents et économies disponibles. Vous pouvez continuer et gérer les déficits restants dans l'étape suivante.</>
+                  )}
                 </p>
               </div>
             </div>

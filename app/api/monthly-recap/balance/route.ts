@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`🎯 [Balance API] Début équilibrage PROPORTIONNEL pour ${context}:${contextId}`)
 
-    // 1. Calculer le reste à vivre actuel
+    // 1. Calculer le reste à vivre actuel et budgétaire
     let financialData: any
     if (context === 'profile') {
       financialData = await getProfileFinancialData(contextId)
@@ -74,18 +74,34 @@ export async function POST(request: NextRequest) {
     }
 
     const initialRAV = financialData.remainingToLive
-    console.log(`💰 [Balance API] RAV initial: ${initialRAV}€`)
+    const budgetaryRAV = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
 
-    // Vérifier que le reste à vivre est négatif
-    if (initialRAV >= 0) {
+    console.log(`💰 [Balance API] RAV initial: ${initialRAV}€`)
+    console.log(`💰 [Balance API] RAV budgétaire (CIBLE): ${budgetaryRAV}€`)
+
+    // Calculer l'écart à combler
+    const gap = budgetaryRAV - initialRAV
+    console.log(`📊 [Balance API] Écart à combler: ${gap}€`)
+
+    // Si gap <= 0, pas d'équilibrage nécessaire (RAV >= RAV budgétaire)
+    if (gap <= 0) {
+      const surplus = Math.abs(gap)
+      console.log(`✅ [Balance API] Pas d'équilibrage nécessaire. Surplus de ${surplus}€ disponible pour la tirelire.`)
       return NextResponse.json(
-        { error: 'Le reste à vivre n\'est pas négatif, aucun équilibrage nécessaire' },
-        { status: 400 }
+        {
+          success: true,
+          no_balancing_needed: true,
+          initial_remaining_to_live: initialRAV,
+          budgetary_remaining_to_live: budgetaryRAV,
+          surplus_for_piggy_bank: surplus,
+          message: `Aucun équilibrage nécessaire. Le RAV actuel (${initialRAV}€) est supérieur ou égal au RAV budgétaire (${budgetaryRAV}€).`
+        },
+        { status: 200 }
       )
     }
 
-    const deficit = Math.abs(initialRAV)
-    console.log(`📉 [Balance API] Déficit à combler: ${deficit}€`)
+    const deficit = gap
+    console.log(`📉 [Balance API] Déficit à combler pour atteindre le RAV budgétaire: ${deficit}€`)
 
     // 2. Récupérer les budgets et calculer économies/excédents disponibles
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -240,6 +256,18 @@ export async function POST(request: NextRequest) {
 
     const totalUsed = totalUsedFromSavings + totalUsedFromSurplus
     console.log(`✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`)
+
+    // Vérifier si l'équilibrage est complet ou partiel
+    const remainingGap = deficit - totalUsed
+    const isFullyBalanced = remainingGap <= 0.01 // Tolérance de 1 centime pour les arrondis
+    let deficitMessage = ''
+
+    if (!isFullyBalanced) {
+      deficitMessage = `⚠️ Équilibrage partiel : il manque ${remainingGap.toFixed(2)}€ pour atteindre le RAV budgétaire`
+      console.log(`⚠️ [Balance API] ${deficitMessage}`)
+    } else {
+      console.log(`✅ [Balance API] Équilibrage complet : le RAV budgétaire sera atteint`)
+    }
 
     // 5. Créer une entrée de revenu exceptionnel pour refléter l'équilibrage dans le RAV
     console.log(`💾 [Balance API] Création d'une entrée de revenu exceptionnel pour l'équilibrage`)
@@ -412,9 +440,13 @@ export async function POST(request: NextRequest) {
       success: true,
       method: 'proportional',
       original_remaining_to_live: initialRAV,
+      budgetary_remaining_to_live: budgetaryRAV,
       final_remaining_to_live: finalRAV,
+      target_gap: deficit,
       deficit_covered: totalUsed,
-      remaining_deficit: Math.max(0, deficit - totalUsed),
+      remaining_gap: remainingGap,
+      is_fully_balanced: isFullyBalanced,
+      deficit_message: deficitMessage,
       savings_used: totalUsedFromSavings,
       surplus_used: totalUsedFromSurplus,
       bank_balance_increase: totalUsed,

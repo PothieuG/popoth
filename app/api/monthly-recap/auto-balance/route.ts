@@ -338,6 +338,12 @@ export async function POST(request: NextRequest) {
 
         // Chaque budget avec savings contribue proportionnellement à ce déficit
         for (const savingsBudget of budgetsWithSavings) {
+          // IMPORTANT: Un budget ne peut pas se transférer à lui-même
+          if (savingsBudget.id === deficitBudget.id) {
+            console.log(`  💎 ${savingsBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`)
+            continue
+          }
+
           const savingsProportion = savingsBudget.cumulated_savings / totalSavings
 
           // Contribution = Part des économies de ce budget × Montant nécessaire pour ce déficit
@@ -366,7 +372,8 @@ export async function POST(request: NextRequest) {
           .filter(t => t.from_budget_id === savingsBudget.id && t.source === 'savings')
           .reduce((sum, t) => sum + t.amount, 0)
 
-        const newSavings = savingsBudget.cumulated_savings - totalUsedFromThisBudget
+        // Ensure we never go negative due to rounding errors
+        const newSavings = Math.max(0, savingsBudget.cumulated_savings - totalUsedFromThisBudget)
 
         savingsUpdates.push({
           budget_id: savingsBudget.id,
@@ -422,6 +429,12 @@ export async function POST(request: NextRequest) {
 
           // Chaque budget avec surplus contribue proportionnellement à ce déficit
           for (const surplusBudget of budgetsWithSurplus) {
+            // IMPORTANT: Un budget ne peut pas se transférer à lui-même
+            if (surplusBudget.id === deficitBudget.id) {
+              console.log(`  📊 ${surplusBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`)
+              continue
+            }
+
             const surplusProportion = surplusBudget.monthly_surplus / totalSurplus
 
             // Contribution = Part du surplus de ce budget × Montant nécessaire pour ce déficit
@@ -470,18 +483,33 @@ export async function POST(request: NextRequest) {
     for (const update of savingsUpdates) {
       console.log(`💎 Mise à jour économies: ${update.old_savings}€ → ${update.new_savings}€`)
 
+      // Ensure new_savings is not negative (prevent constraint violation)
+      const safeNewSavings = Math.max(0, Math.round(update.new_savings * 100) / 100)
+
+      console.log(`💎 Valeur safe après arrondi: ${safeNewSavings}€`)
+
       const { error: updateError } = await supabaseServer
         .from('estimated_budgets')
         .update({
-          cumulated_savings: update.new_savings,
+          cumulated_savings: safeNewSavings,
           updated_at: new Date().toISOString()
         })
         .eq('id', update.budget_id)
 
       if (updateError) {
         console.error('❌ Erreur lors de la mise à jour des économies:', updateError)
+        console.error('❌ Budget ID:', update.budget_id)
+        console.error('❌ Ancienne valeur:', update.old_savings)
+        console.error('❌ Nouvelle valeur tentée:', update.new_savings)
+        console.error('❌ Valeur safe:', safeNewSavings)
+        console.error('❌ Détails de l\'erreur Supabase:', JSON.stringify(updateError, null, 2))
         return NextResponse.json(
-          { error: 'Erreur lors de la mise à jour des économies' },
+          {
+            error: 'Erreur lors de la mise à jour des économies',
+            details: updateError.message || 'Erreur inconnue',
+            budget_id: update.budget_id,
+            attempted_value: safeNewSavings
+          },
           { status: 500 }
         )
       }
@@ -569,8 +597,15 @@ export async function POST(request: NextRequest) {
 
       if (insertError) {
         console.error('❌ Erreur lors de l\'enregistrement des transferts:', insertError)
+        console.error('❌ Nombre de transferts tentés:', transferInserts.length)
+        console.error('❌ Détails des transferts:', JSON.stringify(transferInserts, null, 2))
+        console.error('❌ Détails de l\'erreur Supabase:', JSON.stringify(insertError, null, 2))
         return NextResponse.json(
-          { error: 'Erreur lors de l\'enregistrement des transferts' },
+          {
+            error: 'Erreur lors de l\'enregistrement des transferts',
+            details: insertError.message || 'Erreur inconnue',
+            transfers_attempted: transferInserts.length
+          },
           { status: 500 }
         )
       }
