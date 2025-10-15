@@ -34,12 +34,22 @@ Cash Disponible = Revenus Réels - Dépenses Réelles
 #### 📱 Pour les Profiles (utilisateurs individuels)
 **Définition** : L'argent disponible pour le mois après avoir soustrait les budgets et ajouté les revenus
 
-**Formule CORRIGÉE (2025-09-23)** :
+**Formule CORRIGÉE (2025-10-15)** :
 ```
 Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels
-                - Budgets Estimés - Dépenses Exceptionnelles
+                - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
 ```
-**⚠️ CHANGEMENT MAJEUR**: Les économies des budgets ont été **SUPPRIMÉES** de la formule à la demande utilisateur
+**⚠️ CHANGEMENT MAJEUR (2025-10-15)**: Les **déficits des budgets** sont maintenant **SOUSTRAITS** du reste à vivre
+
+**Formule du Déficit d'un Budget** :
+```
+Déficit = MAX(0, Dépenses Réelles du Budget - Budget Estimé)
+```
+
+**Exemple** :
+- Budget Transport : 300€
+- Dépensé sur Transport : 450€
+- **Déficit** : 150€ → Ces 150€ sont **soustraits** du reste à vivre
 
 **Logique des Revenus Estimés** :
 - **Non utilisé** (0€ reçu) : +montant estimé complet
@@ -48,16 +58,22 @@ Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenu
 #### 👥 Pour les Groups
 **Définition** : Budget collectif disponible incluant les contributions des membres
 
-**Formule CORRIGÉE (2025-09-23)** :
+**Formule CORRIGÉE (2025-10-15)** :
 ```
 Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions des Profiles
-                - Budgets Estimés - Dépenses Exceptionnelles
+                - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
 ```
-**⚠️ CHANGEMENT MAJEUR**: Les économies des budgets ont été **SUPPRIMÉES** de la formule à la demande utilisateur
+**⚠️ CHANGEMENT MAJEUR (2025-10-15)**: Les **déficits des budgets** sont maintenant **SOUSTRAITS** du reste à vivre
+
+**Formule du Déficit d'un Budget** :
+```
+Déficit = MAX(0, Dépenses Réelles du Budget - Budget Estimé)
+```
 
 **Caractéristiques** :
 - ✅ Peut être négatif (budget dépassé)
 - ❌ N'inclut PLUS les économies des budgets (supprimé 2025-09-23)
+- ✅ Les déficits des budgets sont soustraits (ajouté 2025-10-15)
 - ✅ Recalculé en temps réel lors des modifications de planification
 
 ### 3. Budgets Estimés
@@ -220,6 +236,27 @@ Reste à Vivre = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenu
 - `lib/financial-calculations.ts` : Fonctions `calculateIncomeCompensationProfile/Group`
 - `components/dashboard/IncomeProgressIndicator.tsx` : Logique d'affichage couleur
 
+### 2025-10-15 : Ajout des Déficits de Budgets au Calcul du RAV
+
+**Besoin identifié** :
+- Lorsqu'un budget est dépassé, le dépassement devrait réduire le reste à vivre
+- Exemple : Budget transport 300€, dépensé 450€ → déficit de 150€ à soustraire du RAV
+
+**Solution implémentée** :
+- **Nouvelle fonction** : `calculateBudgetDeficit()` pour calculer les dépassements
+- **Formule du déficit** : `MAX(0, Dépenses Réelles - Budget Estimé)`
+- **Intégration au RAV** : Les déficits sont maintenant soustraits du reste à vivre
+- **Application** : Pour les profiles ET les groups
+
+**Fichiers modifiés** :
+- `lib/financial-calculations.ts` :
+  - Ajout de `calculateBudgetDeficit()`
+  - Modification de `calculateRemainingToLiveProfile()` (nouveau paramètre `budgetDeficits`)
+  - Modification de `calculateRemainingToLiveGroup()` (nouveau paramètre `budgetDeficits`)
+  - Modification de `getProfileFinancialData()` (calcul et passage des déficits)
+  - Modification de `getGroupFinancialData()` (calcul et passage des déficits)
+- `docs/FINANCIAL_RULES.md` : Mise à jour des formules et ajout d'exemples
+
 ---
 
-*Documentation mise à jour le 2025-09-21 - Correction majeure de la logique des revenus estimés*
+*Documentation mise à jour le 2025-10-15 - Ajout des déficits de budgets au calcul du reste à vivre*

@@ -197,24 +197,27 @@ export function calculateAvailableCash(bankBalance: number, realIncomes: number,
 
 /**
  * CALCUL CORRECT du reste à vivre pour PROFILES selon les règles métier:
- * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles
+ * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
  *
  * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
+ * NOTE: Les déficits des budgets (dépassements) sont maintenant soustraits du RAV
  */
 export async function calculateRemainingToLiveProfile(
   totalIncomeContribution: number,
   exceptionalIncomes: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number
+  exceptionalExpenses: number,
+  budgetDeficits: number = 0
 ): Promise<number> {
-  const remainingToLive = totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses
+  const remainingToLive = totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits
   console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
   console.log(`🔍 [DEBUG RAV PROFILE] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
   console.log(`🔍 [DEBUG RAV PROFILE] - Contribution revenus: +${totalIncomeContribution}€`)
   console.log(`🔍 [DEBUG RAV PROFILE] - Revenus exceptionnels: +${exceptionalIncomes}€`)
   console.log(`🔍 [DEBUG RAV PROFILE] - Budgets estimés: -${estimatedBudgets}€`)
   console.log(`🔍 [DEBUG RAV PROFILE] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] - Déficits des budgets: -${budgetDeficits}€`)
+  console.log(`🔍 [DEBUG RAV PROFILE] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} - ${budgetDeficits} = ${remainingToLive}€`)
   console.log(`🔍 [DEBUG RAV PROFILE] RÉSULTAT FINAL: ${remainingToLive}€`)
   console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
   return remainingToLive
@@ -223,18 +226,20 @@ export async function calculateRemainingToLiveProfile(
 
 /**
  * CALCUL CORRECT du reste à vivre pour GROUPS selon les règles métier:
- * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles
+ * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
  *
  * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
+ * NOTE: Les déficits des budgets (dépassements) sont maintenant soustraits du RAV
  */
 export async function calculateRemainingToLiveGroup(
   totalIncomeContribution: number,
   exceptionalIncomes: number,
   totalGroupContributions: number,
   estimatedBudgets: number,
-  exceptionalExpenses: number
+  exceptionalExpenses: number,
+  budgetDeficits: number = 0
 ): Promise<number> {
-  const remainingToLive = totalIncomeContribution + exceptionalIncomes + totalGroupContributions - estimatedBudgets - exceptionalExpenses
+  const remainingToLive = totalIncomeContribution + exceptionalIncomes + totalGroupContributions - estimatedBudgets - exceptionalExpenses - budgetDeficits
   console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
   console.log(`🔍 [DEBUG RAV GROUP] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
   console.log(`🔍 [DEBUG RAV GROUP] - Contribution revenus: +${totalIncomeContribution}€`)
@@ -242,7 +247,8 @@ export async function calculateRemainingToLiveGroup(
   console.log(`🔍 [DEBUG RAV GROUP] - Contributions groupe: +${totalGroupContributions}€`)
   console.log(`🔍 [DEBUG RAV GROUP] - Budgets estimés: -${estimatedBudgets}€`)
   console.log(`🔍 [DEBUG RAV GROUP] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} = ${remainingToLive}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] - Déficits des budgets: -${budgetDeficits}€`)
+  console.log(`🔍 [DEBUG RAV GROUP] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} - ${budgetDeficits} = ${remainingToLive}€`)
   console.log(`🔍 [DEBUG RAV GROUP] RÉSULTAT FINAL: ${remainingToLive}€`)
   console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
   return remainingToLive
@@ -270,6 +276,28 @@ export function calculateBudgetSavings(
 
   // À la fin du mois seulement : calculer les vraies économies
   return Math.max(0, estimatedAmount - spentThisMonth)
+}
+
+/**
+ * Calcul du déficit d'un budget:
+ * Si les dépenses réelles dépassent le budget estimé, le dépassement doit être soustrait du reste à vivre
+ *
+ * Formule: Déficit = MAX(0, Dépenses Réelles - Budget Estimé)
+ *
+ * Exemple:
+ * - Budget Transport: 300€
+ * - Dépensé: 450€
+ * - Déficit: 150€ → Ces 150€ sont soustraits du reste à vivre
+ */
+export function calculateBudgetDeficit(
+  estimatedAmount: number,
+  spentThisMonth: number
+): number {
+  const deficit = Math.max(0, spentThisMonth - estimatedAmount)
+  if (deficit > 0) {
+    console.log(`⚠️ [Budget Deficit] Budget dépassé: ${spentThisMonth}€ dépensé sur ${estimatedAmount}€ → Déficit: ${deficit}€`)
+  }
+  return deficit
 }
 
 // ============================================
@@ -452,6 +480,41 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       }
     }
 
+    // 6.1. Calculer les déficits des budgets (dépenses > budget estimé)
+    console.log(`🔍 [DEBUG getProfileFinancialData] Calcul des déficits des budgets...`)
+    let totalBudgetDeficits = 0
+    if (estimatedBudgets && realExpenses) {
+      for (const budget of estimatedBudgets) {
+        // Calculer le total dépensé pour ce budget (only amount_from_budget)
+        const spentOnBudget = realExpenses
+          ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id === budget.id)
+          ?.reduce((sum, expense) => {
+            const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+              ? expense.amount_from_budget
+              : expense.amount
+            return sum + amountFromBudget
+          }, 0) || 0
+
+        // Ajouter le carryover si applicable
+        let carryoverSpent = 0
+        if (budget.carryover_spent_amount !== undefined) {
+          carryoverSpent = budget.carryover_spent_amount || 0
+        } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+          carryoverSpent = Math.abs(budget.monthly_surplus)
+        }
+
+        const totalSpent = spentOnBudget + carryoverSpent
+        const deficit = calculateBudgetDeficit(budget.estimated_amount, totalSpent)
+
+        if (deficit > 0) {
+          console.log(`⚠️ [Budget Deficit] "${budget.name}": ${budget.estimated_amount}€ budgété, ${totalSpent}€ dépensé → Déficit: ${deficit}€`)
+        }
+
+        totalBudgetDeficits += deficit
+      }
+    }
+    console.log(`🔍 [DEBUG getProfileFinancialData] Total déficits des budgets: ${totalBudgetDeficits}€`)
+
     // 7. Appliquer les règles de calcul SIMPLIFIÉES
     // Utiliser la fonction dédiée pour calculer le solde disponible
     console.log('📊 [getProfileFinancialData] Calcul du solde disponible pour le profil:', profileId)
@@ -467,13 +530,15 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     console.log(`🔍 [DEBUG getProfileFinancialData] - totalExceptionalIncomes: ${totalExceptionalIncomes}€`)
     console.log(`🔍 [DEBUG getProfileFinancialData] - totalEstimatedBudgets: ${totalEstimatedBudgets}€`)
     console.log(`🔍 [DEBUG getProfileFinancialData] - exceptionalExpenses: ${exceptionalExpenses}€`)
+    console.log(`🔍 [DEBUG getProfileFinancialData] - totalBudgetDeficits: ${totalBudgetDeficits}€`)
 
-    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels - Budgets - Dépenses Exceptionnelles
+    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels - Budgets - Dépenses Exceptionnelles - Déficits des Budgets
     const remainingToLive = await calculateRemainingToLiveProfile(
       incomeContribution,
       totalExceptionalIncomes,
       totalEstimatedBudgets,
-      exceptionalExpenses
+      exceptionalExpenses,
+      totalBudgetDeficits
     )
 
     // Calculs terminés
@@ -494,6 +559,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     console.log(`   - Revenus exceptionnels: ${totalExceptionalIncomes}€`)
     console.log(`   - Budgets estimés: ${totalEstimatedBudgets}€`)
     console.log(`   - Dépenses exceptionnelles: ${exceptionalExpenses}€`)
+    console.log(`   - Déficits des budgets: ${totalBudgetDeficits}€`)
     console.log(``)
     console.log(`💰 RESTE À VIVRE: ${remainingToLive}€`)
     console.log(`💎 TOTAL ÉCONOMIES: ${totalSavings}€`)
@@ -602,6 +668,41 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       }
     }
 
+    // 7.1. Calculer les déficits des budgets (dépenses > budget estimé)
+    console.log(`🔍 [DEBUG getGroupFinancialData] Calcul des déficits des budgets...`)
+    let totalBudgetDeficits = 0
+    if (estimatedBudgets && realExpenses) {
+      for (const budget of estimatedBudgets) {
+        // Calculer le total dépensé pour ce budget (only amount_from_budget)
+        const spentOnBudget = realExpenses
+          ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id === budget.id)
+          ?.reduce((sum, expense) => {
+            const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+              ? expense.amount_from_budget
+              : expense.amount
+            return sum + amountFromBudget
+          }, 0) || 0
+
+        // Ajouter le carryover si applicable
+        let carryoverSpent = 0
+        if (budget.carryover_spent_amount !== undefined) {
+          carryoverSpent = budget.carryover_spent_amount || 0
+        } else if (budget.monthly_surplus && budget.monthly_surplus < 0) {
+          carryoverSpent = Math.abs(budget.monthly_surplus)
+        }
+
+        const totalSpent = spentOnBudget + carryoverSpent
+        const deficit = calculateBudgetDeficit(budget.estimated_amount, totalSpent)
+
+        if (deficit > 0) {
+          console.log(`⚠️ [Budget Deficit] "${budget.name}": ${budget.estimated_amount}€ budgété, ${totalSpent}€ dépensé → Déficit: ${deficit}€`)
+        }
+
+        totalBudgetDeficits += deficit
+      }
+    }
+    console.log(`🔍 [DEBUG getGroupFinancialData] Total déficits des budgets: ${totalBudgetDeficits}€`)
+
     // 8. Récupérer les contributions des profiles du groupe
     const { data: groupContributions } = await supabaseServer
       .from('group_contributions')
@@ -618,13 +719,14 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // Calculer la contribution des revenus au RAV selon les règles métier
     const incomeContribution = await calculateIncomeCompensationGroup(groupId)
 
-    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels + Contributions - Budgets - Dépenses Exceptionnelles
+    // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels + Contributions - Budgets - Dépenses Exceptionnelles - Déficits des Budgets
     const remainingToLive = await calculateRemainingToLiveGroup(
       incomeContribution,
       totalExceptionalIncomes,
       totalProfileContributions,
       totalEstimatedBudgets,
-      exceptionalExpenses
+      exceptionalExpenses,
+      totalBudgetDeficits
     )
 
     console.log('💰 [getGroupFinancialData] Calculs financiers terminés pour le groupe:', groupId)
@@ -641,6 +743,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
       totalProfileContributions,
       totalEstimatedBudgets,
       exceptionalExpenses,
+      totalBudgetDeficits,
       remainingToLive,
       totalSavings
     })
