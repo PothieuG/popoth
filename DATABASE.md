@@ -235,6 +235,44 @@ CREATE TABLE public.real_expenses (
 - **Optional Link**: `estimated_budget_id` (NULL for exceptional expenses)
 - **Automatic Triggers**: Updates budget savings and financial snapshots
 
+### **`public.piggy_bank`**
+```sql
+CREATE TABLE public.piggy_bank (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  profile_id uuid,
+  group_id uuid,
+  amount numeric NOT NULL DEFAULT 0,
+  last_updated timestamp without time zone DEFAULT now(),
+  CONSTRAINT piggy_bank_pkey PRIMARY KEY (id),
+  CONSTRAINT piggy_bank_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id),
+  CONSTRAINT piggy_bank_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT piggy_bank_owner_exclusive_check CHECK (
+    (profile_id IS NOT NULL AND group_id IS NULL) OR
+    (profile_id IS NULL AND group_id IS NOT NULL)
+  )
+);
+
+-- Partial unique indexes for XOR pattern
+CREATE UNIQUE INDEX IF NOT EXISTS idx_piggy_bank_profile_id_unique
+ON public.piggy_bank(profile_id) WHERE profile_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_piggy_bank_group_id_unique
+ON public.piggy_bank(group_id) WHERE group_id IS NOT NULL;
+```
+
+**Table Purpose**: Stores accumulated savings in a virtual "piggy bank" for profiles and groups
+- **XOR Ownership**: Each piggy bank belongs to either a profile OR a group (never both)
+- **Required Fields**: `amount` (≥ 0, defaults to 0)
+- **Timestamp**: `last_updated` tracks the last modification time
+- **Monthly Recap Integration**: Used as FIRST resource during balance operations
+- **Balance Priority Order** 🐷:
+  1. **Piggy Bank** - Used FIRST to cover deficits (complete amount if needed)
+  2. **Savings** (cumulated_savings) - Used SECOND proportionally across budgets
+  3. **Surplus** (estimated - spent) - Used LAST proportionally across budgets
+- **Automatic Population**: Filled during monthly recap when surplus exists after reaching budgetary RAV
+- **RLS Policies**: Users can only access their own profile piggy bank or their group's piggy bank
+- **Partial Indexes**: Ensure one piggy bank per profile and one per group
+
 ## Removed Tables
 
 ### **`public.financial_snapshots`** ❌ REMOVED

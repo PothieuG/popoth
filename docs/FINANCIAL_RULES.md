@@ -257,6 +257,118 @@ Déficit = MAX(0, Dépenses Réelles du Budget - Budget Estimé)
   - Modification de `getGroupFinancialData()` (calcul et passage des déficits)
 - `docs/FINANCIAL_RULES.md` : Mise à jour des formules et ajout d'exemples
 
+## 🐷 Système de Tirelire et Équilibrage (Monthly Recap)
+
+### Vue d'ensemble
+
+Le système de tirelire permet d'accumuler des surplus budgétaires et de les utiliser lors du récapitulatif mensuel pour équilibrer le reste à vivre.
+
+### Fonctionnement de la Tirelire
+
+**Table** : `piggy_bank`
+- **Propriété XOR** : Chaque tirelire appartient soit à un profile soit à un group
+- **Montant** : `amount` (≥ 0, par défaut 0€)
+- **Mise à jour** : `last_updated` timestamp
+
+**Alimentation de la Tirelire** :
+- Lors du monthly recap, si le reste à vivre **dépasse** l'objectif budgétaire
+- Le surplus est automatiquement transféré dans la tirelire
+- Accumulation progressive des excédents mensuels
+
+### 🎯 Logique d'Équilibrage - Ordre de Priorité
+
+Lorsque le reste à vivre est **inférieur** à l'objectif budgétaire (RAV budgétaire), l'équilibrage automatique utilise les ressources dans cet ordre :
+
+#### Phase 1 : Tirelire 🐷
+```
+Montant utilisé = MIN(déficit à combler, montant tirelire)
+```
+- **Priorité** : PREMIÈRE ressource utilisée
+- **Mode** : Montant complet si nécessaire
+- **Effet** : Réduit directement le montant de la tirelire
+- **Exemple** : Déficit 500€, Tirelire 300€ → Utilise 300€ de la tirelire
+
+#### Phase 2 : Économies 💎
+```
+Pour chaque budget avec économies :
+  Montant utilisé = (économies du budget / total économies) × montant restant à combler
+```
+- **Priorité** : DEUXIÈME ressource utilisée (après tirelire)
+- **Mode** : Distribution **PROPORTIONNELLE** entre tous les budgets
+- **Source** : Champ `cumulated_savings` des budgets estimés
+- **Effet** : Réduit les économies accumulées de chaque budget
+- **Exemple** :
+  - Reste à combler : 200€
+  - Budget A : 60€ économies (60% du total)
+  - Budget B : 40€ économies (40% du total)
+  - → Budget A perd 120€, Budget B perd 80€
+
+#### Phase 3 : Surplus 📈
+```
+Pour chaque budget avec surplus :
+  Montant utilisé = (surplus du budget / total surplus) × montant restant à combler
+```
+- **Priorité** : TROISIÈME ressource utilisée (en dernier)
+- **Mode** : Distribution **PROPORTIONNELLE** entre tous les budgets
+- **Calcul** : `MAX(0, Budget Estimé - Dépenses Réelles)`
+- **Effet** : ⚠️ **NOTE** - Les surplus ne peuvent pas être consommés directement car ils font déjà partie du RAV budgétaire
+
+### Exemple Complet d'Équilibrage
+
+```
+📊 Situation initiale :
+- RAV actuel : 200€
+- RAV budgétaire (objectif) : 800€
+- Déficit à combler : 600€
+
+💰 Ressources disponibles :
+- Tirelire : 250€
+- Économies Budget A : 180€ (60%)
+- Économies Budget B : 120€ (40%)
+- Surplus Budget C : 200€
+
+🔄 Équilibrage automatique :
+
+Phase 1 - Tirelire :
+  ✅ Utilise 250€ de la tirelire
+  → Reste à combler : 350€
+  → Nouvelle tirelire : 0€
+
+Phase 2 - Économies (proportionnel) :
+  ✅ Budget A : 180€ × (300€ / 300€) = 180€
+  ✅ Budget B : 120€ × (300€ / 300€) = 120€
+  → Total utilisé : 300€
+  → Reste à combler : 50€
+  → Économies restantes : A=0€, B=0€
+
+Phase 3 - Surplus (proportionnel) :
+  ✅ Budget C : 50€ utilisés
+  → Reste à combler : 0€
+
+✅ Résultat final :
+  - RAV final : 800€ (objectif atteint)
+  - Tirelire : 0€
+  - Économies : 0€
+  - Déficit résolu : 600€
+```
+
+### APIs Impliquées
+
+- **`/api/monthly-recap/step1-data`** : Récupère les données incluant la tirelire
+- **`/api/monthly-recap/balance`** : Effectue l'équilibrage automatique
+  - Récupère le montant de la tirelire
+  - Applique les 3 phases d'équilibrage
+  - Met à jour la tirelire (`last_updated`)
+  - Met à jour les économies des budgets (`cumulated_savings`)
+
+### Règles Importantes
+
+1. ⚠️ **La tirelire n'est JAMAIS répartie** - Elle est utilisée uniquement pour l'équilibrage
+2. ✅ **L'ordre est strict** : Tirelire → Économies → Surplus
+3. 💡 **Distribution proportionnelle** : Les économies et surplus sont prélevés proportionnellement
+4. 🔒 **Équilibrage partiel possible** : Si les ressources sont insuffisantes, équilibrage jusqu'au maximum possible
+5. 📊 **Transparence** : L'interface montre clairement ce qui restera après équilibrage
+
 ---
 
-*Documentation mise à jour le 2025-10-15 - Ajout des déficits de budgets au calcul du reste à vivre*
+*Documentation mise à jour le 2025-10-16 - Ajout du système de tirelire et d'équilibrage*
