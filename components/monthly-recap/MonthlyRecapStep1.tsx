@@ -292,6 +292,23 @@ export default function MonthlyRecapStep1({
               </div>
             </div>
 
+            {/* Total des surplus */}
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium text-green-900">
+                    Surplus totaux
+                  </h3>
+                  <p className="text-xs text-green-700 mt-1">
+                    Excédents des budgets estimés
+                  </p>
+                </div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(step1Data.total_surplus_available)}
+                </div>
+              </div>
+            </div>
+
             {/* Total des économies */}
             <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
               <div className="flex justify-between items-center">
@@ -300,7 +317,7 @@ export default function MonthlyRecapStep1({
                     Économies totales
                   </h3>
                   <p className="text-xs text-purple-700 mt-1">
-                    Cumulées sur tous les budgets
+                    Cumulées sur les budgets estimés
                   </p>
                 </div>
                 <div className="text-2xl font-bold text-purple-600">
@@ -309,61 +326,61 @@ export default function MonthlyRecapStep1({
               </div>
             </div>
 
-            {/* Message d'explication */}
-            <div className="text-center pt-2">
-              <p className="text-sm text-gray-600">
-                {!step1Data.needs_balancing ? (
-                  <>
-                    🎉 Votre reste à vivre ({formatCurrency(step1Data.normal_remaining_to_live)})
-                    {step1Data.surplus_for_next_step > 0 ? (
-                      <> dépasse l&apos;objectif budgétaire de {formatCurrency(step1Data.surplus_for_next_step)}.</>
-                    ) : (
-                      <> atteint l&apos;objectif budgétaire.</>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    ⚠️ Il manque {formatCurrency(step1Data.balance_amount)} pour atteindre l&apos;objectif budgétaire.
-                  </>
-                )}
-              </p>
+            {/* Total de la tirelire */}
+            <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium text-amber-900">
+                    Total tirelire 🐷
+                  </h3>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Montant à répartir ce mois
+                  </p>
+                </div>
+                <div className="text-2xl font-bold text-amber-600">
+                  {formatCurrency(step1Data.factual_remaining_to_live)}
+                </div>
+              </div>
             </div>
           </div>
         </Card>
 
-        {/* Objectif atteint - Aucune action nécessaire */}
-        {!step1Data.needs_balancing ? (
-          <Card className="p-6 bg-green-50 border border-green-200">
+        {/* Message sur l'écart budgétaire - Carte séparée */}
+        {step1Data.needs_balancing && (
+          <Card className="p-6 bg-orange-50 border-2 border-orange-300">
             <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-green-900 mb-2">
-                🎯 Objectif budgétaire atteint !
-              </h3>
-              <p className="text-green-700 mb-4">
-                Votre reste à vivre ({formatCurrency(step1Data.normal_remaining_to_live)})
-                {step1Data.surplus_for_next_step > 0 ? (
-                  <> dépasse l&apos;objectif budgétaire de {formatCurrency(step1Data.surplus_for_next_step)}.</>
-                ) : (
-                  <> correspond exactement à l&apos;objectif budgétaire.</>
-                )}
+              <div className="text-3xl mb-3">⚠️</div>
+              <p className="text-lg font-semibold text-orange-900">
+                Il manque {formatCurrency(step1Data.balance_amount)} pour atteindre l&apos;objectif budgétaire
               </p>
-              {step1Data.surplus_for_next_step > 0 && (
-                <div className="p-3 bg-green-100 rounded-lg mb-4">
-                  <p className="text-green-800 text-sm font-medium">
-                    💰 Surplus de {formatCurrency(step1Data.surplus_for_next_step)} disponible pour l&apos;étape suivante
-                  </p>
-                </div>
-              )}
-              <div className="inline-flex items-center px-3 py-1 bg-green-200 text-green-800 text-sm font-medium rounded-full">
-                ✅ Aucune action nécessaire
-              </div>
             </div>
           </Card>
-        ) : (
+        )}
+
+        {!step1Data.needs_balancing && step1Data.surplus_for_next_step > 0 && (
+          <Card className="p-6 bg-green-50 border-2 border-green-300">
+            <div className="text-center">
+              <div className="text-3xl mb-3">🎉</div>
+              <p className="text-lg font-semibold text-green-900">
+                Votre reste à vivre dépasse l&apos;objectif budgétaire de {formatCurrency(step1Data.surplus_for_next_step)}
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {!step1Data.needs_balancing && step1Data.surplus_for_next_step === 0 && (
+          <Card className="p-6 bg-green-50 border-2 border-green-300">
+            <div className="text-center">
+              <div className="text-3xl mb-3">✅</div>
+              <p className="text-lg font-semibold text-green-900">
+                Votre reste à vivre atteint exactement l&apos;objectif budgétaire
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {/* Affichage conditionnel selon situation */}
+        {step1Data.needs_balancing ? (
           /* Objectif non atteint - Équilibrage nécessaire */
           <>
             {/* Affichage des budgets avec excédents et économies */}
@@ -411,48 +428,119 @@ export default function MonthlyRecapStep1({
               </Card>
             )}
 
-            {/* Calcul total et bouton d'action */}
+            {/* Aperçu des calculs de répartition */}
             <Card className="p-6 bg-white">
-              <div className="text-center">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  🎯 Équilibrage pour atteindre l&apos;objectif budgétaire
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-gray-900 text-center mb-4">
+                  📊 Aperçu des calculs de répartition
                 </h3>
 
-                <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
-                  <div className="p-3 bg-blue-50 rounded-lg">
-                    <div className="font-medium text-blue-900">Objectif</div>
-                    <div className="text-lg font-bold text-blue-600 mt-1">
-                      {formatCurrency(step1Data.budgetary_remaining_to_live)}
+                {/* Détails de la répartition */}
+                <div className="space-y-3">
+                  {/* Tirelire */}
+                  <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
+                      <div className="text-lg font-bold text-amber-600">
+                        {formatCurrency(step1Data.factual_remaining_to_live)}
+                      </div>
                     </div>
+                    <p className="text-xs text-amber-700">
+                      Sera réparti dans l&apos;étape suivante
+                    </p>
                   </div>
-                  <div className="p-3 bg-orange-50 rounded-lg">
-                    <div className="font-medium text-orange-900">Manque</div>
-                    <div className="text-lg font-bold text-orange-600 mt-1">
-                      {formatCurrency(step1Data.balance_amount)}
+
+                  {/* Économies */}
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium text-purple-900">Économies 💎</h4>
+                      <div className="text-lg font-bold text-purple-600">
+                        {formatCurrency(step1Data.total_savings_available)}
+                      </div>
                     </div>
+                    {step1Data.needs_balancing && step1Data.can_balance && (
+                      <p className="text-xs text-purple-700">
+                        Utilisées en priorité pour équilibrer
+                      </p>
+                    )}
+                    {!step1Data.needs_balancing && (
+                      <p className="text-xs text-purple-700">
+                        Restent disponibles
+                      </p>
+                    )}
                   </div>
-                  <div className="p-3 bg-green-50 rounded-lg">
-                    <div className="font-medium text-green-900">Disponible</div>
-                    <div className="text-lg font-bold text-green-600 mt-1">
-                      {formatCurrency(step1Data.total_available)}
+
+                  {/* Surplus */}
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="text-sm font-medium text-green-900">Surplus 📈</h4>
+                      <div className="text-lg font-bold text-green-600">
+                        {formatCurrency(step1Data.total_surplus_available)}
+                      </div>
                     </div>
+                    {step1Data.needs_balancing && step1Data.can_balance && (
+                      <p className="text-xs text-green-700">
+                        Utilisés après les économies si nécessaire
+                      </p>
+                    )}
+                    {!step1Data.needs_balancing && (
+                      <p className="text-xs text-green-700">
+                        Restent disponibles
+                      </p>
+                    )}
                   </div>
                 </div>
 
+                {/* Résumé de ce qui restera après équilibrage */}
+                {step1Data.needs_balancing && step1Data.can_balance && (
+                  <div className="p-4 bg-blue-50 rounded-lg border-2 border-blue-300 mt-4">
+                    <h4 className="text-sm font-semibold text-blue-900 mb-3 text-center">
+                      Après équilibrage automatique
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Montant nécessaire:</span>
+                        <span className="font-bold text-blue-900">{formatCurrency(step1Data.balance_amount)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Montant disponible:</span>
+                        <span className="font-bold text-blue-900">{formatCurrency(step1Data.total_available)}</span>
+                      </div>
+                      <div className="h-px bg-blue-300 my-2"></div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Économies restantes:</span>
+                        <span className="font-bold text-blue-900">
+                          {formatCurrency(Math.max(0, step1Data.total_savings_available - step1Data.balance_amount))}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-800">Surplus restants:</span>
+                        <span className="font-bold text-blue-900">
+                          {formatCurrency(Math.max(0, step1Data.total_surplus_available - Math.max(0, step1Data.balance_amount - step1Data.total_savings_available)))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bouton d'équilibrage */}
                 {step1Data.can_balance ? (
-                  <div className="space-y-4">
-                    <div className="text-sm text-gray-600">
-                      L&apos;équilibrage utilisera en priorité les économies, puis les excédents,
-                      de manière proportionnelle pour atteindre votre objectif budgétaire.
+                  <div className="space-y-3 mt-4">
+                    <div className="text-xs text-gray-600 text-center">
+                      L&apos;équilibrage utilisera en priorité les économies, puis les surplus
                     </div>
 
                     {step1Data.total_available >= step1Data.balance_amount ? (
-                      <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full mb-4">
-                        ✅ Vous pouvez atteindre l&apos;objectif complet
+                      <div className="flex justify-center">
+                        <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
+                          ✅ Équilibrage complet possible
+                        </div>
                       </div>
                     ) : (
-                      <div className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full mb-4">
-                        ⚠️ Équilibrage partiel ({formatCurrency(step1Data.balance_amount - step1Data.total_available)} manquants)
+                      <div className="flex justify-center">
+                        <div className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full">
+                          ⚠️ Équilibrage partiel ({formatCurrency(step1Data.balance_amount - step1Data.total_available)} manquants)
+                        </div>
                       </div>
                     )}
 
@@ -477,21 +565,78 @@ export default function MonthlyRecapStep1({
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-4 mt-4">
                     <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                      <p className="text-orange-700 text-sm">
-                        ⚠️ Aucun excédent ou économie disponible pour atteindre l&apos;objectif budgétaire.
+                      <p className="text-orange-700 text-sm text-center">
+                        ⚠️ Aucun surplus ou économie disponible pour l&apos;équilibrage
                       </p>
                     </div>
-                    <div className="text-sm text-gray-600">
+                    <div className="text-xs text-gray-600 text-center">
                       Vous pouvez continuer et gérer la situation dans l&apos;étape suivante
-                      en utilisant les fonctionnalités de transfert entre budgets.
                     </div>
                   </div>
                 )}
               </div>
             </Card>
           </>
+        ) : (
+          /* Objectif atteint - Afficher aperçu des calculs sans bouton */
+          <Card className="p-6 bg-white">
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-4">
+                📊 Aperçu des calculs de répartition
+              </h3>
+
+              {/* Détails de la répartition */}
+              <div className="space-y-3">
+                {/* Tirelire */}
+                <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
+                    <div className="text-lg font-bold text-amber-600">
+                      {formatCurrency(step1Data.factual_remaining_to_live)}
+                    </div>
+                  </div>
+                  <p className="text-xs text-amber-700">
+                    Sera réparti dans l&apos;étape suivante
+                  </p>
+                </div>
+
+                {/* Économies */}
+                <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium text-purple-900">Économies 💎</h4>
+                    <div className="text-lg font-bold text-purple-600">
+                      {formatCurrency(step1Data.total_savings_available)}
+                    </div>
+                  </div>
+                  <p className="text-xs text-purple-700">
+                    Restent disponibles
+                  </p>
+                </div>
+
+                {/* Surplus */}
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-sm font-medium text-green-900">Surplus 📈</h4>
+                    <div className="text-lg font-bold text-green-600">
+                      {formatCurrency(step1Data.total_surplus_available)}
+                    </div>
+                  </div>
+                  <p className="text-xs text-green-700">
+                    Restent disponibles
+                  </p>
+                </div>
+              </div>
+
+              {/* Message informatif */}
+              <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg mt-4">
+                <p className="text-green-800 text-sm text-center font-medium">
+                  ✅ Aucune action nécessaire - Vous pouvez continuer
+                </p>
+              </div>
+            </div>
+          </Card>
         )}
 
         {/* Résultats après rééquilibrage */}

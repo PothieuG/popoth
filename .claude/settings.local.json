@@ -8,7 +8,8 @@
       "Bash(sed:*)",
       "Bash(npm run typecheck:*)",
       "Bash(curl:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

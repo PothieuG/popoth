@@ -269,10 +269,12 @@ export async function POST(request: NextRequest) {
       console.log(`✅ [Balance API] Équilibrage complet : le RAV budgétaire sera atteint`)
     }
 
-    // 5. Créer une entrée de revenu exceptionnel pour refléter l'équilibrage dans le RAV
-    console.log(`💾 [Balance API] Création d'une entrée de revenu exceptionnel pour l'équilibrage`)
+    // 5. NE PAS créer de revenu exceptionnel !
+    // L'équilibrage consiste à consommer les économies/excédents, pas à créer de nouveaux revenus
+    // Le RAV sera automatiquement ajusté par la réduction des économies et la création de dépenses
+    console.log(`💾 [Balance API] Application des changements sans création de revenu exceptionnel`)
 
-    // 5.1. Récupérer le solde bancaire actuel pour les logs
+    // 5.1. Récupérer le solde bancaire actuel pour les logs (SANS le modifier)
     const { data: currentBankBalance, error: bankError } = await supabaseServer
       .from('bank_balances')
       .select('balance')
@@ -284,42 +286,8 @@ export async function POST(request: NextRequest) {
     }
 
     const currentBalance = currentBankBalance?.balance || 0
-    const newBalance = currentBalance + totalUsed
 
-    console.log(`💰 [Balance API] Solde bancaire sera: ${currentBalance}€ → ${newBalance.toFixed(2)}€ (+${totalUsed.toFixed(2)}€)`)
-
-    // 5.2. Créer une entrée de revenu exceptionnel pour que le RAV reflète l'équilibrage
-    const { error: exceptionalIncomeError } = await supabaseServer
-      .from('real_income_entries')
-      .insert({
-        [ownerField]: contextId,
-        amount: totalUsed,
-        description: `Équilibrage RAV proportionnel - Récupération ${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents`,
-        entry_date: new Date().toISOString().split('T')[0],
-        is_exceptional: true,
-        estimated_income_id: null
-      })
-
-    if (exceptionalIncomeError) {
-      throw new Error(`Erreur création revenu exceptionnel: ${exceptionalIncomeError.message}`)
-    }
-
-    console.log(`✅ [Balance API] Revenu exceptionnel créé: +${totalUsed.toFixed(2)}€`)
-
-    // 5.3. Mettre à jour le solde bancaire
-    const { error: updateBankError } = await supabaseServer
-      .from('bank_balances')
-      .update({
-        balance: newBalance,
-        updated_at: new Date().toISOString()
-      })
-      .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
-
-    if (updateBankError) {
-      throw new Error(`Erreur mise à jour solde bancaire: ${updateBankError.message}`)
-    }
-
-    console.log(`✅ [Balance API] Solde bancaire mis à jour avec succès`)
+    console.log(`💰 [Balance API] Solde bancaire reste inchangé: ${currentBalance}€ (pas de création de faux revenus)`)
 
     // 6. Appliquer les changements proportionnels aux budgets
     console.log(`🔄 [Balance API] Application des changements proportionnels`)
@@ -345,23 +313,14 @@ export async function POST(request: NextRequest) {
         console.log(`✅ Économies réduites pour ${change.budget_name}: ${originalBudget.savings}€ → ${newSavings.toFixed(2)}€`)
 
       } else {
-        // Créer une dépense pour consommer l'excédent proportionnellement
-        const { error: expenseError } = await supabaseServer
-          .from('real_expenses')
-          .insert({
-            [ownerField]: contextId,
-            estimated_budget_id: change.budget_id,
-            amount: change.amount_used,
-            description: `Équilibrage RAV proportionnel - Excédent utilisé ${change.budget_name}`,
-            expense_date: new Date().toISOString().split('T')[0],
-            is_exceptional: false
-          })
+        // NE PAS créer de dépense pour consommer l'excédent !
+        // Les excédents (budget estimé - dépensé) ne peuvent PAS être "consommés" pour équilibrer le RAV
+        // car ils font déjà partie du RAV budgétaire (revenus estimés - budgets estimés)
+        // Si on crée une dépense, on réduit artificiellement le RAV, ce qui crée un cercle vicieux
 
-        if (expenseError) {
-          throw new Error(`Erreur création dépense ${change.budget_name}: ${expenseError.message}`)
-        }
-
-        console.log(`✅ Excédent consommé pour ${change.budget_name}: +${change.amount_used.toFixed(2)}€ dépense`)
+        // À la place, on note simplement que cet excédent ne peut pas combler le déficit
+        console.log(`⚠️ Excédent de ${change.budget_name} (${change.amount_used.toFixed(2)}€) ne peut PAS être utilisé pour équilibrer le RAV`)
+        console.log(`   Raison: Les excédents font déjà partie du calcul du RAV budgétaire`)
       }
     }
 
@@ -386,22 +345,22 @@ export async function POST(request: NextRequest) {
     console.log(``)
     console.log(`💰 RESTE À VIVRE INITIAL: ${initialRAV}€`)
     console.log(`💰 RESTE À VIVRE APRÈS RÉÉQUILIBRAGE: ${finalRAV}€`)
-    console.log(`📈 CHANGEMENT: ${(finalRAV - initialRAV) > 0 ? '+' : ''}${(finalRAV - initialRAV).toFixed(2)}€`)
+    console.log(`💰 RAV BUDGÉTAIRE (OBJECTIF): ${budgetaryRAV}€`)
+    console.log(`📈 CHANGEMENT RAV: ${(finalRAV - initialRAV) > 0 ? '+' : ''}${(finalRAV - initialRAV).toFixed(2)}€`)
     console.log(``)
-    console.log(`💵 RÉCUPÉRÉ:`)
+    console.log(`💵 ÉCONOMIES/EXCÉDENTS CONSOMMÉS:`)
     console.log(`   - Économies utilisées: ${totalUsedFromSavings.toFixed(2)}€`)
     console.log(`   - Excédents utilisés: ${totalUsedFromSurplus.toFixed(2)}€`)
-    console.log(`   - TOTAL RÉCUPÉRÉ: ${totalUsed.toFixed(2)}€`)
+    console.log(`   - TOTAL CONSOMMÉ: ${totalUsed.toFixed(2)}€`)
     console.log(``)
     console.log(`🏦 SOLDE BANCAIRE:`)
-    console.log(`   - Initial: ${currentBalance}€`)
-    console.log(`   - Final: ${newBalance.toFixed(2)}€`)
-    console.log(`   - Changement: +${totalUsed.toFixed(2)}€`)
+    console.log(`   - Reste inchangé: ${currentBalance}€ (pas de création de faux revenus)`)
     console.log(``)
     console.log(`✅ VÉRIFICATION MATHÉMATIQUE:`)
-    console.log(`   - Attendu: ${initialRAV}€ + ${totalUsed.toFixed(2)}€ = ${(initialRAV + totalUsed).toFixed(2)}€`)
-    console.log(`   - Réel: ${finalRAV}€`)
-    console.log(`   - Match: ${Math.abs(finalRAV - (initialRAV + totalUsed)) < 0.01 ? '✅ OUI' : '❌ NON'}`)
+    console.log(`   - RAV Attendu: ${budgetaryRAV}€`)
+    console.log(`   - RAV Réel: ${finalRAV}€`)
+    console.log(`   - Écart résiduel: ${(budgetaryRAV - finalRAV).toFixed(2)}€`)
+    console.log(`   - Match: ${Math.abs(budgetaryRAV - finalRAV) < 0.01 ? '✅ OUI (équilibrage complet)' : `⚠️ NON (il manque ${(budgetaryRAV - finalRAV).toFixed(2)}€)`}`)
     console.log(`🔄🔄🔄 ========================================================`)
     console.log(``)
 
@@ -449,7 +408,6 @@ export async function POST(request: NextRequest) {
       deficit_message: deficitMessage,
       savings_used: totalUsedFromSavings,
       surplus_used: totalUsedFromSurplus,
-      bank_balance_increase: totalUsed,
       proportional_changes: changes,
       budget_stats: finalBudgetStats
     })

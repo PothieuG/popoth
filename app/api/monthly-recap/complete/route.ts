@@ -292,6 +292,7 @@ export async function POST(request: NextRequest) {
 
           // Calculer les déficits pour chaque budget
           const deficitExpenses = []
+          const budgetEstimateUpdates = []
 
           for (const budget of allBudgets) {
             // Calculer le montant dépensé ce mois (dépenses réelles)
@@ -337,6 +338,19 @@ export async function POST(request: NextRequest) {
               }
 
               deficitExpenses.push(deficitExpense)
+
+              // IMPORTANT: Augmenter le budget estimé du montant du déficit pour le mois suivant
+              // Cela permet au planificateur de budget de refléter le déficit reporté
+              const newEstimatedAmount = budget.estimated_amount + deficit
+              budgetEstimateUpdates.push({
+                budget_id: budget.id,
+                budget_name: budget.name,
+                old_estimated_amount: budget.estimated_amount,
+                new_estimated_amount: newEstimatedAmount,
+                deficit_amount: deficit
+              })
+
+              console.log(`💰 [Deficit Processing] Budget "${budget.name}" will be updated: ${budget.estimated_amount}€ → ${newEstimatedAmount}€ (déficit: +${deficit}€)`)
             }
           }
 
@@ -345,6 +359,12 @@ export async function POST(request: NextRequest) {
             console.log(`🔄 [Deficit Processing] ${deficitExpenses.length} déficit(s) à reporter après reset`)
             // Les déficits seront insérés plus tard dans le code
             global.deficitExpensesToInsert = deficitExpenses
+          }
+
+          // Stocker les mises à jour de budgets estimés
+          if (budgetEstimateUpdates.length > 0) {
+            console.log(`🔄 [Deficit Processing] ${budgetEstimateUpdates.length} budget(s) estimé(s) à ajuster`)
+            global.budgetEstimateUpdates = budgetEstimateUpdates
           }
         }
       } catch (deficitError) {
@@ -581,6 +601,30 @@ export async function POST(request: NextRequest) {
 
         // Nettoyer la variable globale
         delete global.deficitExpensesToInsert
+      }
+
+      // 4.2.1.5. Appliquer les ajustements de budgets estimés pour refléter les déficits dans le planificateur
+      if (global.budgetEstimateUpdates && global.budgetEstimateUpdates.length > 0) {
+        console.log(`🔄 [Deficit Processing] Mise à jour de ${global.budgetEstimateUpdates.length} budget(s) estimé(s)`)
+
+        for (const update of global.budgetEstimateUpdates) {
+          const { error: updateBudgetError } = await supabaseServer
+            .from('estimated_budgets')
+            .update({
+              estimated_amount: update.new_estimated_amount,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', update.budget_id)
+
+          if (updateBudgetError) {
+            console.error(`❌ [Deficit Processing] Erreur lors de la mise à jour du budget "${update.budget_name}":`, updateBudgetError)
+          } else {
+            console.log(`✅ [Deficit Processing] Budget "${update.budget_name}" mis à jour: ${update.old_estimated_amount}€ → ${update.new_estimated_amount}€`)
+          }
+        }
+
+        // Nettoyer la variable globale
+        delete global.budgetEstimateUpdates
       }
 
       // 4.2.2. Insérer la dépense exceptionnelle pour l'écart de reste à vivre
