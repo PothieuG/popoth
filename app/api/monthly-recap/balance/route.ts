@@ -7,10 +7,10 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
  * API POST /api/monthly-recap/balance
  *
  * NOUVELLE LOGIQUE PROPORTIONNELLE:
- * 1. Phase 1: Utiliser toutes les économies (current_savings) de manière PROPORTIONNELLE
- * 2. Phase 2: Utiliser tous les excédents (estimated - spent) de manière PROPORTIONNELLE
- * 3. Objectif: Remettre le reste à vivre à 0€ si possible
- * 4. Ajustement du solde bancaire pour refléter les changements
+ * 1. Phase 1: Utiliser la tirelire en PREMIER (montant complet si nécessaire)
+ * 2. Phase 2: Utiliser les économies (cumulated_savings) de manière PROPORTIONNELLE
+ * 3. Phase 3: Utiliser les excédents (estimated - spent) de manière PROPORTIONNELLE
+ * 4. Objectif: Atteindre le RAV budgétaire si possible
  */
 export async function POST(request: NextRequest) {
   try {
@@ -103,8 +103,18 @@ export async function POST(request: NextRequest) {
     const deficit = gap
     console.log(`📉 [Balance API] Déficit à combler pour atteindre le RAV budgétaire: ${deficit}€`)
 
-    // 2. Récupérer les budgets et calculer économies/excédents disponibles
+    // 2. Récupérer la tirelire
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
+    const { data: piggyBank, error: piggyBankError } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .eq(ownerField, contextId)
+      .single()
+
+    const piggyBankAmount = piggyBank?.amount || 0
+    console.log(`🐷 [Balance API] Tirelire disponible: ${piggyBankAmount}€`)
+
+    // 3. Récupérer les budgets et calculer économies/excédents disponibles
     const { data: budgets, error: budgetsError } = await supabaseServer
       .from('estimated_budgets')
       .select('*')
@@ -178,33 +188,53 @@ export async function POST(request: NextRequest) {
       console.log(`📊 [Balance API] Budget "${budget.name}": ${savings}€ économies, ${surplus}€ excédent`)
     }
 
+    console.log(`🐷 [Balance API] Tirelire disponible: ${piggyBankAmount}€`)
     console.log(`💎 [Balance API] Total économies disponibles: ${totalSavingsAvailable}€`)
     console.log(`📊 [Balance API] Total excédents disponibles: ${totalSurplusAvailable}€`)
 
-    const totalAvailable = totalSavingsAvailable + totalSurplusAvailable
+    const totalAvailable = piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable
     console.log(`💰 [Balance API] Total disponible: ${totalAvailable}€`)
 
     if (totalAvailable === 0) {
       return NextResponse.json(
-        { error: 'Aucune économie ou excédent disponible pour équilibrer' },
+        { error: 'Aucune tirelire, économie ou excédent disponible pour équilibrer' },
         { status: 400 }
       )
     }
 
     // 4. LOGIQUE PROPORTIONNELLE: Répartir équitablement selon les disponibilités
     let remainingDeficit = deficit
+    let totalUsedFromPiggyBank = 0
     let totalUsedFromSavings = 0
     let totalUsedFromSurplus = 0
     const changes: Array<{
-      budget_id: string
-      budget_name: string
-      type: 'savings' | 'surplus'
+      budget_id?: string
+      budget_name?: string
+      type: 'piggy_bank' | 'savings' | 'surplus'
       amount_used: number
     }> = []
 
-    // PHASE 1: Utiliser les économies de manière PROPORTIONNELLE
+    // PHASE 1: Utiliser la TIRELIRE en premier (montant complet si nécessaire)
+    if (piggyBankAmount > 0 && remainingDeficit > 0) {
+      console.log(`🔄 [Balance API] Phase 1: Utilisation de la tirelire`)
+
+      const amountToUseFromPiggyBank = Math.min(remainingDeficit, piggyBankAmount)
+      console.log(`🐷 [Balance API] Montant à utiliser de la tirelire: ${amountToUseFromPiggyBank}€ sur ${piggyBankAmount}€ disponibles`)
+
+      totalUsedFromPiggyBank = amountToUseFromPiggyBank
+      remainingDeficit -= amountToUseFromPiggyBank
+
+      changes.push({
+        type: 'piggy_bank',
+        amount_used: amountToUseFromPiggyBank
+      })
+
+      console.log(`  🐷 Tirelire: -${amountToUseFromPiggyBank.toFixed(2)}€`)
+    }
+
+    // PHASE 2: Utiliser les économies de manière PROPORTIONNELLE
     if (totalSavingsAvailable > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 1: Utilisation proportionnelle des économies`)
+      console.log(`🔄 [Balance API] Phase 2: Utilisation proportionnelle des économies`)
 
       const amountToUseFromSavings = Math.min(remainingDeficit, totalSavingsAvailable)
       console.log(`💎 [Balance API] Montant à utiliser des économies: ${amountToUseFromSavings}€ sur ${totalSavingsAvailable}€ disponibles`)
@@ -228,9 +258,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // PHASE 2: Utiliser les excédents de manière PROPORTIONNELLE
+    // PHASE 3: Utiliser les excédents de manière PROPORTIONNELLE
     if (totalSurplusAvailable > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 2: Utilisation proportionnelle des excédents`)
+      console.log(`🔄 [Balance API] Phase 3: Utilisation proportionnelle des excédents`)
 
       const amountToUseFromSurplus = Math.min(remainingDeficit, totalSurplusAvailable)
       console.log(`📊 [Balance API] Montant à utiliser des excédents: ${amountToUseFromSurplus}€ sur ${totalSurplusAvailable}€ disponibles`)
@@ -254,8 +284,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const totalUsed = totalUsedFromSavings + totalUsedFromSurplus
-    console.log(`✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`)
+    const totalUsed = totalUsedFromPiggyBank + totalUsedFromSavings + totalUsedFromSurplus
+    console.log(`✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromPiggyBank.toFixed(2)}€ tirelire + ${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`)
 
     // Vérifier si l'équilibrage est complet ou partiel
     const remainingGap = deficit - totalUsed
@@ -289,9 +319,29 @@ export async function POST(request: NextRequest) {
 
     console.log(`💰 [Balance API] Solde bancaire reste inchangé: ${currentBalance}€ (pas de création de faux revenus)`)
 
-    // 6. Appliquer les changements proportionnels aux budgets
+    // 6. Appliquer les changements proportionnels
     console.log(`🔄 [Balance API] Application des changements proportionnels`)
 
+    // 6.1. Mettre à jour la tirelire si nécessaire
+    if (totalUsedFromPiggyBank > 0) {
+      const newPiggyBankAmount = piggyBankAmount - totalUsedFromPiggyBank
+
+      const { error: piggyBankUpdateError } = await supabaseServer
+        .from('piggy_bank')
+        .update({
+          amount: newPiggyBankAmount,
+          last_updated: new Date().toISOString()
+        })
+        .eq(ownerField, contextId)
+
+      if (piggyBankUpdateError) {
+        throw new Error(`Erreur mise à jour tirelire: ${piggyBankUpdateError.message}`)
+      }
+
+      console.log(`✅ Tirelire mise à jour: ${piggyBankAmount}€ → ${newPiggyBankAmount.toFixed(2)}€`)
+    }
+
+    // 6.2. Mettre à jour les budgets
     for (const change of changes) {
       if (change.type === 'savings') {
         // Réduire les économies proportionnellement
@@ -348,7 +398,8 @@ export async function POST(request: NextRequest) {
     console.log(`💰 RAV BUDGÉTAIRE (OBJECTIF): ${budgetaryRAV}€`)
     console.log(`📈 CHANGEMENT RAV: ${(finalRAV - initialRAV) > 0 ? '+' : ''}${(finalRAV - initialRAV).toFixed(2)}€`)
     console.log(``)
-    console.log(`💵 ÉCONOMIES/EXCÉDENTS CONSOMMÉS:`)
+    console.log(`💵 RESSOURCES CONSOMMÉES:`)
+    console.log(`   - Tirelire utilisée: ${totalUsedFromPiggyBank.toFixed(2)}€`)
     console.log(`   - Économies utilisées: ${totalUsedFromSavings.toFixed(2)}€`)
     console.log(`   - Excédents utilisés: ${totalUsedFromSurplus.toFixed(2)}€`)
     console.log(`   - TOTAL CONSOMMÉ: ${totalUsed.toFixed(2)}€`)
@@ -406,6 +457,7 @@ export async function POST(request: NextRequest) {
       remaining_gap: remainingGap,
       is_fully_balanced: isFullyBalanced,
       deficit_message: deficitMessage,
+      piggy_bank_used: totalUsedFromPiggyBank,
       savings_used: totalUsedFromSavings,
       surplus_used: totalUsedFromSurplus,
       proportional_changes: changes,

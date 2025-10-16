@@ -107,8 +107,18 @@ export async function GET(request: NextRequest) {
     console.log(`🎯🎯🎯 ========================================================`)
     console.log(``)
 
-    // 2. Récupérer les budgets avec leurs données
+    // 2. Récupérer le montant de la tirelire depuis la base de données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
+    const { data: piggyBank, error: piggyBankError } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .eq(ownerField, contextId)
+      .single()
+
+    const piggyBankAmount = piggyBank?.amount || 0
+    console.log(`🐷 [Step1 Data] Tirelire récupérée: ${piggyBankAmount}€`)
+
+    // 3. Récupérer les budgets avec leurs données
     const { data: budgets, error: budgetsError } = await supabaseServer
       .from('estimated_budgets')
       .select('id, name, estimated_amount, cumulated_savings')
@@ -118,7 +128,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`Erreur récupération budgets: ${budgetsError.message}`)
     }
 
-    // 3. Récupérer les dépenses réelles pour calculer les excédents
+    // 4. Récupérer les dépenses réelles pour calculer les excédents
     const { data: expenses, error: expensesError } = await supabaseServer
       .from('real_expenses')
       .select('estimated_budget_id, amount')
@@ -129,7 +139,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
     }
 
-    // 4. Calculer les excédents et économies pour chaque budget
+    // 5. Calculer les excédents et économies pour chaque budget
     const budgetsWithSurplus = []
     const budgetsWithSavings = []
     let totalSurplusAvailable = 0
@@ -173,9 +183,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const totalAvailable = totalSurplusAvailable + totalSavingsAvailable
+    const totalAvailable = piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable
     const canBalance = totalAvailable > 0
 
+    console.log(`🐷 [Step1 Data] Tirelire disponible: ${piggyBankAmount}€`)
     console.log(`💎 [Step1 Data] Total économies disponibles: ${totalSavingsAvailable}€`)
     console.log(`📊 [Step1 Data] Total excédents disponibles: ${totalSurplusAvailable}€`)
     console.log(`💰 [Step1 Data] Total disponible pour équilibrage: ${totalAvailable}€`)
@@ -240,6 +251,7 @@ export async function GET(request: NextRequest) {
       budgetary_remaining_to_live: budgetaryRemainingToLive,
       normal_remaining_to_live: normalRemainingToLive,
       factual_remaining_to_live: factualRemainingToLive,
+      piggy_bank_amount: piggyBankAmount,
       needs_balancing: needsBalancing,
       balance_amount: balanceAmount,
       surplus_for_next_step: surplus,

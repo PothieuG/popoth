@@ -15,6 +15,7 @@ interface Step1Data {
   budgetary_remaining_to_live: number
   normal_remaining_to_live: number
   factual_remaining_to_live: number
+  piggy_bank_amount: number
   needs_balancing: boolean
   balance_amount: number
   surplus_for_next_step: number
@@ -334,11 +335,11 @@ export default function MonthlyRecapStep1({
                     Total tirelire 🐷
                   </h3>
                   <p className="text-xs text-amber-700 mt-1">
-                    Montant à répartir ce mois
+                    Disponible pour équilibrage
                   </p>
                 </div>
                 <div className="text-2xl font-bold text-amber-600">
-                  {formatCurrency(step1Data.factual_remaining_to_live)}
+                  {formatCurrency(step1Data.piggy_bank_amount)}
                 </div>
               </div>
             </div>
@@ -442,12 +443,19 @@ export default function MonthlyRecapStep1({
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
                       <div className="text-lg font-bold text-amber-600">
-                        {formatCurrency(step1Data.factual_remaining_to_live)}
+                        {formatCurrency(step1Data.piggy_bank_amount)}
                       </div>
                     </div>
-                    <p className="text-xs text-amber-700">
-                      Sera réparti dans l&apos;étape suivante
-                    </p>
+                    {step1Data.needs_balancing && step1Data.can_balance && (
+                      <p className="text-xs text-amber-700">
+                        Utilisée en PREMIER pour équilibrer
+                      </p>
+                    )}
+                    {!step1Data.needs_balancing && (
+                      <p className="text-xs text-amber-700">
+                        Reste disponible
+                      </p>
+                    )}
                   </div>
 
                   {/* Économies */}
@@ -460,7 +468,7 @@ export default function MonthlyRecapStep1({
                     </div>
                     {step1Data.needs_balancing && step1Data.can_balance && (
                       <p className="text-xs text-purple-700">
-                        Utilisées en priorité pour équilibrer
+                        Utilisées après la tirelire (en proportion)
                       </p>
                     )}
                     {!step1Data.needs_balancing && (
@@ -480,7 +488,7 @@ export default function MonthlyRecapStep1({
                     </div>
                     {step1Data.needs_balancing && step1Data.can_balance && (
                       <p className="text-xs text-green-700">
-                        Utilisés après les économies si nécessaire
+                        Utilisés en dernier (en proportion)
                       </p>
                     )}
                     {!step1Data.needs_balancing && (
@@ -507,18 +515,41 @@ export default function MonthlyRecapStep1({
                         <span className="font-bold text-blue-900">{formatCurrency(step1Data.total_available)}</span>
                       </div>
                       <div className="h-px bg-blue-300 my-2"></div>
-                      <div className="flex justify-between">
-                        <span className="text-blue-800">Économies restantes:</span>
-                        <span className="font-bold text-blue-900">
-                          {formatCurrency(Math.max(0, step1Data.total_savings_available - step1Data.balance_amount))}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-blue-800">Surplus restants:</span>
-                        <span className="font-bold text-blue-900">
-                          {formatCurrency(Math.max(0, step1Data.total_surplus_available - Math.max(0, step1Data.balance_amount - step1Data.total_savings_available)))}
-                        </span>
-                      </div>
+                      {(() => {
+                        // Calcul de ce qui restera après équilibrage
+                        let remaining = step1Data.balance_amount
+
+                        // Phase 1: Tirelire
+                        const piggyUsed = Math.min(remaining, step1Data.piggy_bank_amount)
+                        remaining -= piggyUsed
+                        const piggyRemaining = step1Data.piggy_bank_amount - piggyUsed
+
+                        // Phase 2: Économies (proportionnel)
+                        const savingsUsed = Math.min(remaining, step1Data.total_savings_available)
+                        remaining -= savingsUsed
+                        const savingsRemaining = step1Data.total_savings_available - savingsUsed
+
+                        // Phase 3: Surplus (proportionnel)
+                        const surplusUsed = Math.min(remaining, step1Data.total_surplus_available)
+                        const surplusRemaining = step1Data.total_surplus_available - surplusUsed
+
+                        return (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-blue-800">Tirelire restante:</span>
+                              <span className="font-bold text-blue-900">{formatCurrency(piggyRemaining)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-800">Économies restantes:</span>
+                              <span className="font-bold text-blue-900">{formatCurrency(savingsRemaining)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-blue-800">Surplus restants:</span>
+                              <span className="font-bold text-blue-900">{formatCurrency(surplusRemaining)}</span>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 )}
@@ -527,7 +558,7 @@ export default function MonthlyRecapStep1({
                 {step1Data.can_balance ? (
                   <div className="space-y-3 mt-4">
                     <div className="text-xs text-gray-600 text-center">
-                      L&apos;équilibrage utilisera en priorité les économies, puis les surplus
+                      L&apos;équilibrage utilisera d&apos;abord la tirelire, puis les économies, et enfin les surplus
                     </div>
 
                     {step1Data.total_available >= step1Data.balance_amount ? (
@@ -594,11 +625,11 @@ export default function MonthlyRecapStep1({
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
                     <div className="text-lg font-bold text-amber-600">
-                      {formatCurrency(step1Data.factual_remaining_to_live)}
+                      {formatCurrency(step1Data.piggy_bank_amount)}
                     </div>
                   </div>
                   <p className="text-xs text-amber-700">
-                    Sera réparti dans l&apos;étape suivante
+                    Reste disponible
                   </p>
                 </div>
 
