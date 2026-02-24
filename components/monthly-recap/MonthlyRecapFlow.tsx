@@ -25,7 +25,6 @@ export default function MonthlyRecapFlow({
     currentStep,
     transferBetweenBudgets,
     autoBalanceBudgets,
-    balanceRemainingToLive,
     completeRecap,
     goToStep,
     goToNextStep,
@@ -69,48 +68,75 @@ export default function MonthlyRecapFlow({
     return await autoBalanceBudgets()
   }
 
-  const handleBalanceRemainingToLive = async () => {
-    const result = await balanceRemainingToLive()
-    return result
-  }
-
   const handleStep1Next = async () => {
     try {
-      // Avant de passer à l'étape 2, récupérer le surplus de l'étape 1
-      // et l'accumuler dans la tirelire
-      const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
-      const step1Data = await response.json()
+      console.log(``)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(`🎯🎯🎯 [FRONTEND] EXÉCUTION PROCESS STEP 1`)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(`🎯 Contexte: ${context}`)
+      console.log(`🎯🎯🎯 ========================================================`)
+      console.log(``)
 
-      if (response.ok && step1Data.surplus_for_next_step > 0) {
-        console.log(`🐷 [Frontend] Accumulation de ${step1Data.surplus_for_next_step}€ dans la tirelire`)
+      // ✅ NOUVEAU: Appel à l'API process-step1 qui gère TOUT
+      const processResponse = await fetch('/api/monthly-recap/process-step1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ context })
+      })
 
-        // Appeler l'API pour accumuler le surplus dans la tirelire
-        const accumulateResponse = await fetch('/api/monthly-recap/accumulate-piggy-bank', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            context,
-            amount: step1Data.surplus_for_next_step
-          })
-        })
+      const processData = await processResponse.json()
 
-        const accumulateData = await accumulateResponse.json()
+      if (processResponse.ok && processData.success) {
+        console.log(`✅ [Frontend] Process Step 1 réussi`)
+        console.log(`   📊 Cas: ${processData.case}`)
+        console.log(`   💰 RAV initial: ${processData.initial_rav}€`)
+        console.log(`   💰 RAV final: ${processData.final_rav}€`)
+        console.log(`   💰 RAV budgétaire: ${processData.budgetary_rav}€`)
+        console.log(`   🐷 Tirelire finale: ${processData.piggy_bank_final}€`)
+        console.log(`   📋 Opérations effectuées: ${processData.operations_performed.length}`)
 
-        if (accumulateResponse.ok) {
-          console.log(`✅ [Frontend] Tirelire mise à jour: ${accumulateData.old_amount}€ → ${accumulateData.new_amount}€`)
-        } else {
-          console.error('❌ [Frontend] Erreur lors de l\'accumulation:', accumulateData.error)
+        // Si cas déficit et pas complètement équilibré
+        if (processData.case === 'deficit' && !processData.is_fully_balanced) {
+          console.warn(`⚠️ [Frontend] Équilibrage partiel - Gap résiduel: ${processData.gap_residuel}€`)
+          // Optionnel: Afficher un toast/alert à l'utilisateur
+          // alert(`Attention: Un gap de ${processData.gap_residuel}€ subsiste. Réduisez vos budgets ou augmentez vos revenus.`)
         }
-      }
 
-      // La navigation est maintenant simple car les données sont récupérées live à chaque étape
-      goToNextStep()
+        // Log détaillé des opérations pour debug
+        console.log(``)
+        console.log(`📋 Détail des opérations:`)
+        processData.operations_performed.forEach((op: any, index: number) => {
+          console.log(`   ${index + 1}. [${op.step}] ${op.type}:`, op.details)
+        })
+        console.log(``)
+
+        // Navigation vers Step 2
+        goToNextStep()
+      } else {
+        console.error('❌ [Frontend] Erreur lors du process step 1:', processData.error)
+
+        // Optionnel: Afficher l'erreur à l'utilisateur
+        // alert(`Erreur: ${processData.error}`)
+
+        // Décider si on bloque ou on continue vers Step 2
+        // Option 1: Bloquer (recommandé)
+        throw new Error(processData.error)
+
+        // Option 2: Continuer quand même (déconseillé)
+        // goToNextStep()
+      }
     } catch (error) {
       console.error('❌ [Frontend] Erreur lors de la validation de l\'étape 1:', error)
-      // On continue quand même vers l'étape 2 même en cas d'erreur
-      goToNextStep()
+
+      // Afficher l'erreur à l'utilisateur
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
+      alert(`Erreur lors du rééquilibrage: ${errorMessage}`)
+
+      // NE PAS continuer vers l'étape 2 en cas d'erreur
+      // goToNextStep() // ❌ À SUPPRIMER
     }
   }
 
@@ -168,7 +194,6 @@ export default function MonthlyRecapFlow({
         <MonthlyRecapStep1
           context={context}
           onNext={handleStep1Next}
-          onBalanceRemainingToLive={handleBalanceRemainingToLive}
         />
       )
 

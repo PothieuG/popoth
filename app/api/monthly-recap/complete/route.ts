@@ -372,109 +372,11 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça
       }
 
-      // 3.5. Calculer et reporter les économies (surplus) avec prise en compte des transferts
-      console.log(`💰 [Savings Processing] Début du traitement des économies avec transferts pour ${context}:${contextId}`)
-
-      try {
-        // Récupérer tous les budgets pour calculer les économies
-        const { data: allBudgetsForSavings, error: savingsQueryError } = await supabaseServer
-          .from('estimated_budgets')
-          .select('id, name, estimated_amount, cumulated_savings')
-          .eq(ownerField, contextId)
-
-        if (savingsQueryError) {
-          console.error('❌ [Savings Processing] Erreur lors de la récupération des budgets:', savingsQueryError)
-        } else if (!allBudgetsForSavings || allBudgetsForSavings.length === 0) {
-          console.log('✅ [Savings Processing] Aucun budget à traiter')
-        } else {
-          console.log(`💰 [Savings Processing] ${allBudgetsForSavings.length} budget(s) trouvé(s), calcul des économies...`)
-
-          // Récupérer les transferts de budgets pour ce mois
-          const { data: transfers, error: transfersError } = await supabaseServer
-            .from('budget_transfers')
-            .select('from_budget_id, to_budget_id, transfer_amount')
-            .eq(ownerField, contextId)
-
-          if (transfersError) {
-            console.error('❌ [Savings Processing] Erreur lors de la récupération des transferts:', transfersError)
-          }
-
-          console.log(`🔄 [Savings Processing] ${transfers?.length || 0} transfert(s) trouvé(s)`)
-
-          const budgetsWithSavings = []
-
-          for (const budget of allBudgetsForSavings) {
-            // Calculer le montant dépensé ce mois (dépenses réelles)
-            const { data: expenses } = await supabaseServer
-              .from('real_expenses')
-              .select('amount')
-              .eq('estimated_budget_id', budget.id)
-
-            const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-
-            // Calculer les ajustements dus aux transferts
-            const transfersFrom = (transfers || [])
-              .filter(t => t.from_budget_id === budget.id)
-              .reduce((sum, t) => sum + t.transfer_amount, 0)
-
-            const transfersTo = (transfers || [])
-              .filter(t => t.to_budget_id === budget.id)
-              .reduce((sum, t) => sum + t.transfer_amount, 0)
-
-            // Le spent_amount ajusté prend en compte les transferts
-            // Transferts FROM = augmente le spent (on donne de l'argent)
-            // Transferts TO = diminue le spent (on reçoit de l'argent)
-            const adjustedSpentAmount = realExpensesThisMonth + transfersFrom - transfersTo
-
-            // Calculer les économies avec le montant ajusté
-            const surplus = Math.max(0, budget.estimated_amount - adjustedSpentAmount)
-
-            console.log(`💰 [Savings Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté: ${adjustedSpentAmount}€ = ${surplus}€ économies`)
-
-            if (surplus > 0) {
-              budgetsWithSavings.push({
-                ...budget,
-                calculated_savings: surplus
-              })
-            }
-          }
-
-          if (budgetsWithSavings.length > 0) {
-            console.log(`💰 [Savings Processing] ${budgetsWithSavings.length} budget(s) avec économies détecté(s)`)
-
-            // Appliquer les économies
-            const savingsPromises = budgetsWithSavings.map(budget => {
-              const currentSavings = budget.cumulated_savings || 0
-              const newSavingsAmount = currentSavings + budget.calculated_savings
-
-              console.log(`💰 [Savings Processing] "${budget.name}": économies ${budget.calculated_savings}€ + économies existantes ${currentSavings}€ = ${newSavingsAmount}€`)
-
-              return supabaseServer
-                .from('estimated_budgets')
-                .update({
-                  cumulated_savings: newSavingsAmount,
-                  last_savings_update: currentDate.toISOString().split('T')[0],
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', budget.id)
-            })
-
-            const savingsResults = await Promise.all(savingsPromises)
-            const savingsErrors = savingsResults.filter(result => result.error)
-
-            if (savingsErrors.length > 0) {
-              console.error('❌ [Savings Processing] Erreurs lors du report des économies:', savingsErrors.map(r => r.error))
-            } else {
-              console.log(`✅ [Savings Processing] ${budgetsWithSavings.length} économie(s) reportée(s) avec succès`)
-            }
-          } else {
-            console.log('✅ [Savings Processing] Aucun budget avec économies à traiter')
-          }
-        }
-      } catch (savingsError) {
-        console.error('❌ [Savings Processing] Erreur générale lors du traitement des économies:', savingsError)
-        // Ne pas faire échouer la transaction pour ça
-      }
+      // 3.5. Les économies (surplus) ont déjà été transférées dans /process-step1
+      // Cette section est volontairement supprimée pour éviter la double comptabilisation
+      // IMPORTANT: Le transfert surplus → économies se fait UNIQUEMENT dans /process-step1
+      console.log(`✅ [Savings Processing] Surplus déjà transférés aux économies par /process-step1`)
+      console.log(`   Aucune action nécessaire dans /complete pour éviter double comptabilisation`)
 
       // 3.6. Calculer l'écart de reste à vivre et créer une dépense exceptionnelle si nécessaire
       console.log(`📊 [RAV Difference Processing] Début du calcul de l'écart de reste à vivre pour ${context}:${contextId}`)

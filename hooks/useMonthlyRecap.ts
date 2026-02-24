@@ -117,48 +117,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   }, [context])
 
   /**
-   * Équilibre automatiquement un reste à vivre négatif
-   * NOUVELLE VERSION: Appelle l'API balance proportionnelle
-   */
-  const balanceRemainingToLive = useCallback(async () => {
-    try {
-      setError(null)
-      console.log('🔄 [Hook] Démarrage de l\'équilibrage automatique proportionnel')
-
-      const response = await fetch('/api/monthly-recap/balance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          context
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de l\'équilibrage automatique')
-      }
-
-      console.log('✅ [Hook] Équilibrage automatique réussi côté serveur')
-      console.log('📊 [Hook] Résultat:', {
-        original: data.original_remaining_to_live,
-        final: data.final_remaining_to_live,
-        redistributed: data.deficit_covered
-      })
-
-      return data
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      console.error('❌ Erreur lors de l\'équilibrage automatique:', err)
-      return null
-    }
-  }, [context])
-
-  /**
    * Finalise le récapitulatif mensuel
    */
   const completeRecap = useCallback(async (remainingToLiveChoice: RemainingToLiveChoice) => {
@@ -223,7 +181,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     // Actions principales
     transferBetweenBudgets,
     autoBalanceBudgets,
-    balanceRemainingToLive,
     completeRecap,
 
     // Navigation

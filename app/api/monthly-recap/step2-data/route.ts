@@ -182,6 +182,10 @@ export async function GET(request: NextRequest) {
 
       // Calculer l'excédent/déficit avec le montant ajusté
       const difference = budget.estimated_amount - adjustedSpentAmount
+
+      // Le surplus est simplement la différence positive (non dépensé ce mois)
+      // NOTE: Le surplus n'est plus automatiquement transféré vers économies
+      // Il reste comme "surplus" jusqu'à ce que l'utilisateur décide à l'écran 2
       const surplus = Math.max(0, difference)
       const deficit = Math.max(0, -difference)
 
@@ -200,7 +204,7 @@ export async function GET(request: NextRequest) {
       totalSurplus += surplus
       totalDeficit += deficit
 
-      console.log(`📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€`)
+      console.log(`📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€, surplus=${surplus}€`)
     }
 
     // 5. Informations sur le mois actuel

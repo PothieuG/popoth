@@ -3,14 +3,19 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
- * API Transfer Savings Between Budgets
- * Transfers cumulated savings from one estimated budget to another
+ * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
  * POST /api/savings/transfer
  *
- * Body: {
+ * Body for budget transfer: {
  *   context: 'profile' | 'group',
  *   from_budget_id: string,
  *   to_budget_id: string,
+ *   amount: number
+ * }
+ *
+ * Body for piggy bank actions: {
+ *   context: 'profile' | 'group',
+ *   action: 'set_piggy_bank' | 'add_to_piggy_bank' | 'remove_from_piggy_bank',
  *   amount: number
  * }
  */
@@ -24,8 +29,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { context, from_budget_id, to_budget_id, amount } = body
+    const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
 
+    // Si c'est une action tirelire, déléguer à la fonction appropriée
+    if (action && ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)) {
+      return handlePiggyBankAction(userId, context, action, amount)
+    }
+
+    // Sinon, c'est un transfert entre budgets
     if (!context || !from_budget_id || !to_budget_id || !amount) {
       return NextResponse.json(
         { error: 'Paramètres manquants' },
@@ -195,4 +206,142 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Handle Piggy Bank Actions (set, add, remove)
+ */
+async function handlePiggyBankAction(
+  userId: string,
+  context: string,
+  action: string,
+  amount: number
+) {
+  if (typeof amount !== 'number' || isNaN(amount)) {
+    return NextResponse.json(
+      { error: 'Montant invalide' },
+      { status: 400 }
+    )
+  }
+
+  console.log(``)
+  console.log(`🐷🐷🐷 ========================================================`)
+  console.log(`🐷🐷🐷 [PIGGY BANK] ${action.toUpperCase()}`)
+  console.log(`🐷🐷🐷 ========================================================`)
+  console.log(`🐷 Action: ${action}`)
+  console.log(`🐷 Montant: ${amount}€`)
+  console.log(`🐷 Contexte: ${context}`)
+  console.log(`🐷 User ID: ${userId}`)
+
+  // Get user profile
+  const { data: profile, error: profileError } = await supabaseServer
+    .from('profiles')
+    .select('id, group_id')
+    .eq('id', userId)
+    .single()
+
+  if (profileError || !profile) {
+    console.error('❌ Erreur récupération profil:', profileError)
+    return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
+  }
+
+  // Determine context filter
+  const contextFilter = context === 'group' && profile.group_id
+    ? { group_id: profile.group_id, profile_id: null }
+    : { profile_id: profile.id, group_id: null }
+
+  const matchFilter = context === 'group' && profile.group_id
+    ? { group_id: profile.group_id }
+    : { profile_id: profile.id }
+
+  console.log(`🐷 Filtre appliqué:`, matchFilter)
+
+  // Get current piggy bank
+  const { data: currentPiggyBank, error: getPiggyError } = await supabaseServer
+    .from('piggy_bank')
+    .select('id, amount')
+    .match(matchFilter)
+    .maybeSingle()
+
+  if (getPiggyError) {
+    console.error('❌ Erreur récupération tirelire:', getPiggyError)
+    return NextResponse.json(
+      { error: 'Erreur lors de la récupération de la tirelire' },
+      { status: 500 }
+    )
+  }
+
+  const currentAmount = currentPiggyBank?.amount || 0
+  console.log(`🐷 Montant actuel tirelire: ${currentAmount}€`)
+
+  let newAmount: number
+
+  switch (action) {
+    case 'set_piggy_bank':
+      newAmount = Math.max(0, amount)
+      break
+    case 'add_to_piggy_bank':
+      newAmount = currentAmount + Math.max(0, amount)
+      break
+    case 'remove_from_piggy_bank':
+      newAmount = Math.max(0, currentAmount - Math.max(0, amount))
+      break
+    default:
+      return NextResponse.json(
+        { error: `Action inconnue: ${action}` },
+        { status: 400 }
+      )
+  }
+
+  console.log(`🐷 Nouveau montant tirelire: ${newAmount}€`)
+
+  // Update or insert piggy bank
+  if (currentPiggyBank) {
+    // Update existing
+    const { error: updateError } = await supabaseServer
+      .from('piggy_bank')
+      .update({
+        amount: newAmount,
+        last_updated: new Date().toISOString()
+      })
+      .eq('id', currentPiggyBank.id)
+
+    if (updateError) {
+      console.error('❌ Erreur mise à jour tirelire:', updateError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la mise à jour de la tirelire' },
+        { status: 500 }
+      )
+    }
+  } else {
+    // Insert new
+    const { error: insertError } = await supabaseServer
+      .from('piggy_bank')
+      .insert({
+        ...contextFilter,
+        amount: newAmount,
+        last_updated: new Date().toISOString()
+      })
+
+    if (insertError) {
+      console.error('❌ Erreur création tirelire:', insertError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la création de la tirelire' },
+        { status: 500 }
+      )
+    }
+  }
+
+  console.log(`✅ Tirelire mise à jour avec succès`)
+  console.log(`🐷🐷🐷 ========================================================`)
+  console.log(``)
+
+  return NextResponse.json({
+    success: true,
+    action,
+    previous_amount: currentAmount,
+    new_amount: newAmount,
+    difference: newAmount - currentAmount,
+    context
+  })
 }

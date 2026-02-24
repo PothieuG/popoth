@@ -30,6 +30,8 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('real_expenses').delete().eq('profile_id', userId)
     await supabaseServer.from('real_income_entries').delete().eq('profile_id', userId)
     await supabaseServer.from('estimated_budgets').delete().eq('profile_id', userId)
+    await supabaseServer.from('estimated_incomes').delete().eq('profile_id', userId)
+    await supabaseServer.from('monthly_recaps').delete().eq('profile_id', userId)
 
     // 2. Désactiver les snapshots
     await supabaseServer
@@ -38,8 +40,54 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
       .eq('is_active', true)
 
-    // 3. Définir les budgets stratégiquement
-    // Objectif: Créer ~800€ d'économies pour compenser un reste à vivre de -800€
+    // 3. Créer des revenus - IMPORTANT pour avoir un RAV budgétaire positif
+    // Total budgets estimés = 3415€, donc revenus estimés > 3415€
+    // Mais revenus réels < revenus estimés pour créer un déficit sur le RAV actuel
+    const incomeData = [
+      { name: 'Salaire', estimated: 2800, real: 2200 }, // Baisse de salaire inattendue
+      { name: 'Freelance', estimated: 600, real: 300 }, // Moins de missions que prévu
+      { name: 'Autres revenus', estimated: 200, real: 100 } // Revenus ponctuels réduits
+    ]
+    // Total estimé: 3600€, Total réel: 2600€
+    // RAV budgétaire = 3600 - 3415 = +185€ (positif ✓)
+    // RAV actuel = 2600 - 2670 = -70€ (négatif, mais les économies sur budgets compensent)
+
+    console.log('💰 [Negative Savings Only] Création des revenus...')
+
+    const incomeInserts = incomeData.map(income => ({
+      profile_id: userId,
+      name: income.name,
+      estimated_amount: income.estimated,
+      is_monthly_recurring: true
+    }))
+
+    const { data: createdIncomes, error: incomeError } = await supabaseServer
+      .from('estimated_incomes')
+      .insert(incomeInserts)
+      .select('id, name, estimated_amount')
+
+    if (incomeError) {
+      console.error('❌ [Negative Savings Only] Erreur création revenus:', incomeError)
+      return NextResponse.json({ error: 'Erreur création revenus' }, { status: 500 })
+    }
+
+    // Créer les revenus réels (inférieurs aux estimés pour créer le déficit)
+    for (const income of createdIncomes!) {
+      const realData = incomeData.find(i => i.name === income.name)!
+      await supabaseServer.from('real_income_entries').insert({
+        profile_id: userId,
+        estimated_income_id: income.id,
+        amount: realData.real,
+        income_date: '2025-09-22'
+      })
+    }
+
+    const totalEstimatedIncome = incomeData.reduce((sum, i) => sum + i.estimated, 0)
+    const totalRealIncome = incomeData.reduce((sum, i) => sum + i.real, 0)
+    console.log(`✅ [Negative Savings Only] Revenus créés: estimé ${totalEstimatedIncome}€, réel ${totalRealIncome}€`)
+
+    // 5. Définir les budgets stratégiquement
+    // Objectif: Créer des économies pour compenser le déficit du RAV actuel
     const budgetData = [
       // Budgets avec bonnes économies (total: ~800€ d'économies)
       { name: 'Vacances Reportées', estimated: 600, spent: 150, description: 'Vacances annulées' }, // +450€
@@ -67,9 +115,9 @@ export async function POST(request: NextRequest) {
     // Total économies prévues: 450 + 280 + 70 + 30 - 40 - 30 - 15 = +745€
     // Cela devrait compenser un reste à vivre négatif d'environ -745€
 
-    console.log(`📊 [Negative Savings Only] Création de ${budgetData.length} budgets pour compensation exacte`)
+    console.log(`📊 [Negative Savings Only] Création de ${budgetData.length} budgets`)
 
-    // 4. Créer les budgets estimés
+    // 6. Créer les budgets estimés
     const budgetInserts = budgetData.map(budget => ({
       profile_id: userId,
       name: budget.name,
@@ -92,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ [Negative Savings Only] ${createdBudgets.length} budgets créés`)
 
-    // 5. Créer les dépenses réelles
+    // 7. Créer les dépenses réelles
     const expenseInserts = []
     const summary = []
 
@@ -148,7 +196,7 @@ export async function POST(request: NextRequest) {
       console.log(`📝 [Negative Savings Only] ${budget.name}: ${spent}€ / ${estimated}€ → ${symbol}${difference}€`)
     }
 
-    // 6. Insérer toutes les dépenses
+    // 8. Insérer toutes les dépenses
     const { error: expenseError } = await supabaseServer
       .from('real_expenses')
       .insert(expenseInserts)
@@ -160,10 +208,10 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ [Negative Savings Only] ${expenseInserts.length} dépenses créées`)
 
-    // 7. Calculer les statistiques globales
+    // 9. Calculer les statistiques globales
     const totalSurplus = summary.reduce((sum, item) => sum + item.surplus, 0)
     const totalDeficit = summary.reduce((sum, item) => sum + item.deficit, 0)
-    const netSavings = totalSurplus - totalDeficit
+    const netBudgetSavings = totalSurplus - totalDeficit
 
     const budgetsByStatus = {
       surplus: summary.filter(b => b.status === 'surplus'),
@@ -171,43 +219,58 @@ export async function POST(request: NextRequest) {
       balanced: summary.filter(b => b.status === 'balanced')
     }
 
-    // Simulation du reste à vivre négatif (approximatif)
-    const simulatedNegativeRemainder = -netSavings // Pour que ça s'équilibre exactement
+    // Calcul des RAV
+    const totalEstimatedBudgets = summary.reduce((sum, item) => sum + item.estimated, 0)
+    const totalRealExpenses = summary.reduce((sum, item) => sum + item.spent, 0)
+
+    const ravBudgetaire = totalEstimatedIncome - totalEstimatedBudgets
+    const ravActuel = totalRealIncome - totalRealExpenses
+    const gap = ravActuel - ravBudgetaire
 
     console.log('📊 [Negative Savings Only] Statistiques générées:')
-    console.log(`💚 Total économies: ${totalSurplus}€`)
-    console.log(`❤️ Total déficits: ${totalDeficit}€`)
-    console.log(`💰 Économies nettes: ${netSavings}€`)
-    console.log(`🔴 Reste à vivre simulé: ${simulatedNegativeRemainder}€`)
-    console.log(`⚖️ Compensation: ${netSavings + simulatedNegativeRemainder}€ (devrait être ~0)`)
+    console.log(`💰 Revenus estimés: ${totalEstimatedIncome}€`)
+    console.log(`💸 Revenus réels: ${totalRealIncome}€`)
+    console.log(`📋 Budgets estimés: ${totalEstimatedBudgets}€`)
+    console.log(`💳 Dépenses réelles: ${totalRealExpenses}€`)
+    console.log(`🎯 RAV Budgétaire: ${ravBudgetaire}€`)
+    console.log(`📊 RAV Actuel: ${ravActuel}€`)
+    console.log(`⚠️ Gap (RAV Actuel - RAV Budgétaire): ${gap}€`)
+    console.log(`💚 Économies sur budgets: ${netBudgetSavings}€`)
+    console.log(`⚖️ Compensation possible: ${netBudgetSavings >= Math.abs(gap) ? 'OUI ✅' : 'NON ❌'}`)
 
     return NextResponse.json({
       success: true,
       message: 'Scénario "Reste négatif compensé par économies uniquement" créé avec succès',
       scenario: 'negative-remainder-savings-only',
-      description: 'Le reste à vivre négatif est exactement compensé par les économies sur les budgets',
+      description: 'Le RAV actuel est inférieur au RAV budgétaire, les économies sur budgets compensent le gap',
       statistics: {
-        totalBudgets: createdBudgets.length,
+        totalBudgets: createdBudgets!.length,
         totalExpenses: expenseInserts.length,
+        totalIncomes: createdIncomes!.length,
         budgetsByStatus,
         totals: {
-          surplus: totalSurplus,
-          deficit: totalDeficit,
-          netSavings: netSavings,
-          simulatedNegativeRemainder: simulatedNegativeRemainder,
-          finalBalance: netSavings + simulatedNegativeRemainder
+          estimatedIncome: totalEstimatedIncome,
+          realIncome: totalRealIncome,
+          estimatedBudgets: totalEstimatedBudgets,
+          realExpenses: totalRealExpenses,
+          budgetSurplus: totalSurplus,
+          budgetDeficit: totalDeficit,
+          netBudgetSavings: netBudgetSavings
         }
       },
       summary: summary.sort((a, b) => b.difference - a.difference),
       testScenario: {
-        remainderToLive: simulatedNegativeRemainder,
-        budgetSavings: netSavings,
+        ravBudgetaire: ravBudgetaire,
+        ravActuel: ravActuel,
+        gap: gap,
+        budgetSavings: netBudgetSavings,
         compensation: 'savings-only',
-        balanced: Math.abs(netSavings + simulatedNegativeRemainder) < 10
+        canCompensate: netBudgetSavings >= Math.abs(gap)
       },
       actions: {
-        budgetsCreated: createdBudgets.length,
+        budgetsCreated: createdBudgets!.length,
         expensesCreated: expenseInserts.length,
+        incomesCreated: createdIncomes!.length,
         previousDataDeleted: true,
         snapshotsDeactivated: true
       }

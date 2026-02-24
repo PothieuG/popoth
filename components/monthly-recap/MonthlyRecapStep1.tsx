@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/card'
 interface MonthlyRecapStep1Props {
   context: 'profile' | 'group'
   onNext: () => void
-  onBalanceRemainingToLive: () => Promise<any>
 }
 
 interface Step1Data {
@@ -51,14 +50,10 @@ interface Step1Data {
  */
 export default function MonthlyRecapStep1({
   context,
-  onNext,
-  onBalanceRemainingToLive
+  onNext
 }: MonthlyRecapStep1Props) {
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [isBalanceCompleted, setIsBalanceCompleted] = useState(false)
-  const [balanceResult, setBalanceResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
 
   const monthNames = [
@@ -147,57 +142,8 @@ export default function MonthlyRecapStep1({
     }
   }, [step1Data])
 
-  const handleBalanceClick = async () => {
-    try {
-      setIsProcessing(true)
-      console.log(``)
-      console.log(`🔄🔄🔄 ========================================================`)
-      console.log(`🔄🔄🔄 [FRONTEND] RÉÉQUILIBRAGE EN COURS`)
-      console.log(`🔄🔄🔄 ========================================================`)
-      console.log(`💰 RAV avant rééquilibrage: ${step1Data?.current_remaining_to_live}€`)
-      console.log(`🔄🔄🔄 ========================================================`)
-      console.log(``)
-
-      const result = await onBalanceRemainingToLive()
-      if (result) {
-        console.log(``)
-        console.log(`🔄🔄🔄 ========================================================`)
-        console.log(`🔄🔄🔄 [FRONTEND] RÉSULTAT RÉÉQUILIBRAGE`)
-        console.log(`🔄🔄🔄 ========================================================`)
-        console.log(`💰 RAV initial: ${result.original_remaining_to_live}€`)
-        console.log(`💰 RAV final: ${result.final_remaining_to_live}€`)
-        console.log(`📈 Changement: ${(result.final_remaining_to_live - result.original_remaining_to_live).toFixed(2)}€`)
-        console.log(`💎 Économies utilisées: ${result.savings_used}€`)
-        console.log(`📊 Excédents utilisés: ${result.surplus_used}€`)
-        console.log(`🔄🔄🔄 ========================================================`)
-        console.log(``)
-
-        console.log('✅ [Step1] Rééquilibrage terminé avec succès')
-        setBalanceResult(result)
-        setIsBalanceCompleted(true)
-
-        // IMPORTANT: Récupérer les nouvelles données après rééquilibrage
-        console.log('🔄 [Step1] Récupération des nouvelles données après rééquilibrage')
-        await fetchStep1Data()
-      }
-    } catch (error) {
-      console.error('❌ [Step1] Erreur lors de l\'équilibrage:', error)
-      setError('Erreur lors de l\'équilibrage automatique. Veuillez réessayer.')
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  // Déterminer si le bouton "Continuer" doit être affiché
-  // L'utilisateur peut continuer si:
-  // 1. Pas besoin d'équilibrage (écart positif ou nul)
-  // 2. L'équilibrage a été fait avec succès
-  // 3. Il ne peut pas équilibrer (aucun excédent disponible)
-  const canContinue = step1Data ? (
-    !step1Data.needs_balancing ||
-    isBalanceCompleted ||
-    !step1Data.can_balance
-  ) : false
+  // L'utilisateur peut toujours continuer - le rééquilibrage se fera automatiquement lors du passage à Step 2
+  const canContinue = true
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -554,59 +500,15 @@ export default function MonthlyRecapStep1({
                   </div>
                 )}
 
-                {/* Bouton d'équilibrage */}
-                {step1Data.can_balance ? (
-                  <div className="space-y-3 mt-4">
-                    <div className="text-xs text-gray-600 text-center">
-                      L&apos;équilibrage utilisera d&apos;abord la tirelire, puis les économies, et enfin les surplus
-                    </div>
-
-                    {step1Data.total_available >= step1Data.balance_amount ? (
-                      <div className="flex justify-center">
-                        <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 text-sm font-medium rounded-full">
-                          ✅ Équilibrage complet possible
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex justify-center">
-                        <div className="inline-flex items-center px-3 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full">
-                          ⚠️ Équilibrage partiel ({formatCurrency(step1Data.balance_amount - step1Data.total_available)} manquants)
-                        </div>
-                      </div>
-                    )}
-
-                    <Button
-                      onClick={handleBalanceClick}
-                      disabled={isLoading || isProcessing}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg font-medium"
-                    >
-                      {isProcessing ? (
-                        <div className="flex items-center justify-center space-x-2">
-                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
-                          <span>Équilibrage en cours...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                          Équilibrer automatiquement
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-4 mt-4">
-                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                      <p className="text-orange-700 text-sm text-center">
-                        ⚠️ Aucun surplus ou économie disponible pour l&apos;équilibrage
-                      </p>
-                    </div>
-                    <div className="text-xs text-gray-600 text-center">
-                      Vous pouvez continuer et gérer la situation dans l&apos;étape suivante
-                    </div>
-                  </div>
-                )}
+                {/* Message informatif sur le rééquilibrage automatique */}
+                <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg mt-4">
+                  <p className="text-blue-800 text-sm text-center font-medium">
+                    ℹ️ Le rééquilibrage se fera automatiquement lors du passage à l&apos;étape suivante
+                  </p>
+                  <p className="text-blue-700 text-xs text-center mt-2">
+                    Les surplus seront transférés vers les économies, et l&apos;excédent éventuel ira dans la tirelire
+                  </p>
+                </div>
               </div>
             </Card>
           </>
@@ -670,81 +572,6 @@ export default function MonthlyRecapStep1({
           </Card>
         )}
 
-        {/* Résultats après rééquilibrage */}
-        {isBalanceCompleted && balanceResult && (
-          <Card className="p-6 bg-green-50 border border-green-200">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-green-900 mb-4">
-                ✅ Rééquilibrage terminé avec succès !
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div className="p-4 bg-white rounded-lg border border-green-200">
-                  <h4 className="font-medium text-green-900 mb-2">Votre reste à vivre après rééquilibrage</h4>
-                  <div className="text-2xl font-bold text-green-600">
-                    {formatCurrency(balanceResult.final_remaining_to_live || 0)}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-white rounded-lg border border-green-200">
-                  <h4 className="font-medium text-green-900 mb-2">Montant redistribué</h4>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(balanceResult.deficit_covered || 0)}
-                  </div>
-                </div>
-              </div>
-
-              {balanceResult.budget_stats && (
-                <div>
-                  <h4 className="font-medium text-green-900 mb-3">Économies restantes après rééquilibrage</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {balanceResult.budget_stats
-                      .filter((budget: any) => budget.surplus > 0 || (budget.cumulated_savings || 0) > 0)
-                      .map((budget: any) => (
-                        <div key={budget.id} className="p-3 bg-white rounded-lg border border-green-200 text-left">
-                          <div className="font-medium text-gray-900">{budget.name}</div>
-                          {budget.surplus > 0 && (
-                            <div className="text-sm text-green-600">
-                              Surplus: {formatCurrency(budget.surplus)}
-                            </div>
-                          )}
-                          {(budget.cumulated_savings || 0) > 0 && (
-                            <div className="text-sm text-purple-600">
-                              Économies: {formatCurrency(budget.cumulated_savings || 0)}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Message de déficit partiel si applicable */}
-              {balanceResult.deficit_message && !balanceResult.is_fully_balanced && (
-                <div className="mt-4 p-3 bg-orange-100 border border-orange-300 rounded-lg">
-                  <p className="text-orange-800 text-sm font-medium">
-                    {balanceResult.deficit_message}
-                  </p>
-                </div>
-              )}
-
-              <div className={`mt-4 p-3 rounded-lg ${balanceResult.is_fully_balanced ? 'bg-green-200' : 'bg-blue-100'}`}>
-                <p className={`text-sm ${balanceResult.is_fully_balanced ? 'text-green-800' : 'text-blue-800'}`}>
-                  {balanceResult.is_fully_balanced ? (
-                    <>🎉 Votre situation financière a été équilibrée ! Vous pouvez maintenant continuer vers l'étape suivante.</>
-                  ) : (
-                    <>💡 Équilibrage partiel effectué. Vous avez utilisé tous les excédents et économies disponibles. Vous pouvez continuer et gérer les déficits restants dans l'étape suivante.</>
-                  )}
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
 
         {/* Informations complémentaires */}
         <Card className="p-4 bg-blue-50 border border-blue-200">
@@ -773,17 +600,10 @@ export default function MonthlyRecapStep1({
           {canContinue && (
             <Button
               onClick={onNext}
-              disabled={isLoading || isProcessing}
+              disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
             >
-              {isProcessing ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  <span>Traitement...</span>
-                </div>
-              ) : (
-                'Continuer'
-              )}
+              Continuer
             </Button>
           )}
         </div>
