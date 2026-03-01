@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('real_expenses').delete().eq('profile_id', userId)
     await supabaseServer.from('real_income_entries').delete().eq('profile_id', userId)
     await supabaseServer.from('estimated_budgets').delete().eq('profile_id', userId)
+    await supabaseServer.from('estimated_incomes').delete().eq('profile_id', userId)
 
     // NOUVEAU: Supprimer les monthly recaps pour forcer le recalcul
     await supabaseServer.from('monthly_recaps').delete().eq('profile_id', userId)
@@ -41,33 +42,45 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
       .eq('is_active', true)
 
-    // 3. Définir les budgets avec énormes économies
+    // 3. Définir les budgets avec énormes économies (budgets MENSUELS réalistes)
+    // TOTAL ESTIMÉ: ~3800€ avec revenus de ~4200€ pour RAV positif
     const budgetData = [
-      // Budgets avec énormes économies (70-90% d'économies)
-      { name: 'Vacances Été', estimated: 1500, spent: 200, description: 'Vacances annulées - grosse économie' },
-      { name: 'Équipement Maison', estimated: 2000, spent: 300, description: 'Achats reportés à l\'année prochaine' },
-      { name: 'Voiture Neuve', estimated: 3000, spent: 150, description: 'Finalement gardé l\'ancienne voiture' },
-      { name: 'Travaux Cuisine', estimated: 2500, spent: 400, description: 'Travaux fait soi-même au lieu d\'artisan' },
-      { name: 'Formation Pro', estimated: 1200, spent: 180, description: 'Formation gratuite trouvée en ligne' },
-      { name: 'Électroménager', estimated: 800, spent: 120, description: 'Réparé au lieu de remplacer' },
-      { name: 'Mobilier Salon', estimated: 1800, spent: 250, description: 'Trouvé d\'occasion à prix réduit' },
-      { name: 'Ordinateur Gaming', estimated: 1500, spent: 200, description: 'Finalement pas acheté cette année' },
-      { name: 'Équipement Sport', estimated: 600, spent: 80, description: 'Acheté d\'occasion' },
-      { name: 'Vêtements Hiver', estimated: 500, spent: 75, description: 'Soldes exceptionnelles' },
-
-      // Quelques budgets avec économies modérées (30-50% d'économies)
-      { name: 'Loisirs Famille', estimated: 400, spent: 250, description: 'Activités gratuites privilégiées' },
-      { name: 'Restaurants', estimated: 300, spent: 180, description: 'Plus de repas maison' },
-      { name: 'Essence', estimated: 250, spent: 150, description: 'Télétravail plus fréquent' },
-
-      // Budgets incompressibles (fixes)
+      // Logement fixe (1350€)
       { name: 'Loyer', estimated: 1200, spent: 1200, description: 'Charges fixes' },
-      { name: 'Assurances', estimated: 180, spent: 180, description: 'Assurance obligatoire' },
-      { name: 'Téléphone', estimated: 60, spent: 60, description: 'Forfait fixe' },
-      { name: 'Internet', estimated: 45, spent: 45, description: 'Abonnement internet' },
+      { name: 'Charges', estimated: 150, spent: 130, description: 'Économies énergie' },
 
-      // Un petit déficit pour contraster
-      { name: 'Santé Urgence', estimated: 150, spent: 280, description: 'Soins dentaires imprévus' }
+      // Transport avec grosses économies (250€ estimé → 80€ dépensé = 68% économie)
+      { name: 'Essence', estimated: 180, spent: 50, description: 'Télétravail quasi total' },
+      { name: 'Transport Public', estimated: 70, spent: 30, description: 'Trajets occasionnels' },
+
+      // Alimentation optimisée (550€ estimé → 280€ = 49% économie)
+      { name: 'Courses', estimated: 400, spent: 220, description: 'Anti-gaspi et promos' },
+      { name: 'Restaurants', estimated: 150, spent: 60, description: 'Cuisine maison privilégiée' },
+
+      // Loisirs avec énormes économies (400€ estimé → 100€ = 75% économie)
+      { name: 'Sorties Culture', estimated: 120, spent: 25, description: 'Événements gratuits' },
+      { name: 'Sport', estimated: 80, spent: 0, description: 'Sport outdoor gratuit' },
+      { name: 'Hobbies', estimated: 100, spent: 35, description: 'Projets DIY récup' },
+      { name: 'Streaming', estimated: 50, spent: 15, description: 'Abonnements partagés' },
+      { name: 'Sorties Amis', estimated: 50, spent: 25, description: 'Apéros maison' },
+
+      // Vie quotidienne très économe (350€ estimé → 120€ = 66% économie)
+      { name: 'Vêtements', estimated: 150, spent: 40, description: 'Seconde main uniquement' },
+      { name: 'Produits Beauté', estimated: 60, spent: 20, description: 'Produits naturels' },
+      { name: 'Cadeaux', estimated: 80, spent: 30, description: 'Cadeaux faits main' },
+      { name: 'Produits Ménage', estimated: 60, spent: 30, description: 'Produits écologiques' },
+
+      // Fixes incompressibles (245€)
+      { name: 'Téléphone', estimated: 25, spent: 25, description: 'Forfait mini' },
+      { name: 'Internet', estimated: 40, spent: 40, description: 'Abonnement' },
+      { name: 'Assurances', estimated: 180, spent: 180, description: 'Assurances obligatoires' },
+
+      // Épargne (400€ - pas d'économie car c'est volontaire)
+      { name: 'Épargne', estimated: 300, spent: 300, description: 'Épargne mensuelle' },
+      { name: 'Investissement', estimated: 100, spent: 100, description: 'ETF mensuel' },
+
+      // Un petit déficit pour le réalisme
+      { name: 'Santé', estimated: 80, spent: 120, description: 'Frais dentaires imprévus' }
     ]
 
     console.log(`📊 [Massive Savings] Création de ${budgetData.length} budgets avec énormes économies`)
@@ -165,11 +178,53 @@ export async function POST(request: NextRequest) {
 
     console.log(`✅ [Massive Savings] ${expenseInserts.length} dépenses créées`)
 
-    // 7. Calculer les statistiques globales
-    const totalEstimated = summary.reduce((sum, item) => sum + item.estimated, 0)
+    // 7. Créer des revenus estimés et réels (revenus > budgets pour RAV positif)
+    const incomeData = [
+      { name: 'Salaire', estimated: 3200, real: 3200 },
+      { name: 'Prime Performance', estimated: 200, real: 350 },
+      { name: 'Freelance', estimated: 400, real: 480 }
+    ]
+
+    const incomeInserts = incomeData.map(income => ({
+      profile_id: userId,
+      name: income.name,
+      estimated_amount: income.estimated,
+      is_monthly_recurring: true
+    }))
+
+    const { data: createdIncomes, error: incomeError } = await supabaseServer
+      .from('estimated_incomes')
+      .insert(incomeInserts)
+      .select('id, name, estimated_amount')
+
+    if (incomeError) {
+      console.error('❌ [Massive Savings] Erreur création revenus:', incomeError)
+      return NextResponse.json({ error: 'Erreur création revenus' }, { status: 500 })
+    }
+
+    // Créer les revenus réels
+    for (const income of createdIncomes!) {
+      const incomeConfig = incomeData.find(i => i.name === income.name)!
+      await supabaseServer.from('real_income_entries').insert({
+        profile_id: userId,
+        estimated_income_id: income.id,
+        amount: incomeConfig.real,
+        income_date: '2025-09-22'
+      })
+    }
+
+    const totalEstimatedIncome = incomeData.reduce((sum, i) => sum + i.estimated, 0)
+    const totalRealIncome = incomeData.reduce((sum, i) => sum + i.real, 0)
+    console.log(`✅ [Massive Savings] Revenus créés: ${totalEstimatedIncome}€ estimé, ${totalRealIncome}€ réel`)
+
+    // 9. Calculer les statistiques globales
+    const totalEstimatedBudgets = summary.reduce((sum, item) => sum + item.estimated, 0)
     const totalSpent = summary.reduce((sum, item) => sum + item.spent, 0)
-    const totalSavings = totalEstimated - totalSpent
-    const globalSavingsPercent = ((totalSavings / totalEstimated) * 100).toFixed(1)
+    const totalSavings = totalEstimatedBudgets - totalSpent
+    const globalSavingsPercent = ((totalSavings / totalEstimatedBudgets) * 100).toFixed(1)
+
+    const budgetaryRAV = totalEstimatedIncome - totalEstimatedBudgets
+    const actualRAV = totalRealIncome - totalSpent
 
     const budgetsByStatus = {
       surplus: summary.filter(b => b.status === 'surplus'),
@@ -178,9 +233,13 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📊 [Massive Savings] Statistiques générées:')
-    console.log(`💰 Total estimé: ${totalEstimated}€`)
+    console.log(`💰 Revenus estimés: ${totalEstimatedIncome}€`)
+    console.log(`💰 Revenus réels: ${totalRealIncome}€`)
+    console.log(`📊 Budgets estimés: ${totalEstimatedBudgets}€`)
     console.log(`💸 Total dépensé: ${totalSpent}€`)
     console.log(`💚 Total économies: ${totalSavings}€ (${globalSavingsPercent}%)`)
+    console.log(`🎯 RAV Budgétaire: ${budgetaryRAV}€`)
+    console.log(`🎯 RAV Actuel: ${actualRAV}€`)
     console.log(`📈 Budgets en surplus: ${budgetsByStatus.surplus.length}`)
     console.log(`📉 Budgets en déficit: ${budgetsByStatus.deficit.length}`)
 
@@ -191,18 +250,29 @@ export async function POST(request: NextRequest) {
       statistics: {
         totalBudgets: createdBudgets.length,
         totalExpenses: expenseInserts.length,
+        totalIncomes: createdIncomes!.length,
         budgetsByStatus,
         totals: {
-          estimated: totalEstimated,
+          estimatedIncome: totalEstimatedIncome,
+          realIncome: totalRealIncome,
+          estimatedBudgets: totalEstimatedBudgets,
           spent: totalSpent,
           savings: totalSavings,
-          savingsPercent: `${globalSavingsPercent}%`
+          savingsPercent: `${globalSavingsPercent}%`,
+          budgetaryRAV: budgetaryRAV,
+          actualRAV: actualRAV
         }
       },
       summary: summary.sort((a, b) => b.difference - a.difference),
+      financial_impact: {
+        budgetaryRAV: budgetaryRAV,
+        actualRAV: actualRAV,
+        status: budgetaryRAV > 0 ? 'POSITIVE' : 'NEGATIVE'
+      },
       actions: {
         budgetsCreated: createdBudgets.length,
         expensesCreated: expenseInserts.length,
+        incomesCreated: createdIncomes!.length,
         previousDataDeleted: true,
         snapshotsDeactivated: true
       }

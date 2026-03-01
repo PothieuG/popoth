@@ -174,21 +174,26 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('real_expenses').insert(expenseInserts)
 
     // 7. Calculer les statistiques catastrophiques
-    const totalEstimated = summary.reduce((sum, item) => sum + item.estimated, 0)
+    const totalEstimatedBudgets = summary.reduce((sum, item) => sum + item.estimated, 0)
     const totalSpent = summary.reduce((sum, item) => sum + item.spent, 0)
     const totalDeficit = summary.reduce((sum, item) => sum + item.deficit, 0)
     const totalSurplus = summary.reduce((sum, item) => sum + item.surplus, 0)
     const netDeficit = totalDeficit - totalSurplus
 
+    const totalEstimatedIncome = incomeData.reduce((sum, income) => sum + income.estimated, 0)
     const totalRealIncome = incomeData.reduce((sum, income) => sum + income.real, 0)
-    const estimatedRAV = 850 + totalRealIncome - totalSpent // Solde + revenus - dépenses
+    const budgetaryRAV = totalEstimatedIncome - totalEstimatedBudgets
+    const actualRAV = totalRealIncome - totalSpent
 
     console.log('📊 [Negative RAV] === SITUATION FINANCIÈRE CRITIQUE ===')
     console.log(`💰 Solde bancaire: 850€`)
+    console.log(`💚 Revenus estimés: ${totalEstimatedIncome}€`)
     console.log(`💚 Revenus réels: ${totalRealIncome}€`)
+    console.log(`📊 Budgets estimés: ${totalEstimatedBudgets}€`)
     console.log(`💸 Dépenses totales: ${totalSpent}€`)
     console.log(`🔴 Déficit net: ${netDeficit}€`)
-    console.log(`⚠️ RAV estimé: ${estimatedRAV}€ (NÉGATIF!)`)
+    console.log(`⚠️ RAV Budgétaire: ${budgetaryRAV}€ (NÉGATIF!)`)
+    console.log(`⚠️ RAV Actuel: ${actualRAV}€ (TRÈS NÉGATIF!)`)
     console.log(`📈 Budgets en déficit: ${summary.filter(b => b.status === 'deficit').length}`)
     console.log(`📉 Budgets en surplus: ${summary.filter(b => b.status === 'surplus').length}`)
 
@@ -198,11 +203,14 @@ export async function POST(request: NextRequest) {
       message: '🔴 Scénario RAV négatif créé - Situation financière critique',
       financial_impact: {
         bankBalance: 850,
+        totalEstimatedIncome: totalEstimatedIncome,
         totalRealIncome: totalRealIncome,
+        totalEstimatedBudgets: totalEstimatedBudgets,
         totalSpent: totalSpent,
-        estimatedRAV: estimatedRAV,
+        budgetaryRAV: budgetaryRAV,
+        actualRAV: actualRAV,
         netDeficit: netDeficit,
-        crisis_level: estimatedRAV < 0 ? 'CRITICAL' : 'WARNING'
+        crisis_level: budgetaryRAV < 0 ? 'CRITICAL' : 'WARNING'
       },
       statistics: {
         totalBudgets: createdBudgets.length,

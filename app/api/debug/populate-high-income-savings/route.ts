@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('real_expenses').delete().eq('profile_id', userId)
     await supabaseServer.from('real_income_entries').delete().eq('profile_id', userId)
     await supabaseServer.from('estimated_budgets').delete().eq('profile_id', userId)
+    await supabaseServer.from('estimated_incomes').delete().eq('profile_id', userId)
 
     // Delete monthly recaps to force recalculation
     await supabaseServer.from('monthly_recaps').delete().eq('profile_id', userId)
@@ -178,49 +179,77 @@ export async function POST(request: NextRequest) {
     const totalCumulatedSavings = summary.reduce((sum, item) => sum + item.cumulatedSavings, 0)
 
     // 8. Create HIGH INCOME entries (enough to cover all estimated budgets + extra)
-    // Generate income slightly higher than total estimated (105-110% of total)
-    const baseIncome = Math.ceil(totalEstimated * 1.08) // 108% of estimated
+    // Generate income higher than total estimated (115% of total for positive RAV)
+    const baseIncome = Math.ceil(totalEstimated * 1.15) // 115% of estimated budgets
 
-    const incomeEntries = [
+    // Define income data with estimated and real amounts
+    const incomeData = [
       {
-        profile_id: userId,
-        amount: Math.floor(baseIncome * 0.75), // Main salary (75% of total income)
-        description: 'Salaire Principal',
-        entry_date: '2025-10-01',
-        is_exceptional: false
+        name: 'Salaire Principal',
+        estimated: Math.floor(baseIncome * 0.72), // Slightly lower estimate
+        real: Math.floor(baseIncome * 0.75) // Actual is higher
       },
       {
-        profile_id: userId,
-        amount: Math.floor(baseIncome * 0.15), // Side income (15%)
-        description: 'Freelance / Activité Complémentaire',
-        entry_date: '2025-10-05',
-        is_exceptional: false
+        name: 'Freelance / Activité Complémentaire',
+        estimated: Math.floor(baseIncome * 0.13),
+        real: Math.floor(baseIncome * 0.15)
       },
       {
-        profile_id: userId,
-        amount: Math.floor(baseIncome * 0.10), // Bonus or other income (10%)
-        description: 'Prime / Autres Revenus',
-        entry_date: '2025-10-15',
-        is_exceptional: true
+        name: 'Prime / Autres Revenus',
+        estimated: Math.floor(baseIncome * 0.08),
+        real: Math.floor(baseIncome * 0.10)
       }
     ]
 
-    const totalIncome = incomeEntries.reduce((sum, entry) => sum + entry.amount, 0)
+    // Create estimated incomes first
+    const estimatedIncomeInserts = incomeData.map(income => ({
+      profile_id: userId,
+      name: income.name,
+      estimated_amount: income.estimated,
+      is_monthly_recurring: true
+    }))
+
+    const { data: createdIncomes, error: estimatedIncomeError } = await supabaseServer
+      .from('estimated_incomes')
+      .insert(estimatedIncomeInserts)
+      .select('id, name, estimated_amount')
+
+    if (estimatedIncomeError) {
+      console.error('❌ [High Income + Savings] Error creating estimated incomes:', estimatedIncomeError)
+      return NextResponse.json({ error: 'Error creating estimated incomes' }, { status: 500 })
+    }
+
+    // Create real income entries linked to estimated incomes
+    const realIncomeInserts = []
+    for (const income of createdIncomes!) {
+      const incomeConfig = incomeData.find(i => i.name === income.name)!
+      realIncomeInserts.push({
+        profile_id: userId,
+        estimated_income_id: income.id,
+        amount: incomeConfig.real,
+        income_date: '2025-10-10'
+      })
+    }
 
     const { error: incomeError } = await supabaseServer
       .from('real_income_entries')
-      .insert(incomeEntries)
+      .insert(realIncomeInserts)
 
     if (incomeError) {
-      console.error('❌ [High Income + Savings] Error creating income entries:', incomeError)
+      console.error('❌ [High Income + Savings] Error creating real income entries:', incomeError)
       return NextResponse.json({ error: 'Error creating income entries' }, { status: 500 })
     }
 
-    console.log(`✅ [High Income + Savings] ${incomeEntries.length} income entries created`)
-    console.log(`💰 [High Income + Savings] Total income: ${totalIncome}€ (vs ${totalEstimated}€ estimated)`)
+    const totalEstimatedIncome = incomeData.reduce((sum, i) => sum + i.estimated, 0)
+    const totalIncome = incomeData.reduce((sum, i) => sum + i.real, 0)
+
+    console.log(`✅ [High Income + Savings] ${createdIncomes!.length} income entries created`)
+    console.log(`💰 [High Income + Savings] Total estimated income: ${totalEstimatedIncome}€`)
+    console.log(`💰 [High Income + Savings] Total real income: ${totalIncome}€ (vs ${totalEstimated}€ budgets)`)
 
     // 9. Calculate financial statistics
     const remainingToLive = totalIncome - totalSpent
+    const budgetaryRAV = totalEstimatedIncome - totalEstimated // RAV Budgétaire
     const incomeVsEstimatedDiff = totalIncome - totalEstimated
 
     const budgetsByStatus = {
@@ -230,12 +259,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('📊 [High Income + Savings] Statistics generated:')
-    console.log(`💰 Total income: ${totalIncome}€`)
-    console.log(`📊 Total estimated: ${totalEstimated}€`)
+    console.log(`💰 Total real income: ${totalIncome}€`)
+    console.log(`💰 Total estimated income: ${totalEstimatedIncome}€`)
+    console.log(`📊 Total estimated budgets: ${totalEstimated}€`)
     console.log(`💸 Total spent: ${totalSpent}€`)
     console.log(`💚 Monthly budget savings: ${totalSavings}€`)
     console.log(`🏦 Total cumulated savings: ${totalCumulatedSavings}€`)
-    console.log(`🎯 Remaining to live (RAV): ${remainingToLive}€`)
+    console.log(`🎯 RAV Actuel: ${remainingToLive}€`)
+    console.log(`🎯 RAV Budgétaire: ${budgetaryRAV}€`)
     console.log(`📈 Income vs estimated: +${incomeVsEstimatedDiff}€`)
     console.log(`📊 Budgets with surplus: ${budgetsByStatus.surplus.length}`)
     console.log(`📉 Budgets in deficit: ${budgetsByStatus.deficit.length}`)
@@ -247,24 +278,25 @@ export async function POST(request: NextRequest) {
       statistics: {
         totalBudgets: createdBudgets.length,
         totalExpenses: expenseInserts.length,
-        totalIncomeEntries: incomeEntries.length,
+        totalIncomeEntries: incomeData.length,
         budgetsByStatus,
         totals: {
           income: totalIncome,
+          estimatedIncome: totalEstimatedIncome,
           estimated: totalEstimated,
           spent: totalSpent,
           monthlySavings: totalSavings,
           cumulatedSavings: totalCumulatedSavings,
           remainingToLive: remainingToLive,
+          budgetaryRAV: budgetaryRAV,
           incomeVsEstimated: incomeVsEstimatedDiff
         }
       },
       summary: summary.sort((a, b) => b.difference - a.difference),
-      income_entries: incomeEntries.map(entry => ({
-        description: entry.description,
-        amount: entry.amount,
-        date: entry.entry_date,
-        is_exceptional: entry.is_exceptional
+      income_entries: incomeData.map(income => ({
+        description: income.name,
+        estimated: income.estimated,
+        real: income.real
       })),
       financial_impact: {
         description: 'Healthy financial situation with sufficient income to cover all budgets and generate savings',

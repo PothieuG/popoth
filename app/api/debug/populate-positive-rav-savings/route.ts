@@ -37,12 +37,12 @@ export async function POST(request: NextRequest) {
       .update({ bank_balance: 25000 }) // Solde très confortable
       .eq('id', userId)
 
-    // 3. Créer des revenus élevés et stables
+    // 3. Créer des revenus élevés et stables (TOTAL: 5200€ estimé, 5500€ réel)
     const incomeData = [
-      { name: 'Salaire Senior Dev', estimated: 3200, real: 3350 }, // Bonus performance
-      { name: 'Freelance Consulting', estimated: 800, real: 950 }, // Projets supplémentaires
-      { name: 'Investissements', estimated: 300, real: 420 }, // Dividendes et plus-values
-      { name: 'Revenus Passifs', estimated: 200, real: 280 } // Location ou autre
+      { name: 'Salaire Senior Dev', estimated: 3800, real: 3950 }, // Bonus performance
+      { name: 'Freelance Consulting', estimated: 900, real: 1050 }, // Projets supplémentaires
+      { name: 'Investissements', estimated: 300, real: 320 }, // Dividendes et plus-values
+      { name: 'Revenus Passifs', estimated: 200, real: 180 } // Location ou autre
     ]
 
     const incomeInserts = incomeData.map(income => ({
@@ -69,53 +69,48 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Budgets avec GROSSES ÉCONOMIES - Gestion exemplaire
+    // TOTAL ESTIMÉ: ~4500€ pour un RAV budgétaire positif (~700€)
     const budgetData = [
-      // Logement - Bien maîtrisé
+      // Logement - Bien maîtrisé (1350€)
       { name: 'Loyer/Prêt', estimated: 1200, spent: 1200, description: 'Logement fixe bien négocié' },
       { name: 'Charges Logement', estimated: 150, spent: 120, description: 'Économies énergie' },
 
-      // Transport - Économies massives (télétravail)
-      { name: 'Essence', estimated: 300, spent: 80, description: 'Télétravail 4j/5 - énormes économies' },
-      { name: 'Transport Public', estimated: 150, spent: 30, description: 'Abonnement occasionnel uniquement' },
-      { name: 'Entretien Véhicule', estimated: 200, spent: 45, description: 'Peu de kilomètres, entretien minimal' },
+      // Transport - Économies (350€ estimé)
+      { name: 'Essence', estimated: 200, spent: 80, description: 'Télétravail 4j/5 - énormes économies' },
+      { name: 'Transport Public', estimated: 80, spent: 30, description: 'Abonnement occasionnel uniquement' },
+      { name: 'Entretien Véhicule', estimated: 70, spent: 45, description: 'Peu de kilomètres, entretien minimal' },
 
-      // Alimentation - Optimisée
+      // Alimentation - Optimisée (550€ estimé)
       { name: 'Courses', estimated: 400, spent: 280, description: 'Cuisine maison + marchés locaux' },
-      { name: 'Restaurants', estimated: 250, spent: 120, description: 'Sorties réduites mais de qualité' },
+      { name: 'Restaurants', estimated: 150, spent: 90, description: 'Sorties réduites mais de qualité' },
 
-      // Projets et économies massives
-      { name: 'Vacances Été', estimated: 2000, spent: 650, description: 'Vacances chez amis + camping' },
-      { name: 'Équipement Tech', estimated: 800, spent: 200, description: 'Matériel pro remboursé par employeur' },
-      { name: 'Mobilier Maison', estimated: 600, spent: 150, description: 'Achats d\'occasion et DIY' },
-      { name: 'Électroménager', estimated: 500, spent: 0, description: 'Aucun achat nécessaire cette année' },
+      // Loisirs et sorties (350€ estimé)
+      { name: 'Sport & Fitness', estimated: 80, spent: 45, description: 'Course outdoor + musculation maison' },
+      { name: 'Loisirs Culture', estimated: 120, spent: 65, description: 'Activités gratuites et événements gratuits' },
+      { name: 'Hobbies', estimated: 80, spent: 40, description: 'Projets créatifs peu coûteux' },
+      { name: 'Sorties Amis', estimated: 70, spent: 50, description: 'Activités conviviales peu chères' },
 
-      // Formation et développement
-      { name: 'Formation Pro', estimated: 400, spent: 180, description: 'Formations en ligne pas chères' },
-      { name: 'Livres & Cours', estimated: 100, spent: 35, description: 'Bibliothèque et ressources gratuites' },
+      // Vie quotidienne maîtrisée (375€ estimé)
+      { name: 'Vêtements', estimated: 120, spent: 60, description: 'Achats réfléchis et de qualité' },
+      { name: 'Produits Beauté', estimated: 50, spent: 30, description: 'Produits naturels économiques' },
+      { name: 'Téléphone', estimated: 25, spent: 25, description: 'Forfait optimal sans excès' },
+      { name: 'Internet', estimated: 40, spent: 40, description: 'Connexion nécessaire pour télétravail' },
+      { name: 'Cadeaux Famille', estimated: 80, spent: 55, description: 'Cadeaux faits main et personnalisés' },
+      { name: 'Produits Ménage', estimated: 60, spent: 40, description: 'Achats économiques' },
 
-      // Loisirs optimisés
-      { name: 'Sport & Fitness', estimated: 180, spent: 45, description: 'Course outdoor + musculation maison' },
-      { name: 'Loisirs Culture', estimated: 200, spent: 85, description: 'Activités gratuites et événements gratuits' },
-      { name: 'Hobbies', estimated: 150, spent: 60, description: 'Projets créatifs peu coûteux' },
+      // Santé et assurances (250€ estimé)
+      { name: 'Santé', estimated: 80, spent: 50, description: 'Bonne santé, peu de frais' },
+      { name: 'Assurances', estimated: 170, spent: 160, description: 'Assurances bien négociées' },
 
-      // Vie quotidienne maîtrisée
-      { name: 'Vêtements', estimated: 200, spent: 80, description: 'Achats réfléchis et de qualité' },
-      { name: 'Produits Beauté', estimated: 80, spent: 35, description: 'Produits naturels économiques' },
-      { name: 'Téléphone', estimated: 50, spent: 50, description: 'Forfait optimal sans excès' },
-      { name: 'Internet', estimated: 45, spent: 45, description: 'Connexion nécessaire pour télétravail' },
+      // Épargne planifiée (800€ estimé)
+      { name: 'Épargne Urgence', estimated: 300, spent: 300, description: 'Constitution fonds d\'urgence' },
+      { name: 'Investissements PEA', estimated: 350, spent: 350, description: 'Investissement mensuel régulier' },
+      { name: 'Épargne Projets', estimated: 150, spent: 150, description: 'Épargne pour futurs projets' },
 
-      // Santé et assurances
-      { name: 'Santé', estimated: 100, spent: 60, description: 'Bonne santé, peu de frais' },
-      { name: 'Assurances', estimated: 180, spent: 160, description: 'Assurances bien négociées' },
-
-      // Épargne et investissements - Objectifs atteints
-      { name: 'Épargne Urgence', estimated: 500, spent: 500, description: 'Constitution fonds d\'urgence' },
-      { name: 'Investissements PEA', estimated: 800, spent: 800, description: 'Investissement mensuel régulier' },
-      { name: 'Épargne Projets', estimated: 400, spent: 400, description: 'Épargne pour futurs projets' },
-
-      // Quelques postes avec de légères économies
-      { name: 'Cadeaux Famille', estimated: 150, spent: 120, description: 'Cadeaux faits main et personnalisés' },
-      { name: 'Sorties Amis', estimated: 120, spent: 90, description: 'Activités conviviales peu chères' }
+      // Projets ponctuels avec économies (475€ estimé)
+      { name: 'Vacances', estimated: 200, spent: 120, description: 'Vacances chez amis + camping' },
+      { name: 'Équipement Tech', estimated: 150, spent: 50, description: 'Matériel pro remboursé par employeur' },
+      { name: 'Formation Pro', estimated: 125, spent: 60, description: 'Formations en ligne pas chères' }
     ]
 
     console.log(`📊 [Positive RAV] Création de ${budgetData.length} budgets avec grosses économies`)

@@ -38,9 +38,10 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
 
     // 3. Créer des revenus moyens avec instabilité
+    // TOTAL ESTIMÉ: 4050€ pour un RAV budgétaire d'environ +190€ (précaire)
     const incomeData = [
-      { name: 'Salaire Principal', estimated: 2200, real: 2150 }, // Léger moins que prévu
-      { name: 'Prime Variable', estimated: 300, real: 200 }, // Performance mitigée
+      { name: 'Salaire Principal', estimated: 3200, real: 3100 }, // Léger moins que prévu
+      { name: 'Prime Variable', estimated: 450, real: 350 }, // Performance mitigée
       { name: 'Activité Secondaire', estimated: 400, real: 480 } // Compensé par extra
     ]
 
@@ -189,28 +190,33 @@ export async function POST(request: NextRequest) {
     await supabaseServer.from('real_expenses').insert(expenseInserts)
 
     // 7. Calculer les statistiques de risque
-    const totalEstimated = summary.reduce((sum, item) => sum + item.estimated, 0)
+    const totalEstimatedBudgets = summary.reduce((sum, item) => sum + item.estimated, 0)
     const totalSpent = summary.reduce((sum, item) => sum + item.spent, 0)
     const totalSurplus = summary.reduce((sum, item) => sum + item.surplus, 0)
     const totalDeficit = summary.reduce((sum, item) => sum + item.deficit, 0)
     const netBalance = totalSurplus - totalDeficit
 
+    const totalEstimatedIncome = incomeData.reduce((sum, income) => sum + income.estimated, 0)
     const totalRealIncome = incomeData.reduce((sum, income) => sum + income.real, 0)
-    const estimatedRAV = 3200 + totalRealIncome - totalSpent
+    const budgetaryRAV = totalEstimatedIncome - totalEstimatedBudgets
+    const actualRAV = totalRealIncome - totalSpent
     const monthlyBalance = totalRealIncome - totalSpent
 
     const highRiskBudgets = summary.filter(b => b.riskLevel === 'high')
     const budgetsInDeficit = summary.filter(b => b.status === 'deficit')
-    const marginForError = Math.round((netBalance / totalEstimated) * 100)
+    const marginForError = Math.round((netBalance / totalEstimatedBudgets) * 100)
 
     const stabilityScore = Math.max(0, 100 - (highRiskBudgets.length * 10) - (budgetsInDeficit.length * 15))
 
     console.log('📊 [Balanced Risky] === SITUATION ÉQUILIBRÉE MAIS PRÉCAIRE ===')
     console.log(`💰 Solde bancaire: 3200€`)
+    console.log(`💚 Revenus estimés: ${totalEstimatedIncome}€`)
     console.log(`💚 Revenus réels: ${totalRealIncome}€`)
+    console.log(`📊 Budgets estimés: ${totalEstimatedBudgets}€`)
     console.log(`💸 Dépenses totales: ${totalSpent}€`)
     console.log(`⚖️ Balance nette: ${netBalance}€`)
-    console.log(`🎯 RAV estimé: ${estimatedRAV}€`)
+    console.log(`🎯 RAV Budgétaire: ${budgetaryRAV}€`)
+    console.log(`🎯 RAV Actuel: ${actualRAV}€`)
     console.log(`📊 Balance mensuelle: ${monthlyBalance}€`)
     console.log(`⚠️ Budgets à haut risque: ${highRiskBudgets.length}`)
     console.log(`🔴 Budgets en déficit: ${budgetsInDeficit.length}`)
@@ -222,10 +228,13 @@ export async function POST(request: NextRequest) {
       message: '🟡 Scénario équilibré mais risqué créé - Situation financière précaire',
       financial_impact: {
         bankBalance: 3200,
+        totalEstimatedIncome: totalEstimatedIncome,
         totalRealIncome: totalRealIncome,
+        totalEstimatedBudgets: totalEstimatedBudgets,
         totalSpent: totalSpent,
         netBalance: netBalance,
-        estimatedRAV: estimatedRAV,
+        budgetaryRAV: budgetaryRAV,
+        actualRAV: actualRAV,
         monthlyBalance: monthlyBalance,
         marginForError: marginForError,
         stabilityScore: stabilityScore,
@@ -236,7 +245,7 @@ export async function POST(request: NextRequest) {
         budgetsInDeficit: budgetsInDeficit.length,
         totalDeficitAmount: totalDeficit,
         averageMarginRate: Math.round(summary.reduce((sum, b) => sum + b.marginRate, 0) / summary.length),
-        vulnerabilityToShocks: estimatedRAV < 1000
+        vulnerabilityToShocks: budgetaryRAV < 300
       },
       statistics: {
         totalBudgets: createdBudgets.length,
