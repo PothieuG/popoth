@@ -48,6 +48,45 @@ const getAmountColor = (
 }
 
 /**
+ * Rendu unifie d'une option (utilise dans la selection ET dans les items du menu)
+ */
+function OptionDisplay({ option }: { option: DropdownOption }) {
+  return (
+    <div className="space-y-0.5">
+      <div className="font-bold text-black text-sm">
+        {option.name}
+      </div>
+      <div className="flex items-center justify-between text-sm">
+        <div>
+          {option.type === 'expense' && option.spentAmount !== undefined ? (
+            <>
+              <span className={getAmountColor(option.spentAmount, option.estimatedAmount || 0, 'expense')}>
+                {option.spentAmount.toFixed(2)}€
+              </span>
+              <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
+            </>
+          ) : option.type === 'income' && option.receivedAmount !== undefined ? (
+            <>
+              <span className={getAmountColor(option.receivedAmount, option.estimatedAmount || 0, 'income')}>
+                {option.receivedAmount.toFixed(2)}€
+              </span>
+              <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
+            </>
+          ) : null}
+        </div>
+        {option.type === 'expense' && option.economyAmount !== undefined && option.economyAmount !== 0 && (
+          <div className={`text-xs ${option.economyAmount < 0 ? 'text-red-600' : 'text-purple-600'}`}>
+            {option.economyAmount >= 0
+              ? `(Économie: ${option.economyAmount.toFixed(2)}€)`
+              : `(Déficit: ${Math.abs(option.economyAmount).toFixed(2)}€)`}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
  * Composant dropdown personnalisé avec formatage avancé
  */
 export default function CustomDropdown({
@@ -93,26 +132,7 @@ export default function CustomDropdown({
         aria-haspopup="listbox"
       >
         {selectedOption ? (
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-black">{selectedOption.name}</span>
-            <span className="text-sm text-gray-600">
-              {selectedOption.type === 'expense' && selectedOption.spentAmount !== undefined ? (
-                <>
-                  <span className={getAmountColor(selectedOption.spentAmount, selectedOption.estimatedAmount || 0, 'expense')}>
-                    {selectedOption.spentAmount.toFixed(2)}€
-                  </span>
-                  /{selectedOption.estimatedAmount?.toFixed(2)}€
-                </>
-              ) : selectedOption.type === 'income' && selectedOption.receivedAmount !== undefined ? (
-                <>
-                  <span className={getAmountColor(selectedOption.receivedAmount, selectedOption.estimatedAmount || 0, 'income')}>
-                    {selectedOption.receivedAmount.toFixed(2)}€
-                  </span>
-                  /{selectedOption.estimatedAmount?.toFixed(2)}€
-                </>
-              ) : null}
-            </span>
-          </div>
+          <OptionDisplay option={selectedOption} />
         ) : (
           placeholder
         )}
@@ -154,42 +174,7 @@ export default function CustomDropdown({
                   value === option.id && 'bg-blue-50'
                 )}
               >
-                <div className="space-y-1">
-                  {/* Ligne 1: Nom en bold noir */}
-                  <div className="font-bold text-black text-sm">
-                    {option.name}
-                  </div>
-
-                  {/* Ligne 2: Valeurs avec couleurs */}
-                  <div className="flex items-center justify-between text-sm">
-                    <div>
-                      {option.type === 'expense' && option.spentAmount !== undefined ? (
-                        <>
-                          <span className={getAmountColor(option.spentAmount, option.estimatedAmount || 0, 'expense')}>
-                            {option.spentAmount.toFixed(2)}€
-                          </span>
-                          <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
-                        </>
-                      ) : option.type === 'income' && option.receivedAmount !== undefined ? (
-                        <>
-                          <span className={getAmountColor(option.receivedAmount, option.estimatedAmount || 0, 'income')}>
-                            {option.receivedAmount.toFixed(2)}€
-                          </span>
-                          <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
-                        </>
-                      ) : null}
-                    </div>
-
-                    {/* Parenthèse économie/déficit seulement (pas de bonus pour les revenus) */}
-                    <div className={`text-xs ${option.economyAmount && option.economyAmount < 0 ? 'text-red-600' : 'text-purple-600'}`}>
-                      {option.type === 'expense' && option.economyAmount !== undefined ? (
-                        option.economyAmount >= 0
-                          ? `(Économie: ${option.economyAmount.toFixed(2)}€)`
-                          : `(Déficit: ${Math.abs(option.economyAmount).toFixed(2)}€)`
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
+                <OptionDisplay option={option} />
               </button>
             ))
           )}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+import { triggerFinancialRefresh, registerFinancialRefreshCallback } from '@/hooks/useFinancialData'
 
 interface EstimatedBudget {
   id: string
@@ -203,6 +203,14 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   // Charger les budgets au montage du composant
   useEffect(() => {
     fetchBudgets()
+  }, [fetchBudgets])
+
+  // Se re-synchroniser quand les donnees financieres changent globalement
+  useEffect(() => {
+    const unregister = registerFinancialRefreshCallback(() => {
+      fetchBudgets()
+    })
+    return () => { unregister() }
   }, [fetchBudgets])
 
   return {

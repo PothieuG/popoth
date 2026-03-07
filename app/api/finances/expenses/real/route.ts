@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 
 export interface RealExpenseData {
   id: string
@@ -353,6 +354,43 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Si le montant change, recalculer l'allocation (tirelire -> economies -> budget)
+    if (amount !== undefined) {
+      // Recuperer l'ancienne depense avec ses champs de breakdown
+      const { data: oldExpense, error: fetchError } = await supabaseServer
+        .from('real_expenses')
+        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, profile_id, group_id, is_exceptional')
+        .eq('id', id)
+        .single()
+
+      if (fetchError || !oldExpense) {
+        return NextResponse.json(
+          { error: 'Dépense introuvable' },
+          { status: 404 }
+        )
+      }
+
+      const budgetId = estimated_budget_id !== undefined ? estimated_budget_id : oldExpense.estimated_budget_id
+
+      // Reallocation uniquement pour les depenses budgetees
+      if (budgetId && !oldExpense.is_exceptional) {
+        const contextFilter: Record<string, string> = {}
+        if (oldExpense.group_id) contextFilter.group_id = oldExpense.group_id
+        else if (oldExpense.profile_id) contextFilter.profile_id = oldExpense.profile_id
+
+        // Etape 1: Reverser l'ancienne allocation
+        await reverseAllocation(oldExpense, contextFilter)
+
+        // Etape 2: Appliquer la nouvelle allocation avec le nouveau montant
+        const result = await applyAllocation(amount, budgetId, contextFilter)
+
+        // Ajouter les nouveaux breakdown fields aux updates
+        updates.amount_from_piggy_bank = result.fromPiggyBank
+        updates.amount_from_budget_savings = result.fromBudgetSavings
+        updates.amount_from_budget = result.fromBudget
+      }
+    }
+
     // Update the real expense
     const { data, error } = await supabaseServer
       .from('real_expenses')
@@ -372,19 +410,15 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Sauvegarder automatiquement le nouveau reste à vivre si c'est une dépense exceptionnelle
-    if (data.is_exceptional) {
-      const snapshotSuccess = await saveRemainingToLiveSnapshot({
-        profileId: data.profile_id || undefined,
-        groupId: data.group_id || undefined,
-        reason: 'exceptional_expense_updated'
-      })
+    // Sauvegarder le snapshot reste a vivre
+    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      profileId: data.profile_id || undefined,
+      groupId: data.group_id || undefined,
+      reason: data.is_exceptional ? 'exceptional_expense_updated' : 'budgeted_expense_updated'
+    })
 
-      if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour dépense exceptionnelle')
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
-      }
+    if (snapshotSuccess) {
+      console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour dépense')
     }
 
     return NextResponse.json({
@@ -423,10 +457,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Récupérer d'abord les informations de la dépense avant suppression pour savoir si elle était exceptionnelle
+    // Recuperer les informations completes de la depense avant suppression
     const { data: expenseToDelete } = await supabaseServer
       .from('real_expenses')
-      .select('profile_id, group_id, is_exceptional')
+      .select('profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('id', id)
       .single()
 
@@ -444,18 +478,30 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Sauvegarder automatiquement le nouveau reste à vivre si c'était une dépense exceptionnelle
-    if (expenseToDelete?.is_exceptional) {
+    if (expenseToDelete) {
+      // Reverser l'allocation si c'etait une depense budgetee
+      if (expenseToDelete.estimated_budget_id && !expenseToDelete.is_exceptional) {
+        const contextFilter: Record<string, string> = {}
+        if (expenseToDelete.group_id) contextFilter.group_id = expenseToDelete.group_id
+        else if (expenseToDelete.profile_id) contextFilter.profile_id = expenseToDelete.profile_id
+
+        try {
+          await reverseAllocation(expenseToDelete, contextFilter)
+          console.log('📊 Allocation reversee apres suppression depense budgetee')
+        } catch (err) {
+          console.error('⚠️ Erreur lors du reversement de l\'allocation:', err)
+        }
+      }
+
+      // Sauvegarder le snapshot reste a vivre
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: expenseToDelete.profile_id || undefined,
         groupId: expenseToDelete.group_id || undefined,
-        reason: 'exceptional_expense_deleted'
+        reason: expenseToDelete.is_exceptional ? 'exceptional_expense_deleted' : 'budgeted_expense_deleted'
       })
 
       if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après suppression dépense exceptionnelle')
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+        console.log('📊 Snapshot reste à vivre sauvegardé après suppression dépense')
       }
     }
 

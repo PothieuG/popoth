@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     const amount = parseFloat(searchParams.get('amount') || '0')
     const budgetId = searchParams.get('budget_id')
     const context = searchParams.get('context') || 'profile'
+    const expenseId = searchParams.get('expense_id') // Optionnel: pour le mode edition
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -84,7 +85,27 @@ export async function GET(request: NextRequest) {
       .match(contextFilter)
       .maybeSingle()
 
-    const piggyBankBefore = piggyBankData?.amount || 0
+    let piggyBankBefore = piggyBankData?.amount || 0
+
+    // En mode edition: restaurer virtuellement l'allocation de la depense existante
+    let existingExpense: { amount_from_piggy_bank: number, amount_from_budget_savings: number, amount_from_budget: number } | null = null
+    if (expenseId) {
+      const { data: expData } = await supabaseServer
+        .from('real_expenses')
+        .select('amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+        .eq('id', expenseId)
+        .single()
+
+      if (expData) {
+        existingExpense = {
+          amount_from_piggy_bank: expData.amount_from_piggy_bank || 0,
+          amount_from_budget_savings: expData.amount_from_budget_savings || 0,
+          amount_from_budget: expData.amount_from_budget || 0
+        }
+        // Simuler le reverse: rendre les montants aux pools
+        piggyBankBefore += existingExpense.amount_from_piggy_bank
+      }
+    }
 
     // Get budget info
     const { data: budgetData, error: budgetError } = await supabaseServer
@@ -101,22 +122,32 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const savingsBefore = budgetData.cumulated_savings || 0
+    let savingsBefore = budgetData.cumulated_savings || 0
+
+    // En mode edition: restaurer virtuellement les economies
+    if (existingExpense) {
+      savingsBefore += existingExpense.amount_from_budget_savings
+    }
 
     // Get current spent amount - only count amount_from_budget
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
-      .select('amount, amount_from_budget')
+      .select('id, amount, amount_from_budget')
       .eq('estimated_budget_id', budgetId)
       .match(contextFilter)
 
-    const budgetSpentBefore = expenses?.reduce((sum, e) => {
+    let budgetSpentBefore = expenses?.reduce((sum, e) => {
       // Use amount_from_budget if available, otherwise use amount (backward compatibility)
       const amountFromBudget = e.amount_from_budget !== null && e.amount_from_budget !== undefined
         ? e.amount_from_budget
         : e.amount
       return sum + amountFromBudget
     }, 0) || 0
+
+    // En mode edition: exclure le budget depense par la depense existante
+    if (existingExpense) {
+      budgetSpentBefore -= existingExpense.amount_from_budget
+    }
 
     // Calculate breakdown
     let remainingToAllocate = amount

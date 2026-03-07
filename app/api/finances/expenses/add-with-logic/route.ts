@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import { calculateBreakdown } from '@/lib/expense-allocation'
 
 export interface AddExpenseWithLogicRequest {
   amount: number
@@ -194,28 +195,11 @@ export async function POST(request: NextRequest) {
     console.log('')
 
     // Step 4: Calculate the breakdown
-    let remainingToAllocate = amount
-    let fromPiggyBank = 0
-    let fromBudgetSavings = 0
-    let fromBudget = 0
-
-    // Priority 1: Piggy bank
-    if (piggyBankBefore > 0) {
-      fromPiggyBank = Math.min(remainingToAllocate, piggyBankBefore)
-      remainingToAllocate -= fromPiggyBank
-    }
-
-    // Priority 2: Budget savings
-    if (remainingToAllocate > 0 && savingsBefore > 0) {
-      fromBudgetSavings = Math.min(remainingToAllocate, savingsBefore)
-      remainingToAllocate -= fromBudgetSavings
-    }
-
-    // Priority 3: Budget itself
-    if (remainingToAllocate > 0) {
-      fromBudget = remainingToAllocate
-      remainingToAllocate = 0
-    }
+    const { fromPiggyBank, fromBudgetSavings, fromBudget } = calculateBreakdown(
+      amount,
+      piggyBankBefore,
+      savingsBefore
+    )
 
     const piggyBankAfter = piggyBankBefore - fromPiggyBank
     const savingsAfter = savingsBefore - fromBudgetSavings

@@ -7,6 +7,7 @@ interface ExpenseBreakdownPreviewProps {
   amount: number
   budgetId: string
   context?: 'profile' | 'group'
+  expenseId?: string // Pour le mode edition: simule reverse+reapply
 }
 
 interface BreakdownData {
@@ -31,7 +32,8 @@ interface BreakdownData {
 export default function ExpenseBreakdownPreview({
   amount,
   budgetId,
-  context = 'profile'
+  context = 'profile',
+  expenseId
 }: ExpenseBreakdownPreviewProps) {
   const [breakdown, setBreakdown] = useState<BreakdownData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -53,6 +55,9 @@ export default function ExpenseBreakdownPreview({
           budget_id: budgetId,
           context
         })
+        if (expenseId) {
+          params.set('expense_id', expenseId)
+        }
 
         const response = await fetch(`/api/finances/expenses/preview-breakdown?${params}`, {
           credentials: 'include'
@@ -73,7 +78,7 @@ export default function ExpenseBreakdownPreview({
     }
 
     fetchBreakdown()
-  }, [amount, budgetId, context])
+  }, [amount, budgetId, context, expenseId])
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })

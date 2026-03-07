@@ -12,8 +12,7 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
  *
  * CAS 1 (Différence ≥ 0 - Excédent):
  *   1.1. Transférer l'excédent → tirelire
- *   1.2.1. Renflouer budgets déficitaires depuis tirelire (crédits)
- *   1.2.2. Renflouer budgets déficitaires depuis économies (crédits)
+ *   NOTE: Pas de renflouage des budgets déficitaires en CAS 1.
  *   NOTE: Les surplus restent intacts (pas de consommation en CAS 1).
  *
  * CAS 2 (Différence < 0 - Déficit / Gap à combler):
@@ -261,151 +260,15 @@ export async function POST(request: NextRequest) {
 
       console.log(``)
 
-      // ÉTAPE 1.2-1.3: Renflouer les budgets déficitaires
+      // CAS 1: Pas de renflouage automatique des budgets déficitaires
+      // Les déficits individuels sont déjà inclus dans le RAV.
+      // La tirelire et les économies ne doivent pas être touchées en cas d'excédent global.
       if (budgetsWithDeficit.length > 0) {
-        console.log(`🔄 ÉTAPE 1.2-1.3: Renflouage des budgets déficitaires`)
-        console.log(`   Budgets déficitaires: ${budgetsWithDeficit.length}`)
+        console.log(`ℹ️ ${budgetsWithDeficit.length} budget(s) déficitaire(s) détecté(s), mais pas de renflouage en CAS 1 (excédent global)`)
+        console.log(`   Les déficits individuels sont déjà inclus dans le calcul du RAV`)
         console.log(``)
-
-        for (const budget of budgetsWithDeficit) {
-          let remainingDeficit = budget.deficit
-          console.log(`   💰 Renflouage "${budget.name}": ${remainingDeficit}€ de déficit`)
-
-          // ÉTAPE 1.2.1: Utiliser la tirelire en premier
-          if (piggyBankAmount > 0 && remainingDeficit > 0) {
-            const amountFromPiggyBank = Math.min(remainingDeficit, piggyBankAmount)
-
-            // Créer un TRANSFERT vers ce budget (from_budget_id = null = tirelire)
-            const { error: transferError } = await supabaseServer
-              .from('budget_transfers')
-              .insert([{
-                [ownerField]: contextId,
-                from_budget_id: null,  // null = tirelire
-                to_budget_id: budget.id,
-                transfer_amount: amountFromPiggyBank,
-                transfer_reason: `Renflouage déficit depuis tirelire (récap)`,
-                transfer_date: new Date().toISOString().split('T')[0]
-              }])
-
-            if (transferError) {
-              console.error(`      ❌ Erreur création transfert tirelire: ${transferError.message}`)
-            } else {
-              // Mettre à jour la tirelire
-              const newPiggyBankAmount = piggyBankAmount - amountFromPiggyBank
-
-              const { error: updateError } = await supabaseServer
-                .from('piggy_bank')
-                .update({
-                  amount: newPiggyBankAmount,
-                  last_updated: new Date().toISOString()
-                })
-                .eq(ownerField, contextId)
-
-              if (updateError) {
-                throw new Error(`Erreur mise à jour tirelire: ${updateError.message}`)
-              }
-
-              console.log(`      ✅ Tirelire: ${amountFromPiggyBank}€ → Budget "${budget.name}"`)
-              console.log(`         Tirelire: ${piggyBankAmount}€ → ${newPiggyBankAmount}€`)
-
-              operations.push({
-                step: '1.2.1',
-                type: 'refloat_from_piggy_bank',
-                details: {
-                  budget_id: budget.id,
-                  budget_name: budget.name,
-                  amount: amountFromPiggyBank,
-                  old_piggy_bank: piggyBankAmount,
-                  new_piggy_bank: newPiggyBankAmount
-                }
-              })
-
-              piggyBankAmount = newPiggyBankAmount
-              remainingDeficit -= amountFromPiggyBank
-            }
-          }
-
-          // ÉTAPE 1.2.2: Utiliser les économies proportionnellement
-          if (remainingDeficit > 0) {
-            const totalSavingsAvailable = budgetsWithSavings.reduce((s, b) => s + b.cumulated_savings, 0)
-
-            if (totalSavingsAvailable > 0) {
-              console.log(`      ℹ️ Déficit restant: ${remainingDeficit}€, économies disponibles: ${totalSavingsAvailable}€`)
-
-              for (const savingsBudget of budgetsWithSavings) {
-                if (savingsBudget.cumulated_savings > 0 && remainingDeficit > 0) {
-                  const proportion = savingsBudget.cumulated_savings / totalSavingsAvailable
-                  const amountFromSavings = Math.min(
-                    proportion * remainingDeficit,
-                    savingsBudget.cumulated_savings
-                  )
-
-                  // Créer un TRANSFERT depuis les économies vers le budget déficitaire
-                  const { error: transferError } = await supabaseServer
-                    .from('budget_transfers')
-                    .insert([{
-                      [ownerField]: contextId,
-                      from_budget_id: savingsBudget.id,  // source = budget avec économies
-                      to_budget_id: budget.id,
-                      transfer_amount: amountFromSavings,
-                      transfer_reason: `Renflouage déficit depuis économies cumulées (récap)`,
-                      transfer_date: new Date().toISOString().split('T')[0]
-                    }])
-
-                  if (transferError) {
-                    console.error(`         ❌ Erreur création transfert économies: ${transferError.message}`)
-                  } else {
-                    // Réduire les économies du budget source
-                    const newSavings = savingsBudget.cumulated_savings - amountFromSavings
-
-                    const { error: updateError } = await supabaseServer
-                      .from('estimated_budgets')
-                      .update({
-                        cumulated_savings: newSavings,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', savingsBudget.id)
-
-                    if (updateError) {
-                      throw new Error(`Erreur mise à jour économies ${savingsBudget.name}: ${updateError.message}`)
-                    }
-
-                    console.log(`         ✅ Économies "${savingsBudget.name}": ${amountFromSavings.toFixed(2)}€ → Budget "${budget.name}"`)
-                    console.log(`            Économies: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€`)
-
-                    operations.push({
-                      step: '1.2.2',
-                      type: 'refloat_from_savings',
-                      details: {
-                        from_budget_id: savingsBudget.id,
-                        from_budget_name: savingsBudget.name,
-                        to_budget_id: budget.id,
-                        to_budget_name: budget.name,
-                        amount: amountFromSavings,
-                        old_savings: savingsBudget.cumulated_savings,
-                        new_savings: newSavings
-                      }
-                    })
-
-                    savingsBudget.cumulated_savings = newSavings
-                    remainingDeficit -= amountFromSavings
-                  }
-                }
-              }
-            }
-          }
-
-          // NOTE: Dans CAS 1 (excédent), les déficits sont déjà inclus dans le RAV.
-          // On ne consomme PAS le surplus ici - il reste disponible pour l'écran 2.
-
-          if (remainingDeficit > 0.01) {
-            console.log(`      ⚠️ Déficit résiduel de ${remainingDeficit.toFixed(2)}€ pour "${budget.name}" (ressources épuisées)`)
-          }
-
-          console.log(``)
-        }
       } else {
-        console.log(`✅ Aucun budget déficitaire à renflouer`)
+        console.log(`✅ Aucun budget déficitaire`)
         console.log(``)
       }
 

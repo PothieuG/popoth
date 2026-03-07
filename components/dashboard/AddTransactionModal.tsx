@@ -209,7 +209,7 @@ export default function AddTransactionModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[80vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">

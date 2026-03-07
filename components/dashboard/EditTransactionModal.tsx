@@ -12,6 +12,7 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import { RealExpense } from '@/hooks/useRealExpenses'
 import { RealIncome } from '@/hooks/useRealIncomes'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
@@ -81,7 +82,7 @@ export default function EditTransactionModal({
       type: 'expense' as const,
       spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.current_savings || 0 // 🔥 Directement depuis la base
+      economyAmount: budget.cumulated_savings || 0
     }
   })
 
@@ -215,9 +216,9 @@ export default function EditTransactionModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl">
+      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[80vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
           </h2>
@@ -235,7 +236,7 @@ export default function EditTransactionModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
           {isOriginallyExceptional && (
             <div className="flex flex-col items-center space-y-3">
@@ -337,6 +338,16 @@ export default function EditTransactionModal({
             </div>
           </div>
 
+
+          {/* Expense Breakdown Preview - only for budgeted expenses */}
+          {transactionType === 'expense' && previewAmount > 0 && !isExceptional && formData.budgetId && transaction && (
+            <ExpenseBreakdownPreview
+              amount={previewAmount}
+              budgetId={formData.budgetId}
+              context={context}
+              expenseId={transaction.id}
+            />
+          )}
 
           {/* Error Display */}
           {error && (
