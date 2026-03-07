@@ -69,6 +69,7 @@ export default function MonthlyRecapFlow({
   }
 
   const handleStep1Next = async () => {
+    console.log('🟢🟢🟢 [DEBUG FLOW] handleStep1Next APPELÉ - DÉBUT DE LA FONCTION')
     try {
       console.log(``)
       console.log(`🎯🎯🎯 ========================================================`)
@@ -78,6 +79,7 @@ export default function MonthlyRecapFlow({
       console.log(`🎯🎯🎯 ========================================================`)
       console.log(``)
 
+      console.log('🟢🟢🟢 [DEBUG FLOW] Avant fetch /api/monthly-recap/process-step1')
       // ✅ NOUVEAU: Appel à l'API process-step1 qui gère TOUT
       const processResponse = await fetch('/api/monthly-recap/process-step1', {
         method: 'POST',
@@ -87,7 +89,9 @@ export default function MonthlyRecapFlow({
         body: JSON.stringify({ context })
       })
 
+      console.log('🟢🟢🟢 [DEBUG FLOW] Fetch terminé, status:', processResponse.status)
       const processData = await processResponse.json()
+      console.log('🟢🟢🟢 [DEBUG FLOW] JSON parsé:', processData)
 
       if (processResponse.ok && processData.success) {
         console.log(`✅ [Frontend] Process Step 1 réussi`)

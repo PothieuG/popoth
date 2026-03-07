@@ -9,7 +9,11 @@
       "Bash(npm run typecheck:*)",
       "Bash(curl:*)",
       "Bash(psql:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
     ],
     "deny": [],
     "ask": []

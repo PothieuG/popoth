@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card'
 
 interface MonthlyRecapStep1Props {
   context: 'profile' | 'group'
-  onNext: () => void
+  onNext: () => void | Promise<void>
 }
 
 interface Step1Data {
@@ -599,7 +599,23 @@ export default function MonthlyRecapStep1({
           </div>
           {canContinue && (
             <Button
-              onClick={onNext}
+              onClick={async () => {
+                console.log('🔵🔵🔵 [DEBUG STEP1] BOUTON CLIQUÉ - AVANT APPEL onNext')
+                console.log('🔵🔵🔵 [DEBUG STEP1] Type de onNext:', typeof onNext)
+                try {
+                  const result = onNext()
+                  console.log('🔵🔵🔵 [DEBUG STEP1] onNext() appelé, résultat type:', typeof result)
+                  if (result instanceof Promise) {
+                    console.log('🔵🔵🔵 [DEBUG STEP1] onNext retourne une Promise - en attente...')
+                    await result
+                    console.log('🔵🔵🔵 [DEBUG STEP1] Promise résolue avec succès')
+                  } else {
+                    console.log('🔵🔵🔵 [DEBUG STEP1] onNext synchrone terminé')
+                  }
+                } catch (error) {
+                  console.error('🔴🔴🔴 [DEBUG STEP1] ERREUR dans onClick:', error)
+                }
+              }}
               disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
             >

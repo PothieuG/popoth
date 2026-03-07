@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`Erreur récupération budgets: ${budgetsError.message}`)
     }
 
-    // 3. Récupérer les dépenses réelles
+    // 3. Récupérer les dépenses réelles (liées à un budget)
     const { data: expenses, error: expensesError } = await supabaseServer
       .from('real_expenses')
       .select('estimated_budget_id, amount')
@@ -137,6 +137,20 @@ export async function GET(request: NextRequest) {
     if (expensesError) {
       throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
     }
+
+    // 3a. Récupérer les dépenses exceptionnelles (sans budget lié)
+    const { data: exceptionalExpenses, error: exceptionalError } = await supabaseServer
+      .from('real_expenses')
+      .select('id, amount, description, expense_date')
+      .eq(ownerField, contextId)
+      .is('estimated_budget_id', null)
+
+    if (exceptionalError) {
+      console.warn('⚠️ [Step2 Data] Erreur récupération dépenses exceptionnelles:', exceptionalError)
+    }
+
+    const totalExceptionalExpenses = (exceptionalExpenses || []).reduce((sum, exp) => sum + exp.amount, 0)
+    console.log(`⚠️ [Step2 Data] ${exceptionalExpenses?.length || 0} dépense(s) exceptionnelle(s) trouvée(s), total: ${totalExceptionalExpenses}€`)
 
     // 3b. Récupérer les transferts de budgets pour ce mois
     const { data: transfers, error: transfersError } = await supabaseServer
@@ -149,6 +163,13 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`🔄 [Step2 Data] ${transfers?.length || 0} transferts trouvés`)
+
+    // Calculer le total du surplus utilisé pour combler le gap (depuis step1)
+    const surplusUsedToFillGap = (transfers || [])
+      .filter(t => t.transfer_reason?.includes('Surplus utilisé pour combler gap'))
+      .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+    console.log(`💰 [Step2 Data] Surplus utilisé pour combler gap: ${surplusUsedToFillGap}€`)
 
     // 4. Calculer les statistiques pour chaque budget
     const budgetStats = []
@@ -243,6 +264,47 @@ export async function GET(request: NextRequest) {
       piggyBank = 0
     }
 
+    // 8. Calculer le détail des déficits (budgets vs autres)
+    // Le gap global = différence entre RAV budgétaire et RAV actuel
+    const gapGlobal = budgetaryRemainingToLive - currentRemainingToLive
+
+    // Si gapGlobal > 0, on a un déficit global (RAV actuel < RAV budgétaire)
+    // Ce déficit peut venir de:
+    // - Déficits sur les budgets (dépenses > estimé)
+    // - Dépenses exceptionnelles (sans budget)
+    // - Différences de revenus (réels < estimés)
+    // - Etc.
+
+    // Le déficit global = gap brut MOINS le surplus utilisé pour le combler
+    const deficitGlobal = Math.max(0, gapGlobal - surplusUsedToFillGap)
+
+    console.log(`   - Gap brut: ${gapGlobal}€`)
+    console.log(`   - Surplus utilisé: ${surplusUsedToFillGap}€`)
+    console.log(`   - Déficit global net: ${deficitGlobal}€`)
+    const deficitBudgets = totalDeficit  // Somme des déficits des budgets individuels
+    const deficitAutres = Math.max(0, deficitGlobal - deficitBudgets)  // La différence = autres sources
+
+    // 9. Calculer le détail des "déficits autres"
+    // Composé de: dépenses exceptionnelles + écart de revenus
+    const ecartRevenus = Math.max(0, financialData.totalEstimatedIncome - financialData.totalRealIncome)
+
+    // Les "autres déficits" peuvent être décomposés en:
+    const detailAutres = {
+      depenses_exceptionnelles: {
+        total: totalExceptionalExpenses,
+        items: (exceptionalExpenses || []).map(exp => ({
+          id: exp.id,
+          amount: exp.amount,
+          description: exp.description || 'Dépense exceptionnelle',
+          date: exp.expense_date
+        }))
+      },
+      ecart_revenus: ecartRevenus,
+      // Note: la somme peut ne pas correspondre exactement à deficitAutres
+      // car il peut y avoir d'autres facteurs (arrondis, transferts, etc.)
+      autres_non_identifies: Math.max(0, deficitAutres - totalExceptionalExpenses - ecartRevenus)
+    }
+
     console.log(``)
     console.log(`🏦🏦🏦 ========================================================`)
     console.log(`🏦 TIRELIRE (depuis table piggy_bank)`)
@@ -251,6 +313,14 @@ export async function GET(request: NextRequest) {
     console.log(`💰 RAV actuel: ${currentRemainingToLive}€`)
     console.log(`💎 Total surplus budgets: ${totalSurplus}€`)
     console.log(`🏦 TIRELIRE disponible: ${piggyBank}€`)
+    console.log(``)
+    console.log(`📉 DÉTAIL DES DÉFICITS:`)
+    console.log(`   - Déficit global (gap): ${deficitGlobal}€`)
+    console.log(`   - Déficit budgets: ${deficitBudgets}€`)
+    console.log(`   - Déficit autres: ${deficitAutres}€`)
+    console.log(`     → Dépenses exceptionnelles: ${totalExceptionalExpenses}€`)
+    console.log(`     → Écart revenus: ${ecartRevenus}€`)
+    console.log(`     → Autres non identifiés: ${detailAutres.autres_non_identifies}€`)
     console.log(`🏦🏦🏦 ========================================================`)
     console.log(``)
 
@@ -265,6 +335,13 @@ export async function GET(request: NextRequest) {
       year: currentYear,
       total_surplus: totalSurplus,
       total_deficit: totalDeficit,
+      // Nouveau: détail des déficits
+      deficit_global: deficitGlobal,
+      deficit_budgets: deficitBudgets,
+      deficit_autres: deficitAutres,
+      detail_autres: detailAutres,
+      surplus_used_to_fill_gap: surplusUsedToFillGap,
+      gap_brut: gapGlobal,
       context,
       user_name: `${profile.first_name} ${profile.last_name}`,
       timestamp: Date.now() // Pour forcer le rafraîchissement

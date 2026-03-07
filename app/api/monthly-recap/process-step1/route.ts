@@ -598,25 +598,26 @@ export async function POST(request: NextRequest) {
                 gapACombler
               )
 
-              // Créer une DÉPENSE sur le budget avec surplus (CONSOMME le surplus)
-              const { error: expenseError } = await supabaseServer
-                .from('real_expenses')
+              // Créer un TRANSFERT FROM surplus budget TO null (couverture du gap)
+              // NOTE: On ne crée PAS de dépense car cela diminuerait le RAV
+              // Le transfert permet de tracker l'utilisation du surplus sans affecter le RAV
+              const { error: transferError } = await supabaseServer
+                .from('budget_transfers')
                 .insert([{
                   [ownerField]: contextId,
-                  estimated_budget_id: surplusBudget.id,
-                  amount: amountToConsume,  // POSITIF = dépense (consomme le surplus)
-                  description: `Utilisation surplus pour combler gap (récap)`,
-                  expense_date: new Date().toISOString().split('T')[0],
-                  is_exceptional: false,
-                  created_at: new Date().toISOString()
+                  from_budget_id: surplusBudget.id,  // FROM = budget avec surplus
+                  to_budget_id: null,                 // TO null = couverture du gap
+                  transfer_amount: amountToConsume,
+                  transfer_reason: `Surplus utilisé pour combler gap (récap mensuel)`,
+                  transfer_date: new Date().toISOString().split('T')[0]
                 }])
 
-              if (expenseError) {
-                console.error(`      ❌ Erreur création dépense surplus: ${expenseError.message}`)
+              if (transferError) {
+                console.error(`      ❌ Erreur création transfert surplus: ${transferError.message}`)
                 continue
               }
 
-              console.log(`      ✅ "${surplusBudget.name}": ${amountToConsume.toFixed(2)}€ consommés (${(proportion * 100).toFixed(1)}%)`)
+              console.log(`      ✅ "${surplusBudget.name}": ${amountToConsume.toFixed(2)}€ surplus utilisé pour gap (${(proportion * 100).toFixed(1)}%)`)
 
               operations.push({
                 step: '2.3',
@@ -643,55 +644,74 @@ export async function POST(request: NextRequest) {
       console.log(``)
 
       // ÉTAPE 2.3.1: Créer des TRANSFERTS vers les budgets déficitaires pour les renflouer
-      // Les ressources ont été utilisées (tirelire, économies, surplus), maintenant on crée les transferts
-      // NOTE: On utilise budget_transfers au lieu de real_expenses car la table real_expenses
-      // a une contrainte CHECK (amount > 0) qui interdit les montants négatifs
+      // IMPORTANT: On ne peut renflouer que le montant qu'on a réellement pu fournir
+      // Les ressources utilisées = gap initial - gap résiduel
       console.log(`🔄 ÉTAPE 2.3.1: Création des transferts vers budgets déficitaires`)
 
       const totalDeficit = budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)
 
-      if (totalDeficit > 0) {
-        console.log(`   📉 Déficit total à renflouer: ${totalDeficit}€`)
+      // Calculer le montant qu'on a réellement pu fournir pour renflouer
+      // C'est le gap initial MOINS le gap résiduel (ce qu'on n'a pas pu couvrir)
+      const gapInitial = Math.abs(difference)  // Le gap qu'on devait combler
+      const ressourcesUtilisees = gapInitial - gapACombler  // Ce qu'on a réellement pu couvrir
+
+      console.log(`   📉 Déficit total des budgets: ${totalDeficit.toFixed(2)}€`)
+      console.log(`   💰 Ressources utilisées pour renflouer: ${ressourcesUtilisees.toFixed(2)}€`)
+      console.log(`   ⚠️ Gap non couvert: ${gapACombler.toFixed(2)}€`)
+
+      if (totalDeficit > 0 && ressourcesUtilisees > 0.01) {
+        // On ne peut renflouer que proportionnellement aux ressources disponibles
+        const montantARenflouer = Math.min(ressourcesUtilisees, totalDeficit)
 
         for (const deficitBudget of budgetsWithDeficit) {
           if (deficitBudget.deficit > 0) {
-            // Créer un TRANSFERT vers ce budget pour le renflouer
-            // from_budget_id = null représente les ressources générales (tirelire/surplus)
-            const transferAmount = deficitBudget.deficit
+            // Proportion de ce déficit dans le total des déficits
+            const proportion = deficitBudget.deficit / totalDeficit
+            // Montant de renflouage = proportion * ressources disponibles
+            const transferAmount = Math.min(proportion * montantARenflouer, deficitBudget.deficit)
 
-            const { error: transferError } = await supabaseServer
-              .from('budget_transfers')
-              .insert([{
-                [ownerField]: contextId,
-                from_budget_id: null,  // null = tirelire/ressources générales
-                to_budget_id: deficitBudget.id,
-                transfer_amount: transferAmount,
-                transfer_reason: `Renflouage déficit (récap mensuel)`,
-                transfer_date: new Date().toISOString().split('T')[0]
-              }])
+            if (transferAmount > 0.01) {
+              const { error: transferError } = await supabaseServer
+                .from('budget_transfers')
+                .insert([{
+                  [ownerField]: contextId,
+                  from_budget_id: null,  // null = tirelire/ressources générales
+                  to_budget_id: deficitBudget.id,
+                  transfer_amount: transferAmount,
+                  transfer_reason: `Renflouage partiel déficit (récap mensuel)`,
+                  transfer_date: new Date().toISOString().split('T')[0]
+                }])
 
-            if (transferError) {
-              console.error(`      ❌ Erreur création transfert pour "${deficitBudget.name}": ${transferError.message}`)
-              continue
-            }
-
-            console.log(`      ✅ "${deficitBudget.name}": transfert de ${transferAmount.toFixed(2)}€ (déficit annulé)`)
-
-            operations.push({
-              step: '2.3.1',
-              type: 'transfer_to_deficit',
-              details: {
-                budget_id: deficitBudget.id,
-                budget_name: deficitBudget.name,
-                transfer_amount: transferAmount
+              if (transferError) {
+                console.error(`      ❌ Erreur création transfert pour "${deficitBudget.name}": ${transferError.message}`)
+                continue
               }
-            })
 
-            deficitBudget.deficit = 0
+              const deficitRestant = deficitBudget.deficit - transferAmount
+              console.log(`      ✅ "${deficitBudget.name}": ${transferAmount.toFixed(2)}€ renfloués, déficit restant: ${deficitRestant.toFixed(2)}€`)
+
+              operations.push({
+                step: '2.3.1',
+                type: 'transfer_to_deficit',
+                details: {
+                  budget_id: deficitBudget.id,
+                  budget_name: deficitBudget.name,
+                  transfer_amount: transferAmount,
+                  deficit_remaining: deficitRestant
+                }
+              })
+
+              // NE PAS mettre le déficit à 0, mais soustraire le montant renfloué
+              deficitBudget.deficit -= transferAmount
+            }
           }
         }
 
-        console.log(`   ✅ Tous les déficits ont été renfloués via transferts`)
+        const totalDeficitRestant = budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)
+        console.log(`   📊 Déficit total restant après renflouage: ${totalDeficitRestant.toFixed(2)}€`)
+      } else if (totalDeficit > 0) {
+        console.log(`   ⚠️ Aucune ressource disponible pour renflouer les déficits`)
+        console.log(`   📊 Déficit non couvert: ${totalDeficit.toFixed(2)}€`)
       } else {
         console.log(`   ℹ️ Aucun déficit à renflouer`)
       }

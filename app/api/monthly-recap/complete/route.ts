@@ -261,8 +261,9 @@ export async function POST(request: NextRequest) {
       // 2.1. NE PAS remettre les revenus estimés à 0 - ils restent pour le mois suivant
       console.log(`📝 [Monthly Recap Complete] Les revenus estimés restent inchangés pour le mois suivant`)
 
-      // 3. Reporter le déficit comme dépense du mois suivant (avec prise en compte des transferts)
-      console.log(`🔄 [Deficit Processing] Début du traitement des déficits avec transferts pour ${context}:${contextId}`)
+      // 3. Reporter le déficit sur chaque budget via carryover_spent_amount (sans créer de dépense)
+      // Cela permet d'afficher le déficit dans l'écran budget (X/200€ dépensé) sans polluer la liste des dépenses
+      console.log(`🔄 [Deficit Processing] Début du traitement des déficits pour ${context}:${contextId}`)
 
       try {
         // Récupérer TOUS les budgets pour calculer les déficits
@@ -290,9 +291,8 @@ export async function POST(request: NextRequest) {
 
           console.log(`🔄 [Deficit Processing] ${transfers?.length || 0} transfert(s) trouvé(s)`)
 
-          // Calculer les déficits pour chaque budget
-          const deficitExpenses = []
-          const budgetEstimateUpdates = []
+          // Stocker les déficits pour les appliquer APRÈS le reset des dépenses
+          global.carryoverUpdates = []
 
           for (const budget of allBudgets) {
             // Calculer le montant dépensé ce mois (dépenses réelles)
@@ -315,68 +315,29 @@ export async function POST(request: NextRequest) {
             // Le spent_amount ajusté prend en compte les transferts
             const adjustedSpentAmount = realExpensesThisMonth + transfersFrom - transfersTo
 
-            // Calculer le déficit avec le montant ajusté: dépenses ajustées - budget estimé
+            // Calculer le déficit: dépenses ajustées - budget estimé
             const deficit = Math.max(0, adjustedSpentAmount - budget.estimated_amount)
 
             console.log(`📊 [Deficit Processing] "${budget.name}": ${budget.estimated_amount}€ estimé, ${realExpensesThisMonth}€ dépensé, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté: ${adjustedSpentAmount}€ = ${deficit}€ déficit`)
 
-            if (deficit > 0) {
-              // Créer une dépense réelle pour le déficit (APRÈS reset des dépenses)
-              const deficitExpense = {
-                estimated_budget_id: budget.id,
-                amount: deficit,
-                description: `Déficit reporté du récap ${currentMonth}/${currentYear}`,
-                expense_date: currentDate.toISOString().split('T')[0],
-                created_at: new Date().toISOString()
-              }
-
-              // Ajouter les champs de propriétaire
-              if (context === 'profile') {
-                deficitExpense.profile_id = contextId
-              } else {
-                deficitExpense.group_id = contextId
-              }
-
-              deficitExpenses.push(deficitExpense)
-
-              // IMPORTANT: Augmenter le budget estimé du montant du déficit pour le mois suivant
-              // Cela permet au planificateur de budget de refléter le déficit reporté
-              const newEstimatedAmount = budget.estimated_amount + deficit
-              budgetEstimateUpdates.push({
-                budget_id: budget.id,
-                budget_name: budget.name,
-                old_estimated_amount: budget.estimated_amount,
-                new_estimated_amount: newEstimatedAmount,
-                deficit_amount: deficit
-              })
-
-              console.log(`💰 [Deficit Processing] Budget "${budget.name}" will be updated: ${budget.estimated_amount}€ → ${newEstimatedAmount}€ (déficit: +${deficit}€)`)
-            }
+            // Préparer la mise à jour du carryover (0 si pas de déficit)
+            global.carryoverUpdates.push({
+              budget_id: budget.id,
+              budget_name: budget.name,
+              carryover_amount: deficit
+            })
           }
 
-          // Stocker les déficits pour les insérer APRÈS le reset des dépenses
-          if (deficitExpenses.length > 0) {
-            console.log(`🔄 [Deficit Processing] ${deficitExpenses.length} déficit(s) à reporter après reset`)
-            // Les déficits seront insérés plus tard dans le code
-            global.deficitExpensesToInsert = deficitExpenses
-          }
-
-          // Stocker les mises à jour de budgets estimés
-          if (budgetEstimateUpdates.length > 0) {
-            console.log(`🔄 [Deficit Processing] ${budgetEstimateUpdates.length} budget(s) estimé(s) à ajuster`)
-            global.budgetEstimateUpdates = budgetEstimateUpdates
-          }
+          console.log(`🔄 [Deficit Processing] ${global.carryoverUpdates.length} budget(s) à mettre à jour après reset`)
         }
       } catch (deficitError) {
         console.error('❌ [Deficit Processing] Erreur générale lors du traitement des déficits:', deficitError)
         // Ne pas faire échouer la transaction pour ça
       }
 
-      // 3.5. Les économies (surplus) ont déjà été transférées dans /process-step1
-      // Cette section est volontairement supprimée pour éviter la double comptabilisation
-      // IMPORTANT: Le transfert surplus → économies se fait UNIQUEMENT dans /process-step1
-      console.log(`✅ [Savings Processing] Surplus déjà transférés aux économies par /process-step1`)
-      console.log(`   Aucune action nécessaire dans /complete pour éviter double comptabilisation`)
+      // 3.5. Note: Les surplus seront transférés vers économies dans la section 3.7
+      // après le calcul de l'écart RAV et AVANT la suppression des données réelles
+      console.log(`ℹ️ [Savings Processing] Les surplus seront transférés vers économies dans la section 3.7`)
 
       // 3.6. Calculer l'écart de reste à vivre et créer une dépense exceptionnelle si nécessaire
       console.log(`📊 [RAV Difference Processing] Début du calcul de l'écart de reste à vivre pour ${context}:${contextId}`)
@@ -442,6 +403,83 @@ export async function POST(request: NextRequest) {
         // Ne pas faire échouer la transaction pour ça
       }
 
+      // 3.7. Transférer automatiquement les surplus vers les économies (cumulated_savings)
+      // IMPORTANT: Cette section doit être exécutée AVANT la suppression des real_expenses
+      console.log(`💰 [Savings Processing] Calcul et transfert des surplus vers économies pour ${context}:${contextId}`)
+
+      try {
+        // Récupérer tous les budgets avec leurs économies cumulées
+        const { data: budgetsForSavings, error: budgetsForSavingsError } = await supabaseServer
+          .from('estimated_budgets')
+          .select('id, name, estimated_amount, cumulated_savings')
+          .eq(ownerField, contextId)
+
+        if (budgetsForSavingsError) {
+          console.error('❌ [Savings Processing] Erreur récupération budgets:', budgetsForSavingsError)
+        } else if (budgetsForSavings && budgetsForSavings.length > 0) {
+
+          // Récupérer les transferts pour ajuster les calculs
+          const { data: transfersForSavings } = await supabaseServer
+            .from('budget_transfers')
+            .select('from_budget_id, to_budget_id, transfer_amount')
+            .eq(ownerField, contextId)
+
+          let totalSurplusTransferred = 0
+
+          for (const budget of budgetsForSavings) {
+            // Calculer les dépenses réelles de ce budget
+            const { data: budgetExpenses } = await supabaseServer
+              .from('real_expenses')
+              .select('amount')
+              .eq('estimated_budget_id', budget.id)
+
+            const realExpenses = budgetExpenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0
+
+            // Ajuster avec les transferts
+            const transfersFrom = (transfersForSavings || [])
+              .filter(t => t.from_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+            const transfersTo = (transfersForSavings || [])
+              .filter(t => t.to_budget_id === budget.id)
+              .reduce((sum, t) => sum + t.transfer_amount, 0)
+
+            // Montant ajusté dépensé = dépenses réelles + transferts sortants - transferts entrants
+            const adjustedSpent = realExpenses + transfersFrom - transfersTo
+
+            // Surplus = budget estimé - montant ajusté dépensé (si positif)
+            const surplus = Math.max(0, budget.estimated_amount - adjustedSpent)
+
+            if (surplus > 0) {
+              // Ajouter le surplus aux économies cumulées
+              const newCumulatedSavings = (budget.cumulated_savings || 0) + surplus
+
+              const { error: updateSavingsError } = await supabaseServer
+                .from('estimated_budgets')
+                .update({
+                  cumulated_savings: newCumulatedSavings,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', budget.id)
+
+              if (updateSavingsError) {
+                console.error(`❌ [Savings Processing] Erreur mise à jour économies "${budget.name}":`, updateSavingsError)
+              } else {
+                console.log(`✅ [Savings Processing] "${budget.name}": surplus ${surplus}€ → économies (${budget.cumulated_savings || 0}€ → ${newCumulatedSavings}€)`)
+                totalSurplusTransferred += surplus
+              }
+            } else {
+              console.log(`ℹ️ [Savings Processing] "${budget.name}": aucun surplus à transférer (dépensé: ${adjustedSpent}€ / estimé: ${budget.estimated_amount}€)`)
+            }
+          }
+
+          console.log(`💰 [Savings Processing] Total surplus transféré vers économies: ${totalSurplusTransferred}€`)
+        }
+      } catch (savingsError) {
+        console.error('❌ [Savings Processing] Erreur générale:', savingsError)
+        // Ne pas faire échouer la transaction pour ça
+      }
+
       // 4. Log de session (plus de snapshot à désactiver)
       console.log(`📝 [Monthly Recap Complete] Session ${session_id} terminée avec succès`)
 
@@ -487,46 +525,31 @@ export async function POST(request: NextRequest) {
         console.log(`✅ [Monthly Recap Complete] Transferts entre budgets supprimés avec succès`)
       }
 
-      // 4.2.1. Insérer les déficits reportés APRÈS le reset
-      if (global.deficitExpensesToInsert && global.deficitExpensesToInsert.length > 0) {
-        console.log(`🔄 [Deficit Processing] Insertion de ${global.deficitExpensesToInsert.length} déficit(s) reporté(s)`)
+      // 4.2.1. Appliquer le carryover_spent_amount sur chaque budget APRÈS le reset
+      // Le déficit est stocké dans carryover_spent_amount et affiché dans l'écran budget (X/200€ dépensé)
+      // Il n'apparaît PAS dans la liste des dépenses ni dans les totaux
+      if (global.carryoverUpdates && global.carryoverUpdates.length > 0) {
+        console.log(`🔄 [Deficit Processing] Application du carryover sur ${global.carryoverUpdates.length} budget(s)`)
 
-        const { error: insertDeficitError } = await supabaseServer
-          .from('real_expenses')
-          .insert(global.deficitExpensesToInsert)
-
-        if (insertDeficitError) {
-          console.error('❌ [Deficit Processing] Erreur lors de l\'insertion des déficits reportés:', insertDeficitError)
-        } else {
-          console.log(`✅ [Deficit Processing] ${global.deficitExpensesToInsert.length} déficit(s) reporté(s) avec succès`)
-        }
-
-        // Nettoyer la variable globale
-        delete global.deficitExpensesToInsert
-      }
-
-      // 4.2.1.5. Appliquer les ajustements de budgets estimés pour refléter les déficits dans le planificateur
-      if (global.budgetEstimateUpdates && global.budgetEstimateUpdates.length > 0) {
-        console.log(`🔄 [Deficit Processing] Mise à jour de ${global.budgetEstimateUpdates.length} budget(s) estimé(s)`)
-
-        for (const update of global.budgetEstimateUpdates) {
-          const { error: updateBudgetError } = await supabaseServer
+        for (const update of global.carryoverUpdates) {
+          const { error: updateCarryoverError } = await supabaseServer
             .from('estimated_budgets')
             .update({
-              estimated_amount: update.new_estimated_amount,
+              carryover_spent_amount: update.carryover_amount,
+              carryover_applied_date: currentDate.toISOString().split('T')[0],
               updated_at: new Date().toISOString()
             })
             .eq('id', update.budget_id)
 
-          if (updateBudgetError) {
-            console.error(`❌ [Deficit Processing] Erreur lors de la mise à jour du budget "${update.budget_name}":`, updateBudgetError)
+          if (updateCarryoverError) {
+            console.error(`❌ [Deficit Processing] Erreur carryover "${update.budget_name}":`, updateCarryoverError)
           } else {
-            console.log(`✅ [Deficit Processing] Budget "${update.budget_name}" mis à jour: ${update.old_estimated_amount}€ → ${update.new_estimated_amount}€`)
+            console.log(`✅ [Deficit Processing] "${update.budget_name}": carryover_spent_amount = ${update.carryover_amount}€`)
           }
         }
 
         // Nettoyer la variable globale
-        delete global.budgetEstimateUpdates
+        delete global.carryoverUpdates
       }
 
       // 4.2.2. Insérer la dépense exceptionnelle pour l'écart de reste à vivre

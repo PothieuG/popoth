@@ -17,6 +17,22 @@ interface BudgetStat {
   cumulated_savings: number
 }
 
+interface DepenseExceptionnelle {
+  id: string
+  amount: number
+  description: string
+  date: string
+}
+
+interface DetailAutres {
+  depenses_exceptionnelles: {
+    total: number
+    items: DepenseExceptionnelle[]
+  }
+  ecart_revenus: number
+  autres_non_identifies: number
+}
+
 interface Step2Data {
   current_remaining_to_live: number
   budgetary_remaining_to_live: number
@@ -26,6 +42,11 @@ interface Step2Data {
   year: number
   total_surplus: number
   total_deficit: number
+  // Nouveau: détail des déficits
+  deficit_global: number
+  deficit_budgets: number
+  deficit_autres: number
+  detail_autres: DetailAutres
   context: string
   user_name: string
 }
@@ -88,8 +109,18 @@ export default function MonthlyRecapStep2({
       console.log(`📊📊📊 ========================================================`)
       console.log(`💰 RESTE À VIVRE: ${data.current_remaining_to_live}€`)
       console.log(`📊 Total surplus: ${data.total_surplus}€`)
-      console.log(`📉 Total déficit: ${data.total_deficit}€`)
+      console.log(`📉 Total déficit budgets: ${data.total_deficit}€`)
       console.log(`📊 Nombre de budgets: ${data.budget_stats?.length || 0}`)
+      console.log(``)
+      console.log(`📉 DÉTAIL DÉFICITS:`)
+      console.log(`   - Déficit global: ${data.deficit_global || 0}€`)
+      console.log(`   - Déficit budgets: ${data.deficit_budgets || 0}€`)
+      console.log(`   - Déficit autres: ${data.deficit_autres || 0}€`)
+      if (data.detail_autres) {
+        console.log(`   → Dépenses exceptionnelles: ${data.detail_autres.depenses_exceptionnelles?.total || 0}€`)
+        console.log(`   → Écart revenus: ${data.detail_autres.ecart_revenus || 0}€`)
+        console.log(`   → Autres non identifiés: ${data.detail_autres.autres_non_identifies || 0}€`)
+      }
       console.log(`📊📊📊 ========================================================`)
       console.log(``)
 
@@ -432,13 +463,18 @@ export default function MonthlyRecapStep2({
 
           <Card className="p-3 bg-red-50 border border-red-200">
             <div className="text-center">
-              <h4 className="font-medium text-red-900 text-sm">Déficits</h4>
+              <h4 className="font-medium text-red-900 text-sm">Déficit Global</h4>
               <p className="text-lg font-bold text-red-600 mt-1">
-                {formatCurrency(currentTotalDeficit)}
+                {formatCurrency(step2Data.deficit_global || 0)}
               </p>
-              <p className="text-xs text-red-700 mt-1">
-                {budgetsWithDeficit.length} budget(s)
-              </p>
+              {(step2Data.deficit_global || 0) > 0 && (
+                <div className="text-xs text-red-700 mt-1 space-y-0.5">
+                  <p>Budgets: {formatCurrency(step2Data.deficit_budgets || 0)}</p>
+                  {(step2Data.deficit_autres || 0) > 0 && (
+                    <p>Autres: {formatCurrency(step2Data.deficit_autres || 0)}</p>
+                  )}
+                </div>
+              )}
             </div>
           </Card>
 
@@ -522,7 +558,72 @@ export default function MonthlyRecapStep2({
           )}
         </Card>
 
-       
+        {/* Détail des déficits "Autres" (si présents) */}
+        {(step2Data.deficit_autres || 0) > 0 && step2Data.detail_autres && (
+          <Card className="p-4 bg-orange-50 border border-orange-200">
+            <h3 className="text-lg font-semibold text-orange-900 mb-4">
+              Détail des déficits hors budgets
+            </h3>
+            <p className="text-sm text-orange-700 mb-4">
+              Total: {formatCurrency(step2Data.deficit_autres)}
+            </p>
+
+            <div className="space-y-3">
+              {/* Dépenses exceptionnelles */}
+              {step2Data.detail_autres.depenses_exceptionnelles.total > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-orange-800">Dépenses exceptionnelles</h4>
+                    <span className="text-sm font-bold text-orange-600">
+                      {formatCurrency(step2Data.detail_autres.depenses_exceptionnelles.total)}
+                    </span>
+                  </div>
+                  {step2Data.detail_autres.depenses_exceptionnelles.items.length > 0 && (
+                    <ul className="text-sm text-gray-600 space-y-1 mt-2">
+                      {step2Data.detail_autres.depenses_exceptionnelles.items.map((item) => (
+                        <li key={item.id} className="flex justify-between">
+                          <span>{item.description || 'Dépense sans budget'}</span>
+                          <span className="font-medium">{formatCurrency(item.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {/* Écart de revenus */}
+              {step2Data.detail_autres.ecart_revenus > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-orange-800">Écart de revenus</h4>
+                    <span className="text-sm font-bold text-orange-600">
+                      {formatCurrency(step2Data.detail_autres.ecart_revenus)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Revenus réels inférieurs aux revenus estimés
+                  </p>
+                </div>
+              )}
+
+              {/* Autres non identifiés */}
+              {step2Data.detail_autres.autres_non_identifies > 0 && (
+                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-orange-800">Autres écarts</h4>
+                    <span className="text-sm font-bold text-orange-600">
+                      {formatCurrency(step2Data.detail_autres.autres_non_identifies)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Écarts divers (arrondis, ajustements...)
+                  </p>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
       </div>
 
       {/* Footer avec navigation */}

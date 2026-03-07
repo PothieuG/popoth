@@ -96,13 +96,18 @@ export async function GET(request: NextRequest) {
         .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
         .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const spentThisMonth = expenses?.reduce((sum, expense) => {
+      const actualSpent = expenses?.reduce((sum, expense) => {
         // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
           ? parseFloat(expense.amount_from_budget.toString())
           : parseFloat(expense.amount.toString())
         return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
       }, 0) || 0
+
+      // Inclure le carryover (déficit reporté du mois précédent) dans le montant dépensé
+      // Cela affiche le déficit dans l'écran budget sans créer de dépense visible
+      const carryover = parseFloat((budget.carryover_spent_amount || 0).toString())
+      const spentThisMonth = (isNaN(carryover) ? 0 : carryover) + actualSpent
 
       return {
         ...budget,
