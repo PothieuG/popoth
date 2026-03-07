@@ -164,9 +164,13 @@ export async function GET(request: NextRequest) {
 
     console.log(`🔄 [Step2 Data] ${transfers?.length || 0} transferts trouvés`)
 
-    // Calculer le total du surplus utilisé pour combler le gap (depuis step1)
+    // Calculer le total du surplus/économies/tirelire utilisé pour combler le gap (step1 + auto-balance)
     const surplusUsedToFillGap = (transfers || [])
-      .filter(t => t.transfer_reason?.includes('Surplus utilisé pour combler gap'))
+      .filter(t =>
+        t.transfer_reason?.includes('Surplus utilisé pour combler gap') ||
+        t.transfer_reason?.includes('Auto-balance via monthly recap') ||
+        t.transfer_reason?.includes('auto-balance récap')
+      )
       .reduce((sum, t) => sum + t.transfer_amount, 0)
 
     console.log(`💰 [Step2 Data] Surplus utilisé pour combler gap: ${surplusUsedToFillGap}€`)
