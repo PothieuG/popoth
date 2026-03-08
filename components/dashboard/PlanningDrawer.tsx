@@ -14,6 +14,7 @@ import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
+import { useProfile } from '@/hooks/useProfile'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -83,6 +84,11 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     loading: incomeProgressLoading,
     refreshProgress: refreshIncomeProgress
   } = useIncomeProgress(incomes, context)
+
+  // Récupérer le salaire du profil pour l'injecter comme revenu read-only
+  const { profile } = useProfile()
+  const profileSalary = (context !== 'group' && profile?.salary) ? profile.salary : 0
+  const totalIncomesWithSalary = totalIncomes + profileSalary
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -498,12 +504,12 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
               {/* Total discret */}
               <div className="px-3 py-2 bg-green-50/50 rounded-lg border border-green-100">
                 <p className="text-sm text-green-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalIncomes)}</span> (sans les économies)
+                  Total estimé: <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span> (sans les économies)
                 </p>
               </div>
               
               {/* Incomes List or Empty State */}
-              {!incomesLoading && incomes.length === 0 ? (
+              {!incomesLoading && incomes.length === 0 && profileSalary === 0 ? (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
                     <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -523,6 +529,25 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                 </div>
               ) : (!incomesLoading && !incomeProgressLoading) ? (
                 <div className="space-y-3">
+                  {/* Salaire du profil (read-only) */}
+                  {profileSalary > 0 && (
+                    <div className="p-3 border border-green-200 rounded-xl shadow-md bg-green-50/30">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">Salaire</span>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              Profil
+                            </span>
+                          </div>
+                          <p className="text-sm font-medium text-green-700 mt-1">{formatAmount(profileSalary)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {incomes.map((income) => {
                     const progress = incomeProgresses.find(p => p.incomeId === income.id)
                     if (!progress) return null
@@ -579,10 +604,10 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
             <span className="text-sm font-medium text-gray-600">Différence estimée (sans les économies)</span>
             <span className={cn(
               "text-lg font-bold",
-              totalIncomes - totalBudgets > 0 ? "text-green-700" : 
-              totalIncomes - totalBudgets < 0 ? "text-red-700" : "text-gray-900"
+              totalIncomesWithSalary - totalBudgets > 0 ? "text-green-700" :
+              totalIncomesWithSalary - totalBudgets < 0 ? "text-red-700" : "text-gray-900"
             )}>
-              {formatAmount(totalIncomes - totalBudgets)}
+              {formatAmount(totalIncomesWithSalary - totalBudgets)}
             </span>
           </div>
           <p className="text-xs text-gray-500 mt-1">Revenus - Budgets</p>
@@ -594,7 +619,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           onClose={() => setIsAddBudgetOpen(false)}
           onSave={handleAddBudget}
           currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomes}
+          totalEstimatedIncome={totalIncomesWithSalary}
         />
 
         {/* Add Income Dialog */}
@@ -602,7 +627,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           isOpen={isAddIncomeOpen}
           onClose={() => setIsAddIncomeOpen(false)}
           onSave={handleAddIncome}
-          currentIncomesTotal={totalIncomes}
+          currentIncomesTotal={totalIncomesWithSalary}
         />
 
         {/* Edit Budget Dialog */}
@@ -612,7 +637,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           onSave={handleSaveEditedBudget}
           budget={editingBudget}
           currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomes}
+          totalEstimatedIncome={totalIncomesWithSalary}
         />
 
         {/* Edit Income Dialog */}
@@ -621,7 +646,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           onClose={() => setIsEditIncomeOpen(false)}
           onSave={handleSaveEditedIncome}
           income={editingIncome}
-          currentIncomesTotal={totalIncomes}
+          currentIncomesTotal={totalIncomesWithSalary}
         />
 
         {/* Confirmation Dialog */}

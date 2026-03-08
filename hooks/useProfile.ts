@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ProfileData, CreateProfileRequest } from '@/app/api/profile/route'
+import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 /**
  * Hook personnalisé pour gérer les profils utilisateur
@@ -128,6 +129,8 @@ export function useProfile() {
       }
 
       setProfile(data.profile)
+      // Rafraîchir les données financières (le salaire impacte le RAV)
+      triggerFinancialRefresh()
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')

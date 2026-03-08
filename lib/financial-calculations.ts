@@ -403,13 +403,23 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     const userBankBalance = bankBalance?.balance || 0
 
+    // 1.bis Récupérer le salaire du profil
+    const { data: profileData } = await supabaseServer
+      .from('profiles')
+      .select('salary')
+      .eq('id', profileId)
+      .single()
+
+    const profileSalary = profileData?.salary || 0
+    console.log(`💰 [DEBUG getProfileFinancialData] Salaire du profil: ${profileSalary}€`)
+
     // 2. Récupérer tous les revenus estimés du profile
     const { data: estimatedIncomes } = await supabaseServer
       .from('estimated_incomes')
       .select('estimated_amount')
       .eq('profile_id', profileId)
 
-    const totalEstimatedIncome = estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
+    const totalEstimatedIncome = (estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0) + profileSalary
 
     // 3. Récupérer tous les budgets estimés du profile
     const { data: estimatedBudgets } = await supabaseServer
@@ -531,8 +541,10 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 
     // Calculer la contribution des revenus au RAV selon les règles métier
     console.log(`🔍 [DEBUG getProfileFinancialData] Calcul contribution revenus pour profile ${profileId}`)
-    const incomeContribution = await calculateIncomeCompensationProfile(profileId)
-    console.log(`🔍 [DEBUG getProfileFinancialData] Contribution revenus calculée: ${incomeContribution}€`)
+    const incomeCompensation = await calculateIncomeCompensationProfile(profileId)
+    // Ajouter le salaire du profil comme revenu (toujours à 100%, pas de "real income" lié)
+    const incomeContribution = incomeCompensation + profileSalary
+    console.log(`🔍 [DEBUG getProfileFinancialData] Contribution revenus calculée: ${incomeCompensation}€ + salaire ${profileSalary}€ = ${incomeContribution}€`)
 
     console.log(`🔍 [DEBUG getProfileFinancialData] DONNÉES POUR CALCUL RAV:`)
     console.log(`🔍 [DEBUG getProfileFinancialData] - incomeContribution: ${incomeContribution}€`)

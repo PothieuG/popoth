@@ -10,6 +10,7 @@ interface EstimatedIncome {
   name: string
   estimated_amount: number
   is_monthly_recurring: boolean
+  is_salary?: boolean
   created_at: string
   updated_at: string
 }

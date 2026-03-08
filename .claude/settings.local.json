@@ -15,7 +15,9 @@
       "Bash(npx tsc:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
       "Bash(grep -A 30 \"CREATE TABLE.*estimated_budgets\\\\|CREATE TABLE.*real_expenses\" /c/Dev/Popoth_App_Claude/database/*.sql)",
-      "Bash(ls -la /c/Dev/Popoth_App_Claude/hooks/*.ts)"
+      "Bash(ls -la /c/Dev/Popoth_App_Claude/hooks/*.ts)",
+      "Bash(xargs grep -l \"CREATE TABLE.*profiles\")",
+      "Bash(npx next build)"
     ],
     "deny": [],
     "ask": []
