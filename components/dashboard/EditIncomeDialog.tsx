@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 interface EstimatedIncome {
   id: string
@@ -30,50 +30,32 @@ export default function EditIncomeDialog({
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [validationError, setValidationError] = useState('')
 
   // Reset form when dialog opens/closes or income changes
   useEffect(() => {
     if (isOpen && income) {
       setName(income.name)
       setAmount(income.estimated_amount.toString())
-      setValidationError('')
     } else if (!isOpen) {
       setName('')
       setAmount('')
-      setValidationError('')
       setIsLoading(false)
     }
   }, [isOpen, income])
 
-  /**
-   * Validation du formulaire en temps réel
-   */
-  const validateForm = () => {
+  const validationError = useMemo(() => {
+    if (!name && !amount) return ''
     const nameError = !name.trim() ? 'Le nom du revenu est requis' : ''
     const amountNum = parseFloat(amount)
     const amountError = !amount || isNaN(amountNum) || amountNum <= 0
       ? 'Le montant doit être supérieur à 0€' : ''
-
-    const firstError = nameError || amountError
-    setValidationError(firstError)
-    return !firstError
-  }
-
-  // Validation en temps réel
-  useEffect(() => {
-    if (name || amount) {
-      validateForm()
-    }
+    return nameError || amountError
   }, [name, amount])
 
-  /**
-   * Soumission du formulaire
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    if (validationError) return
 
     setIsLoading(true)
     const success = await onSave({
@@ -153,11 +135,15 @@ export default function EditIncomeDialog({
               <div className="relative">
                 <input
                   id="income-amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      setAmount(v.replace(',', '.'))
+                    }
+                  }}
                   placeholder="0.00"
                   className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   disabled={isLoading}

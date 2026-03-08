@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface EstimatedBudget {
@@ -33,57 +33,37 @@ export default function EditBudgetDialog({
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [validationError, setValidationError] = useState('')
 
   // Reset form when dialog opens/closes or budget changes
   useEffect(() => {
     if (isOpen && budget) {
       setName(budget.name)
       setAmount(budget.estimated_amount.toString())
-      setValidationError('')
     } else if (!isOpen) {
       setName('')
       setAmount('')
-      setValidationError('')
       setIsLoading(false)
     }
   }, [isOpen, budget])
 
-  /**
-   * Validation du formulaire en temps réel
-   */
-  const validateForm = () => {
+  const validationError = useMemo(() => {
+    if (!name && !amount) return ''
     const nameError = !name.trim() ? 'Le nom du budget est requis' : ''
     const amountNum = parseFloat(amount)
     const amountError = !amount || isNaN(amountNum) || amountNum <= 0
       ? 'Le montant doit être supérieur à 0€' : ''
-
-    // Calcul de la nouvelle balance (en soustrayant l'ancien montant du budget)
     const budgetDifference = amountNum - (budget?.estimated_amount || 0)
     const newBudgetsTotal = currentBudgetsTotal + budgetDifference
     const newBalance = totalEstimatedIncome - newBudgetsTotal
     const balanceError = newBalance < 0
       ? `Cette modification créerait un déficit de ${Math.abs(newBalance).toFixed(2)}€` : ''
-
-    const firstError = nameError || amountError || balanceError
-    setValidationError(firstError)
-    return !firstError
-  }
-
-  // Validation en temps réel
-  useEffect(() => {
-    if (name || amount) {
-      validateForm()
-    }
+    return nameError || amountError || balanceError
   }, [name, amount, currentBudgetsTotal, totalEstimatedIncome, budget])
 
-  /**
-   * Soumission du formulaire
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) return
+    if (validationError) return
 
     setIsLoading(true)
     const success = await onSave({
@@ -163,11 +143,15 @@ export default function EditBudgetDialog({
               <div className="relative">
                 <input
                   id="budget-amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
+                  inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      setAmount(v.replace(',', '.'))
+                    }
+                  }}
                   placeholder="0.00"
                   className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   disabled={isLoading}

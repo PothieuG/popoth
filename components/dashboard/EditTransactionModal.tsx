@@ -305,11 +305,15 @@ export default function EditTransactionModal({
             </Label>
             <Input
               id="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="text"
+              inputMode="decimal"
               value={formData.amount}
-              onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                  setFormData(prev => ({ ...prev, amount: v.replace(',', '.') }))
+                }
+              }}
               placeholder="0.00"
               required
               className="w-full"

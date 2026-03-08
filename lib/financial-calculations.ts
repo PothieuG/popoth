@@ -480,6 +480,15 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       }
     }
 
+    // 6.bis Ajouter le montant de la tirelire aux économies totales
+    const { data: piggyBankData } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .eq('profile_id', profileId)
+      .maybeSingle()
+
+    totalSavings += piggyBankData?.amount || 0
+
     // 6.1. Calculer les déficits des budgets (dépenses > budget estimé)
     console.log(`🔍 [DEBUG getProfileFinancialData] Calcul des déficits des budgets...`)
     let totalBudgetDeficits = 0
@@ -667,6 +676,15 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
         totalSavings += cumulatedSavings
       }
     }
+
+    // 7.bis Ajouter le montant de la tirelire aux économies totales
+    const { data: piggyBankData } = await supabaseServer
+      .from('piggy_bank')
+      .select('amount')
+      .eq('group_id', groupId)
+      .maybeSingle()
+
+    totalSavings += piggyBankData?.amount || 0
 
     // 7.1. Calculer les déficits des budgets (dépenses > budget estimé)
     console.log(`🔍 [DEBUG getGroupFinancialData] Calcul des déficits des budgets...`)

@@ -291,7 +291,7 @@ export default function DashboardPage() {
             </div>
             
             {/* Menu Content */}
-            <div className="flex-1 p-4">
+            <div className="flex-1 p-4 overflow-y-auto">
               {/* Navigation Links */}
               <div className="space-y-3 mb-6">
                 <Button

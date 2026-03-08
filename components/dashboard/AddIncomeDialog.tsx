@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface AddIncomeDialogProps {
@@ -22,26 +22,16 @@ export default function AddIncomeDialog({
 }: AddIncomeDialogProps) {
   const [incomeName, setIncomeName] = useState('')
   const [incomeAmount, setIncomeAmount] = useState('')
-  const [errors, setErrors] = useState<{ name?: string; amount?: string }>({})
-
-  /**
-   * Validation en temps réel
-   */
-  useEffect(() => {
-    const newErrors: typeof errors = {}
-
-    // Validation du nom
+  const errors = useMemo(() => {
+    const newErrors: { name?: string; amount?: string } = {}
     if (incomeName.trim() && incomeName.trim().length < 2) {
       newErrors.name = 'Le nom doit contenir au moins 2 caractères'
     }
-
-    // Validation du montant
     const amount = parseFloat(incomeAmount)
     if (incomeAmount && (isNaN(amount) || amount <= 0)) {
       newErrors.amount = 'Le montant doit être un nombre positif'
     }
-
-    setErrors(newErrors)
+    return newErrors
   }, [incomeName, incomeAmount])
 
   /**
@@ -80,7 +70,6 @@ export default function AddIncomeDialog({
     // Reset du formulaire et fermer le dialog
     setIncomeName('')
     setIncomeAmount('')
-    setErrors({})
     onClose()
   }
 
@@ -90,7 +79,6 @@ export default function AddIncomeDialog({
   const handleClose = () => {
     setIncomeName('')
     setIncomeAmount('')
-    setErrors({})
     onClose()
   }
 
@@ -179,13 +167,17 @@ export default function AddIncomeDialog({
               </label>
               <div className="relative">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={incomeAmount}
-                  onChange={(e) => setIncomeAmount(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      setIncomeAmount(v.replace(',', '.'))
+                    }
+                  }}
                   onKeyPress={handleKeyPress}
                   placeholder="0.00"
-                  min="0"
-                  step="0.01"
                   className={cn(
                     "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors pr-12",
                     errors.amount 

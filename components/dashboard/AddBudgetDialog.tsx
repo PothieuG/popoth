@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface AddBudgetDialogProps {
@@ -24,48 +24,6 @@ export default function AddBudgetDialog({
 }: AddBudgetDialogProps) {
   const [budgetName, setBudgetName] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
-  const [errors, setErrors] = useState<{ name?: string; amount?: string; balance?: string }>({})
-
-  /**
-   * Calcule le nouveau total des budgets avec le montant en cours de saisie
-   */
-  const newBudgetsTotal = currentBudgetsTotal + (parseFloat(budgetAmount) || 0)
-  
-  /**
-   * Calcule la balance résultante (revenus - budgets totaux)
-   */
-  const resultingBalance = totalEstimatedIncome - newBudgetsTotal
-  
-  /**
-   * Vérifie si la balance sera négative
-   */
-  const willBeNegative = resultingBalance < 0
-
-  /**
-   * Validation en temps réel
-   */
-  useEffect(() => {
-    const newErrors: typeof errors = {}
-
-    // Validation du nom
-    if (budgetName.trim() && budgetName.trim().length < 2) {
-      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
-    }
-
-    // Validation du montant
-    const amount = parseFloat(budgetAmount)
-    if (budgetAmount && (isNaN(amount) || amount <= 0)) {
-      newErrors.amount = 'Le montant doit être un nombre positif'
-    }
-
-    // Validation de la balance
-    if (budgetAmount && amount > 0 && willBeNegative) {
-      newErrors.balance = `Ce budget créerait une balance négative de ${formatAmount(Math.abs(resultingBalance))}`
-    }
-
-    setErrors(newErrors)
-  }, [budgetName, budgetAmount, resultingBalance, willBeNegative])
-
   /**
    * Formate un montant en euros
    */
@@ -76,6 +34,25 @@ export default function AddBudgetDialog({
       minimumFractionDigits: 2
     }).format(amount)
   }
+
+  const newBudgetsTotal = currentBudgetsTotal + (parseFloat(budgetAmount) || 0)
+  const resultingBalance = totalEstimatedIncome - newBudgetsTotal
+  const willBeNegative = resultingBalance < 0
+
+  const errors = useMemo(() => {
+    const newErrors: { name?: string; amount?: string; balance?: string } = {}
+    if (budgetName.trim() && budgetName.trim().length < 2) {
+      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
+    }
+    const amount = parseFloat(budgetAmount)
+    if (budgetAmount && (isNaN(amount) || amount <= 0)) {
+      newErrors.amount = 'Le montant doit être un nombre positif'
+    }
+    if (budgetAmount && amount > 0 && willBeNegative) {
+      newErrors.balance = `Ce budget créerait une balance négative de ${formatAmount(Math.abs(resultingBalance))}`
+    }
+    return newErrors
+  }, [budgetName, budgetAmount, resultingBalance, willBeNegative])
 
   /**
    * Vérifie si le formulaire est valide pour la sauvegarde
@@ -108,7 +85,6 @@ export default function AddBudgetDialog({
     // Reset du formulaire et fermer le dialog
     setBudgetName('')
     setBudgetAmount('')
-    setErrors({})
     onClose()
   }
 
@@ -118,7 +94,6 @@ export default function AddBudgetDialog({
   const handleClose = () => {
     setBudgetName('')
     setBudgetAmount('')
-    setErrors({})
     onClose()
   }
 
@@ -207,13 +182,17 @@ export default function AddBudgetDialog({
               </label>
               <div className="relative">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={budgetAmount}
-                  onChange={(e) => setBudgetAmount(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      setBudgetAmount(v.replace(',', '.'))
+                    }
+                  }}
                   onKeyPress={handleKeyPress}
                   placeholder="0.00"
-                  min="0"
-                  step="0.01"
                   className={cn(
                     "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors pr-12",
                     errors.amount 

@@ -45,7 +45,8 @@ export default function ExpenseBreakdownPreview({
       return
     }
 
-    const fetchBreakdown = async () => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(async () => {
       try {
         setLoading(true)
         setError(null)
@@ -60,7 +61,8 @@ export default function ExpenseBreakdownPreview({
         }
 
         const response = await fetch(`/api/finances/expenses/preview-breakdown?${params}`, {
-          credentials: 'include'
+          credentials: 'include',
+          signal: controller.signal
         })
 
         if (!response.ok) {
@@ -68,16 +70,26 @@ export default function ExpenseBreakdownPreview({
         }
 
         const data = await response.json()
-        setBreakdown(data.breakdown)
+        if (!controller.signal.aborted) {
+          setBreakdown(data.breakdown)
+        }
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return
         console.error('Error fetching breakdown:', err)
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        if (!controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        }
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
       }
-    }
+    }, 300)
 
-    fetchBreakdown()
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [amount, budgetId, context, expenseId])
 
   const formatCurrency = (value: number) => {

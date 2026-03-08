@@ -86,10 +86,15 @@ export default function EditBalanceModal({
             <div className="mt-1 relative">
               <Input
                 id="balance"
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={balance}
-                onChange={(e) => setBalance(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v === '' || /^-?\d*[.,]?\d*$/.test(v)) {
+                    setBalance(v.replace(',', '.'))
+                  }
+                }}
                 placeholder="0.00"
                 className="pr-8"
                 disabled={isLoading}

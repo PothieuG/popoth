@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -295,56 +295,29 @@ export default function MonthlyRecapStep2({
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
   }
 
-  // Validation en temps réel du montant de transfert
-  const validateTransferAmount = (amount: string): { isValid: boolean; error: string } => {
-    if (!selectedFromBudget || !amount) {
-      return { isValid: false, error: '' }
-    }
-
-    const numAmount = parseFloat(amount)
-
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return { isValid: false, error: 'Veuillez entrer un montant valide' }
-    }
-
+  // Validation en temps réel (derived state, no extra render)
+  const computedValidationError = useMemo(() => {
+    if (!selectedFromBudget || !transferAmount) return ''
+    const numAmount = parseFloat(transferAmount)
+    if (isNaN(numAmount) || numAmount <= 0) return 'Veuillez entrer un montant valide'
     if (selectedFromBudget.surplus > 0) {
-      // Mode transfert: vérifier que le montant ne dépasse pas le surplus disponible
       const availableSurplus = selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount
       if (numAmount > availableSurplus) {
-        return {
-          isValid: false,
-          error: `Le montant ne peut pas dépasser ${formatCurrency(availableSurplus)} de surplus disponible`
-        }
+        return `Le montant ne peut pas dépasser ${formatCurrency(availableSurplus)} de surplus disponible`
       }
     } else {
-      // Mode récupération: vérifier que le montant ne dépasse pas le déficit
       const currentDeficit = selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount
       if (numAmount > currentDeficit) {
-        return {
-          isValid: false,
-          error: `Le montant ne peut pas dépasser ${formatCurrency(currentDeficit)} de déficit à combler`
-        }
+        return `Le montant ne peut pas dépasser ${formatCurrency(currentDeficit)} de déficit à combler`
       }
-
-      // Vérifier aussi que le budget source (selectedToBudget) a assez de surplus
       if (selectedToBudget && step2Data) {
         const sourceBudget = step2Data.budget_stats.find(b => b.id === selectedToBudget)
         if (sourceBudget && numAmount > sourceBudget.surplus) {
-          return {
-            isValid: false,
-            error: `Le budget source n'a que ${formatCurrency(sourceBudget.surplus)} de surplus disponible`
-          }
+          return `Le budget source n'a que ${formatCurrency(sourceBudget.surplus)} de surplus disponible`
         }
       }
     }
-
-    return { isValid: true, error: '' }
-  }
-
-  // Hook pour valider en temps réel quand les champs changent
-  useEffect(() => {
-    const validation = validateTransferAmount(transferAmount)
-    setValidationError(validation.error)
+    return ''
   }, [transferAmount, selectedFromBudget, selectedToBudget, step2Data])
 
   const getBudgetStatusColor = (budget: BudgetStat) => {
@@ -682,12 +655,15 @@ export default function MonthlyRecapStep2({
                       Montant à transférer
                     </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount}
+                      type="text"
+                      inputMode="decimal"
                       value={transferAmount}
-                      onChange={(e) => setTransferAmount(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          setTransferAmount(v.replace(',', '.'))
+                        }
+                      }}
                       placeholder="0.00"
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
@@ -725,12 +701,15 @@ export default function MonthlyRecapStep2({
                       Montant à récupérer
                     </label>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max={selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount}
+                      type="text"
+                      inputMode="decimal"
                       value={transferAmount}
-                      onChange={(e) => setTransferAmount(e.target.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          setTransferAmount(v.replace(',', '.'))
+                        }
+                      }}
                       placeholder="0.00"
                       className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     />
@@ -742,9 +721,9 @@ export default function MonthlyRecapStep2({
               )}
 
               {/* Message d'erreur de validation */}
-              {validationError && (
+              {(computedValidationError || validationError) && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600 font-medium">⚠️ {validationError}</p>
+                  <p className="text-sm text-red-600 font-medium">⚠️ {computedValidationError || validationError}</p>
                 </div>
               )}
 
@@ -758,9 +737,9 @@ export default function MonthlyRecapStep2({
                 </Button>
                 <Button
                   onClick={handleTransferSubmit}
-                  disabled={!selectedToBudget || !transferAmount || isProcessing || !!validationError}
+                  disabled={!selectedToBudget || !transferAmount || isProcessing || !!(computedValidationError || validationError)}
                   className={`text-white ${
-                    !selectedToBudget || !transferAmount || isProcessing || !!validationError
+                    !selectedToBudget || !transferAmount || isProcessing || !!(computedValidationError || validationError)
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700'
                   }`}
