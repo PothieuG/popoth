@@ -138,8 +138,7 @@ temp/
 # Turbo
 .turbo
 
-# PWA generated files
-public/sw.js
+# PWA generated files (kept: public/sw.js is now manually maintained)
 public/sw.js.map
 public/workbox-*.js
 public/workbox-*.js.map
