@@ -38,7 +38,8 @@
       "Bash(npx sharp-cli -i public/icons/icon-192x192.svg -o public/icons/icon-192x192.png resize 192 192)",
       "Bash(npx sharp-cli -i public/icons/icon-512x512.svg -o public/icons/icon-512x512.png resize 512 512)",
       "Bash(npm run build)",
-      "Bash(ls -la public/sw.js public/workbox-*.js)"
+      "Bash(ls -la public/sw.js public/workbox-*.js)",
+      "Bash(grep -n \"min-h-screen.*flex flex-col\" components/monthly-recap/*.tsx)"
     ],
     "deny": [],
     "ask": []

@@ -194,7 +194,7 @@ export default function MonthlyRecapStep1({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+    <div className="h-[100dvh] bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200 p-4">
         <div className="text-center">
