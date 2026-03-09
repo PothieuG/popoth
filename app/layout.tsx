@@ -27,6 +27,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: '#6366f1',
+  interactiveWidget: 'resizes-content',
 }
 
 /**
@@ -39,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr">
-      <body className={`${roboto.variable} font-roboto`} suppressHydrationWarning={true}>
+    <html lang="fr" className="h-full overflow-hidden">
+      <body className={`${roboto.variable} font-roboto h-full overflow-hidden`} suppressHydrationWarning={true}>
         <AuthProvider>
           {children}
         </AuthProvider>
