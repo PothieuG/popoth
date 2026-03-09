@@ -87,7 +87,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         estimatedAmount: budgetData.estimatedAmount
       }
 
-      const url = `/api/budgets`
+      const url = context ? `/api/budgets?context=${context}` : `/api/budgets`
       const response = await fetch(url, {
         method: 'POST',
         headers: {

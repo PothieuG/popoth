@@ -39,7 +39,11 @@
       "Bash(npx sharp-cli -i public/icons/icon-512x512.svg -o public/icons/icon-512x512.png resize 512 512)",
       "Bash(npm run build)",
       "Bash(ls -la public/sw.js public/workbox-*.js)",
-      "Bash(grep -n \"min-h-screen.*flex flex-col\" components/monthly-recap/*.tsx)"
+      "Bash(grep -n \"min-h-screen.*flex flex-col\" components/monthly-recap/*.tsx)",
+      "Bash(grep -E \"\\\\.\\(sql|ts\\)$\")",
+      "Bash(grep -l \"CREATE TABLE\" /c/Dev/Popoth_App_Claude/database/*.sql /c/Dev/Popoth_App_Claude/sql/*.sql)",
+      "Bash(grep -i \"CREATE.*TABLE.*group_contributions\\\\|GROUP_CONTRIBUTIONS\" /c/Dev/Popoth_App_Claude/database_reset.sql /c/Dev/Popoth_App_Claude/database/*.sql)",
+      "Bash(grep -h \"CREATE TABLE\" /c/Dev/Popoth_App_Claude/database/*.sql /c/Dev/Popoth_App_Claude/sql/*.sql /c/Dev/Popoth_App_Claude/supabase/migrations/*.sql)"
     ],
     "deny": [],
     "ask": []
