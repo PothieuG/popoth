@@ -1,6 +1,7 @@
 import './globals.css'
 import { Roboto } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 import type { Metadata, Viewport } from 'next'
 
 const roboto = Roboto({
@@ -42,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className="h-full overflow-hidden">
       <body className={`${roboto.variable} font-roboto h-full overflow-hidden`} suppressHydrationWarning={true}>
+        <ServiceWorkerRegistration />
         <AuthProvider>
           {children}
         </AuthProvider>
