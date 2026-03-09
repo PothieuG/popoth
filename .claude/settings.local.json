@@ -27,7 +27,16 @@
       "Bash(pnpm build)",
       "Bash(timeout 15 pnpm dev)",
       "Bash(xargs grep -l \"PlanningDrawer\\\\|SavingsDistributionDrawer\\\\|Répartition des Économies\\\\|Planification des revenus\")",
-      "Bash(xargs grep -l \"fixed\\\\|absolute\")"
+      "Bash(xargs grep -l \"fixed\\\\|absolute\")",
+      "Bash(npm list sharp)",
+      "Bash(npm list canvas)",
+      "Bash(npm install --save-dev sharp)",
+      "Bash(npx --yes sharp-cli --version)",
+      "Bash(npx sharp-cli -i public/icons/icon-192x192.svg -o public/icons/icon-192x192.png --width 192 --height 192)",
+      "Bash(npx sharp-cli -i public/icons/icon-512x512.svg -o public/icons/icon-512x512.png --width 512 --height 512)",
+      "Bash(npx sharp-cli --help)",
+      "Bash(npx sharp-cli -i public/icons/icon-192x192.svg -o public/icons/icon-192x192.png resize 192 192)",
+      "Bash(npx sharp-cli -i public/icons/icon-512x512.svg -o public/icons/icon-512x512.png resize 512 512)"
     ],
     "deny": [],
     "ask": []
