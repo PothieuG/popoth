@@ -204,7 +204,7 @@ export default function MonthlyRecapStep1({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 space-y-6">
+      <div className="flex-1 p-4 space-y-6 overflow-y-auto min-h-0">
         {/* Reste à vivre - Vue d'ensemble */}
         <Card className="p-6 bg-white">
           <div className="space-y-4">

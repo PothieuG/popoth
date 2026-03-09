@@ -389,7 +389,7 @@ export default function MonthlyRecapStep2({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 space-y-6 overflow-y-auto">
+      <div className="flex-1 p-4 space-y-6 overflow-y-auto min-h-0">
         {/* Bouton de répartition automatique */}
         {budgetsWithSurplus.length > 0 && budgetsWithDeficit.length > 0 && (
           <Card className="p-4 bg-orange-50 border border-orange-200">
