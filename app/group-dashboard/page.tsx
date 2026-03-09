@@ -71,7 +71,7 @@ export default function GroupDashboardPage() {
   )
 
   return (
-    <div className="h-screen flex flex-col bg-blue-50/50 overflow-hidden">
+    <div className="h-dvh flex flex-col bg-blue-50/50 overflow-hidden">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
