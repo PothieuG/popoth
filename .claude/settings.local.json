@@ -25,7 +25,9 @@
       "Bash(grep -E \"\\(\\\\.ts|\\\\.tsx\\)$\")",
       "Bash(grep -E \"\\\\.md$\")",
       "Bash(pnpm build)",
-      "Bash(timeout 15 pnpm dev)"
+      "Bash(timeout 15 pnpm dev)",
+      "Bash(xargs grep -l \"PlanningDrawer\\\\|SavingsDistributionDrawer\\\\|Répartition des Économies\\\\|Planification des revenus\")",
+      "Bash(xargs grep -l \"fixed\\\\|absolute\")"
     ],
     "deny": [],
     "ask": []

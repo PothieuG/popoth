@@ -304,7 +304,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
 
       {/* Drawer */}
       <div className={cn(
-        'fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out',
+        'fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out flex flex-col max-h-[85dvh]',
         isOpen ? 'translate-y-0' : 'translate-y-full'
       )}>
         {/* Drag Handle */}
@@ -375,8 +375,8 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           </div>
         </div>
 
-        {/* Content Area - Full height minus header and tabs */}
-        <div className="h-[calc(100vh-200px)] overflow-y-auto">
+        {/* Content Area - Scrollable */}
+        <div className="flex-1 overflow-y-auto min-h-0">
           {/* Error Messages */}
           {(budgetsError || incomesError) && (
             <div className="p-4">
