@@ -1,6 +1,6 @@
 -- Migration: Allow from_budget_id to be NULL to represent piggy bank transfers
 -- This enables auto-balance to transfer money from piggy bank (exceptional income) to deficient budgets
-
+-- without needing to create a dummy budget for the piggy bank. The check constraint is updated to allow NULL values
 -- 1. Drop the NOT NULL constraint on from_budget_id
 ALTER TABLE public.budget_transfers
   ALTER COLUMN from_budget_id DROP NOT NULL;
