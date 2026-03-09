@@ -202,9 +202,9 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('Solde bancaire mis à jour avec succès:', result.data.balance)
+    console.log('Solde bancaire mis à jour avec succès:', result.data?.balance)
     return NextResponse.json({
-      balance: result.data.balance,
+      balance: result.data?.balance,
       message: 'Solde bancaire mis à jour avec succès'
     })
   } catch (error) {

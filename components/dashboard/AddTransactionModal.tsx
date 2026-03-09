@@ -12,6 +12,7 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
+import { useFinancialData } from '@/hooks/useFinancialData'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface AddTransactionModalProps {
@@ -49,12 +50,50 @@ export default function AddTransactionModal({
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
+  const { financialData } = useFinancialData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
 
   // Calculer le montant pour le preview
   const previewAmount = parseFloat(formData.amount) || 0
+
+  // Validation : vérifier si la dépense ferait passer le reste à vivre en négatif
+  const ravValidation = (() => {
+    if (transactionType !== 'expense' || !financialData || previewAmount <= 0) {
+      return { blocked: false, newRav: 0 }
+    }
+
+    const currentRav = financialData.remainingToLive
+
+    if (isExceptional) {
+      // Dépense exceptionnelle : impact direct sur le RAV
+      const newRav = currentRav - previewAmount
+      return { blocked: newRav < 0, newRav }
+    }
+
+    if (formData.budgetId) {
+      // Dépense budgétée : seul le dépassement impacte le RAV
+      const progress = expenseProgress[formData.budgetId]
+      if (progress) {
+        const currentSpent = progress.spentAmount
+        const newTotalSpent = currentSpent + previewAmount
+        const budgetAmount = progress.estimatedAmount
+
+        if (newTotalSpent > budgetAmount) {
+          const previousOverrun = Math.max(0, currentSpent - budgetAmount)
+          const newOverrun = newTotalSpent - budgetAmount
+          const additionalOverrun = newOverrun - previousOverrun
+          const newRav = currentRav - additionalOverrun
+          return { blocked: newRav < 0, newRav }
+        }
+      }
+      // Dans les limites du budget : pas d'impact
+      return { blocked: false, newRav: currentRav }
+    }
+
+    return { blocked: false, newRav: 0 }
+  })()
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
@@ -151,6 +190,11 @@ export default function AddTransactionModal({
         setError('Veuillez sélectionner un revenu estimé')
         return
       }
+    }
+
+    if (ravValidation.blocked) {
+      setError('Impossible d\'ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif. Réduisez le montant de la dépense.')
+      return
     }
 
     setIsSubmitting(true)
@@ -394,6 +438,15 @@ export default function AddTransactionModal({
             />
           )}
 
+          {/* RAV Negative Warning */}
+          {ravValidation.blocked && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 font-medium">
+                Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif ({new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(ravValidation.newRav)}). Réduisez le montant de la dépense.
+              </p>
+            </div>
+          )}
+
           {/* Error Display */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -414,7 +467,7 @@ export default function AddTransactionModal({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || ravValidation.blocked}
               className={cn(
                 'flex-1',
                 transactionType === 'expense'

@@ -49,7 +49,7 @@ export default function AddBudgetDialog({
       newErrors.amount = 'Le montant doit être un nombre positif'
     }
     if (budgetAmount && amount > 0 && willBeNegative) {
-      newErrors.balance = `Ce budget créerait une balance négative de ${formatAmount(Math.abs(resultingBalance))}`
+      newErrors.balance = `Impossible d'ajouter ce budget : votre reste à vivre (sans économies) deviendrait négatif de ${formatAmount(Math.abs(resultingBalance))}. Réduisez le montant ou ajoutez des revenus.`
     }
     return newErrors
   }, [budgetName, budgetAmount, resultingBalance, willBeNegative])

@@ -1,6 +1,7 @@
 import './globals.css'
 import { Roboto } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import type { Metadata, Viewport } from 'next'
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -9,9 +10,23 @@ const roboto = Roboto({
   variable: '--font-roboto',
 })
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Popoth App',
-  description: 'Application mobile moderne avec Next.js et Supabase',
+  description: 'Application de gestion financière personnelle et familiale',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Popoth App',
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#6366f1',
 }
 
 /**
@@ -24,7 +39,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="fr">
       <body className={`${roboto.variable} font-roboto`} suppressHydrationWarning={true}>
         <AuthProvider>
           {children}

@@ -248,7 +248,7 @@ export async function POST(request: NextRequest) {
         vulnerabilityToShocks: budgetaryRAV < 300
       },
       statistics: {
-        totalBudgets: createdBudgets.length,
+        totalBudgets: createdBudgets?.length ?? 0,
         totalExpenses: expenseInserts.length,
         budgetsInSurplus: summary.filter(b => b.status === 'surplus').length,
         budgetsInDeficit: budgetsInDeficit.length,

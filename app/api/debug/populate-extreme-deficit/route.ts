@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
         'severe': '🔴',
         'moderate': '🟠',
         'normal': difference > 0 ? '🟢' : '⚪'
-      }[summary[summary.length - 1].severity]
+      }[summary[summary.length - 1]?.severity ?? 'normal']
 
       console.log(`${severityEmoji} [Extreme Deficit] ${budget.name}: ${budgetConfig.spent}€ / ${budget.estimated_amount}€ → ${difference}€ (${overrunRate > 0 ? '+' : ''}${overrunRate}% dépassement)`)
     }
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
         debtSpiral: monthlyDeficit > totalRealIncome * 0.5
       },
       statistics: {
-        totalBudgets: createdBudgets.length,
+        totalBudgets: createdBudgets?.length ?? 0,
         totalExpenses: expenseInserts.length,
         exceptionalExpenses: expenseInserts.filter(e => e.is_exceptional).length,
         budgetsInSurplus: summary.filter(b => b.status === 'surplus').length,

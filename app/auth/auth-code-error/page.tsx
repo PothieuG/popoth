@@ -1,14 +1,18 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
-/**
- * Error page for handling authentication token errors
- * Displays appropriate error messages based on error type
- * Provides navigation options to recover from errors
- */
 export default function AuthCodeErrorPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><p>Chargement...</p></div>}>
+      <AuthCodeErrorContent />
+    </Suspense>
+  )
+}
+
+function AuthCodeErrorContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const error = searchParams.get('error')

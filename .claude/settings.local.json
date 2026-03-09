@@ -21,7 +21,10 @@
       "Bash(grep -E \"\\\\.sql$\")",
       "Bash(xargs ls -lah)",
       "Bash(xargs grep -l \"bank_balance\\\\|CREATE TABLE\")",
-      "Bash(xargs grep -l \"profiles\\\\|groups\")"
+      "Bash(xargs grep -l \"profiles\\\\|groups\")",
+      "Bash(grep -E \"\\(\\\\.ts|\\\\.tsx\\)$\")",
+      "Bash(grep -E \"\\\\.md$\")",
+      "Bash(pnpm build)"
     ],
     "deny": [],
     "ask": []
