@@ -71,7 +71,7 @@ export default function GroupDashboardPage() {
   )
 
   return (
-    <div className="h-dvh flex flex-col bg-blue-50/50 overflow-hidden">
+    <div className="h-dvh flex flex-col bg-blue-50/50 overflow-hidden pb-[60px]">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -140,7 +140,7 @@ export default function GroupDashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="flex-shrink-0 bg-white border-t border-gray-200">
+      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200">
         <div className="grid grid-cols-3">
           {/* Personal Finance Tab */}
           <button
