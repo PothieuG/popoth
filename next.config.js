@@ -12,9 +12,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  turbopack: {},
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-slot'],
   },

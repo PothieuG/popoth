@@ -24,7 +24,8 @@
       "Bash(xargs grep -l \"profiles\\\\|groups\")",
       "Bash(grep -E \"\\(\\\\.ts|\\\\.tsx\\)$\")",
       "Bash(grep -E \"\\\\.md$\")",
-      "Bash(pnpm build)"
+      "Bash(pnpm build)",
+      "Bash(timeout 15 pnpm dev)"
     ],
     "deny": [],
     "ask": []
