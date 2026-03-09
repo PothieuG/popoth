@@ -158,7 +158,7 @@ export default function DashboardPage() {
 
   // Si profil existe, afficher le dashboard normal
   return (
-    <div className="h-dvh flex flex-col bg-blue-50/50 overflow-hidden pb-[60px]">
+    <div className="fixed inset-0 flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
       <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
         <div className="flex justify-between items-center p-4">
@@ -178,8 +178,8 @@ export default function DashboardPage() {
       {(isLoading || financialLoading) ? (
         renderCentralLoader(isLoading ? 'Chargement du profil...' : 'Calcul des données financières...')
       ) : (
-        <main className="flex-1 p-4 flex flex-col overflow-hidden min-h-0">
-          <div className="flex flex-col space-y-4 flex-1 overflow-hidden min-h-0">
+        <main className="flex-1 p-4 flex flex-col overflow-y-auto min-h-0">
+          <div className="flex flex-col space-y-4 flex-1 min-h-0">
             {/* Financial Indicators */}
             {financialError ? (
               <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex-shrink-0">
@@ -222,7 +222,7 @@ export default function DashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200">
+      <footer className="flex-shrink-0 bg-white border-t border-gray-200">
         <div className="grid grid-cols-3">
           {/* Personal Finance Tab - Active state */}
           <button
