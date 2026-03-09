@@ -331,44 +331,9 @@ export async function POST(request: NextRequest) {
       // Ordre d'utilisation: Tirelire → Économies → Surplus
       // Le surplus restant après équilibrage reste comme "surplus"
 
-      // ÉTAPE 2.1: Utiliser la tirelire (entièrement si nécessaire)
-      console.log(`🔄 ÉTAPE 2.1: Utilisation de la tirelire`)
-
-      if (piggyBankAmount > 0 && gapACombler > 0) {
-        const amountToUseFromPiggyBank = Math.min(gapACombler, piggyBankAmount)
-
-        const newPiggyBankAmount = piggyBankAmount - amountToUseFromPiggyBank
-
-        const { error: updateError } = await supabaseServer
-          .from('piggy_bank')
-          .update({
-            amount: newPiggyBankAmount,
-            last_updated: new Date().toISOString()
-          })
-          .eq(ownerField, contextId)
-
-        if (updateError) {
-          throw new Error(`Erreur mise à jour tirelire: ${updateError.message}`)
-        }
-
-        console.log(`   ✅ Tirelire: ${piggyBankAmount}€ - ${amountToUseFromPiggyBank}€ = ${newPiggyBankAmount}€`)
-        console.log(`   📉 Gap restant: ${gapACombler}€ → ${gapACombler - amountToUseFromPiggyBank}€`)
-
-        operations.push({
-          step: '2.1',
-          type: 'use_piggy_bank',
-          details: {
-            amount_used: amountToUseFromPiggyBank,
-            old_piggy_bank: piggyBankAmount,
-            new_piggy_bank: newPiggyBankAmount
-          }
-        })
-
-        piggyBankAmount = newPiggyBankAmount
-        gapACombler -= amountToUseFromPiggyBank
-      } else {
-        console.log(`   ℹ️ Tirelire vide ou gap déjà comblé`)
-      }
+      // ÉTAPE 2.1: La tirelire est préservée pour l'étape 2 (auto-répartition)
+      // L'utilisateur pourra l'utiliser via l'auto-répartition à l'écran 2
+      console.log(`🔄 ÉTAPE 2.1: Tirelire préservée (${piggyBankAmount}€) - sera disponible à l'étape 2`)
 
       console.log(``)
 
@@ -636,7 +601,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ÉTAPE 2.4.2: Renflouer budgets déficitaires si possible
-        if (budgetsWithDeficit.length > 0 && (piggyBankAmount > 0 || budgetsWithSavings.some(b => b.cumulated_savings > 0))) {
+        if (budgetsWithDeficit.length > 0 && budgetsWithSavings.some(b => b.cumulated_savings > 0)) {
           console.log(``)
           console.log(`🔄 ÉTAPE 2.4.2: Renflouage des budgets déficitaires`)
           console.log(`   Budgets déficitaires: ${budgetsWithDeficit.length}`)
@@ -646,56 +611,8 @@ export async function POST(request: NextRequest) {
             let remainingDeficit = budget.deficit
             console.log(`   💰 Renflouage "${budget.name}": ${remainingDeficit}€ de déficit`)
 
-            // 2.4.2.1: Utiliser la tirelire en premier
-            if (piggyBankAmount > 0 && remainingDeficit > 0) {
-              const amountFromPiggyBank = Math.min(remainingDeficit, piggyBankAmount)
-
-              // Créer un TRANSFERT vers ce budget (from_budget_id = null = tirelire)
-              const { error: transferError } = await supabaseServer
-                .from('budget_transfers')
-                .insert([{
-                  [ownerField]: contextId,
-                  from_budget_id: null,  // null = tirelire
-                  to_budget_id: budget.id,
-                  transfer_amount: amountFromPiggyBank,
-                  transfer_reason: `Renflouage déficit depuis tirelire (récap)`,
-                  transfer_date: new Date().toISOString().split('T')[0]
-                }])
-
-              if (!transferError) {
-                const newPiggyBankAmount = piggyBankAmount - amountFromPiggyBank
-
-                const { error: updateError } = await supabaseServer
-                  .from('piggy_bank')
-                  .update({
-                    amount: newPiggyBankAmount,
-                    last_updated: new Date().toISOString()
-                  })
-                  .eq(ownerField, contextId)
-
-                if (!updateError) {
-                  console.log(`      ✅ Tirelire: ${amountFromPiggyBank}€ → Budget "${budget.name}"`)
-                  console.log(`         Tirelire: ${piggyBankAmount}€ → ${newPiggyBankAmount}€`)
-
-                  operations.push({
-                    step: '2.4.2.1',
-                    type: 'refloat_from_piggy_bank',
-                    details: {
-                      budget_id: budget.id,
-                      budget_name: budget.name,
-                      amount: amountFromPiggyBank,
-                      old_piggy_bank: piggyBankAmount,
-                      new_piggy_bank: newPiggyBankAmount
-                    }
-                  })
-
-                  piggyBankAmount = newPiggyBankAmount
-                  remainingDeficit -= amountFromPiggyBank
-                }
-              } else {
-                console.error(`      ❌ Erreur création transfert tirelire: ${transferError.message}`)
-              }
-            }
+            // 2.4.2.1: Tirelire préservée pour l'étape 2
+            console.log(`      ℹ️ Tirelire (${piggyBankAmount}€) préservée - sera disponible à l'étape 2`)
 
             // 2.4.2.2: Utiliser les économies proportionnellement
             if (remainingDeficit > 0) {

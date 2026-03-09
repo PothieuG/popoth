@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
     const currentYear = currentDate.getFullYear()
-    const currentDay = currentDate.getDate()
+
 
     // Récupérer le profil utilisateur pour obtenir le group_id si nécessaire
     const { data: profile, error: profileError } = await supabaseServer
@@ -96,26 +96,21 @@ export async function GET(request: NextRequest) {
       hasExistingRecap = !!existingRecap
     }
 
-    // Un récap est requis si:
-    // 1. On est le 1er du mois
-    // 2. Aucun récap n'existe pour ce mois/contexte
-    // const isFirstOfMonth = currentDay === 1
-    const isFirstOfMonth = true
-    const required = isFirstOfMonth && !hasExistingRecap
+    // Un récap est requis si aucun récap n'existe pour ce mois/contexte
+    // (se déclenche au premier accès du mois, quel que soit le jour)
+    const required = !hasExistingRecap
 
     console.log(`📅 [Monthly Recap Status] Context: ${context}, User: ${userId}`)
-    console.log(`📅 [Monthly Recap Status] Date: ${currentDay}/${currentMonth}/${currentYear}`)
-    console.log(`📅 [Monthly Recap Status] Required: ${required} (First of month: ${isFirstOfMonth}, Has existing: ${hasExistingRecap})`)
+    console.log(`📅 [Monthly Recap Status] Date: ${currentMonth}/${currentYear}`)
+    console.log(`📅 [Monthly Recap Status] Required: ${required} (Has existing: ${hasExistingRecap})`)
 
     return NextResponse.json({
       required,
       currentMonth,
       currentYear,
-      currentDay,
       hasExistingRecap,
       context,
-      contextId,
-      isFirstOfMonth
+      contextId
     })
 
   } catch (error) {

@@ -293,6 +293,7 @@ export async function POST(request: NextRequest) {
 
           // Stocker les déficits pour les appliquer APRÈS le reset des dépenses
           global.carryoverUpdates = []
+          let preTransferBudgetDeficit = 0
 
           for (const budget of allBudgets) {
             // Calculer le montant dépensé ce mois (dépenses réelles)
@@ -302,6 +303,10 @@ export async function POST(request: NextRequest) {
               .eq('estimated_budget_id', budget.id)
 
             const realExpensesThisMonth = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+
+            // Déficit pré-transfert (pour ajuster la dépense exceptionnelle RAV)
+            const preDeficit = Math.max(0, realExpensesThisMonth - budget.estimated_amount)
+            preTransferBudgetDeficit += preDeficit
 
             // Calculer les ajustements dus aux transferts
             const transfersFrom = (transfers || [])
@@ -327,6 +332,11 @@ export async function POST(request: NextRequest) {
               carryover_amount: deficit
             })
           }
+
+          // Stocker les totaux pour ajuster la dépense exceptionnelle RAV (section 3.6)
+          global.preTransferBudgetDeficit = preTransferBudgetDeficit
+          global.postTransferBudgetDeficit = global.carryoverUpdates.reduce((sum: number, u: any) => sum + u.carryover_amount, 0)
+          console.log(`📊 [Deficit Processing] Déficit pré-transfert: ${preTransferBudgetDeficit}€, post-transfert: ${global.postTransferBudgetDeficit}€`)
 
           console.log(`🔄 [Deficit Processing] ${global.carryoverUpdates.length} budget(s) à mettre à jour après reset`)
         }
@@ -366,9 +376,17 @@ export async function POST(request: NextRequest) {
 
           console.log(`📊 [RAV Difference Processing] Écart calculé: ${difference}€`)
 
-          // Si l'écart est négatif (BDD < calcul de base), on reporte la valeur absolue comme dépense exceptionnelle
-          if (difference < 0) {
-            const exceptionalExpenseAmount = Math.abs(difference)
+          // Ajuster pour les déficits budgétaires couverts par les transferts (auto-répartition)
+          // Le RAV en BDD inclut les déficits pré-transfert, mais les transferts en ont couvert une partie
+          const deficitCoveredByTransfers = (global.preTransferBudgetDeficit || 0) - (global.postTransferBudgetDeficit || 0)
+          const adjustedDifference = difference + deficitCoveredByTransfers
+
+          console.log(`📊 [RAV Difference Processing] Déficit couvert par transferts: ${deficitCoveredByTransfers}€`)
+          console.log(`📊 [RAV Difference Processing] Écart ajusté: ${adjustedDifference}€`)
+
+          // Si l'écart ajusté est négatif, on reporte la valeur absolue comme dépense exceptionnelle
+          if (adjustedDifference < 0) {
+            const exceptionalExpenseAmount = Math.abs(adjustedDifference)
 
             console.log(`⚠️ [RAV Difference Processing] Écart négatif détecté: ${difference}€`)
             console.log(`📝 [RAV Difference Processing] Création d'une dépense exceptionnelle de ${exceptionalExpenseAmount}€ pour le mois prochain`)
@@ -548,8 +566,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Nettoyer la variable globale
+        // Nettoyer les variables globales
         delete global.carryoverUpdates
+        delete global.preTransferBudgetDeficit
+        delete global.postTransferBudgetDeficit
       }
 
       // 4.2.2. Insérer la dépense exceptionnelle pour l'écart de reste à vivre

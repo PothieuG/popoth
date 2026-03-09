@@ -104,6 +104,8 @@ export async function POST(request: NextRequest) {
 
     const snapshotData = snapshot.snapshot_data as any
 
+    const isV2 = snapshotData.snapshot_version === 2
+
     if (!snapshotData || !snapshotData.estimated_incomes || !snapshotData.estimated_budgets) {
       return NextResponse.json(
         { error: 'Données du snapshot corrompues ou incomplètes' },
@@ -111,144 +113,93 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    console.log(`🔄 [Recovery] Version du snapshot: ${isV2 ? 'v2 (complet)' : 'v1 (legacy)'}`)
+
     // Commencer la récupération des données
-    const recoveryResults = {
+    const recoveryResults: Record<string, any> = {
       estimated_incomes: 0,
       estimated_budgets: 0,
       real_incomes: 0,
       real_expenses: 0,
       bank_balance: false,
+      piggy_bank: false,
+      budget_transfers: 0,
       errors: [] as string[]
+    }
+
+    // Helper: supprimer + réinsérer une table complète
+    const restoreTable = async (
+      tableName: string,
+      data: any[] | null | undefined,
+      resultKey: string,
+      filterField?: string,
+      filterId?: string
+    ) => {
+      if (!data || data.length === 0) return
+
+      const deleteFilter = filterField || ownerField
+      const deleteId = filterId || contextId
+
+      const { error: deleteError } = await supabaseServer
+        .from(tableName)
+        .delete()
+        .eq(deleteFilter, deleteId)
+
+      if (deleteError) {
+        recoveryResults.errors.push(`Erreur suppression ${tableName}: ${deleteError.message}`)
+        return
+      }
+
+      const { error: insertError } = await supabaseServer
+        .from(tableName)
+        .insert(data)
+
+      if (insertError) {
+        recoveryResults.errors.push(`Erreur restauration ${tableName}: ${insertError.message}`)
+      } else {
+        recoveryResults[resultKey] = data.length
+      }
     }
 
     try {
       // 1. Restaurer les revenus estimés
-      if (snapshotData.estimated_incomes && snapshotData.estimated_incomes.length > 0) {
-        // Supprimer les revenus estimés actuels
-        const { error: deleteIncomesError } = await supabaseServer
-          .from('estimated_incomes')
-          .delete()
-          .eq(ownerField, contextId)
-
-        if (deleteIncomesError) {
-          recoveryResults.errors.push(`Erreur suppression revenus estimés: ${deleteIncomesError.message}`)
-        }
-
-        // Restaurer les revenus estimés depuis le snapshot
-        const incomesToRestore = snapshotData.estimated_incomes.map((income: any) => ({
-          ...income,
-          id: undefined, // Laisser la DB générer de nouveaux IDs
-          created_at: undefined,
-          updated_at: undefined
-        }))
-
-        const { error: insertIncomesError } = await supabaseServer
-          .from('estimated_incomes')
-          .insert(incomesToRestore)
-
-        if (insertIncomesError) {
-          recoveryResults.errors.push(`Erreur restauration revenus estimés: ${insertIncomesError.message}`)
-        } else {
-          recoveryResults.estimated_incomes = incomesToRestore.length
-        }
-      }
+      await restoreTable(
+        'estimated_incomes',
+        snapshotData.estimated_incomes,
+        'estimated_incomes'
+      )
 
       // 2. Restaurer les budgets estimés
-      if (snapshotData.estimated_budgets && snapshotData.estimated_budgets.length > 0) {
-        // Supprimer les budgets estimés actuels
-        const { error: deleteBudgetsError } = await supabaseServer
-          .from('estimated_budgets')
-          .delete()
-          .eq(ownerField, contextId)
+      await restoreTable(
+        'estimated_budgets',
+        snapshotData.estimated_budgets,
+        'estimated_budgets'
+      )
 
-        if (deleteBudgetsError) {
-          recoveryResults.errors.push(`Erreur suppression budgets estimés: ${deleteBudgetsError.message}`)
-        }
+      // 3. Restaurer les revenus réels
+      await restoreTable(
+        'real_income_entries',
+        snapshotData.real_income_entries,
+        'real_incomes'
+      )
 
-        // Restaurer les budgets estimés depuis le snapshot
-        const budgetsToRestore = snapshotData.estimated_budgets.map((budget: any) => ({
-          ...budget,
-          id: undefined, // Laisser la DB générer de nouveaux IDs
-          created_at: undefined,
-          updated_at: undefined,
-          // Reset des colonnes mensuelles
-          monthly_surplus: 0,
-          monthly_deficit: 0,
-          last_monthly_update: null
-        }))
+      // 4. Restaurer les dépenses réelles
+      await restoreTable(
+        'real_expenses',
+        snapshotData.real_expenses,
+        'real_expenses'
+      )
 
-        const { error: insertBudgetsError } = await supabaseServer
-          .from('estimated_budgets')
-          .insert(budgetsToRestore)
-
-        if (insertBudgetsError) {
-          recoveryResults.errors.push(`Erreur restauration budgets estimés: ${insertBudgetsError.message}`)
-        } else {
-          recoveryResults.estimated_budgets = budgetsToRestore.length
-        }
-      }
-
-      // 3. Restaurer les revenus réels (optionnel, peut être conservé)
-      if (snapshotData.real_income_entries && snapshotData.real_income_entries.length > 0) {
-        // Note: On pourrait choisir de ne PAS restaurer les transactions réelles
-        // et seulement les données de planification. Pour l'instant, on les restaure.
-
-        const { error: deleteRealIncomesError } = await supabaseServer
-          .from('real_income_entries')
-          .delete()
-          .eq(ownerField, contextId)
-
-        if (deleteRealIncomesError) {
-          recoveryResults.errors.push(`Erreur suppression revenus réels: ${deleteRealIncomesError.message}`)
-        }
-
-        const realIncomesToRestore = snapshotData.real_income_entries.map((income: any) => ({
-          ...income,
-          id: undefined,
-          created_at: undefined
-        }))
-
-        const { error: insertRealIncomesError } = await supabaseServer
-          .from('real_income_entries')
-          .insert(realIncomesToRestore)
-
-        if (insertRealIncomesError) {
-          recoveryResults.errors.push(`Erreur restauration revenus réels: ${insertRealIncomesError.message}`)
-        } else {
-          recoveryResults.real_incomes = realIncomesToRestore.length
-        }
-      }
-
-      // 4. Restaurer les dépenses réelles (optionnel)
-      if (snapshotData.real_expenses && snapshotData.real_expenses.length > 0) {
-        const { error: deleteRealExpensesError } = await supabaseServer
-          .from('real_expenses')
-          .delete()
-          .eq(ownerField, contextId)
-
-        if (deleteRealExpensesError) {
-          recoveryResults.errors.push(`Erreur suppression dépenses réelles: ${deleteRealExpensesError.message}`)
-        }
-
-        const realExpensesToRestore = snapshotData.real_expenses.map((expense: any) => ({
-          ...expense,
-          id: undefined,
-          created_at: undefined
-        }))
-
-        const { error: insertRealExpensesError } = await supabaseServer
-          .from('real_expenses')
-          .insert(realExpensesToRestore)
-
-        if (insertRealExpensesError) {
-          recoveryResults.errors.push(`Erreur restauration dépenses réelles: ${insertRealExpensesError.message}`)
-        } else {
-          recoveryResults.real_expenses = realExpensesToRestore.length
-        }
-      }
-
-      // 5. Restaurer le solde bancaire
-      if (typeof snapshotData.bank_balance === 'number') {
+      // 5. Restaurer les soldes bancaires
+      if (isV2 && snapshotData.bank_balances && snapshotData.bank_balances.length > 0) {
+        // V2 : restauration complète des bank_balances (avec current_remaining_to_live)
+        await restoreTable(
+          'bank_balances',
+          snapshotData.bank_balances,
+          'bank_balance'
+        )
+      } else if (typeof snapshotData.bank_balance === 'number') {
+        // V1 : mise à jour simple du montant
         const { error: updateBankBalanceError } = await supabaseServer
           .from('bank_balances')
           .update({
@@ -264,7 +215,25 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // 6. Désactiver le snapshot utilisé
+      // 6. Restaurer la tirelire (v2 uniquement)
+      if (isV2 && snapshotData.piggy_bank && snapshotData.piggy_bank.length > 0) {
+        await restoreTable(
+          'piggy_bank',
+          snapshotData.piggy_bank,
+          'piggy_bank'
+        )
+      }
+
+      // 7. Restaurer les transferts de budget (v2 uniquement)
+      if (isV2 && snapshotData.budget_transfers && snapshotData.budget_transfers.length > 0) {
+        await restoreTable(
+          'budget_transfers',
+          snapshotData.budget_transfers,
+          'budget_transfers'
+        )
+      }
+
+      // 8. Désactiver le snapshot utilisé
       const { error: deactivateSnapshotError } = await supabaseServer
         .from('recap_snapshots')
         .update({ is_active: false })

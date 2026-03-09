@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
 
 /**
  * API POST /api/monthly-recap/initialize
@@ -96,7 +97,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 1. Récupérer les données actuelles en temps réel (plus de snapshot)
+    // 0. Créer un snapshot complet de la DB avant toute modification
+    console.log(`📸 [Monthly Recap] Création du snapshot complet avant recap pour ${context}:${contextId}`)
+    const { snapshotId, error: snapshotError } = await createFullDatabaseSnapshot(
+      contextId,
+      context,
+      currentMonth,
+      currentYear
+    )
+
+    if (snapshotError) {
+      console.error(`❌ [Monthly Recap] Erreur création snapshot: ${snapshotError}`)
+      return NextResponse.json(
+        { error: 'Erreur lors de la création du snapshot de sécurité' },
+        { status: 500 }
+      )
+    }
+
+    console.log(`📸 [Monthly Recap] Snapshot créé: ${snapshotId}`)
+
+    // 1. Récupérer les données actuelles en temps réel
     console.log(`📊 [Monthly Recap] Récupération des données en temps réel pour ${context}:${contextId}`)
 
     // Récupérer les budgets estimés
@@ -215,6 +235,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       session_id: sessionId,
+      snapshot_id: snapshotId,
       current_remaining_to_live: financialData.remainingToLive,
       budget_stats: budgetStats,
       total_surplus: totalSurplus,
