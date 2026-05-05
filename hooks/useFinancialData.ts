@@ -126,7 +126,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
       fetchFinancialData()
     }
     const unregister = registerFinancialRefreshCallback(refreshHandler)
-    return unregister
+    return () => { unregister() }
   }, [])
 
   return {

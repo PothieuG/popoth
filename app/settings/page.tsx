@@ -12,7 +12,7 @@ import CreateGroupForm from '@/components/groups/CreateGroupForm'
 import GroupSearchList from '@/components/groups/GroupSearchList'
 import DeleteGroupModal from '@/components/groups/DeleteGroupModal'
 import GroupMembersWithContributionsModal from '@/components/groups/GroupMembersWithContributionsModal'
-import { GroupData } from '@/app/api/groups/route'
+import type { GroupData } from '@/app/api/groups/route'
 
 /**
  * Settings page - User settings and group management

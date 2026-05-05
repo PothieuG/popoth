@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
-import { GroupData } from '@/app/api/groups/route'
+import type { GroupData } from '@/app/api/groups/route'
 
 interface DeleteGroupModalProps {
   group: GroupData

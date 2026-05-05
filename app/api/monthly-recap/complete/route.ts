@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
+declare global {
+  // eslint-disable-next-line no-var
+  var carryoverUpdates: Array<{ budget_id: string; budget_name: string; carryover_amount: number }> | undefined
+  // eslint-disable-next-line no-var
+  var preTransferBudgetDeficit: number | undefined
+  // eslint-disable-next-line no-var
+  var postTransferBudgetDeficit: number | undefined
+  // eslint-disable-next-line no-var
+  var exceptionalExpenseToInsert: Record<string, unknown> | undefined
+}
+
 /**
  * API POST /api/monthly-recap/complete
  *
@@ -392,7 +403,7 @@ export async function POST(request: NextRequest) {
             console.log(`📝 [RAV Difference Processing] Création d'une dépense exceptionnelle de ${exceptionalExpenseAmount}€ pour le mois prochain`)
 
             // Créer une dépense exceptionnelle (sera insérée après le reset des dépenses)
-            const exceptionalExpense = {
+            const exceptionalExpense: Record<string, unknown> = {
               amount: exceptionalExpenseAmount,
               description: `Écart de reste à vivre reporté du récap ${currentMonth}/${currentYear}`,
               expense_date: currentDate.toISOString().split('T')[0],

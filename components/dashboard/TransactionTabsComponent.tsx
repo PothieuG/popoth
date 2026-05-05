@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
-import { ProfileData } from '@/app/api/profile/route'
+import type { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
 
 interface TransactionTabsComponentProps {

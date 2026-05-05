@@ -76,9 +76,10 @@ export async function GET(request: NextRequest) {
     operationId: operationId
   })
   
+  let session: Awaited<ReturnType<typeof validateSessionToken>> = null
   try {
     // Session validation
-    const session = await validateSessionToken(request)
+    session = await validateSessionToken(request)
     console.log('📋 Session validation', {
       timestamp: new Date().toISOString(),
       level: 'debug',
@@ -344,7 +345,7 @@ export async function GET(request: NextRequest) {
       total_estimated_income: totalEstimatedIncome,
       total_real_income: snapshot?.total_real_income || 0,
       estimated_incomes: estimatedIncomes || [],
-      recent_income_entries: recentIncomeEntries || [],
+      recent_income_entries: (recentIncomeEntries || []) as unknown as FinancialDashboardData['recent_income_entries'],
       
       // Budget data
       total_estimated_budgets: totalEstimatedBudgets,
@@ -352,7 +353,7 @@ export async function GET(request: NextRequest) {
       
       // Expense data
       total_real_expenses: snapshot?.total_real_expenses || 0,
-      recent_expenses: recentExpenses || [],
+      recent_expenses: (recentExpenses || []) as unknown as FinancialDashboardData['recent_expenses'],
       
       // Monthly summary
       monthly_summary: {
@@ -390,9 +391,9 @@ export async function GET(request: NextRequest) {
       operationId: operationId,
       userId: session?.userId,
       error: {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : 'UnknownError'
       },
       duration: Date.now() - startTime
     })

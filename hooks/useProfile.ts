@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ProfileData, CreateProfileRequest } from '@/app/api/profile/route'
+import type { ProfileData, CreateProfileRequest } from '@/app/api/profile/route'
 import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 /**

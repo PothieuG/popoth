@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User } from 'lucide-react'
-import { ProfileData } from '@/app/api/profile/route'
+import type { ProfileData } from '@/app/api/profile/route'
 
 interface EditProfileDialogProps {
   /** Indique si la dialog est ouverte */

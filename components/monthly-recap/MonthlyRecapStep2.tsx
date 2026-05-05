@@ -638,7 +638,7 @@ export default function MonthlyRecapStep2({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {selectedFromBudget?.surplus > 0 ? 'Transférer des économies' : 'Récupérer des fonds'}
+              {(selectedFromBudget?.surplus ?? 0) > 0 ? 'Transférer des économies' : 'Récupérer des fonds'}
             </DialogTitle>
           </DialogHeader>
 

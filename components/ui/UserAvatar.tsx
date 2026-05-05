@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ProfileData } from '@/app/api/profile/route'
+import type { ProfileData } from '@/app/api/profile/route'
 
 interface UserAvatarProps {
   profile: ProfileData | null
@@ -92,7 +92,7 @@ export default function UserAvatar({
       {hasCustomAvatar ? (
         <img
           key={imageKey} // Force re-render when key changes
-          src={profile.avatar_url}
+          src={profile.avatar_url ?? undefined}
           alt={`Avatar de ${profile.first_name} ${profile.last_name}`}
           className="w-full h-full object-cover"
           onError={() => {

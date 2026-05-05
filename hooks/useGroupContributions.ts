@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { GroupContributionData, GroupContributionsResponse } from '@/app/api/groups/contributions/route'
+import type { GroupContributionData, GroupContributionsResponse } from '@/app/api/groups/contributions/route'
 
 /**
  * Hook personnalisé pour gérer les contributions de groupe

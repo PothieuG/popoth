@@ -38,9 +38,9 @@ const DialogContent = React.forwardRef<
   
   // Check if children contain DialogDescription
   const hasDescription = React.Children.toArray(children).some(child =>
-    React.isValidElement(child) && 
-    (child.type === DialogDescription || 
-     (typeof child.type === 'object' && child.type?.displayName === 'DialogDescription'))
+    React.isValidElement(child) &&
+    (child.type === DialogDescription ||
+     (typeof child.type === 'object' && (child.type as { displayName?: string })?.displayName === 'DialogDescription'))
   )
 
   return (

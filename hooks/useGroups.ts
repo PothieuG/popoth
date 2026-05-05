@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { GroupData, CreateGroupRequest } from '@/app/api/groups/route'
-import { UpdateGroupRequest } from '@/app/api/groups/[id]/route'
+import type { GroupData, CreateGroupRequest } from '@/app/api/groups/route'
+import type { UpdateGroupRequest } from '@/app/api/groups/[id]/route'
 
 /**
  * Custom hook for managing user groups
@@ -251,6 +251,6 @@ export function useGroups() {
     // Helpers
     hasGroup: groups.length > 0,
     currentGroup: groups.length > 0 ? groups[0] : null,
-    isCreator: groups.length > 0 ? groups[0].is_creator : false
+    isCreator: groups.length > 0 ? (groups[0]?.is_creator ?? false) : false
   }
 }

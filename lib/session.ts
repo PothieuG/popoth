@@ -17,7 +17,7 @@ export interface SessionPayload {
  * Creates a signed JWT with user data and expiration
  */
 export async function encrypt(payload: SessionPayload): Promise<string> {
-  return new SignJWT(payload)
+  return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('1h')
@@ -36,7 +36,7 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
       algorithms: ['HS256'],
     })
     
-    return payload as SessionPayload
+    return payload as unknown as SessionPayload
   } catch (error) {
     console.error('Failed to decrypt session:', error)
     return null

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { ProfileData } from '@/app/api/profile/route'
+import type { ProfileData } from '@/app/api/profile/route'
 import UserAvatar from './UserAvatar'
 
 interface AvatarUploadProps {

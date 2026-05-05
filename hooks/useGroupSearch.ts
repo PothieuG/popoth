@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { SearchableGroup } from '@/app/api/groups/search/route'
+import type { SearchableGroup } from '@/app/api/groups/search/route'
 
 /**
  * Custom hook for searching and discovering groups

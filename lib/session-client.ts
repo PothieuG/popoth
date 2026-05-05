@@ -1,4 +1,4 @@
-import { decrypt, SessionPayload } from './session'
+import { decrypt, type SessionPayload } from './session'
 
 /**
  * Client-side session management utilities

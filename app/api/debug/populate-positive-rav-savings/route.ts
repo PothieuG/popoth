@@ -131,11 +131,15 @@ export async function POST(request: NextRequest) {
       .insert(budgetInserts)
       .select('id, name, estimated_amount')
 
+    if (!createdBudgets) {
+      return NextResponse.json({ error: 'Failed to create budgets' }, { status: 500 })
+    }
+
     // 6. Créer les dépenses réelles
     const expenseInserts = []
     const summary = []
 
-    for (const budget of createdBudgets!) {
+    for (const budget of createdBudgets) {
       const budgetConfig = budgetData.find(b => b.name === budget.name)!
 
       if (budgetConfig.spent > 0) {

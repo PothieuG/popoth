@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { GroupData } from '@/app/api/groups/route'
+import type { GroupData } from '@/app/api/groups/route'
 
 interface UserGroupsListProps {
   groups: GroupData[]

@@ -112,7 +112,7 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
       fetchProgressData()
     })
 
-    return unregister
+    return () => { unregister() }
   }, [fetchProgressData])
 
   return {

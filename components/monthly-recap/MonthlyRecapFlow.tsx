@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMonthlyRecap, RemainingToLiveChoice } from '@/hooks/useMonthlyRecap'
+import { useMonthlyRecap, type RemainingToLiveChoice } from '@/hooks/useMonthlyRecap'
 import MonthlyRecapStep1 from './MonthlyRecapStep1'
 import MonthlyRecapStep2 from './MonthlyRecapStep2'
 

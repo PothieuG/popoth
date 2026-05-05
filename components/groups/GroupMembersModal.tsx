@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
-import { GroupData } from '@/app/api/groups/route'
+import type { GroupData } from '@/app/api/groups/route'
 
 interface GroupMembersModalProps {
   group: GroupData

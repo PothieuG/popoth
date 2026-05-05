@@ -308,7 +308,7 @@ export async function POST(request: NextRequest) {
       actions: {
         budgetsCreated: createdBudgets.length,
         expensesCreated: expenseInserts.length,
-        incomeEntriesCreated: incomeEntries.length,
+        incomeEntriesCreated: incomeData.length,
         previousDataDeleted: true,
         snapshotsDeactivated: true
       }

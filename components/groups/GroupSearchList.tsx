@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { SearchableGroup } from '@/app/api/groups/search/route'
+import type { SearchableGroup } from '@/app/api/groups/search/route'
 
 interface GroupSearchListProps {
   groups: SearchableGroup[]

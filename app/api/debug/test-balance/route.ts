@@ -129,7 +129,15 @@ async function cleanUserData(userId: string) {
 async function createTestScenario(userId: string, scenario: string) {
   console.log(`🎬 [Test Balance] Création du scénario "${scenario}"`)
 
-  const testData = {
+  const testData: {
+    scenario: string
+    expectedRemainingToLive: number
+    expectedSurplus: number
+    expectedDeficit: number
+    expectedSavings: number
+    budgets: Array<{ id: string; name: string; estimated_amount: number; spent_amount: number; current_savings: number }>
+    incomes: Array<Record<string, unknown>>
+  } = {
     scenario,
     expectedRemainingToLive: 0,
     expectedSurplus: 0,
@@ -358,7 +366,12 @@ async function testBalance(userId: string) {
 async function verifyResults(userId: string, testData: any, balanceResult: any) {
   console.log(`🔍 [Test Balance] Vérification des résultats`)
 
-  const verification = {
+  const verification: {
+    scenario: string
+    tests: Array<{ name: string; expected: unknown; actual: unknown; passed: boolean }>
+    success: boolean
+    summary: string
+  } = {
     scenario: testData.scenario,
     tests: [],
     success: true,

@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
 
     const sessionContext = sessionParts[0]
     const sessionContextId = sessionParts[1]
-    const sessionMonth = parseInt(sessionParts[2])
-    const sessionYear = parseInt(sessionParts[3])
+    const sessionMonth = parseInt(sessionParts[2] ?? '')
+    const sessionYear = parseInt(sessionParts[3] ?? '')
 
     // Vérifier que la session correspond au contexte actuel
     if (sessionContext !== context || sessionContextId !== contextId) {
@@ -250,8 +250,8 @@ export async function GET(request: NextRequest) {
 
     const sessionContext = sessionParts[0]
     const sessionContextId = sessionParts[1]
-    const sessionMonth = parseInt(sessionParts[2])
-    const sessionYear = parseInt(sessionParts[3])
+    const sessionMonth = parseInt(sessionParts[2] ?? '')
+    const sessionYear = parseInt(sessionParts[3] ?? '')
 
     // Vérifier que la session correspond au contexte actuel
     if (sessionContext !== context || sessionContextId !== contextId) {

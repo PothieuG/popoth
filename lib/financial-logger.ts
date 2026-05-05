@@ -7,9 +7,9 @@ import { NextResponse } from 'next/server'
 
 export interface LogContext {
   timestamp?: string
-  level: 'debug' | 'info' | 'warn' | 'error' | 'critical'
-  component: string
-  operation: string
+  level?: 'debug' | 'info' | 'warn' | 'error' | 'critical'
+  component?: string
+  operation?: string
   operationId?: string
   userId?: string
   groupId?: string
@@ -31,6 +31,9 @@ export class FinancialLogger {
     return {
       timestamp: new Date().toISOString(),
       operationId: context.operationId || this.generateOperationId(),
+      level: context.level || 'info',
+      component: context.component || 'unknown',
+      operation: context.operation || 'unknown',
       ...context
     }
   }
@@ -66,7 +69,7 @@ export class FinancialLogger {
           duration: Date.now() - startTime
         })
         
-        const emoji = this.getEmojiForLevel(entry.level)
+        const emoji = this.getEmojiForLevel(entry.level || 'info')
         console.log(`${emoji} ${entry.operation}`, entry)
       }
     }

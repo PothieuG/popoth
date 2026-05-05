@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
-import { GroupData } from '@/app/api/groups/route'
+import type { GroupData } from '@/app/api/groups/route'
 
 interface GroupMembersWithContributionsModalProps {
   group: GroupData

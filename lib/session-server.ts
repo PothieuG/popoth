@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers'
-import { createSessionToken, decrypt, SessionPayload } from './session'
+import { createSessionToken, decrypt, type SessionPayload } from './session'
 
 /**
  * Server-side session management utilities

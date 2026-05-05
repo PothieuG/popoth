@@ -17,6 +17,9 @@ export interface FinancialData {
   totalEstimatedBudgets: number // Total des budgets estimés
   totalRealIncome: number      // Total des revenus réels
   totalRealExpenses: number    // Total des dépenses réelles
+  bankBalance?: number         // Optional: solde bancaire (legacy field used in some logs)
+  piggyBank?: number           // Optional: tirelire (utilisé par useExpenseBreakdown)
+  totalEstimatedBudget?: number // Optional: alias singulier (legacy logs)
 }
 
 export interface BudgetSavings {

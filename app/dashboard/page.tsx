@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
   const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
-  const { financialData, loading: financialLoading, error: financialError, cached, context, refreshFinancialData } = useFinancialData()
+  const { financialData, loading: financialLoading, error: financialError, context, refreshFinancialData } = useFinancialData()
   const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('profile')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
@@ -105,7 +105,6 @@ export default function DashboardPage() {
       console.log(`📱📱📱 ========================================================`)
       console.log(`📱 Utilisateur: ${profile?.first_name} ${profile?.last_name}`)
       console.log(`📱 Context: ${context}`)
-      console.log(`📱 Cached: ${cached}`)
       console.log(``)
       console.log(`💰 RESTE À VIVRE AFFICHÉ: ${financialData.remainingToLive}€`)
       console.log(`💵 SOLDE DISPONIBLE AFFICHÉ: ${financialData.availableBalance}€`)
@@ -119,7 +118,7 @@ export default function DashboardPage() {
       console.log(`📱📱📱 ========================================================`)
       console.log(``)
     }
-  }, [financialData, financialLoading, profile, context, cached])
+  }, [financialData, financialLoading, profile, context])
 
 
   // Créer un composant de loader centralisé
@@ -128,7 +127,6 @@ export default function DashboardPage() {
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-gray-600">{message}</p>
-        {cached && <p className="text-xs text-gray-500 mt-2">Données mises en cache</p>}
       </div>
     </div>
   )

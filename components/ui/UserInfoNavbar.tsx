@@ -1,7 +1,7 @@
 'use client'
 
-import { ProfileData } from '@/app/api/profile/route'
-import { GroupContributionData } from '@/app/api/groups/contributions/route'
+import type { ProfileData } from '@/app/api/profile/route'
+import type { GroupContributionData } from '@/app/api/groups/contributions/route'
 
 interface UserInfoNavbarProps {
   profile: ProfileData | null

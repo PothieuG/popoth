@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { RealExpense } from '@/hooks/useRealExpenses'
-import { RealIncome } from '@/hooks/useRealIncomes'
-import { ProfileData } from '@/app/api/profile/route'
+import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealIncome } from '@/hooks/useRealIncomes'
+import type { ProfileData } from '@/app/api/profile/route'
 import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import UserAvatar from '@/components/ui/UserAvatar'
@@ -240,7 +240,7 @@ export default function TransactionListItem({
         title={`Supprimer ${type === 'expense' ? 'cette dépense' : 'ce revenu'}`}
         message={`Êtes-vous sûr de vouloir supprimer "${transaction.description}" d'un montant de ${formatAmount(transaction.amount)} ? Cette action ne peut pas être annulée.`}
         confirmText="Supprimer"
-        isLoading={isDeleting}
+        loading={isDeleting}
         variant="danger"
       />
     </>

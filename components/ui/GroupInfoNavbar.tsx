@@ -1,7 +1,7 @@
 'use client'
 
-import { ProfileData } from '@/app/api/profile/route'
-import { GroupMember } from '@/hooks/useGroupMembers'
+import type { ProfileData } from '@/app/api/profile/route'
+import type { GroupMember } from '@/hooks/useGroupMembers'
 
 interface GroupInfoNavbarProps {
   profile: ProfileData | null

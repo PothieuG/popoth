@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     let hasExistingRecap = false
-    let contextId: string
+    let contextId = ''
 
     if (context === 'profile') {
       contextId = profile.id

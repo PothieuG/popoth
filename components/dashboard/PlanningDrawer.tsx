@@ -679,7 +679,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           title={`${startedItemInfo?.type === 'budget' ? 'Budget' : 'Revenu'} en cours d'utilisation`}
           message={`Le ${startedItemInfo?.type === 'budget' ? 'budget' : 'revenu'} "${startedItemInfo?.name}" ne peut pas être modifié ou supprimé car il est déjà en cours d'utilisation ce mois-ci. Vous pourrez le modifier le mois prochain.`}
           confirmText="Compris"
-          cancelText={null}
+          cancelText={undefined}
           variant="info"
           loading={false}
         />

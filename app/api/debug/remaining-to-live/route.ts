@@ -173,7 +173,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 9. Contributions de groupe (si applicable)
-    let groupContributions = []
+    let groupContributions: Array<Record<string, unknown>> = []
     if (context === 'group') {
       const { data: contributions } = await supabaseServer
         .from('group_contributions')

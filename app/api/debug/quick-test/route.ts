@@ -500,7 +500,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Calculer les résultats attendus vs obtenus
-    const verification = {
+    const verification: {
+      expectedRemainingToLive: number
+      actualRemainingToLive: number
+      expectedSurplus: number
+      actualSurplus: number
+      expectedDeficit: number
+      actualDeficit: number
+      balanceTest: {
+        originalRemainingToLive: number
+        finalRemainingToLive: number
+        expectedFinalRemainingToLive: number
+        redistributedAmount: number
+        remainingDeficit: number
+        isCorrect: boolean
+      } | null
+    } = {
       expectedRemainingToLive,
       actualRemainingToLive: initData.current_remaining_to_live,
       expectedSurplus: totalSurplus,
