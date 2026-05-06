@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
 /**
  * API POST /api/monthly-recap/process-step1
@@ -229,16 +231,13 @@ export async function POST(request: NextRequest) {
       if (excedentPourTirelire > 0) {
         const newPiggyBankAmount = piggyBankAmount + excedentPourTirelire
 
-        const { error: updateError } = await supabaseServer
-          .from('piggy_bank')
-          .update({
-            amount: newPiggyBankAmount,
-            last_updated: new Date().toISOString()
-          })
-          .eq(ownerField, contextId)
-
-        if (updateError) {
-          throw new Error(`Erreur mise à jour tirelire: ${updateError.message}`)
+        try {
+          const filter = ownerField === 'profile_id'
+            ? { profile_id: contextId }
+            : { group_id: contextId }
+          await updatePiggyBank(filter, excedentPourTirelire)
+        } catch (updateError) {
+          throw new Error(`Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
         }
 
         console.log(`   ✅ Tirelire: ${piggyBankAmount}€ + ${excedentPourTirelire}€ = ${newPiggyBankAmount}€`)
@@ -358,16 +357,10 @@ export async function POST(request: NextRequest) {
 
               const newSavings = budget.cumulated_savings - amountToUse
 
-              const { error: updateError } = await supabaseServer
-                .from('estimated_budgets')
-                .update({
-                  cumulated_savings: newSavings,
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', budget.id)
-
-              if (updateError) {
-                throw new Error(`Erreur mise à jour économies ${budget.name}: ${updateError.message}`)
+              try {
+                await updateBudgetCumulatedSavings(budget.id, -amountToUse)
+              } catch (updateError) {
+                throw new Error(`Erreur mise à jour économies ${budget.name}: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
               }
 
               console.log(`      ✅ ${budget.name}: ${amountToUse.toFixed(2)}€ utilisés (${(proportion * 100).toFixed(1)}%)`)
@@ -573,16 +566,13 @@ export async function POST(request: NextRequest) {
 
           const newPiggyBankAmount = piggyBankAmount + newDifference
 
-          const { error: updateError } = await supabaseServer
-            .from('piggy_bank')
-            .update({
-              amount: newPiggyBankAmount,
-              last_updated: new Date().toISOString()
-            })
-            .eq(ownerField, contextId)
-
-          if (updateError) {
-            throw new Error(`Erreur mise à jour tirelire: ${updateError.message}`)
+          try {
+            const filter = ownerField === 'profile_id'
+              ? { profile_id: contextId }
+              : { group_id: contextId }
+            await updatePiggyBank(filter, newDifference)
+          } catch (updateError) {
+            throw new Error(`Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
           }
 
           console.log(`   ✅ Tirelire: ${piggyBankAmount}€ + ${newDifference}€ = ${newPiggyBankAmount}€`)

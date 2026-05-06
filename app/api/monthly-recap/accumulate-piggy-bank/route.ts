@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 
 /**
  * API POST /api/monthly-recap/accumulate-piggy-bank
@@ -92,7 +93,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Récupérer la tirelire existante
+    // Vérifier si la tirelire existe (insert sinon, sinon increment via RPC atomique)
     const { data: piggyBankData, error: fetchError } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
@@ -108,19 +109,16 @@ export async function POST(request: NextRequest) {
     }
 
     const oldAmount = piggyBankData?.amount || 0
-    const newAmount = oldAmount + amount
+    let newAmount = oldAmount + amount
 
     if (piggyBankData) {
-      // Mettre à jour la tirelire existante
-      const { error: updateError } = await supabaseServer
-        .from('piggy_bank')
-        .update({
-          amount: newAmount
-        })
-        .eq(ownerField, contextId)
-
-      if (updateError) {
-        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la mise à jour:', updateError)
+      try {
+        const filter = ownerField === 'profile_id'
+          ? { profile_id: contextId }
+          : { group_id: contextId }
+        newAmount = await updatePiggyBank(filter, amount)
+      } catch (error) {
+        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la mise à jour:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
           { status: 500 }
@@ -129,7 +127,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`✅ [Accumulate Piggy Bank] Tirelire mise à jour: ${oldAmount}€ + ${amount}€ = ${newAmount}€`)
     } else {
-      // Créer une nouvelle entrée
+      // Créer une nouvelle entrée (RPC ne crée pas la ligne)
       const { error: insertError } = await supabaseServer
         .from('piggy_bank')
         .insert({

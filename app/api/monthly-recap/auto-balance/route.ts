@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
 /**
  * API POST /api/monthly-recap/auto-balance
@@ -480,33 +482,24 @@ export async function POST(request: NextRequest) {
     console.log(`⚖️ [Auto Balance] Mises à jour d'économies: ${savingsUpdates.length} budgets`)
 
     // 1. Mettre à jour les économies cumulées pour les budgets qui ont contribué depuis leurs économies
+    //    (atomique via RPC update_budget_cumulated_savings)
     for (const update of savingsUpdates) {
-      console.log(`💎 Mise à jour économies: ${update.old_savings}€ → ${update.new_savings}€`)
-
-      // Ensure new_savings is not negative (prevent constraint violation)
       const safeNewSavings = Math.max(0, Math.round(update.new_savings * 100) / 100)
+      const delta = safeNewSavings - update.old_savings
+      console.log(`💎 Mise à jour économies: ${update.old_savings}€ → ${safeNewSavings}€ (delta=${delta}€)`)
 
-      console.log(`💎 Valeur safe après arrondi: ${safeNewSavings}€`)
-
-      const { error: updateError } = await supabaseServer
-        .from('estimated_budgets')
-        .update({
-          cumulated_savings: safeNewSavings,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', update.budget_id)
-
-      if (updateError) {
+      try {
+        await updateBudgetCumulatedSavings(update.budget_id, delta)
+      } catch (updateError) {
         console.error('❌ Erreur lors de la mise à jour des économies:', updateError)
         console.error('❌ Budget ID:', update.budget_id)
         console.error('❌ Ancienne valeur:', update.old_savings)
         console.error('❌ Nouvelle valeur tentée:', update.new_savings)
         console.error('❌ Valeur safe:', safeNewSavings)
-        console.error('❌ Détails de l\'erreur Supabase:', JSON.stringify(updateError, null, 2))
         return NextResponse.json(
           {
             error: 'Erreur lors de la mise à jour des économies',
-            details: updateError.message || 'Erreur inconnue',
+            details: updateError instanceof Error ? updateError.message : 'Erreur inconnue',
             budget_id: update.budget_id,
             attempted_value: safeNewSavings
           },
@@ -527,17 +520,16 @@ export async function POST(request: NextRequest) {
     if (transfersFromPiggyBank.length > 0 && totalPiggyBankUsed > 0) {
       console.log(`⚖️ [Auto Balance] Traitement de ${transfersFromPiggyBank.length} transferts depuis la tirelire (${totalPiggyBankUsed}€)`)
 
-      // 1. Déduire le montant utilisé de la tirelire
+      // 1. Déduire le montant utilisé de la tirelire (atomique via RPC)
       const newPiggyBankAmount = Math.max(0, piggyBank - totalPiggyBankUsed)
+      const piggyDelta = newPiggyBankAmount - piggyBank
 
-      const { error: updateError } = await supabaseServer
-        .from('piggy_bank')
-        .update({
-          amount: newPiggyBankAmount
-        })
-        .eq(ownerField, contextId)
-
-      if (updateError) {
+      try {
+        const filter = ownerField === 'profile_id'
+          ? { profile_id: contextId }
+          : { group_id: contextId }
+        await updatePiggyBank(filter, piggyDelta)
+      } catch (updateError) {
         console.error('❌ [Auto Balance] Erreur lors de la mise à jour de la tirelire:', updateError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },

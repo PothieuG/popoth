@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
 /**
  * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
@@ -138,17 +140,11 @@ export async function POST(request: NextRequest) {
     console.log(`   - Budget source: ${fromBudget.name} - ${currentSavings}€ disponibles`)
     console.log(`   - Budget destination: ${toBudget.name} - ${toBudget.cumulated_savings || 0}€ actuels`)
 
-    // 4. Update FROM budget (subtract savings)
-    const newFromSavings = currentSavings - amount
-    const { error: updateFromError } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: newFromSavings,
-        last_savings_update: new Date().toISOString()
-      })
-      .eq('id', from_budget_id)
-
-    if (updateFromError) {
+    // 4. Update FROM budget (subtract savings) — atomique via RPC
+    let newFromSavings: number
+    try {
+      newFromSavings = await updateBudgetCumulatedSavings(from_budget_id, -amount)
+    } catch (updateFromError) {
       console.error('❌ Erreur mise à jour budget source:', updateFromError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget source' },
@@ -156,23 +152,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 5. Update TO budget (add savings)
-    const newToSavings = (toBudget.cumulated_savings || 0) + amount
-    const { error: updateToError } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: newToSavings,
-        last_savings_update: new Date().toISOString()
-      })
-      .eq('id', to_budget_id)
-
-    if (updateToError) {
+    // 5. Update TO budget (add savings) — atomique via RPC
+    let newToSavings: number
+    try {
+      newToSavings = await updateBudgetCumulatedSavings(to_budget_id, amount)
+    } catch (updateToError) {
       console.error('❌ Erreur mise à jour budget destination:', updateToError)
-      // Rollback from budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', from_budget_id)
+      // Rollback from budget (re-add the amount)
+      try {
+        await updateBudgetCumulatedSavings(from_budget_id, amount)
+      } catch (rollbackError) {
+        console.error('❌ Erreur rollback budget source:', rollbackError)
+      }
 
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget destination' },
@@ -300,18 +291,12 @@ async function handlePiggyBankAction(
 
   console.log(`🐷 Nouveau montant tirelire: ${newAmount}€`)
 
-  // Update or insert piggy bank
+  // Update or insert piggy bank (RPC atomique sur le delta)
   if (currentPiggyBank) {
-    // Update existing
-    const { error: updateError } = await supabaseServer
-      .from('piggy_bank')
-      .update({
-        amount: newAmount,
-        last_updated: new Date().toISOString()
-      })
-      .eq('id', currentPiggyBank.id)
-
-    if (updateError) {
+    try {
+      const delta = newAmount - currentAmount
+      newAmount = await updatePiggyBank(matchFilter as Parameters<typeof updatePiggyBank>[0], delta)
+    } catch (updateError) {
       console.error('❌ Erreur mise à jour tirelire:', updateError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour de la tirelire' },
@@ -403,17 +388,12 @@ async function handleBudgetToPiggyBank(
     )
   }
 
-  // 2. Remove from budget
-  const newBudgetSavings = currentSavings - amount
-  const { error: updateBudgetError } = await supabaseServer
-    .from('estimated_budgets')
-    .update({
-      cumulated_savings: newBudgetSavings,
-      last_savings_update: new Date().toISOString()
-    })
-    .eq('id', fromBudgetId)
-
-  if (updateBudgetError) {
+  // 2. Remove from budget — atomique via RPC
+  let newBudgetSavings: number
+  try {
+    newBudgetSavings = await updateBudgetCumulatedSavings(fromBudgetId, -amount)
+  } catch (updateBudgetError) {
+    console.error('❌ Erreur mise à jour budget:', updateBudgetError)
     return NextResponse.json({ error: 'Erreur mise à jour du budget' }, { status: 500 })
   }
 
@@ -436,17 +416,13 @@ async function handleBudgetToPiggyBank(
   const newPiggyAmount = currentPiggyAmount + amount
 
   if (currentPiggyBank) {
-    const { error: updateError } = await supabaseServer
-      .from('piggy_bank')
-      .update({ amount: newPiggyAmount, last_updated: new Date().toISOString() })
-      .eq('id', currentPiggyBank.id)
-
-    if (updateError) {
+    try {
+      await updatePiggyBank(piggyMatchFilter as Parameters<typeof updatePiggyBank>[0], amount)
+    } catch (updateError) {
+      console.error('❌ Erreur mise à jour tirelire:', updateError)
       // Rollback budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', fromBudgetId)
+      try { await updateBudgetCumulatedSavings(fromBudgetId, amount) }
+      catch (rollbackErr) { console.error('❌ Rollback budget impossible:', rollbackErr) }
       return NextResponse.json({ error: 'Erreur mise à jour tirelire' }, { status: 500 })
     }
   } else {
@@ -456,10 +432,8 @@ async function handleBudgetToPiggyBank(
 
     if (insertError) {
       // Rollback budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', fromBudgetId)
+      try { await updateBudgetCumulatedSavings(fromBudgetId, amount) }
+      catch (rollbackErr) { console.error('❌ Rollback budget impossible:', rollbackErr) }
       return NextResponse.json({ error: 'Erreur création tirelire' }, { status: 500 })
     }
   }

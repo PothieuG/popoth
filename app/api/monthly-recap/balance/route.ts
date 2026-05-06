@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
 /**
  * API POST /api/monthly-recap/balance
@@ -322,42 +324,33 @@ export async function POST(request: NextRequest) {
     // 6. Appliquer les changements proportionnels
     console.log(`🔄 [Balance API] Application des changements proportionnels`)
 
-    // 6.1. Mettre à jour la tirelire si nécessaire
+    // 6.1. Mettre à jour la tirelire si nécessaire (atomique via RPC)
     if (totalUsedFromPiggyBank > 0) {
       const newPiggyBankAmount = piggyBankAmount - totalUsedFromPiggyBank
 
-      const { error: piggyBankUpdateError } = await supabaseServer
-        .from('piggy_bank')
-        .update({
-          amount: newPiggyBankAmount,
-          last_updated: new Date().toISOString()
-        })
-        .eq(ownerField, contextId)
-
-      if (piggyBankUpdateError) {
-        throw new Error(`Erreur mise à jour tirelire: ${piggyBankUpdateError.message}`)
+      try {
+        const filter = ownerField === 'profile_id'
+          ? { profile_id: contextId }
+          : { group_id: contextId }
+        await updatePiggyBank(filter, -totalUsedFromPiggyBank)
+      } catch (piggyBankUpdateError) {
+        throw new Error(`Erreur mise à jour tirelire: ${piggyBankUpdateError instanceof Error ? piggyBankUpdateError.message : String(piggyBankUpdateError)}`)
       }
 
       console.log(`✅ Tirelire mise à jour: ${piggyBankAmount}€ → ${newPiggyBankAmount.toFixed(2)}€`)
     }
 
-    // 6.2. Mettre à jour les budgets
+    // 6.2. Mettre à jour les budgets (atomique via RPC)
     for (const change of changes) {
       if (change.type === 'savings') {
         // Réduire les économies proportionnellement
         const originalBudget = budgetsWithSavings.find(b => b.id === change.budget_id)!
         const newSavings = originalBudget.savings - change.amount_used
 
-        const { error: savingsError } = await supabaseServer
-          .from('estimated_budgets')
-          .update({
-            cumulated_savings: newSavings,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', change.budget_id)
-
-        if (savingsError) {
-          throw new Error(`Erreur mise à jour économies ${change.budget_name}: ${savingsError.message}`)
+        try {
+          await updateBudgetCumulatedSavings(change.budget_id!, -change.amount_used)
+        } catch (savingsError) {
+          throw new Error(`Erreur mise à jour économies ${change.budget_name}: ${savingsError instanceof Error ? savingsError.message : String(savingsError)}`)
         }
 
         console.log(`✅ Économies réduites pour ${change.budget_name}: ${originalBudget.savings}€ → ${newSavings.toFixed(2)}€`)

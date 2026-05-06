@@ -1,4 +1,7 @@
 import { supabaseServer } from '@/lib/supabase-server'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 
 export interface AllocationBreakdown {
   fromPiggyBank: number
@@ -67,44 +70,21 @@ export async function reverseAllocation(
   const piggyToRestore = oldExpense.amount_from_piggy_bank || 0
   const savingsToRestore = oldExpense.amount_from_budget_savings || 0
 
-  // Restaurer la tirelire
+  // Restaurer la tirelire (atomique via RPC update_piggy_bank_amount)
   if (piggyToRestore > 0) {
-    const { data: piggyData } = await supabaseServer
-      .from('piggy_bank')
-      .select('amount')
-      .match(contextFilter)
-      .maybeSingle()
-
-    const currentPiggy = piggyData?.amount || 0
-    const { error } = await supabaseServer
-      .from('piggy_bank')
-      .update({ amount: currentPiggy + piggyToRestore })
-      .match(contextFilter)
-
-    if (error) {
+    try {
+      await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, piggyToRestore)
+    } catch (error) {
       console.error('Erreur restauration tirelire:', error)
       throw new Error('Erreur lors de la restauration de la tirelire')
     }
   }
 
-  // Restaurer les economies du budget
+  // Restaurer les economies du budget (atomique via RPC update_budget_cumulated_savings)
   if (savingsToRestore > 0 && oldExpense.estimated_budget_id) {
-    const { data: budgetData } = await supabaseServer
-      .from('estimated_budgets')
-      .select('cumulated_savings')
-      .eq('id', oldExpense.estimated_budget_id)
-      .single()
-
-    const currentSavings = budgetData?.cumulated_savings || 0
-    const { error } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: currentSavings + savingsToRestore,
-        last_savings_update: new Date().toISOString()
-      })
-      .eq('id', oldExpense.estimated_budget_id)
-
-    if (error) {
+    try {
+      await updateBudgetCumulatedSavings(oldExpense.estimated_budget_id, savingsToRestore)
+    } catch (error) {
       console.error('Erreur restauration economies:', error)
       throw new Error('Erreur lors de la restauration des economies')
     }
@@ -160,30 +140,21 @@ export async function applyAllocation(
   const savingsAfter = savingsBefore - breakdown.fromBudgetSavings
   const budgetSpentAfter = budgetSpentBefore + breakdown.fromBudget
 
-  // Mettre a jour la tirelire
+  // Mettre a jour la tirelire (atomique via RPC update_piggy_bank_amount)
   if (breakdown.fromPiggyBank > 0 && piggyData) {
-    const { error } = await supabaseServer
-      .from('piggy_bank')
-      .update({ amount: piggyBankAfter })
-      .match(contextFilter)
-
-    if (error) {
+    try {
+      await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, -breakdown.fromPiggyBank)
+    } catch (error) {
       console.error('Erreur mise a jour tirelire:', error)
       throw new Error('Erreur lors de la mise a jour de la tirelire')
     }
   }
 
-  // Mettre a jour les economies du budget
+  // Mettre a jour les economies du budget (atomique via RPC update_budget_cumulated_savings)
   if (breakdown.fromBudgetSavings > 0) {
-    const { error } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: savingsAfter,
-        last_savings_update: new Date().toISOString()
-      })
-      .eq('id', budgetId)
-
-    if (error) {
+    try {
+      await updateBudgetCumulatedSavings(budgetId, -breakdown.fromBudgetSavings)
+    } catch (error) {
       console.error('Erreur mise a jour economies:', error)
       throw new Error('Erreur lors de la mise a jour des economies')
     }

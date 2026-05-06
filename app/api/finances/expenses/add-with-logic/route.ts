@@ -3,6 +3,9 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { calculateBreakdown } from '@/lib/expense-allocation'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 
 export interface AddExpenseWithLogicRequest {
   amount: number
@@ -216,36 +219,24 @@ export async function POST(request: NextRequest) {
     console.log(`   - Budget dépensé: ${budgetSpentAfter}€ / ${budgetData.estimated_amount}€`)
     console.log('')
 
-    // Step 5: Update piggy bank if needed
-    if (fromPiggyBank > 0) {
-      if (piggyBankData) {
-        // Update existing piggy bank
-        const { error: piggyError } = await supabaseServer
-          .from('piggy_bank')
-          .update({ amount: piggyBankAfter })
-          .match(contextFilter)
-
-        if (piggyError) {
-          console.error('❌ Erreur mise à jour tirelire:', piggyError)
-          return NextResponse.json(
-            { error: 'Erreur lors de la mise à jour de la tirelire' },
-            { status: 500 }
-          )
-        }
+    // Step 5: Update piggy bank if needed (atomique via RPC)
+    if (fromPiggyBank > 0 && piggyBankData) {
+      try {
+        await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, -fromPiggyBank)
+      } catch (piggyError) {
+        console.error('❌ Erreur mise à jour tirelire:', piggyError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la mise à jour de la tirelire' },
+          { status: 500 }
+        )
       }
     }
 
-    // Step 6: Update budget savings if needed
+    // Step 6: Update budget savings if needed (atomique via RPC)
     if (fromBudgetSavings > 0) {
-      const { error: savingsError } = await supabaseServer
-        .from('estimated_budgets')
-        .update({
-          cumulated_savings: savingsAfter,
-          last_savings_update: new Date().toISOString()
-        })
-        .eq('id', estimated_budget_id)
-
-      if (savingsError) {
+      try {
+        await updateBudgetCumulatedSavings(estimated_budget_id, -fromBudgetSavings)
+      } catch (savingsError) {
         console.error('❌ Erreur mise à jour savings:', savingsError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour des économies' },
