@@ -1,7 +1,7 @@
 import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
-import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
+import { asContextFilter } from '@/lib/finance/context'
 
 export interface AllocationBreakdown {
   fromPiggyBank: number
@@ -73,7 +73,7 @@ export async function reverseAllocation(
   // Restaurer la tirelire (atomique via RPC update_piggy_bank_amount)
   if (piggyToRestore > 0) {
     try {
-      await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, piggyToRestore)
+      await updatePiggyBank(asContextFilter(contextFilter), piggyToRestore)
     } catch (error) {
       console.error('Erreur restauration tirelire:', error)
       throw new Error('Erreur lors de la restauration de la tirelire')
@@ -143,7 +143,7 @@ export async function applyAllocation(
   // Mettre a jour la tirelire (atomique via RPC update_piggy_bank_amount)
   if (breakdown.fromPiggyBank > 0 && piggyData) {
     try {
-      await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, -breakdown.fromPiggyBank)
+      await updatePiggyBank(asContextFilter(contextFilter), -breakdown.fromPiggyBank)
     } catch (error) {
       console.error('Erreur mise a jour tirelire:', error)
       throw new Error('Erreur lors de la mise a jour de la tirelire')

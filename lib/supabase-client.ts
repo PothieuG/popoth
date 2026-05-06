@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
+// NOTE Sprint DB: not yet using `<Database>` (see comment in supabase-server.ts).
+
 // Singleton instance to prevent multiple client creation
 let supabaseInstance: SupabaseClient | null = null
 

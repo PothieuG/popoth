@@ -182,7 +182,8 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
 
     const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/financial-calculations')
-    let remainingToLiveData: any
+    type FinancialData = Awaited<ReturnType<typeof getProfileFinancialData>>
+    let remainingToLiveData: FinancialData
     try {
       if (forGroup) {
         console.log(`🔍 [DEBUG FINANCES DASHBOARD] Appel getGroupFinancialData pour ${groupId} - ${new Date().toISOString()}`)
@@ -200,7 +201,15 @@ export async function GET(request: NextRequest) {
         operationId: operationId,
         error: error
       })
-      remainingToLiveData = { remainingToLive: 0 }
+      remainingToLiveData = {
+        availableBalance: 0,
+        remainingToLive: 0,
+        totalSavings: 0,
+        totalEstimatedIncome: 0,
+        totalEstimatedBudgets: 0,
+        totalRealIncome: 0,
+        totalRealExpenses: 0,
+      }
     }
     const remainingToLive = remainingToLiveData.remainingToLive
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] *** RÉSULTAT DASHBOARD - RAV: ${remainingToLive}€ ***`)

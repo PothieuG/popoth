@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
+// NOTE Sprint DB: not yet using `<Database>` from lib/database. Wiring the
+// generic surfaced ~105 pre-existing typing errors across debug seed routes
+// (wrong table/column names) and recap routes that exceed this sprint's
+// scope. The generated lib/database.types.ts and the augmented lib/database.ts
+// are kept ready; flip the generic in a follow-up chantier alongside fixing
+// those call sites.
+
 /**
  * Server-side Supabase client with service role key
  * This client bypasses Row Level Security (RLS) and should only be used in API routes

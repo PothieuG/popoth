@@ -94,12 +94,10 @@ export async function POST(request: NextRequest) {
     // RÉCUPÉRATION DES DONNÉES FINANCIÈRES
     // ============================================================================
 
-    let financialData: any
-    if (context === 'profile') {
-      financialData = await getProfileFinancialData(contextId)
-    } else {
-      financialData = await getGroupFinancialData(contextId)
-    }
+    const financialData =
+      context === 'profile'
+        ? await getProfileFinancialData(contextId)
+        : await getGroupFinancialData(contextId)
 
     const ravActuel = financialData.remainingToLive
     const ravBudgetaire = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets

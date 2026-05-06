@@ -10,7 +10,8 @@
     "lint:check": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "db:types": "supabase gen types typescript --linked --schema public"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
