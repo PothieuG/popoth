@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -8,6 +9,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Endpoint de debug pour comparer les données en base avec l'affichage
  */
 export async function GET(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)

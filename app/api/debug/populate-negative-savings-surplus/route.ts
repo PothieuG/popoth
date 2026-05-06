@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -11,6 +12,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * 2. Puis d'utiliser les excédents des budgets précédents
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)

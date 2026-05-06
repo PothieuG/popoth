@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -21,6 +22,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * - Reste à vivre négatif variable
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)
@@ -445,6 +448,8 @@ async function verifyResults(userId: string, testData: any, balanceResult: any) 
  * API GET pour lister les scénarios disponibles
  */
 export async function GET() {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   return NextResponse.json({
     scenarios: [
       {

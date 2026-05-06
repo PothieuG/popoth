@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { blockInProduction } from '@/lib/debug-guard'
 
 /**
  * API POST /api/debug/reset-all
@@ -10,6 +11,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Supprime: budgets, revenus, dépenses, transferts, recaps, tirelire, économies
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {

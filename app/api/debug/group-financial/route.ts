@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { getGroupFinancialData, calculateBudgetSavings } from '@/lib/financial-calculations'
 import { supabaseServer } from '@/lib/supabase-server'
@@ -7,6 +8,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * API de debug pour analyser les calculs financiers de GROUPE étape par étape
  */
 export async function GET(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId

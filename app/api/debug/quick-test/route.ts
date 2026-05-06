@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -9,6 +10,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Affiche toutes les données nécessaires pour comprendre les calculs
  */
 export async function GET(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)
@@ -311,6 +314,8 @@ export async function GET(request: NextRequest) {
  * Test rapide pour l'équilibrage automatique avec un scénario prédéfini
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)

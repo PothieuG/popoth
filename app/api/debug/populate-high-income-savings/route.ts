@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -10,6 +11,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * and manages to save on several categories
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Session validation
     const sessionData = await validateSessionToken(request)

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -10,6 +11,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * accumulés des mois précédents qui peuvent compenser le déficit du reste à vivre
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     // Validation de la session
     const sessionData = await validateSessionToken(request)
