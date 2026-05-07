@@ -400,7 +400,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { for_group = false } = body
 
-    let userId = session.userId
+    const userId = session.userId
     let groupId: string | null = null
 
     if (for_group) {

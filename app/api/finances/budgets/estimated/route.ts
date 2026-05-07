@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let insertData: any = {
+    const insertData: any = {
       name: name.trim(),
       estimated_amount,
       is_monthly_recurring,

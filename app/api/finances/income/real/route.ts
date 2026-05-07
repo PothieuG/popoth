@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let insertData: any = {
+    const insertData: any = {
       amount,
       description: description.trim(),
       entry_date: entry_date || new Date().toISOString().split('T')[0],

@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
     // Économies par budget (toujours 0 en temps réel)
-    let totalSavings = 0
+    const totalSavings = 0
 
     // Calcul final selon battleplan pour GROUPE
     const totalIncomes = totalEstimatedIncome + totalRealIncome + profileContributions

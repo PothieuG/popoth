@@ -623,7 +623,7 @@ export async function POST(request: NextRequest) {
     console.log(`✅ [Auto Balance] Déficit restant: ${remainingDeficit}€`)
 
     // Construire le message en fonction de ce qui a été utilisé
-    let messageParts = []
+    const messageParts = []
     if (totalPiggyBankUsed > 0) messageParts.push(`${totalPiggyBankUsed}€ tirelire`)
     if (totalSavingsUsed > 0) messageParts.push(`${totalSavingsUsed}€ économies`)
     if (totalSurplusUsed > 0) messageParts.push(`${totalSurplusUsed}€ surplus`)
