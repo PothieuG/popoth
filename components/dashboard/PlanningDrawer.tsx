@@ -1,15 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import AddBudgetDialog from './AddBudgetDialog'
-import AddIncomeDialog from './AddIncomeDialog'
-import EditBudgetDialog from './EditBudgetDialog'
-import EditIncomeDialog from './EditIncomeDialog'
 import DropdownMenu from '../ui/DropdownMenu'
-import ConfirmationDialog from '../ui/ConfirmationDialog'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
+
+const AddBudgetDialog = dynamic(() => import('./AddBudgetDialog'), { ssr: false })
+const AddIncomeDialog = dynamic(() => import('./AddIncomeDialog'), { ssr: false })
+const EditBudgetDialog = dynamic(() => import('./EditBudgetDialog'), { ssr: false })
+const EditIncomeDialog = dynamic(() => import('./EditIncomeDialog'), { ssr: false })
+const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
 import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
 import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
