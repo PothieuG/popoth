@@ -106,8 +106,8 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm typecheck` | `tsc --noEmit` strict (BLOQUANT en CI) |
 | `pnpm lint` | ESLint avec `--fix` |
 | `pnpm lint:fix` | Alias de `pnpm lint` (conformité template canonique) |
-| `pnpm lint:check` | ESLint sans modification — **baseline cassé**, 125 erreurs pré-existantes documentées dans [CLAUDE.md §3](./CLAUDE.md#3-commandes), aucun workflow CI ne le lance |
-| `pnpm ci` | Chaîne code-side : `typecheck` + `lint:check` + `test:run` + `build`. Bloque actuellement sur `lint:check` (cf. dette ci-dessus). Utilisable pleinement après le chantier `lint-baseline-cleanup`. |
+| `pnpm lint:check` | ESLint sans modification — **BLOQUANT** depuis Sprint Lint-Baseline-Cleanup, exit 0 attendu (toute nouvelle violation sort la PR rouge via `code-checks.yml`) |
+| `pnpm run ci` | Chaîne code-side : `typecheck` + `lint:check` + `test:run` + `build`. Exit 0 attendu. À invoquer via `pnpm run ci` (le bareword `pnpm ci` invoque le verb npm non implémenté par pnpm). |
 | `pnpm test` | Vitest watch |
 | `pnpm test:run` | Vitest single run (CI) |
 | `pnpm db:types` | Régénère [lib/database.types.ts](./lib/database.types.ts) depuis le schéma prod |
@@ -259,7 +259,7 @@ erDiagram
 | Outil | Rôle |
 |---|---|
 | `pnpm typecheck` | TypeScript strict — bloquant |
-| `pnpm lint:check` | ESLint — non-bloquant aujourd'hui (~144 errors progressives) |
+| `pnpm lint:check` | ESLint — bloquant depuis Sprint Lint-Baseline-Cleanup (exit 0 attendu) |
 | `pnpm test:run` | Vitest unit — toujours vert |
 | `pnpm test:run` (gated) | Tests d'intégration contre Supabase prod, voir Configuration |
 | `pnpm db:check-drift` | Compare prod ↔ baseline SQL — exit 1 si drift |
