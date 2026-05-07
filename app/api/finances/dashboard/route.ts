@@ -321,10 +321,7 @@ export async function GET(request: NextRequest) {
 
       // Income data
       total_estimated_income: totalEstimatedIncome,
-      // total_real_income / total_real_expenses previously fell back to a
-      // financial_snapshots ghost table that never existed in prod, so they
-      // always landed on 0. Aggregate computation is a separate chantier.
-      total_real_income: 0,
+      total_real_income: remainingToLiveData.totalRealIncome,
       estimated_incomes: estimatedIncomes || [],
       recent_income_entries: (recentIncomeEntries || []) as unknown as FinancialDashboardData['recent_income_entries'],
 
@@ -333,7 +330,7 @@ export async function GET(request: NextRequest) {
       estimated_budgets: budgetsWithSpending || [],
 
       // Expense data
-      total_real_expenses: 0,
+      total_real_expenses: remainingToLiveData.totalRealExpenses,
       recent_expenses: (recentExpenses || []) as unknown as FinancialDashboardData['recent_expenses'],
       
       // Monthly summary
