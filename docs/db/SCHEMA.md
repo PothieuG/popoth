@@ -138,6 +138,51 @@ Top tables by query frequency in `app/api/` + `lib/`:
 
 All FK columns on hot tables have at least one supporting index.
 
+## Triggers — what's tracked vs what isn't
+
+[scripts/export-schema.mjs](../../scripts/export-schema.mjs) only exports
+triggers in the `public` schema (filter `tgrelid::regclass::text LIKE 'public.%'`).
+Triggers attached to tables in other schemas — or triggers managed by
+Supabase extensions on `public.*` tables — are **not** captured by the
+baseline and **not** detected by `pnpm db:check-drift`.
+
+Known cross-schema / Supabase-managed triggers (manual list — keep in sync
+when discovered):
+
+- **group_contributions auto-create on profile.group_id update**: when a
+  profile's `group_id` changes from `NULL` to a value, a row is created in
+  `group_contributions` for `(profile_id, group_id)` with default
+  `salary = 0`. Discovered during Sprint Refactor / R6 — the RLS isolation
+  test had to switch from `insert()` to `upsert()` because the unique
+  constraint `group_contributions_unique_profile_group` was already
+  satisfied by a row the trigger had inserted. The trigger function lives
+  in a non-`public` schema (likely Supabase-managed) and is therefore
+  invisible to the baseline. Behavior is reliable — the test passes
+  consistently — but the trigger is not versioned in this repo. If it
+  needs to change, do so via a `CREATE OR REPLACE FUNCTION` migration
+  and document it here.
+- **`update_updated_at_column`**: standard Supabase pattern in `public`;
+  fires `BEFORE UPDATE` on most tables. Captured by `export-schema.mjs`
+  (lives in `public.update_updated_at_column`).
+
+To audit cross-schema triggers ad-hoc:
+
+```sql
+SELECT n.nspname, t.tgname, c.relname, p.proname
+FROM pg_trigger t
+JOIN pg_class c ON c.oid = t.tgrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_proc p ON p.oid = t.tgfoid
+WHERE NOT t.tgisinternal
+ORDER BY n.nspname, c.relname, t.tgname;
+```
+
+Run via Management API (`scripts/apply-sql.mjs` is for writes — use
+`fetch` against the same endpoint with the SELECT for reads). Decision
+during Sprint Hardening / H6: do **not** widen the export filter to
+non-`public` schemas — that would pull in Supabase-managed internals
+(auth, storage, realtime). Document them here instead.
+
 ## Migration timeline
 
 | Timestamp | File | What |
@@ -150,6 +195,9 @@ All FK columns on hot tables have at least one supporting index.
 | 20260508000000 | `_add_piggy_bank_indexes.sql` | Sprint DB / D7 — partial unique indexes |
 | 20260508000001 | `_add_piggy_bank_constraints.sql` | Sprint DB / D8 — amount ≥ 0 + owner XOR |
 | 20260509000000 | `_dedupe_profiles_policies.sql` | Sprint DB / D10 — drop redundant public SELECT policy |
+| 20260510000000 | `_dedupe_indexes_constraints.sql` | Sprint Refactor / R3 — drop dup indexes/FKs/CHECKs + fix budget_transfers NULL hole |
+| 20260510000001 | `_drop_recursive_profiles_policy.sql` | Sprint Refactor / R6 — drop self-referencing profiles SELECT policy (42P17 fix) |
+| 20260511000000 | `_align_bank_balance_overdraft.sql` | Sprint Hardening / H3 — align update_bank_balance overdraft guard with piggy bank |
 
 Re-running [scripts/export-schema.mjs](../../scripts/export-schema.mjs)
 against the linked project regenerates the baseline. The hand-curated
