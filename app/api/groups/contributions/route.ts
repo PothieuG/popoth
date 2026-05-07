@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: GroupContributionData type expects calculated_at: string but
-// row is string | null; profile join is also typed loosely. Tracked as a
-// follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 // Group contribution data types
 export interface GroupContributionData {
@@ -16,11 +10,11 @@ export interface GroupContributionData {
   salary: number
   contribution_amount: number
   contribution_percentage: number
-  calculated_at: string
+  calculated_at: string | null
   profile?: {
     first_name: string
     last_name: string
-  }
+  } | null
 }
 
 export interface GroupContributionsResponse {
@@ -120,7 +114,7 @@ export async function GET(request: NextRequest) {
       contribution_amount: contrib.contribution_amount,
       contribution_percentage: contrib.contribution_percentage,
       calculated_at: contrib.calculated_at,
-      profile: contrib.profiles as any
+      profile: contrib.profiles as { first_name: string; last_name: string } | null
     })) || []
 
     const response: GroupContributionsResponse = {

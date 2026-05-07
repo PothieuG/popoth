@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: SearchableGroup type expects created_at: string but row is
-// string | null. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 export interface SearchableGroup {
   id: string
   name: string
   monthly_budget_estimate: number
-  created_at: string
+  created_at: string | null
   member_count: number
   is_member: boolean
   creator_name: string

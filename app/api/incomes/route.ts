@@ -1,29 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
-
-// Scope-cast: estimated_income shape narrowing diverges from generated row
-// type. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API pour la gestion des revenus estimés
  * - GET: Récupère tous les revenus de l'utilisateur ou du groupe
  * - POST: Crée un nouveau revenu estimé
  */
-
-interface EstimatedIncome {
-  id: string
-  profile_id?: string
-  group_id?: string
-  name: string
-  estimated_amount: number
-  is_monthly_recurring: boolean
-  created_at: string
-  updated_at: string
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -181,7 +165,7 @@ export async function POST(request: NextRequest) {
     // Sauvegarder automatiquement le nouveau reste à vivre
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: context === 'group' ? undefined : userId,
-      groupId: context === 'group' ? profile.group_id : undefined,
+      groupId: context === 'group' ? (profile.group_id ?? undefined) : undefined,
       reason: 'income_created'
     })
 

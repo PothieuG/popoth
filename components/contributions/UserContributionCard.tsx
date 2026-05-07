@@ -169,7 +169,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
           {/* Last Updated */}
           <div className="text-xs text-gray-500 text-center">
-            Dernière mise à jour: {new Date(userContribution.calculated_at).toLocaleString('fr-FR')}
+            Dernière mise à jour: {userContribution.calculated_at ? new Date(userContribution.calculated_at).toLocaleString('fr-FR') : '—'}
           </div>
         </div>
       ) : (

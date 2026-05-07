@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: GroupMember type expects joined_at: string but row is
-// string | null. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 interface RouteParams {
   params: Promise<{
@@ -17,7 +12,7 @@ export interface GroupMember {
   id: string
   first_name: string
   last_name: string
-  joined_at: string
+  joined_at: string | null
 }
 
 /**

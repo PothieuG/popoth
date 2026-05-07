@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: nullable group_id flows into .eq(...). Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 /**
  * GET - Récupère le solde bancaire de l'utilisateur ou du groupe
@@ -114,7 +110,10 @@ export async function POST(request: Request) {
       )
     }
 
-    let groupId = null
+    // Construire la requête selon le contexte
+    let checkQuery, checkCondition, insertData
+    const updateData = { balance, updated_at: new Date().toISOString() }
+
     if (context === 'group') {
       // Récupérer le groupe de l'utilisateur
       const { data: profile } = await supabaseServer
@@ -126,13 +125,7 @@ export async function POST(request: Request) {
       if (!profile?.group_id) {
         return NextResponse.json({ error: 'Utilisateur ne fait pas partie d\'un groupe' }, { status: 400 })
       }
-      groupId = profile.group_id
-    }
-
-    // Construire la requête selon le contexte
-    let checkQuery, updateData, checkCondition, insertData
-
-    if (context === 'group') {
+      const groupId = profile.group_id
       checkQuery = supabaseServer
         .from('bank_balances')
         .select('id')
@@ -140,7 +133,6 @@ export async function POST(request: Request) {
         .single()
 
       checkCondition = { group_id: groupId }
-      updateData = { balance, updated_at: new Date().toISOString() }
       insertData = { group_id: groupId, profile_id: null, balance }
     } else {
       checkQuery = supabaseServer
@@ -150,7 +142,6 @@ export async function POST(request: Request) {
         .single()
 
       checkCondition = { profile_id: sessionData.userId }
-      updateData = { balance, updated_at: new Date().toISOString() }
       insertData = { profile_id: sessionData.userId, group_id: null, balance }
     }
 

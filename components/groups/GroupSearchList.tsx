@@ -108,7 +108,7 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
                   Créé par : <span className="font-medium">{group.creator_name}</span>
                 </p>
                 <p className="text-xs">
-                  Créé le {new Date(group.created_at).toLocaleDateString('fr-FR')}
+                  Créé le {group.created_at ? new Date(group.created_at).toLocaleDateString('fr-FR') : '—'}
                 </p>
               </div>
             </div>
