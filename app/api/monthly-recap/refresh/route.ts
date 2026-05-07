@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: nullable owner ids feeding .eq(...) and numeric recap_year
-// flowing into string params need narrowing. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 /**
  * API GET /api/monthly-recap/refresh
@@ -62,14 +57,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
 
@@ -133,7 +128,7 @@ export async function GET(request: NextRequest) {
       // Calculer le montant dépensé de base pour ce budget (données temps réel)
       const baseSpentAmount = expenses
         .filter(expense => expense.estimated_budget_id === budget.id)
-        .reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+        .reduce((sum, expense) => sum + expense.amount, 0)
 
       // Calculer les ajustements de transfert pour ce budget
       let transferAdjustment = 0
@@ -141,19 +136,19 @@ export async function GET(request: NextRequest) {
       // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
       const outgoingTransfers = transfers
         .filter(transfer => transfer.from_budget_id === budget.id)
-        .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+        .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
       // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
       const incomingTransfers = transfers
         .filter(transfer => transfer.to_budget_id === budget.id)
-        .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+        .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
       transferAdjustment = outgoingTransfers - incomingTransfers
 
       // Montant dépensé final avec ajustements de transfert
       const adjustedSpentAmount = baseSpentAmount + transferAdjustment
 
-      const estimated = parseFloat(budget.estimated_amount)
+      const estimated = budget.estimated_amount
       const difference = estimated - adjustedSpentAmount
 
       console.log(`🔍 [Refresh Debug] Budget "${budget.name}":`)

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 
-// The recovery flow uses a dynamic-table helper (`restoreTable(tableName,
-// data, ...)`) and reads JSON snapshot blobs whose shape is intentionally
-// loose. Scope-cast to untyped to keep the restore logic compiling without a
-// switch over every literal table name.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+// Tables that the recovery flow restores from a snapshot blob. Restoration
+// follows a delete-by-owner + bulk-insert pattern, so each branch picks the
+// matching TablesInsert<...> shape.
+type RestorableTable =
+  | 'estimated_incomes'
+  | 'estimated_budgets'
+  | 'real_income_entries'
+  | 'real_expenses'
+  | 'bank_balances'
+  | 'piggy_bank'
+  | 'budget_transfers'
 
 /**
  * API POST /api/monthly-recap/recover
@@ -73,14 +79,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Récupérer le snapshot approprié
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -134,33 +140,82 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     }
 
-    // Helper: supprimer + réinsérer une table complète
+    // Helper: supprimer + réinsérer une table complète. Switch sur les 7
+    // tables littérales — chaque branche garde le typage <Database> de bout
+    // en bout (delete + insert), aucun cast au client.
     const restoreTable = async (
-      tableName: string,
-      data: any[] | null | undefined,
-      resultKey: string,
-      filterField?: string,
-      filterId?: string
+      tableName: RestorableTable,
+      data: unknown[] | null | undefined,
+      resultKey: string
     ) => {
       if (!data || data.length === 0) return
 
-      const deleteFilter = filterField || ownerField
-      const deleteId = filterId || contextId
+      let deleteError: { message: string } | null = null
+      let insertError: { message: string } | null = null
 
-      const { error: deleteError } = await supabaseServer
-        .from(tableName)
-        .delete()
-        .eq(deleteFilter, deleteId)
+      switch (tableName) {
+        case 'estimated_incomes':
+          ({ error: deleteError } = await supabaseServer
+            .from('estimated_incomes').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('estimated_incomes')
+            .insert(data as TablesInsert<'estimated_incomes'>[]))
+          break
+        case 'estimated_budgets':
+          ({ error: deleteError } = await supabaseServer
+            .from('estimated_budgets').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('estimated_budgets')
+            .insert(data as TablesInsert<'estimated_budgets'>[]))
+          break
+        case 'real_income_entries':
+          ({ error: deleteError } = await supabaseServer
+            .from('real_income_entries').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('real_income_entries')
+            .insert(data as TablesInsert<'real_income_entries'>[]))
+          break
+        case 'real_expenses':
+          ({ error: deleteError } = await supabaseServer
+            .from('real_expenses').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('real_expenses')
+            .insert(data as TablesInsert<'real_expenses'>[]))
+          break
+        case 'bank_balances':
+          ({ error: deleteError } = await supabaseServer
+            .from('bank_balances').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('bank_balances')
+            .insert(data as TablesInsert<'bank_balances'>[]))
+          break
+        case 'piggy_bank':
+          ({ error: deleteError } = await supabaseServer
+            .from('piggy_bank').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('piggy_bank')
+            .insert(data as TablesInsert<'piggy_bank'>[]))
+          break
+        case 'budget_transfers':
+          ({ error: deleteError } = await supabaseServer
+            .from('budget_transfers').delete().eq(ownerField, contextId))
+          if (deleteError) break
+          ({ error: insertError } = await supabaseServer
+            .from('budget_transfers')
+            .insert(data as TablesInsert<'budget_transfers'>[]))
+          break
+      }
 
       if (deleteError) {
         recoveryResults.errors.push(`Erreur suppression ${tableName}: ${deleteError.message}`)
         return
       }
-
-      const { error: insertError } = await supabaseServer
-        .from(tableName)
-        .insert(data)
-
       if (insertError) {
         recoveryResults.errors.push(`Erreur restauration ${tableName}: ${insertError.message}`)
       } else {
@@ -327,14 +382,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Récupérer tous les snapshots disponibles
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -365,13 +420,13 @@ export async function GET(request: NextRequest) {
       month_name: monthNames[snapshot.snapshot_month - 1],
       created_at: snapshot.created_at,
       is_active: snapshot.is_active,
-      formatted_date: new Date(snapshot.created_at).toLocaleDateString('fr-FR', {
+      formatted_date: snapshot.created_at ? new Date(snapshot.created_at).toLocaleDateString('fr-FR', {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
-      })
+      }) : '—'
     })) || []
 
     return NextResponse.json({

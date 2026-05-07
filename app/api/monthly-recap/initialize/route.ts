@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
-
-// Scope-cast: nullable owner ids and snapshot payload writes. Tracked as a
-// follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/monthly-recap/initialize
@@ -172,8 +167,8 @@ export async function POST(request: NextRequest) {
       for (const budget of budgets) {
         // Calculer le montant dépensé de base pour ce budget
         const baseSpentAmount = expenses
-          .filter((expense: any) => expense.estimated_budget_id === budget.id)
-          .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
+          .filter((expense) => expense.estimated_budget_id === budget.id)
+          .reduce((sum, expense) => sum + expense.amount, 0)
 
         // Calculer les ajustements de transfert pour ce budget
         let transferAdjustment = 0
@@ -181,19 +176,19 @@ export async function POST(request: NextRequest) {
         // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
         const outgoingTransfers = transfers
           .filter(transfer => transfer.from_budget_id === budget.id)
-          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+          .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
         const incomingTransfers = transfers
           .filter(transfer => transfer.to_budget_id === budget.id)
-          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+          .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         transferAdjustment = outgoingTransfers - incomingTransfers
 
         // Montant dépensé final avec ajustements de transfert
         const adjustedSpentAmount = baseSpentAmount + transferAdjustment
 
-        const estimated = parseFloat(budget.estimated_amount)
+        const estimated = budget.estimated_amount
         const difference = estimated - adjustedSpentAmount
 
         console.log(`🔍 [Initialize Debug] Budget "${budget.name}":`)

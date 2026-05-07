@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
-
-// Scope-cast: complex auto-balance flow with nullable owner ids and dynamic
-// payload shapes. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/monthly-recap/auto-balance
@@ -118,14 +113,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Récupérer tous les budgets du contexte
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'

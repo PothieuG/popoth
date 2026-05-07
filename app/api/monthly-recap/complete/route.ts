@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast to untyped: this route consumes nullable owner ids and writes
-// dynamic shapes that need narrowing across the whole flow. Tracked as a
-// follow-up to the <Database> wire-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 
 declare global {
   // eslint-disable-next-line no-var
@@ -16,7 +11,7 @@ declare global {
   // eslint-disable-next-line no-var
   var postTransferBudgetDeficit: number | undefined
   // eslint-disable-next-line no-var
-  var exceptionalExpenseToInsert: Record<string, unknown> | undefined
+  var exceptionalExpenseToInsert: TablesInsert<'real_expenses'> | undefined
 }
 
 /**
@@ -113,14 +108,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Récupérer les données financières en temps réel
     const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/financial-calculations')
@@ -409,20 +404,15 @@ export async function POST(request: NextRequest) {
             console.log(`📝 [RAV Difference Processing] Création d'une dépense exceptionnelle de ${exceptionalExpenseAmount}€ pour le mois prochain`)
 
             // Créer une dépense exceptionnelle (sera insérée après le reset des dépenses)
-            const exceptionalExpense: Record<string, unknown> = {
+            const exceptionalExpense: TablesInsert<'real_expenses'> = {
               amount: exceptionalExpenseAmount,
               description: `Écart de reste à vivre reporté du récap ${currentMonth}/${currentYear}`,
-              expense_date: currentDate.toISOString().split('T')[0],
+              expense_date: currentDate.toISOString().split('T')[0]!,
               is_exceptional: true,
               estimated_budget_id: null, // Pas de lien avec un budget
-              created_at: new Date().toISOString()
-            }
-
-            // Ajouter les champs de propriétaire
-            if (context === 'profile') {
-              exceptionalExpense.profile_id = contextId
-            } else {
-              exceptionalExpense.group_id = contextId
+              created_at: new Date().toISOString(),
+              profile_id: context === 'profile' ? contextId : null,
+              group_id: context === 'group' ? contextId : null,
             }
 
             // Stocker dans un tableau séparé pour insertion après reset

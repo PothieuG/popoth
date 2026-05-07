@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: nullable owner ids feeding .eq(...) and numeric recap_year
-// flowing into string params need narrowing. Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 /**
  * API POST /api/monthly-recap/transfer
@@ -104,14 +99,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const contextId = context === 'profile' ? profile.id : profile.group_id
-
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
         { error: 'Utilisateur ne fait partie d\'aucun groupe' },
         { status: 400 }
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Vérifier que les deux budgets appartiennent au bon propriétaire
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -160,8 +155,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculer les montants dépensés réels
-    const fromSpentAmount = (fromExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
-    const toSpentAmount = (toExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+    const fromSpentAmount = (fromExpenses || []).reduce((sum, expense) => sum + expense.amount, 0)
+    const toSpentAmount = (toExpenses || []).reduce((sum, expense) => sum + expense.amount, 0)
 
     // Calculer le surplus disponible du budget source
     const fromBudgetSurplus = Math.max(0, fromBudget.estimated_amount - fromSpentAmount)
