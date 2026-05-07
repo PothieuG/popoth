@@ -1,74 +1,160 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { signInWithPassword, signUp, signOut, getCurrentUser, refreshSession, isAuthenticated, type AuthUser } from '@/lib/auth'
 import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
 
-// Auth context interface
-interface AuthContextType {
+interface AuthUserValue {
   user: AuthUser | null
   loading: boolean
   error: string | null
+  isLoggedIn: boolean
+}
+
+interface AuthActionsValue {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>
   logout: () => Promise<void>
   clearError: () => void
   refreshUserSession: () => Promise<void>
-  isLoggedIn: boolean
 }
 
-// Create the context
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+const AuthUserContext = createContext<AuthUserValue | undefined>(undefined)
+const AuthActionsContext = createContext<AuthActionsValue | undefined>(undefined)
 
-// Custom hook to use the auth context
-export function useAuth() {
-  const context = useContext(AuthContext)
+export function useAuthUser(): AuthUserValue {
+  const context = useContext(AuthUserContext)
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error('useAuthUser must be used within an AuthProvider')
   }
   return context
 }
 
-// Auth provider component props
+export function useAuthActions(): AuthActionsValue {
+  const context = useContext(AuthActionsContext)
+  if (context === undefined) {
+    throw new Error('useAuthActions must be used within an AuthProvider')
+  }
+  return context
+}
+
+/**
+ * Backwards-compatible aggregator hook. Subscribes to BOTH contexts, so
+ * callers re-render on any change. New code should prefer `useAuthUser()`
+ * or `useAuthActions()` directly to opt into finer-grained subscription.
+ */
+export function useAuth(): AuthUserValue & AuthActionsValue {
+  return { ...useAuthUser(), ...useAuthActions() }
+}
+
 interface AuthProviderProps {
   children: React.ReactNode
 }
 
-/**
- * AuthProvider component that manages global authentication state
- * Provides authentication methods and user state to the entire app
- * Handles automatic token refresh and session management
- */
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null)
-  const [checkInterval, setCheckInterval] = useState<NodeJS.Timeout | null>(null)
 
-  /**
-   * Initializes auth state by checking for existing session
-   * Called on component mount and after authentication changes
-   */
-  const initializeAuth = async () => {
+  // Refs avoid setState churn on every interval (start|stop) and let
+  // handlers read the latest user without listing it as a useCallback dep.
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const checkIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const userRef = useRef<AuthUser | null>(null)
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  const stopTokenRefresh = useCallback(() => {
+    if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current)
+      refreshIntervalRef.current = null
+    }
+  }, [])
+
+  const stopAuthCheck = useCallback(() => {
+    if (checkIntervalRef.current) {
+      clearInterval(checkIntervalRef.current)
+      checkIntervalRef.current = null
+    }
+  }, [])
+
+  const handleLogout = useCallback(async () => {
+    try {
+      stopTokenRefresh()
+      stopAuthCheck()
+      await signOut()
+      setUser(null)
+      setError(null)
+      if (typeof window !== 'undefined') {
+        window.location.href = '/connexion'
+      }
+    } catch (err) {
+      console.error('Logout error:', err)
+      stopTokenRefresh()
+      stopAuthCheck()
+      setUser(null)
+      if (typeof window !== 'undefined') {
+        window.location.href = '/connexion'
+      }
+    }
+  }, [stopTokenRefresh, stopAuthCheck])
+
+  const startTokenRefresh = useCallback(() => {
+    stopTokenRefresh()
+    const interval = setInterval(async () => {
+      try {
+        const result = await refreshSession()
+        if (!result.success) {
+          await handleLogout()
+        }
+      } catch (err) {
+        console.error('Auto refresh error:', err)
+        await handleLogout()
+      }
+    }, SESSION_REFRESH_INTERVAL_MS)
+    refreshIntervalRef.current = interval
+  }, [stopTokenRefresh, handleLogout])
+
+  const startAuthCheck = useCallback(() => {
+    stopAuthCheck()
+    const interval = setInterval(async () => {
+      try {
+        if (userRef.current) {
+          const authenticated = await isAuthenticated()
+          if (!authenticated) {
+            await handleLogout()
+          }
+        }
+      } catch (err) {
+        if (!(err instanceof Error) || !err.message.includes('401')) {
+          console.error('Auth check error:', err)
+        }
+        if (userRef.current) {
+          await handleLogout()
+        }
+      }
+    }, AUTH_CHECK_INTERVAL_MS)
+    checkIntervalRef.current = interval
+  }, [stopAuthCheck, handleLogout])
+
+  const initializeAuth = useCallback(async () => {
     try {
       setLoading(true)
-      
-      // Check if there's a session cookie first (client-side check)
-      const hasSession = typeof document !== 'undefined' && 
+
+      const hasSession = typeof document !== 'undefined' &&
         document.cookie.includes('session=')
-      
+
       if (!hasSession) {
-        // No session cookie, skip API call
         setUser(null)
         stopTokenRefresh()
         stopAuthCheck()
         return
       }
-      
-      // Only make API call if there's potentially a session
+
       const currentUser = await getCurrentUser()
-      
+
       if (currentUser) {
         setUser(currentUser)
         startTokenRefresh()
@@ -78,10 +164,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         stopTokenRefresh()
         stopAuthCheck()
       }
-    } catch (error) {
-      // Don't log 401 errors as they're expected for non-authenticated users
-      if (error instanceof Error && !error.message.includes('401')) {
-        console.error('Auth initialization error:', error)
+    } catch (err) {
+      if (err instanceof Error && !err.message.includes('401')) {
+        console.error('Auth initialization error:', err)
         setError('Erreur d\'initialisation de l\'authentification')
       }
       setUser(null)
@@ -90,93 +175,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [stopTokenRefresh, stopAuthCheck, startTokenRefresh, startAuthCheck])
 
-  /**
-   * Starts automatic token refresh every 50 minutes (10 minutes before expiry)
-   * Prevents session timeout by refreshing tokens in the background
-   */
-  const startTokenRefresh = () => {
-    stopTokenRefresh() // Clear any existing interval
-    
-    const interval = setInterval(async () => {
-      try {
-        const result = await refreshSession()
-        if (!result.success) {
-          await handleLogout()
-        }
-      } catch (error) {
-        console.error('Auto refresh error:', error)
-        await handleLogout()
-      }
-    }, SESSION_REFRESH_INTERVAL_MS)
-    
-    setRefreshInterval(interval)
-  }
-
-  /**
-   * Stops automatic token refresh
-   * Called on logout or authentication failure
-   */
-  const stopTokenRefresh = () => {
-    if (refreshInterval) {
-      clearInterval(refreshInterval)
-      setRefreshInterval(null)
-    }
-  }
-
-  /**
-   * Starts periodic authentication checks
-   * Verifies that the user is still authenticated every 5 minutes
-   * Only runs when user is logged in to avoid unnecessary API calls
-   */
-  const startAuthCheck = () => {
-    stopAuthCheck() // Clear any existing interval
-    
-    const interval = setInterval(async () => {
-      try {
-        // Only check if user is currently set (logged in)
-        if (user) {
-          const authenticated = await isAuthenticated()
-          if (!authenticated) {
-            await handleLogout()
-          }
-        }
-      } catch (error) {
-        // Only log non-401 errors
-        if (!(error instanceof Error) || !error.message.includes('401')) {
-          console.error('Auth check error:', error)
-        }
-        if (user) {
-          await handleLogout()
-        }
-      }
-    }, AUTH_CHECK_INTERVAL_MS)
-    
-    setCheckInterval(interval)
-  }
-
-  /**
-   * Stops periodic authentication checks
-   */
-  const stopAuthCheck = () => {
-    if (checkInterval) {
-      clearInterval(checkInterval)
-      setCheckInterval(null)
-    }
-  }
-
-  /**
-   * Handles user login with email and password
-   * Sets user state and starts token refresh on success
-   */
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const result = await signInWithPassword(email, password)
-      
+
       if (result.success && result.user) {
         setUser(result.user)
         startTokenRefresh()
@@ -193,19 +200,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [startTokenRefresh, startAuthCheck])
 
-  /**
-   * Handles user registration with email and password
-   * Does not automatically log in user (requires email confirmation)
-   */
-  const register = async (email: string, password: string) => {
+  const register = useCallback(async (email: string, password: string) => {
     try {
       setLoading(true)
       setError(null)
-      
+
       const result = await signUp(email, password)
-      
+
       if (result.success) {
         return { success: true }
       } else {
@@ -219,49 +222,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  /**
-   * Handles user logout
-   * Clears user state and stops token refresh
-   */
-  const handleLogout = async () => {
-    try {
-      stopTokenRefresh()
-      stopAuthCheck()
-      await signOut()
-      setUser(null)
-      setError(null)
-      
-      // Force page reload to ensure all client state is cleared
-      if (typeof window !== 'undefined') {
-        window.location.href = '/connexion'
-      }
-    } catch (error) {
-      console.error('Logout error:', error)
-      // Still clear local state even if logout fails
-      stopTokenRefresh()
-      stopAuthCheck()
-      setUser(null)
-      
-      // Force page reload even on error
-      if (typeof window !== 'undefined') {
-        window.location.href = '/connexion'
-      }
-    }
-  }
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true)
     await handleLogout()
-    // No need to setLoading(false) since we're redirecting
-  }
+  }, [handleLogout])
 
-  /**
-   * Manually refreshes the user session
-   * Can be called to extend session before automatic refresh
-   */
-  const refreshUserSession = async () => {
+  const refreshUserSession = useCallback(async () => {
     try {
       const result = await refreshSession()
       if (result.success && result.user) {
@@ -269,46 +237,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } else {
         await handleLogout()
       }
-    } catch (error) {
-      console.error('Manual refresh error:', error)
+    } catch (err) {
+      console.error('Manual refresh error:', err)
       await handleLogout()
     }
-  }
+  }, [handleLogout])
 
-  /**
-   * Clears any current error state
-   * Useful for dismissing error messages
-   */
-  const clearError = () => {
+  const clearError = useCallback(() => {
     setError(null)
-  }
+  }, [])
 
-  // Initialize auth on component mount
   useEffect(() => {
     initializeAuth()
-
-    // Cleanup on unmount
     return () => {
       stopTokenRefresh()
       stopAuthCheck()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only effect; init/cleanup helpers are recreated each render but we want exactly one initializeAuth call per provider instance
-  }, [])
+  }, [initializeAuth, stopTokenRefresh, stopAuthCheck])
 
-  // Check if user is logged in
   const isLoggedIn = user !== null
 
-  const value: AuthContextType = {
+  const userValue: AuthUserValue = {
     user,
     loading,
     error,
+    isLoggedIn,
+  }
+
+  const actionsValue: AuthActionsValue = {
     login,
     register,
     logout,
     clearError,
     refreshUserSession,
-    isLoggedIn,
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthUserContext.Provider value={userValue}>
+      <AuthActionsContext.Provider value={actionsValue}>
+        {children}
+      </AuthActionsContext.Provider>
+    </AuthUserContext.Provider>
+  )
 }
