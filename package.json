@@ -13,7 +13,8 @@
     "test:run": "vitest run",
     "db:types": "supabase gen types typescript --linked --schema public",
     "db:check-drift": "node scripts/check-drift.mjs",
-    "db:check-rpcs": "node scripts/check-rpcs.mjs"
+    "db:check-rpcs": "node scripts/check-rpcs.mjs",
+    "db:check-functions": "node scripts/check-trigger-functions.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
