@@ -7,8 +7,9 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 
 // God file per CLAUDE.md (chantier I4 — do not refactor). Scope-cast to
-// untyped: RemainingToLiveSnapshot type expects profileId: string | undefined
-// but row is string | null. Tracked as a follow-up.
+// untyped: legacy local shapes diverge from generated row types
+// (e.g. profileId: string | undefined vs row string | null). Tracked as a
+// follow-up.
 const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 // ============================================
@@ -34,21 +35,6 @@ export interface BudgetSavings {
   estimatedAmount: number
   spentThisMonth: number
   savings: number              // MAX(0, estimatedAmount - spentThisMonth)
-}
-
-export interface RemainingToLiveSnapshot {
-  id: string
-  profileId?: string
-  groupId?: string
-  remainingToLive: number
-  availableBalance: number
-  totalSavings: number
-  totalEstimatedIncome: number
-  totalEstimatedBudgets: number
-  totalRealIncome: number
-  totalRealExpenses: number
-  snapshotReason: string
-  createdAt: string
 }
 
 // ============================================
@@ -992,84 +978,3 @@ export async function saveRemainingToLiveSnapshot(
   return false
 }
 
-/**
- * Récupère l'historique des snapshots pour un profile
- */
-export async function getRemainingToLiveHistory(
-  profileId: string,
-  limit: number = 50
-): Promise<RemainingToLiveSnapshot[]> {
-  try {
-    const { data, error } = await supabaseServer
-      .from('remaining_to_live_snapshots')
-      .select('*')
-      .eq('profile_id', profileId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      console.error('❌ Erreur lors de la récupération de l\'historique:', error)
-      return []
-    }
-
-    return data?.map(snapshot => ({
-      id: snapshot.id,
-      profileId: snapshot.profile_id,
-      groupId: snapshot.group_id,
-      remainingToLive: snapshot.remaining_to_live,
-      availableBalance: snapshot.available_balance,
-      totalSavings: snapshot.total_savings,
-      totalEstimatedIncome: snapshot.total_estimated_income,
-      totalEstimatedBudgets: snapshot.total_estimated_budgets,
-      totalRealIncome: snapshot.total_real_income,
-      totalRealExpenses: snapshot.total_real_expenses,
-      snapshotReason: snapshot.snapshot_reason,
-      createdAt: snapshot.created_at
-    })) || []
-
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération de l\'historique:', error)
-    return []
-  }
-}
-
-/**
- * Récupère l'historique des snapshots pour un groupe
- */
-export async function getGroupRemainingToLiveHistory(
-  groupId: string,
-  limit: number = 50
-): Promise<RemainingToLiveSnapshot[]> {
-  try {
-    const { data, error } = await supabaseServer
-      .from('remaining_to_live_snapshots')
-      .select('*')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      console.error('❌ Erreur lors de la récupération de l\'historique groupe:', error)
-      return []
-    }
-
-    return data?.map(snapshot => ({
-      id: snapshot.id,
-      profileId: snapshot.profile_id,
-      groupId: snapshot.group_id,
-      remainingToLive: snapshot.remaining_to_live,
-      availableBalance: snapshot.available_balance,
-      totalSavings: snapshot.total_savings,
-      totalEstimatedIncome: snapshot.total_estimated_income,
-      totalEstimatedBudgets: snapshot.total_estimated_budgets,
-      totalRealIncome: snapshot.total_real_income,
-      totalRealExpenses: snapshot.total_real_expenses,
-      snapshotReason: snapshot.snapshot_reason,
-      createdAt: snapshot.created_at
-    })) || []
-
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération de l\'historique groupe:', error)
-    return []
-  }
-}
