@@ -2,15 +2,17 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { useRealExpenses } from '@/hooks/useRealExpenses'
-import { useRealIncomes } from '@/hooks/useRealIncomes'
+import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
+import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
 import type { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
+
+type EditableTransaction = RealExpense | RealIncome
 
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
   userProfile?: ProfileData | null
-  onEditTransaction?: (transaction: any, type: 'expense' | 'income') => void
+  onEditTransaction?: (transaction: EditableTransaction, type: 'expense' | 'income') => void
   onTransactionDeleted?: () => void
   className?: string
 }
@@ -94,7 +96,7 @@ export default function TransactionTabsComponent({
   /**
    * Handle edit transaction action
    */
-  const handleEditTransaction = (transaction: any, type: 'expense' | 'income') => {
+  const handleEditTransaction = (transaction: EditableTransaction, type: 'expense' | 'income') => {
     if (onEditTransaction) {
       onEditTransaction(transaction, type)
     }

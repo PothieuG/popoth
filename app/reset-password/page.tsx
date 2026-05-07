@@ -112,13 +112,14 @@ function NouveauMotDePasseContent() {
       // Success - show confirmation message
       setSuccess(true)
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Handle specific catch errors as well
-      if (error?.message?.includes('New password should be different from the old password')) {
+      const message = error instanceof Error ? error.message : ''
+      if (message.includes('New password should be different from the old password')) {
         setError('Le nouveau mot de passe doit être différent de l\'ancien mot de passe.')
-      } else if (error?.message?.includes('session_not_found')) {
+      } else if (message.includes('session_not_found')) {
         setError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
-      } else if (error?.message?.includes('password')) {
+      } else if (message.includes('password')) {
         setError('Le mot de passe ne respecte pas les critères de sécurité')
       } else {
         setError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')

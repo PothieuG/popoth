@@ -93,7 +93,7 @@ export async function createFullDatabaseSnapshot(
 
     // Log les erreurs non-bloquantes
     const warnings: string[] = []
-    const checkError = (name: string, result: { error: any }) => {
+    const checkError = (name: string, result: { error: { message?: string } | null }) => {
       if (result.error) {
         warnings.push(`${name}: ${result.error.message}`)
         console.warn(`⚠️ [Snapshot] Erreur sur ${name}:`, result.error.message)
@@ -198,8 +198,9 @@ export async function createFullDatabaseSnapshot(
     console.log(`📸 [Snapshot] Détail:`, tableCounts)
 
     return { snapshotId: inserted.id, error: null }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('❌ [Snapshot] Erreur inattendue:', err)
-    return { snapshotId: null, error: err.message || 'Erreur inattendue' }
+    const message = err instanceof Error ? err.message : 'Erreur inattendue'
+    return { snapshotId: null, error: message }
   }
 }

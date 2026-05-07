@@ -10,8 +10,8 @@ import DropdownMenu from '../ui/DropdownMenu'
 import ConfirmationDialog from '../ui/ConfirmationDialog'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
-import { useBudgets } from '@/hooks/useBudgets'
-import { useIncomes } from '@/hooks/useIncomes'
+import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
+import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProfile } from '@/hooks/useProfile'
@@ -37,8 +37,8 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   // États pour l'édition
   const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false)
   const [isEditIncomeOpen, setIsEditIncomeOpen] = useState(false)
-  const [editingBudget, setEditingBudget] = useState<any>(null)
-  const [editingIncome, setEditingIncome] = useState<any>(null)
+  const [editingBudget, setEditingBudget] = useState<EstimatedBudget | null>(null)
+  const [editingIncome, setEditingIncome] = useState<EstimatedIncome | null>(null)
 
   // États pour la confirmation de suppression
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -151,7 +151,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   /**
    * Gestion de l'édition d'un budget
    */
-  const handleEditBudget = (budget: any) => {
+  const handleEditBudget = (budget: EstimatedBudget) => {
     // Vérifier si le budget est entamé
     if (isBudgetStarted(budget.id)) {
       handleStartedItemAction(budget, 'budget')
@@ -165,7 +165,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   /**
    * Gestion de l'édition d'un revenu
    */
-  const handleEditIncome = (income: any) => {
+  const handleEditIncome = (income: EstimatedIncome) => {
     // Vérifier si le revenu est entamé
     if (isIncomeStarted(income.id)) {
       handleStartedItemAction(income, 'income')

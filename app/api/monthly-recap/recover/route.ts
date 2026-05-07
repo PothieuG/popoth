@@ -131,7 +131,16 @@ export async function POST(request: NextRequest) {
     console.log(`🔄 [Recovery] Version du snapshot: ${isSnapshotV2(snapshotData) ? 'v2 (complet)' : 'v1 (legacy)'}`)
 
     // Commencer la récupération des données
-    const recoveryResults: Record<string, any> = {
+    const recoveryResults: {
+      estimated_incomes: number
+      estimated_budgets: number
+      real_incomes: number
+      real_expenses: number
+      bank_balance: boolean | number
+      piggy_bank: boolean | number
+      budget_transfers: number
+      errors: string[]
+    } = {
       estimated_incomes: 0,
       estimated_budgets: 0,
       real_incomes: 0,
@@ -145,10 +154,11 @@ export async function POST(request: NextRequest) {
     // Helper: supprimer + réinsérer une table complète. Switch sur les 7
     // tables littérales — chaque branche garde le typage <Database> de bout
     // en bout (delete + insert), aucun cast au client.
+    type CountKey = 'estimated_incomes' | 'estimated_budgets' | 'real_incomes' | 'real_expenses' | 'budget_transfers' | 'bank_balance' | 'piggy_bank'
     const restoreTable = async (
       tableName: RestorableTable,
       data: unknown[] | null | undefined,
-      resultKey: string
+      resultKey: CountKey
     ) => {
       if (!data || data.length === 0) return
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase-client'
 
 /**
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   try {
     // Verify the OTP token with Supabase
     const { data, error } = await supabase.auth.verifyOtp({
-      type: type as any,
+      type: type as EmailOtpType,
       token_hash,
     })
 

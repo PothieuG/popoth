@@ -16,6 +16,10 @@ import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
 import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
+import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealIncome } from '@/hooks/useRealIncomes'
+
+type EditableTransaction = RealExpense | RealIncome
 
 /**
  * Dashboard page - main application page for authenticated users
@@ -30,7 +34,7 @@ export default function DashboardPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
-  const [editingTransaction, setEditingTransaction] = useState<any>(null)
+  const [editingTransaction, setEditingTransaction] = useState<EditableTransaction | null>(null)
   const [editingTransactionType, setEditingTransactionType] = useState<'expense' | 'income'>('expense')
 
   /**
@@ -75,7 +79,7 @@ export default function DashboardPage() {
   /**
    * Gère l'édition d'une transaction
    */
-  const handleEditTransaction = (transaction: any, type: 'expense' | 'income') => {
+  const handleEditTransaction = (transaction: EditableTransaction, type: 'expense' | 'income') => {
     setEditingTransaction(transaction)
     setEditingTransactionType(type)
     setIsEditTransactionModalOpen(true)

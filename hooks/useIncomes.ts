@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
-interface EstimatedIncome {
+export interface EstimatedIncome {
   id: string
   profile_id?: string
   group_id?: string

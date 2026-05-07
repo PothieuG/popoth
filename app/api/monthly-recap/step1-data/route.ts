@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 
 /**
  * API GET /api/monthly-recap/step1-data
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 [DEBUG STEP1] ====================================`)
 
     // 1. Récupérer le reste à vivre actuel DIRECTEMENT depuis les calculs financiers
-    let financialData: any
+    let financialData: FinancialData
     if (context === 'profile') {
       console.log(`🔍 [DEBUG STEP1] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`)
       financialData = await getProfileFinancialData(contextId)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
 
 /**
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     let contextId: string
-    let financialData: any
+    let financialData: FinancialData
 
     if (context === 'profile') {
       contextId = profile.id

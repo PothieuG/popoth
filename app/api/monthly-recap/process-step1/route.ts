@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
@@ -209,7 +209,7 @@ export async function POST(request: NextRequest) {
     const operations: Array<{
       step: string
       type: string
-      details: any
+      details: Record<string, unknown>
     }> = []
 
     if (difference >= 0) {
@@ -275,7 +275,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Récupérer les données finales
-      let finalFinancialData: any
+      let finalFinancialData: FinancialData
       if (context === 'profile') {
         finalFinancialData = await getProfileFinancialData(contextId)
       } else {
@@ -549,7 +549,7 @@ export async function POST(request: NextRequest) {
         console.log(`✅ ÉQUILIBRE ATTEINT`)
 
         // Récupérer les nouvelles données
-        let newFinancialData: any
+        let newFinancialData: FinancialData
         if (context === 'profile') {
           newFinancialData = await getProfileFinancialData(contextId)
         } else {
@@ -687,7 +687,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Récupérer les données finales
-      let finalFinancialData: any
+      let finalFinancialData: FinancialData
       if (context === 'profile') {
         finalFinancialData = await getProfileFinancialData(contextId)
       } else {

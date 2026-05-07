@@ -77,7 +77,7 @@ const SelectTrigger = React.forwardRef<HTMLButtonElement, SelectTriggerProps>(
           <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white py-1 shadow-lg">
             {React.Children.map(children, (child) => {
               if (React.isValidElement(child) && child.type === SelectContent) {
-                return React.cloneElement(child, { onClose: () => setIsOpen(false) } as any)
+                return React.cloneElement(child as React.ReactElement<SelectContentProps>, { onClose: () => setIsOpen(false) })
               }
               return null
             })}
@@ -99,7 +99,7 @@ const SelectContent: React.FC<SelectContentProps> = ({ children, onClose }) => {
     <div className="py-1">
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child) && child.type === SelectItem) {
-          return React.cloneElement(child, { onClose } as any)
+          return React.cloneElement(child as React.ReactElement<SelectItemProps>, { onClose })
         }
         return child
       })}

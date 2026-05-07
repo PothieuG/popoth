@@ -276,7 +276,8 @@ export async function getMonthlyRecapSummary(
 
     // Calculer le reste à vivre avec la logique complète (JAMAIS de simplification)
     const { getProfileFinancialData, getGroupFinancialData } = await import('./financial-calculations')
-    let financialData: any
+    type FinancialData = Awaited<ReturnType<typeof getProfileFinancialData>>
+    let financialData: FinancialData
     if (context === 'profile') {
       financialData = await getProfileFinancialData(contextId)
     } else {

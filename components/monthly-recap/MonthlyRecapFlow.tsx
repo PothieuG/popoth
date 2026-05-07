@@ -109,7 +109,7 @@ export default function MonthlyRecapFlow({
         // Log détaillé des opérations pour debug
         console.log(``)
         console.log(`📋 Détail des opérations:`)
-        processData.operations_performed.forEach((op: any, index: number) => {
+        processData.operations_performed.forEach((op: { step: string; type: string; details: unknown }, index: number) => {
           console.log(`   ${index + 1}. [${op.step}] ${op.type}:`, op.details)
         })
         console.log(``)

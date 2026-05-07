@@ -54,8 +54,8 @@ interface Step2Data {
 interface MonthlyRecapStep2Props {
   context: 'profile' | 'group'
   onNext: () => void
-  onTransfer: (fromBudgetId: string, toBudgetId: string, amount: number) => Promise<any>
-  onAutoBalance: () => Promise<any>
+  onTransfer: (fromBudgetId: string, toBudgetId: string, amount: number) => Promise<unknown>
+  onAutoBalance: () => Promise<unknown>
 }
 
 /**
