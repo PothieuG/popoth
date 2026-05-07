@@ -45,6 +45,7 @@ Tests gated (env var requise pour s'exécuter, sinon `describe.skipIf` skippe) :
 - `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` — couverture RPC concurrence (D9)
 - `SUPABASE_RLS_TESTS=1 pnpm test:run` — isolation cross-user RLS (D4)
 - `SUPABASE_API_TESTS=1 pnpm test:run` — régressions H1/H2/R2 (Sprint Polish T3) sur dashboard aggregates, expenses progress, available cash
+- `SUPABASE_TRIGGER_TESTS=1 pnpm test:run` — comportement des 4 fonctions trigger A2 (Sprint Audit-Functions-v2 / B2) — auto-create contributions sur JOIN, recalc sur UPDATE budget, cleanup sur DELETE group, touch `updated_at`
 
 ## 4. Structure du repo
 
@@ -269,6 +270,7 @@ Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint
 - Pour tester `process.env` : `vi.stubEnv('NODE_ENV', 'production')` + `vi.unstubAllEnvs()` (NODE_ENV est readonly avec les types Next).
 - Tests d'intégration DB (Sprint DB / D9) : `lib/finance/__tests__/rpc-concurrency.test.ts` couvre 4 scénarios — 100×updatePiggyBank, drainage à zéro, transferFromPiggyToBudget, alternance ±1. Gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.
 - Tests régression API (Sprint Polish / T3) : `lib/__tests__/api-regressions.test.ts` couvre 3 bugs surfacés en H1/H2/R2 (cumulated_savings round-trip, total_real_*, availableBalance). Gated `SUPABASE_API_TESTS=1`.
+- Tests comportement trigger (Sprint Audit-Functions-v2 / B2) : [lib/__tests__/trigger-behavior.test.ts](lib/__tests__/trigger-behavior.test.ts) couvre les 4 fonctions trigger custom A2 — `trigger_recalculate_contributions` (auto-create on JOIN), `trigger_group_budget_change` (recalc on UPDATE), `cleanup_group_contributions` (cascade DELETE), `update_updated_at_column` (touch). Gated `SUPABASE_TRIGGER_TESTS=1`. Catches le cas où une `CREATE OR REPLACE FUNCTION ... AS 'BEGIN RETURN NEW; END;'` accidentelle ferait passer `db:check-functions` au vert tout en cassant la chaîne trigger → fonction → INSERT.
 - **Pattern import dynamique pour gated tests** : si un test importe `lib/finance/*` ou `lib/financial-calculations.ts` (qui transitivement charge `lib/supabase-server.ts` créant un client à l'eval du module), faire l'`await import('@/lib/...')` à l'intérieur de `beforeAll` pour que le module ne se charge PAS quand le suite est skipped sans env vars. Pattern visible dans `rpc-concurrency.test.ts` et `api-regressions.test.ts`.
 - **chunked(...)** helper dans `rpc-concurrency.test.ts` : batch les appels parallèles en groupes de 10 pour rester sous le pool undici default per-origin de Node fetch.
 - **Cleanup en cascade obligatoire** dans `afterAll` : tables FK → profiles sans `ON DELETE CASCADE` doivent être nettoyées explicitement avant `auth.admin.deleteUser`. Pattern dans `api-regressions.test.ts:afterAll`. Sans ça, prod accumule des comptes test orphelins.
