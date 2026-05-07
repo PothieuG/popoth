@@ -1,0 +1,14 @@
+# Force LF line endings on all text files, regardless of OS.
+# Prevents Sprint Polish-CI / D2-style bugs (regex `.+$` not consuming `\r`)
+# and eliminates the "LF will be replaced by CRLF" warning on every commit.
+* text=auto eol=lf
+
+# Binary file types
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
