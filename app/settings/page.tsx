@@ -257,7 +257,7 @@ export default function SettingsPage() {
                       Membres : <span className="font-medium">{currentGroup.member_count || 1}</span>
                     </p>
                     <p className="text-xs">
-                      Créé le {new Date(currentGroup.created_at).toLocaleDateString('fr-FR')}
+                      Créé le {currentGroup.created_at ? new Date(currentGroup.created_at).toLocaleDateString('fr-FR') : '—'}
                     </p>
                   </div>
                 </div>
@@ -304,7 +304,7 @@ export default function SettingsPage() {
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <div className="flex justify-between items-center text-xs text-gray-500">
                     <span>Vous êtes le créateur de ce groupe</span>
-                    <span>Dernière mise à jour : {new Date(currentGroup.updated_at).toLocaleDateString('fr-FR')}</span>
+                    <span>Dernière mise à jour : {currentGroup.updated_at ? new Date(currentGroup.updated_at).toLocaleDateString('fr-FR') : '—'}</span>
                   </div>
                 </div>
               )}

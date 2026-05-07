@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { supabaseServer } from '@/lib/supabase-server'
 import { validateSessionToken } from '@/lib/session-server'
-
-// Scope-cast: ProfileData type narrowing diverges from the generated row
-// type (string | null vs string). Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 export interface ProfileData {
   id: string
@@ -15,8 +10,8 @@ export interface ProfileData {
   group_id: string | null
   group_name: string | null
   avatar_url: string | null
-  created_at: string
-  updated_at: string
+  created_at: string | null
+  updated_at: string | null
 }
 
 export interface CreateProfileRequest {

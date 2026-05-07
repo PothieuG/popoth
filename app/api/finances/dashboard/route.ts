@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: aggregates many tables with nullable owner ids. Tracked as a
-// follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 export interface FinancialDashboardData {
   // Main financial indicators
@@ -39,9 +34,9 @@ export interface FinancialDashboardData {
     estimated_amount: number
     spent_this_month: number
     is_monthly_recurring: boolean
-    monthly_surplus?: number
-    carryover_spent_amount?: number
-    carryover_applied_date?: string
+    monthly_surplus?: number | null
+    carryover_spent_amount?: number | null
+    carryover_applied_date?: string | null
   }>
   
   // Expense data
@@ -162,24 +157,11 @@ export async function GET(request: NextRequest) {
       ownerId: forGroup ? groupId : userId
     })
     
-    // Call database functions for main calculations
-    const { data: calculatedData, error: calcError } = await supabaseServer
-      .rpc('calculate_available_cash', {
-        target_profile_id: forGroup ? null : userId,
-        target_group_id: forGroup ? groupId : null
-      })
-    
-    if (calcError) {
-      console.error('❌ Database calculation error', {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        component: '/api/finances/dashboard',
-        operation: 'database_calculation_error',
-        operationId: operationId,
-        error: calcError
-      })
-    }
-    
+    // calculate_available_cash RPC was referenced here but never existed in
+    // prod (absent from pg_proc, error was silently swallowed and the result
+    // was always undefined). availableBalance from getProfileFinancialData /
+    // getGroupFinancialData below is the authoritative source.
+
     // Use consistent calculation functions instead of database function
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] DASHBOARD - RÉCUPÉRATION RAV POUR ${forGroup ? 'GROUP' : 'PROFILE'}:${forGroup ? groupId : userId}`)
@@ -333,7 +315,7 @@ export async function GET(request: NextRequest) {
     // Build dashboard data using database calculations
     const dashboardData: FinancialDashboardData = {
       // Main indicators (from database functions)
-      available_cash: calculatedData || 0,
+      available_cash: remainingToLiveData.availableBalance || 0,
       remaining_to_live: remainingToLive || 0,
       total_savings: totalSavings,
 

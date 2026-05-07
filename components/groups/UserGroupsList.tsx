@@ -77,7 +77,7 @@ export default function UserGroupsList({ groups, isLoading, onDeleteGroup }: Use
                   Membres : <span className="font-medium">{group.member_count || 1}</span>
                 </p>
                 <p className="text-xs">
-                  Créé le {new Date(group.created_at).toLocaleDateString('fr-FR')}
+                  Créé le {group.created_at ? new Date(group.created_at).toLocaleDateString('fr-FR') : '—'}
                 </p>
               </div>
             </div>
@@ -128,7 +128,7 @@ export default function UserGroupsList({ groups, isLoading, onDeleteGroup }: Use
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="flex justify-between items-center text-xs text-gray-500">
                 <span>Vous êtes le créateur de ce groupe</span>
-                <span>Dernière mise à jour : {new Date(group.updated_at).toLocaleDateString('fr-FR')}</span>
+                <span>Dernière mise à jour : {group.updated_at ? new Date(group.updated_at).toLocaleDateString('fr-FR') : '—'}</span>
               </div>
             </div>
           )}

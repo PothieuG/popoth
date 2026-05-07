@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Scope-cast: GroupData / member shapes don't match generated row types
-// (created_at: string | null). Tracked as a follow-up.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import { supabaseServer } from '@/lib/supabase-server'
 
 // Group data types
 export interface GroupData {
@@ -13,8 +8,8 @@ export interface GroupData {
   name: string
   monthly_budget_estimate: number
   creator_id: string
-  created_at: string
-  updated_at: string
+  created_at: string | null
+  updated_at: string | null
   member_count?: number
   is_creator?: boolean
 }
