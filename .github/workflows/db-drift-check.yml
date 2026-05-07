@@ -18,6 +18,12 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # contents:read is needed by actions/checkout. issues:write is needed
+    # by the "Open issue on failure" step (default GITHUB_TOKEN only has
+    # contents:read, which produces a 403 from the issues create endpoint).
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
 

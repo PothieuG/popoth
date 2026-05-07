@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 // Compare the committed lib/database.types.ts against what `supabase gen
-// types typescript --linked --schema public` would produce against prod
-// right now.
+// types typescript --project-id <ref> --schema public` would produce
+// against prod right now.
 //
 // Companion to scripts/check-drift.mjs — that script catches table/column/
 // policy/index drift in the SQL baseline; this one catches the case where
 // the schema changed in prod (via apply-sql.mjs or `supabase db push`)
 // without `pnpm db:types` being run afterwards. Sprint Hygiene-CI / E2.
+//
+// Note: `pnpm db:types` uses `--linked` (relies on a local `supabase link`
+// state file). This detector uses `--project-id` instead so it works in a
+// fresh clone or in CI without needing `supabase link` first. The two
+// flags produce byte-identical output against the same project.
 //
 // Exit 0 -> identical. Exit 1 -> stale; a unified diff is printed to stdout.
 // Exit 2 -> fatal (token missing, spawn error, file read error).
@@ -24,9 +29,19 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const TYPES_PATH = resolve(REPO_ROOT, 'lib/database.types.ts')
 
 const TOKEN = process.env.SUPABASE_ACCESS_TOKEN
+const PROJECT_REF = process.env.SUPABASE_PROJECT_REF ?? 'jzmppreybwabaeycvasz'
 
 if (!TOKEN) {
   console.error('ERROR: set $env:SUPABASE_ACCESS_TOKEN before running.')
+  process.exit(2)
+}
+
+// Supabase project refs are 20 lowercase letters. Validate before splicing
+// into a shell command (shell:true on Windows requires a string command).
+if (!/^[a-z]{20}$/.test(PROJECT_REF)) {
+  console.error(
+    `ERROR: SUPABASE_PROJECT_REF must be 20 lowercase letters, got: ${PROJECT_REF}`
+  )
   process.exit(2)
 }
 
@@ -38,7 +53,7 @@ function unifiedDiff(expected, actual) {
   const actualLines = actual.split('\n')
   const out = []
   out.push('--- lib/database.types.ts (committed)')
-  out.push('+++ supabase gen types --linked (live prod)')
+  out.push('+++ supabase gen types --project-id (live prod)')
 
   const max = Math.max(expectedLines.length, actualLines.length)
   let removed = 0
@@ -62,10 +77,11 @@ function unifiedDiff(expected, actual) {
 
 function genFreshTypes() {
   // shell:true is required on Windows so the `supabase` resolver picks up
-  // the `.cmd` shim that pnpm/npm puts in node_modules/.bin. Args are
-  // hardcoded so there's no injection surface.
+  // the `.cmd` shim that pnpm/npm puts in node_modules/.bin. PROJECT_REF
+  // is validated above to match /^[a-z]{20}$/ so splicing it into the
+  // shell command is safe.
   const result = spawnSync(
-    'supabase gen types typescript --linked --schema public',
+    `supabase gen types typescript --project-id ${PROJECT_REF} --schema public`,
     {
       cwd: REPO_ROOT,
       shell: true,
@@ -105,12 +121,12 @@ function main() {
   const committed = normalize(committedRaw)
 
   if (live === committed) {
-    console.error('OK: lib/database.types.ts matches live `supabase gen types --linked`.')
+    console.error('OK: lib/database.types.ts matches live `supabase gen types --project-id`.')
     process.exitCode = 0
     return
   }
 
-  console.error('STALE: lib/database.types.ts differs from what `supabase gen types --linked` produces now.')
+  console.error('STALE: lib/database.types.ts differs from what `supabase gen types --project-id` produces now.')
   console.error('To resolve: run `pnpm db:types` and commit the regenerated file.')
   console.error('')
   process.stdout.write(unifiedDiff(committed, live) + '\n')
