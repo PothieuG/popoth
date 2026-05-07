@@ -29,7 +29,7 @@ jobs:
 
       # Version is read from package.json#packageManager — explicit `with: version`
       # would conflict (action-setup@v4 errors out when both are set, even on match).
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v4
         with:
