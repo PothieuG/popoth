@@ -1,0 +1,23 @@
+-- Sprint DB / D10 — drop one of the two redundant profiles SELECT policies.
+--
+-- pg_policies showed two own-profile-SELECT policies with identical
+-- predicates differing only in target role:
+--   - "Users can view own profile"  — roles={public},        qual=(auth.uid() = id)
+--   - "Users can read own profile"  — roles={authenticated}, qual=(id = auth.uid())
+--
+-- Anon callers never match auth.uid() = id (auth.uid() is null), so the
+-- public policy adds nothing the authenticated one doesn't already cover.
+-- Drop the public-roled one; keep the authenticated-roled one.
+--
+-- Other observed but intentionally-not-touched cases:
+--   - groups SELECT "Users can view all groups" (qual=true, roles={authenticated}):
+--     kept as-is — used by the in-app group search module.
+--   - profiles has no DELETE policy: kept absent (RLS-strict default = deny).
+--     Profile suppression is handled either via auth.users CASCADE on user
+--     deletion or via service_role one-offs.
+--
+-- Manual revert:
+--   CREATE POLICY "Users can view own profile" ON profiles
+--     FOR SELECT TO public USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
