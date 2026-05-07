@@ -14,8 +14,11 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'scripts/check-*.mjs'
+      - 'scripts/audit-*.mjs'
       - 'scripts/export-schema.mjs'
       - 'scripts/dump-functions.sql'
+      - '.github/workflows/db-drift-pr.yml'
+      - '.github/workflows/db-drift-check.yml'
 
 jobs:
   check:
