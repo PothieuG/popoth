@@ -109,10 +109,11 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql` |
 | `pnpm db:check-rpcs` | Vérifie via `pg_proc` que les 4 RPC C3 existent en prod |
 | `pnpm db:check-functions` | Vérifie via `pg_proc` que les 4 fonctions trigger custom existent (Sprint Audit-Triggers / A3) |
+| `pnpm db:audit-functions` | **Audit générique** : liste TOUTES les `public.*` fonctions de `pg_proc` et vérifie chaque présence dans `supabase/migrations/` (Sprint Audit-Functions-v2 / B1) |
 | `pnpm supabase ...` | CLI Supabase (lié au projet distant) |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management |
 | `node scripts/apply-sql.mjs <file.sql>` | Applique un .sql (write OU SELECT lecture seule) |
-| `node scripts/apply-sql.mjs scripts/dump-functions.sql` | Dump pg_get_functiondef pour les 5 fonctions PL/pgSQL captured (audit ad-hoc) |
+| `node scripts/apply-sql.mjs scripts/dump-functions.sql` | Dump pg_get_functiondef pour les fonctions PL/pgSQL captured (audit ad-hoc) |
 
 **Tests gated** (la suite skip sans la variable, donc CI standard reste rapide) :
 
@@ -120,6 +121,7 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run   # rpc-concurrency.test.ts
 SUPABASE_RLS_TESTS=1            pnpm test:run   # rls-isolation.test.ts
 SUPABASE_API_TESTS=1            pnpm test:run   # api-regressions.test.ts
+SUPABASE_TRIGGER_TESTS=1        pnpm test:run   # trigger-behavior.test.ts (Sprint Audit-Functions-v2 / B2)
 ```
 
 ---
@@ -156,13 +158,19 @@ scripts/                   # outils API Management (sans Docker)
   apply-sql.mjs            # applique un .sql
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
+  check-trigger-functions.mjs # backend de pnpm db:check-functions (4 fonctions custom)
+  audit-functions.mjs      # backend de pnpm db:audit-functions (générique pg_proc ↔ migrations)
+  dump-functions.sql       # dump pg_get_functiondef ad-hoc
   list-triggers.sql        # SELECT pg_trigger pour inventaire
+.github/workflows/
+  db-drift-check.yml       # cron weekly + on-demand (drift / rpcs / functions)
+  db-drift-pr.yml          # PR-time gate sur paths DB-relevant
 supabase/
   config.toml              # CLI config (lié au projet distant)
   migrations/              # baseline + migrations versionnées
 docs/audit/                # audit complet codebase 2026-04
 docs/db/                   # schéma + inventaire triggers
-prompts/                   # prompts Claude Code par chantier
+prompts/                   # prompts Claude Code par chantier (v0..v8)
 CLAUDE.md                  # guide pour sessions Claude Code
 ```
 
@@ -248,13 +256,13 @@ erDiagram
 
 **Pas de mocks DB** dans les tests d'intégration (interdiction explicite — cf. CLAUDE.md §8). Les fixtures créent un `auth.users` réel via `admin.auth.admin.createUser` et nettoient en cascade dans `afterAll`.
 
-CI : `.github/workflows/` contient un cron weekly `pnpm db:check-drift` (Sprint Hardening / H5).
+CI : `.github/workflows/` contient un cron weekly `pnpm db:check-drift` + `db:check-rpcs` + `db:check-functions` (Sprint Hardening / H5, Sprint Audit-Triggers / A4) et un PR-time gate sur les paths DB-relevant (Sprint Audit-Functions-v2 / B3).
 
 ---
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Audit-Triggers (~75/100) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Audit-Functions-v2 (~76/100) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
 - ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
@@ -262,6 +270,7 @@ L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-
 - ✅ RLS activée partout, isolation cross-user testée (Sprint DB / D4).
 - ✅ Drift detection automatisé : `pnpm db:check-drift`, `pnpm db:check-rpcs`, `pnpm db:check-functions`, GH Actions cron weekly + on-demand.
 - ✅ **Triggers et fonctions PL/pgSQL versionnés** (Sprint Audit-Triggers / A1–A4) : les 6 triggers `public.*` sont dans le baseline + les 4 fonctions custom + le canonique `update_updated_at_column` sont capturés dans [`supabase/migrations/20260512000000_capture_trigger_functions.sql`](./supabase/migrations/20260512000000_capture_trigger_functions.sql). `calculate_group_contributions` (5ème fonction non-versionnée découverte en cours) est inclus.
+- ✅ **Audit générique fonctions** (Sprint Audit-Functions-v2 / B1–B3) : `pnpm db:audit-functions` enumère toutes les `public.*` fonctions et confirme leur présence dans `supabase/migrations/`. Au premier run, 4 fonctions legacy supplémentaires ont été surfacées (toutes dead code) et capturées dans [`supabase/migrations/20260513000000_capture_legacy_functions.sql`](./supabase/migrations/20260513000000_capture_legacy_functions.sql). Tests comportement trigger ([`lib/__tests__/trigger-behavior.test.ts`](./lib/__tests__/trigger-behavior.test.ts), gated `SUPABASE_TRIGGER_TESTS=1`) couvrent les 4 fonctions custom (auto-create on JOIN, recalc on UPDATE, cascade DELETE, touch updated_at).
 
 L'historique des sprints sécurité est consigné dans [`CLAUDE.md`](./CLAUDE.md) §7.
 
@@ -283,7 +292,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`POST-MORTEM-C3-DRIFT.md`](./docs/audit/POST-MORTEM-C3-DRIFT.md) — post-mortem du drift `schema_migrations` ↔ `pg_proc`.
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
-- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Audit-Functions-v2 (v7, à exécuter).
+- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Audit-Functions-v2 (v7, livré). [`prompt-00-executive-summary-v8.md`](./prompts/prompt-00-executive-summary-v8.md) (Sprint Cleanup-Legacy + Generic-Audit-v2) est le prochain à exécuter.
 
 ---
 

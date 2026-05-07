@@ -6,7 +6,7 @@
 
 **Popoth** : PWA francophone de gestion financière personnelle et en groupe. Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après Sprint 0, ~58 après Sprint DB, ~62-65 après Sprint Refactor, ~70 après Sprint Hardening, ~73 après Sprint Polish). Carte du schéma post-Sprint Polish dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md) (inclut désormais l'inventaire complet des triggers prod).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après Sprint 0, ~58 après Sprint DB, ~62-65 après Sprint Refactor, ~70 après Sprint Hardening, ~73 après Sprint Polish, ~75 après Sprint Audit-Triggers, ~76 après Sprint Audit-Functions-v2). Carte du schéma à jour dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md) (inclut l'inventaire complet des triggers prod).
 
 ## 2. Stack
 
