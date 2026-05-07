@@ -15,7 +15,6 @@ interface UserContributionCardProps {
  */
 export default function UserContributionCard({ userId, className }: UserContributionCardProps) {
   const {
-    contributions,
     groupInfo,
     isLoading,
     error,

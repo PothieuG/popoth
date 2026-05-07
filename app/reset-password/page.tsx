@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useState, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
@@ -24,7 +24,6 @@ function NouveauMotDePasseContent() {
   const [isValidToken, setIsValidToken] = useState(false)
   
   const router = useRouter()
-  const searchParams = useSearchParams()
 
   /**
    * Validates the reset token from the URL parameters on component mount

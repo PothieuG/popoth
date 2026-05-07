@@ -477,11 +477,6 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
       ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
-    // 5.1. Calculer les dépenses réelles liées aux budgets (pour nouvelles règles)
-    const realExpensesOnBudgets = realExpenses
-      ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
-      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-
     // 5.2. Calculer les revenus exceptionnels (non liés à un revenu estimé)
     const totalExceptionalIncomes = realIncomes
       ?.filter(income => !income.estimated_income_id)
@@ -674,11 +669,6 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     // 6. Calculer les dépenses exceptionnelles
     const exceptionalExpenses = realExpenses
       ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
-      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-
-    // 6.1. Calculer les dépenses réelles liées aux budgets (pour nouvelles règles)
-    const realExpensesOnBudgets = realExpenses
-      ?.filter(expense => !expense.is_exceptional && expense.estimated_budget_id)
       ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
     // 6.2. Calculer les revenus exceptionnels (non liés à un revenu estimé)

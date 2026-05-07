@@ -23,7 +23,7 @@ export default function GroupDashboardPage() {
   const { profile, isLoading } = useProfile()
   const { members, fetchGroupMembers } = useGroupMembers()
   const { financialData, loading: financialLoading, error: financialError, refreshFinancialData } = useFinancialData('group')
-  const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('group')
+  const { balance: bankBalance, updateBankBalance } = useBankBalance('group')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
 

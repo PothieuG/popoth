@@ -24,34 +24,6 @@ function getCookie(name: string): string | null {
 }
 
 /**
- * Sets a cookie with the specified name, value, and options
- * Only works on the client side
- */
-function setCookie(name: string, value: string, options: {
-  maxAge?: number
-  path?: string
-  secure?: boolean
-  sameSite?: 'strict' | 'lax' | 'none'
-} = {}): void {
-  if (typeof document === 'undefined') return
-  
-  const {
-    maxAge = 3600, // 1 hour default
-    path = '/',
-    secure = process.env.NODE_ENV === 'production',
-    sameSite = 'lax'
-  } = options
-  
-  let cookieString = `${name}=${value}; max-age=${maxAge}; path=${path}; samesite=${sameSite}`
-  
-  if (secure) {
-    cookieString += '; secure'
-  }
-  
-  document.cookie = cookieString
-}
-
-/**
  * Deletes a cookie by setting its expiration to the past
  * Only works on the client side
  */

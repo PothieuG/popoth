@@ -49,17 +49,6 @@ export default function TransactionListItem({
   }
 
   /**
-   * Format date to French locale with time
-   */
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-
-  /**
    * Format creation date with time for display
    */
   const formatDateWithTime = (dateString: string): string => {
@@ -69,17 +58,6 @@ export default function TransactionListItem({
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
-
-  /**
-   * Get the date field based on transaction type
-   */
-  const getTransactionDate = (): string => {
-    if (type === 'expense') {
-      return (transaction as RealExpense).expense_date
-    } else {
-      return (transaction as RealIncome).entry_date
-    }
   }
 
   /**

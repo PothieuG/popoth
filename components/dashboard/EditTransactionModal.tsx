@@ -11,9 +11,7 @@ import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
-import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
-import { useProgressData } from '@/hooks/useProgressData'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface EditTransactionModalProps {
@@ -51,7 +49,6 @@ export default function EditTransactionModal({
   // Hooks for managing data
   const { updateExpense, expenses: realExpenses } = useRealExpenses(context)
   const { updateIncome, incomes: realIncomes } = useRealIncomes(context)
-  const { expenseProgress, incomeProgress } = useProgressData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)

@@ -19,7 +19,7 @@ interface ProfileSettingsCardProps {
  * Component for managing user profile settings including personal information and salary
  */
 export default function ProfileSettingsCard({ className }: ProfileSettingsCardProps) {
-  const { profile, isLoading, updateProfile, hasProfile, fetchProfile } = useProfile()
+  const { profile, isLoading, updateProfile, hasProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
   const { contributions, fetchContributions } = useGroupContributions()
   

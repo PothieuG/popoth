@@ -85,16 +85,6 @@ export default function FirstTimeProfileDialog({
     }
   }, [validateForm, onSubmit, firstName, lastName, onError])
 
-  /**
-   * Réinitialise le formulaire
-   */
-  const resetForm = useCallback(() => {
-    setFirstName('')
-    setLastName('')
-    setErrors({})
-    setIsSubmitting(false)
-  }, [])
-
   // Memoized CSS classes to prevent forced reflows
   const firstNameInputClasses = useMemo(() => 
     errors.firstName ? 'border-red-500 focus:ring-red-500' : '', 

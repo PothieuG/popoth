@@ -49,7 +49,7 @@ export default function AddTransactionModal({
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
-  const { expenseProgress, incomeProgress } = useProgressData(context)
+  const { expenseProgress } = useProgressData(context)
   const { financialData } = useFinancialData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)

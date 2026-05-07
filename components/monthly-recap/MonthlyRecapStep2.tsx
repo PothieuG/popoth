@@ -150,7 +150,6 @@ export default function MonthlyRecapStep2({
   const currentTotalSavings = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) : 0
   const currentTotalSurplus = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0) : 0
   const currentTotalDeficit = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0) : 0
-  const generalRatio = currentTotalSurplus - currentTotalDeficit
 
   // Reset modal state when step2Data changes (after successful transfers)
   useEffect(() => {

@@ -3,12 +3,8 @@ import { decrypt } from '@/lib/session'
 
 // Define protected and public routes
 const protectedRoutes = ['/dashboard', '/profile', '/settings', '/group-dashboard']
-const publicRoutes = ['/']
 const authRoutes = ['/connexion', '/inscription', '/forgot-password', '/reset-password', '/auth/confirm', '/auth/auth-code-error']
 const specialRoutes = ['/monthly-recap'] // Routes spéciales qui ont leur propre logique
-
-// Routes that should trigger automatic logout when token expires (all pages)
-const allAppRoutes = [...protectedRoutes, ...publicRoutes, ...authRoutes, ...specialRoutes]
 
 /**
  * Next.js Middleware for token-based authentication
@@ -19,9 +15,8 @@ export default async function middleware(req: NextRequest) {
   // Get the current path
   const path = req.nextUrl.pathname
   
-  // Check if the current route is protected, public, auth-related, or special
+  // Check if the current route is protected, auth-related, or special
   const isProtectedRoute = protectedRoutes.some(route => path.startsWith(route))
-  const isPublicRoute = publicRoutes.some(route => path.startsWith(route))
   const isAuthRoute = authRoutes.some(route => path.startsWith(route))
   const isSpecialRoute = specialRoutes.some(route => path.startsWith(route))
   

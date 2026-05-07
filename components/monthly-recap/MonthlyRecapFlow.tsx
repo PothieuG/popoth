@@ -1,8 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useMonthlyRecap, type RemainingToLiveChoice } from '@/hooks/useMonthlyRecap'
+import { useMonthlyRecap } from '@/hooks/useMonthlyRecap'
 import MonthlyRecapStep1 from './MonthlyRecapStep1'
 import MonthlyRecapStep2 from './MonthlyRecapStep2'
 
@@ -26,9 +25,7 @@ export default function MonthlyRecapFlow({
     transferBetweenBudgets,
     autoBalanceBudgets,
     completeRecap,
-    goToStep,
-    goToNextStep,
-    goToPreviousStep
+    goToNextStep
   } = useMonthlyRecap(context)
 
 

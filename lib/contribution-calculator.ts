@@ -69,7 +69,6 @@ export function calculateUserContribution(
   let suggestions: string[] | undefined
 
   if (!isValid) {
-    const excessAmount = userContribution - userSalary
     errorMessage = `Votre contribution calculée (${formatCurrency(userContribution)}) dépasse votre salaire (${formatCurrency(userSalary)})`
     
     suggestions = [

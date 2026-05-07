@@ -22,13 +22,6 @@ export async function POST(request: NextRequest) {
     const userId = sessionData.userId
     console.log(`🗑️ [RESET ALL] Démarrage reset complet pour userId: ${userId}`)
 
-    // Récupérer le profil pour avoir le group_id si besoin
-    const { data: profile } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
     const results: Record<string, string> = {}
 
     // 1. Supprimer les transferts de budget

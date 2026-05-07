@@ -1,11 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
 import { useFinancialData } from '@/hooks/useFinancialData'
-import { calculateRemainingToLiveProfile, calculateRemainingToLiveGroup } from '@/lib/financial-calculations'
 import { useProgressData } from '@/hooks/useProgressData'
-import { useBudgets } from '@/hooks/useBudgets'
-import { useIncomes } from '@/hooks/useIncomes'
 
 interface RemainingToLivePreviewProps {
   /**
@@ -47,8 +43,6 @@ export default function RemainingToLivePreview({
 }: RemainingToLivePreviewProps) {
   const { financialData, loading } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
-  const { budgets } = useBudgets(context)
-  const { incomes } = useIncomes(context)
 
   /**
    * Calcule le nouveau reste à vivre avec la transaction ajoutée

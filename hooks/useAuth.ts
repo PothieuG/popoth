@@ -49,11 +49,7 @@ export function useAuth() {
    * Shows warning to user before automatic logout
    */
   const checkSessionExpiry = () => {
-    // This would typically check the session timestamp
-    // and warn user if session is expiring in next few minutes
-    const warningThreshold = 5 * 60 * 1000 // 5 minutes before expiry
-    
-    // Implementation would check session.expiresAt - Date.now() < warningThreshold
+    // Implementation would check session.expiresAt - Date.now() < threshold
     // For now, we'll use the loading state as a proxy
     setSessionExpiring(authContext.loading)
   }

@@ -34,8 +34,6 @@ const DialogContent = React.forwardRef<
     hideCloseButton?: boolean
   }
 >(({ className, children, hideCloseButton = false, ...props }, ref) => {
-  const descriptionId = React.useId()
-  
   // Check if children contain DialogDescription
   const hasDescription = React.Children.toArray(children).some(child =>
     React.isValidElement(child) &&

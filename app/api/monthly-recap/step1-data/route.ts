@@ -109,7 +109,7 @@ export async function GET(request: NextRequest) {
 
     // 2. Récupérer le montant de la tirelire depuis la base de données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
-    const { data: piggyBank, error: piggyBankError } = await supabaseServer
+    const { data: piggyBank } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
       .eq(ownerField, contextId)

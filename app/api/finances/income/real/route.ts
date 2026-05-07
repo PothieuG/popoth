@@ -32,7 +32,7 @@ export interface CreateRealIncomeEntryRequest {
  * Retourne les entrées d'argent de l'utilisateur ou de son groupe
  */
 export async function GET(request: NextRequest) {
-  const { operationId, startTime, log } = FinancialLogger.startOperation({
+  const { operationId, log } = FinancialLogger.startOperation({
     component: '/api/finances/income/real',
     operation: 'fetch_real_income_entries'
   })

@@ -185,7 +185,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(result.error || 'Erreur de connexion')
         return { success: false, error: result.error }
       }
-    } catch (error) {
+    } catch {
       const errorMessage = 'Erreur de connexion. Veuillez réessayer.'
       setError(errorMessage)
       return { success: false, error: errorMessage }
@@ -211,7 +211,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setError(result.error || 'Erreur de création de compte')
         return { success: false, error: result.error }
       }
-    } catch (error) {
+    } catch {
       const errorMessage = 'Erreur de création de compte. Veuillez réessayer.'
       setError(errorMessage)
       return { success: false, error: errorMessage }

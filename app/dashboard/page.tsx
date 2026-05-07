@@ -23,10 +23,10 @@ import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComp
  */
 export default function DashboardPage() {
   const { logoutAndRedirect } = useAuth()
-  const { profile, hasProfile, createProfile, updateProfile, isLoading } = useProfile()
+  const { profile, hasProfile, createProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
   const { financialData, loading: financialLoading, error: financialError, context, refreshFinancialData } = useFinancialData()
-  const { balance: bankBalance, updateBankBalance, refreshBankBalance } = useBankBalance('profile')
+  const { balance: bankBalance, updateBankBalance } = useBankBalance('profile')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)

@@ -119,11 +119,6 @@ export default function ExpenseBreakdownPreview({
     return null
   }
 
-  const hasMultipleSources =
-    breakdown.from_piggy_bank > 0 &&
-    (breakdown.from_budget_savings > 0 || breakdown.from_budget > 0) ||
-    breakdown.from_budget_savings > 0 && breakdown.from_budget > 0
-
   return (
     <Card className="p-4 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
       <div className="space-y-3">

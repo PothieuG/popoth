@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import MonthlyRecapFlow from '@/components/monthly-recap/MonthlyRecapFlow'
 
 function MonthlyRecapLoadingFallback() {
@@ -24,7 +24,6 @@ export default function MonthlyRecapPage() {
 }
 
 function MonthlyRecapPageContent() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [context, setContext] = useState<'profile' | 'group'>('profile')
   const [isChecking, setIsChecking] = useState(true)

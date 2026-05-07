@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     // 2. Récupérer la tirelire
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
-    const { data: piggyBank, error: piggyBankError } = await supabaseServer
+    const { data: piggyBank } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
       .eq(ownerField, contextId)
@@ -376,7 +376,6 @@ export async function POST(request: NextRequest) {
     }
 
     const finalRAV = finalFinancialData.remainingToLive
-    const finalAvailableBalance = finalFinancialData.availableBalance
 
     console.log(``)
     console.log(`🔄🔄🔄 ========================================================`)
