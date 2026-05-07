@@ -267,13 +267,15 @@ erDiagram
 
 **Post-modif / fin-de-sprint** : `pnpm verify` enchaîne les 8 checks séquentiels avec `&&` (fail-fast). Si une étape échoue, les suivantes ne sont pas spawnées — utile à la fois pour la rapidité du feedback et pour mitiger le `STATUS_STACK_BUFFER_OVERRUN` Windows observé en chaînant des supabase API calls back-to-back.
 
+**Après merge d'une PR Dependabot** : enchaîner `git pull origin cleanup` → `pnpm install` → `pnpm verify` → `pnpm dev` + 1 `curl /` (les régressions runtime/CSS comme react/react-dom mismatch ou tailwindcss v4 PostCSS plugin missing ne se voient pas au typecheck). Le PR-time gate `code-checks.yml` ne re-tourne PAS sur le merge commit (uniquement sur `pull_request:`) — c'est cette sanity sweep locale qui catche les drifts post-merge. Sprint Stabilize-Deps (v13) ajoutera un push-time gate pour automatiser ça côté CI.
+
 CI : `.github/workflows/` contient (a) un cron weekly DB-side `pnpm db:check-drift` + `db:check-rpcs` + `db:check-functions` + `db:check-types-fresh` (Sprint Hardening / H5, Sprint Audit-Triggers / A4, Sprint Hygiene-CI / E2) ; (b) un PR-time gate DB-side sur les paths `supabase/migrations/**` + `scripts/check-*.mjs` etc. (Sprint Audit-Functions-v2 / B3) ; (c) un **PR-time gate code-side** `pnpm typecheck` + `pnpm test:run` sur `**/*.ts` + configs (Sprint Code-CI / F1). Default branch GitHub : **`cleanup`** depuis Sprint Hygiene-CI / E3 (les workflows ne tournaient pas en mode `schedule` ni `workflow_dispatch` quand `main` était default car aucun fichier workflow n'a jamais été mergé dans `main`). Mises à jour de dépendances : [.github/dependabot.yml](.github/dependabot.yml) ouvre des PRs auto chaque lundi 08:00 Europe/Paris pour npm + github-actions, gated par les workflows ci-dessus (Sprint DX-Verify / G2).
 
 ---
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint DX-Verify (~81/100) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint DX-Verify + follow-up Dependabot wave 2026-05-07 (~81/100, score net inchangé — 6 commits revert pour sortir de 3 cassures embarquées par la wave) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
 - ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
