@@ -6,7 +6,7 @@
 
 **Popoth** : PWA francophone de gestion financière personnelle et en groupe. Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après Sprint 0, ~58 après Sprint DB). Carte du schéma post-Sprint DB dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md).
 
 ## 2. Stack
 
@@ -31,7 +31,14 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dan
 | `pnpm lint` | ESLint avec `--fix` |
 | `pnpm test` | Vitest watch |
 | `pnpm test:run` | Vitest single run (CI) |
+| `pnpm db:types` | Régénère `lib/database.types.ts` depuis le schéma prod (Sprint DB / D6) |
 | `pnpm supabase ...` | Supabase CLI (lié à `jzmppreybwabaeycvasz`) |
+| `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker) |
+| `node scripts/apply-sql.mjs <file.sql>` | Applique un fichier SQL via API Management (drift recovery) |
+
+Tests gated (env var requise pour s'exécuter, sinon `describe.skipIf` skippe) :
+- `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` — couverture RPC concurrence (D9)
+- `SUPABASE_RLS_TESTS=1 pnpm test:run` — isolation cross-user RLS (D4)
 
 ## 4. Structure du repo
 
@@ -48,6 +55,8 @@ hooks/                     # 18 hooks React (useFinancialData, useGroups, usePro
 lib/
   supabase-server.ts       # client serveur (service_role) — BYPASS RLS
   supabase-client.ts       # client browser (anon key) — soumis à RLS
+  database.types.ts        # types Supabase générés (pnpm db:types) — Sprint DB D6
+  database.ts              # augmente Database avec les 4 RPC C3 (service-role-only)
   session.ts               # JWT (jose) pour cookie session
   session-server.ts        # validateSessionToken() — utilisé dans toutes les routes API
   debug-guard.ts           # blockInProduction() pour /api/debug/*
@@ -55,22 +64,38 @@ lib/
   financial-calculations.ts # GOD FILE 1075 LOC — chantier I4, ne pas refactorer
   financial-logger.ts      # logger custom (LogContext)
   finance/                 # ✅ HELPERS RPC ATOMIQUES (Sprint 0 C3)
-    context.ts             # ContextFilter type discriminé { profile_id } | { group_id }
+    context.ts             # ContextFilter type discriminé { profile_id } | { group_id } + asContextFilter()
     piggy-bank.ts          # updatePiggyBank, transferFromPiggyToBudget
     bank-balance.ts        # updateBankBalance
     budget-savings.ts      # updateBudgetCumulatedSavings
+    __tests__/             # Sprint DB
+      rpc-concurrency.test.ts  # gated SUPABASE_RPC_CONCURRENCY_TESTS=1
+      rls-isolation.test.ts    # gated SUPABASE_RLS_TESTS=1
+scripts/                   # Sprint DB outils API Management (sans Docker)
+  export-schema.mjs        # snapshot prod schema → SQL baseline
+  apply-sql.mjs            # applique un .sql via API Management (drift recovery)
 supabase/
   config.toml              # CLI config (lié au projet distant)
-  migrations/              # ⚠️ schéma initial PAS encore versionné (Docker requis pour db pull)
-    20260506000000_create_finance_rpcs.sql  # 4 RPC atomiques C3 — NE PAS MODIFIER
+  migrations/              # ✅ baseline + RLS + perf + dedup (Sprint DB)
+    20260101000000_remote_schema.sql           # baseline hand-curated (D5)
+    20260506000000_create_finance_rpcs.sql     # 4 RPC C3 — NE PAS MODIFIER
+    20260507000000_enable_rls_piggy_bank.sql   # D1
+    20260507000001_fix_group_contributions_policy.sql  # D2
+    20260507000002_fix_remaining_to_live_insert.sql    # D3
+    20260508000000_add_piggy_bank_indexes.sql  # D7
+    20260508000001_add_piggy_bank_constraints.sql  # D8
+    20260509000000_dedupe_profiles_policies.sql    # D10
 docs/audit/                # Audit complet codebase 2026-04
   00-executive-summary.md  # vue d'ensemble + score
   06-action-plan.md        # plan multi-sprint
-  RLS-FINDINGS.md          # ⚠️ 3 failles RLS critiques actives en prod
+  RLS-FINDINGS.md          # snapshot RLS pré-Sprint DB (les 3 failles sont closes)
   07-deep-dive-*.md        # playbooks par chantier
+docs/db/                   # ✅ Sprint DB / D11
+  SCHEMA.md                # carte des tables, RPC, indexes, FK, hot path
 prompts/                   # prompts Claude Code par chantier
   prompt-00-executive-summary.md     # Sprint 0 (livré)
-  prompt-00-executive-summary-v2.md  # Sprint DB (à exécuter)
+  prompt-00-executive-summary-v2.md  # Sprint DB (livré 2026-05-07)
+  prompt-00-executive-summary-v3.md  # Sprint Refactor (à exécuter)
 ```
 
 ## 5. Architecture critique
@@ -133,22 +158,35 @@ prompts/                   # prompts Claude Code par chantier
 - Audit RLS exécuté + documenté (C4).
 - README UTF-8 (C5).
 
-### 🔴 Critique encore actif (cible Sprint DB)
-1. **`piggy_bank` n'a PAS RLS activé** — anon key peut tout lire/écrire via REST API publique.
-2. **`group_contributions`** policy `ALL` ouverte aux authentifiés (`USING auth.uid() IS NOT NULL`).
-3. **`remaining_to_live_snapshots.INSERT`** `WITH CHECK true` avec `roles={public}`.
+### ✅ Fait (Sprint DB — livré 2026-05-07)
+- D1 — RLS activée sur `piggy_bank` + policies owner-or-group-member.
+- D2 — `group_contributions` policy ouverte remplacée par membre-de-groupe.
+- D3 — `remaining_to_live_snapshots.INSERT` restreint à `service_role`.
+- D4 — Tests d'isolation RLS gated (`SUPABASE_RLS_TESTS=1`).
+- D5 — Schéma prod versionné en baseline backdaté (`20260101000000_remote_schema.sql`) via API Management (Docker absent).
+- D6 — `lib/database.types.ts` généré + augmenté dans `lib/database.ts` avec les 4 RPC C3 service-role-only. Wirage `<Database>` aux clients **différé** (Sprint Refactor v3) à cause de ~105 erreurs TS pré-existantes dans les routes `app/api/debug/populate-*`.
+- D7 — `piggy_bank` indexé (2 partial unique indexes par owner).
+- D8 — `piggy_bank` contraint (amount ≥ 0, owner XOR).
+- D9 — Tests concurrence RPC (4/4 verts, 100× parallèles convergent).
+- D10 — Policy SELECT redondante sur `profiles` supprimée.
+- D11 — [docs/db/SCHEMA.md](docs/db/SCHEMA.md) ajouté.
 
-Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) pour SQL de remédiation et [prompts/prompt-00-executive-summary-v2.md](prompts/prompt-00-executive-summary-v2.md) pour le sprint dédié.
+### ⚠️ Drift découvert pendant Sprint DB
+- `supabase_migrations.schema_migrations` listait `20260506000000_create_finance_rpcs.sql` comme appliquée **sans que le SQL ait jamais été exécuté en prod** : les 4 RPC C3 étaient absentes de `pg_proc`. Recouvrement via `node scripts/apply-sql.mjs supabase/migrations/20260506000000_create_finance_rpcs.sql` + `NOTIFY pgrst, 'reload schema'`. Origine du drift inconnue → cible **R0** du Sprint Refactor.
+
+Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB) et [prompts/prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md) (Sprint Refactor — angles morts post-Sprint DB).
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
 ### ✅ À faire
 - Pour toute écriture sur `piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings` : **utiliser obligatoirement** les helpers `lib/finance/*`. Pas de SELECT-then-UPDATE direct.
 - Pour toute nouvelle route `/api/debug/*` : importer + appeler `blockInProduction()` en première instruction.
-- Lire `RLS-FINDINGS.md` avant d'ajouter une nouvelle table ou une nouvelle policy.
+- Lire `RLS-FINDINGS.md` + [docs/db/SCHEMA.md](docs/db/SCHEMA.md) avant d'ajouter une nouvelle table ou une nouvelle policy.
 - Lancer `pnpm typecheck && pnpm test:run` après chaque modif significative.
-- Pour les requêtes hors de l'app (audit, migration, debug schéma) : préférer l'API Management `POST /v1/projects/{ref}/database/query` (sans Docker) plutôt que `psql` ou `db pull`.
-- Pour toute nouvelle RPC : `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public`.
+- Pour les requêtes hors de l'app (audit, migration, debug schéma) : préférer l'API Management `POST /v1/projects/{ref}/database/query` (sans Docker) plutôt que `psql` ou `db pull`. `scripts/export-schema.mjs` et `scripts/apply-sql.mjs` exposent ce pattern.
+- Pour toute nouvelle RPC : `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public`. **Suivre la migration de** `NOTIFY pgrst, 'reload schema';` pour forcer le rafraîchissement du cache PostgREST (sinon `.rpc()` lève "Could not find the function in the schema cache" — leçon Sprint DB).
+- Push gate prod : `pnpm supabase db push --dry-run` → STOP confirmation utilisateur → `db push` → re-audit Management API → commit.
+- Régénérer les types après changement de schéma : `pnpm db:types` (puis ajuster `lib/database.ts` si nouvelles RPC service-role-only).
 
 ### ❌ À ne pas faire
 - ❌ **Ne pas refactorer** [lib/financial-calculations.ts](lib/financial-calculations.ts) (chantier I4 séparé).
@@ -164,10 +202,12 @@ Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) pour SQL de reméd
 
 ## 9. Tests
 
-- Framework : **Vitest** (`vitest.config.ts` à la racine, env `node`, alias `@/` → racine).
-- Convention : tests à côté du code, suffixe `.test.ts`. Exemples : `lib/debug-guard.test.ts`.
+- Framework : **Vitest** (`vitest.config.ts` à la racine, env `node`, alias `@/` → racine, charge `.env.local` automatiquement via parser inline depuis Sprint DB).
+- Convention : tests à côté du code, suffixe `.test.ts`. Exemples : `lib/debug-guard.test.ts`, `lib/finance/__tests__/rpc-concurrency.test.ts`.
 - Pour tester `process.env` : `vi.stubEnv('NODE_ENV', 'production')` + `vi.unstubAllEnvs()` (NODE_ENV est readonly avec les types Next).
-- Tests d'intégration DB : à venir (Sprint DB D9). Cible : 100 RPC simultanés convergent.
+- Tests d'intégration DB (Sprint DB / D9) : `lib/finance/__tests__/rpc-concurrency.test.ts` couvre 4 scénarios — 100×updatePiggyBank, drainage à zéro, transferFromPiggyToBudget, alternance ±1. Gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.
+- **Pattern import dynamique pour gated tests** : si un test importe `lib/finance/*` (qui transitivement charge `lib/supabase-server.ts` créant un client à l'eval du module), faire l'`await import('@/lib/finance/...')` à l'intérieur de `beforeAll` pour que le module ne se charge PAS quand le suite est skipped sans env vars. Pattern visible dans `rpc-concurrency.test.ts`.
+- **chunked(...)** helper dans `rpc-concurrency.test.ts` : batch les appels parallèles en groupes de 10 pour rester sous le pool undici default per-origin de Node fetch.
 
 ## 10. Variables d'environnement
 
@@ -187,10 +227,11 @@ SUPABASE_DB_PASSWORD=...             # Project Settings > Database > Reset passw
 ```
 Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`), **jamais** persisté dans un fichier committé.
 
-## 11. Roadmap (à jour 2026-05-06)
+## 11. Roadmap (à jour 2026-05-07)
 
 - ✅ **Sprint 0** (`cleanup` branch) : C1–C5 + follow-up RLS audit (livré)
-- 🔄 **Sprint DB** ([prompt-00-executive-summary-v2.md](prompts/prompt-00-executive-summary-v2.md)) : D1–D11 RLS critiques + schéma versionné + indexes + tests RPC concurrence
+- ✅ **Sprint DB** ([prompt-00-executive-summary-v2.md](prompts/prompt-00-executive-summary-v2.md)) : D1–D11 livré 2026-05-07, 5 commits (`39e56f8 → 55d1606`), score ~58/100
+- ⏭️ **Sprint Refactor** ([prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md)) : R0 post-mortem drift C3 + R1 routes debug cassées + R2 wirage `<Database>` + R3 dedup schéma + R4 drift detection + R5 contrainte `bank_balances.balance` + R6 tests RLS isolation D2/D3
 - ⏭️ **Sprint 1** : Prettier + Husky + CI + upgrade `eslint-config-next` 15→16
 - ⏭️ **Chantier I4** : refactor `lib/financial-calculations.ts` (god file 1075 LOC)
 - ⏭️ **Chantier I5** : extraction logique métier de `app/api/monthly-recap/process-step1/route.ts`
