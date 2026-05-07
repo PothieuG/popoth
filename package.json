@@ -15,7 +15,8 @@
     "db:check-drift": "node scripts/check-drift.mjs",
     "db:check-rpcs": "node scripts/check-rpcs.mjs",
     "db:check-functions": "node scripts/check-trigger-functions.mjs",
-    "db:audit-functions": "node scripts/audit-functions.mjs"
+    "db:audit-functions": "node scripts/audit-functions.mjs",
+    "db:audit-objects": "node scripts/audit-db-objects.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
