@@ -32,6 +32,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dan
 | `pnpm test` | Vitest watch |
 | `pnpm test:run` | Vitest single run (CI) |
 | `pnpm db:types` | Régénère `lib/database.types.ts` depuis le schéma prod (Sprint DB / D6) |
+| `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql`. Exit 0 = clean, 1 = drift (Sprint Refactor / R4) |
 | `pnpm supabase ...` | Supabase CLI (lié à `jzmppreybwabaeycvasz`) |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker) |
 | `node scripts/apply-sql.mjs <file.sql>` | Applique un fichier SQL via API Management (drift recovery) |
@@ -172,7 +173,7 @@ prompts/                   # prompts Claude Code par chantier
 - D11 — [docs/db/SCHEMA.md](docs/db/SCHEMA.md) ajouté.
 
 ### ⚠️ Drift découvert pendant Sprint DB
-- `supabase_migrations.schema_migrations` listait `20260506000000_create_finance_rpcs.sql` comme appliquée **sans que le SQL ait jamais été exécuté en prod** : les 4 RPC C3 étaient absentes de `pg_proc`. Recouvrement via `node scripts/apply-sql.mjs supabase/migrations/20260506000000_create_finance_rpcs.sql` + `NOTIFY pgrst, 'reload schema'`. Origine du drift inconnue → cible **R0** du Sprint Refactor.
+- `supabase_migrations.schema_migrations` listait `20260506000000_create_finance_rpcs.sql` comme appliquée **sans que le SQL ait jamais été exécuté en prod** : les 4 RPC C3 étaient absentes de `pg_proc`. Recouvrement via `node scripts/apply-sql.mjs supabase/migrations/20260506000000_create_finance_rpcs.sql` + `NOTIFY pgrst, 'reload schema'`. Origine du drift inconnue, hypothèses ouvertes documentées dans [docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md) (Sprint Refactor R0). Garde-fou durable depuis R4 : `pnpm db:check-drift` ([scripts/check-drift.mjs](scripts/check-drift.mjs)) compare prod ↔ baseline et sort en exit 1 dès qu'un drift apparaît.
 
 Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB) et [prompts/prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md) (Sprint Refactor — angles morts post-Sprint DB).
 
@@ -187,6 +188,7 @@ Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint
 - Pour toute nouvelle RPC : `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public`. **Suivre la migration de** `NOTIFY pgrst, 'reload schema';` pour forcer le rafraîchissement du cache PostgREST (sinon `.rpc()` lève "Could not find the function in the schema cache" — leçon Sprint DB).
 - Push gate prod : `pnpm supabase db push --dry-run` → STOP confirmation utilisateur → `db push` → re-audit Management API → commit.
 - Régénérer les types après changement de schéma : `pnpm db:types` (puis ajuster `lib/database.ts` si nouvelles RPC service-role-only).
+- Après chaque migration non-triviale : lancer `pnpm db:check-drift`. Si exit 1, re-exporter le baseline via `node scripts/export-schema.mjs supabase/migrations/20260101000000_remote_schema.sql` et committer (sinon le détecteur reste rouge et on retombe dans la trap C3).
 
 ### ❌ À ne pas faire
 - ❌ **Ne pas refactorer** [lib/financial-calculations.ts](lib/financial-calculations.ts) (chantier I4 séparé).
