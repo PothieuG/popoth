@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
-import type { Database } from '@/lib/database'
+import type { Database } from '@/lib/database.types'
 
 // Same dynamic-import pattern as lib/finance/__tests__/rpc-concurrency.test.ts —
 // lib/financial-calculations.ts transitively loads lib/supabase-server.ts which

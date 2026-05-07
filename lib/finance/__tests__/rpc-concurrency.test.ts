@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
-import type { Database } from '@/lib/database'
+import type { Database } from '@/lib/database.types'
 
 // NOTE: lib/finance/* is loaded dynamically inside beforeAll because it
 // transitively evaluates lib/supabase-server.ts which calls createClient at

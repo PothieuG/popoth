@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
-import type { Database } from '@/lib/database'
+import type { Database } from '@/lib/database.types'
 
 // Sprint Audit-Functions-v2 / B2 — gated behavior tests for the 4 trigger
 // functions captured in supabase/migrations/20260512000000_capture_trigger_functions.sql.
