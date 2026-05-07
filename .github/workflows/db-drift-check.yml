@@ -1,13 +1,14 @@
 name: DB drift check
 
-# Runs the schema and RPC drift detectors against prod once a week (Monday 08:00 UTC)
-# and on demand. Opens a GitHub issue if either check returns exit 1.
+# Runs the schema, RPC, and trigger-function drift detectors against prod once
+# a week (Monday 08:00 UTC) and on demand. Opens a GitHub issue if any check
+# returns exit 1.
 #
 # Required secret: SUPABASE_ACCESS_TOKEN
 #   Settings -> Secrets and variables -> Actions -> New repository secret
 #   Generate at https://supabase.com/dashboard/account/tokens
 #
-# Sprint Hardening / H5.
+# Sprint Hardening / H5 (drift + RPC). Sprint Audit-Triggers / A4 (functions).
 
 on:
   schedule:
@@ -43,6 +44,12 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      - name: Check trigger functions presence (4 captured functions)
+        if: always()
+        run: pnpm db:check-functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
       - name: Open issue on failure
         if: failure()
         uses: actions/github-script@v7
@@ -54,7 +61,7 @@ jobs:
               repo: context.repo.repo,
               title: `DB drift detected (${new Date().toISOString().slice(0, 10)})`,
               body: [
-                `\`pnpm db:check-drift\` or \`pnpm db:check-rpcs\` returned a non-zero exit code.`,
+                `\`pnpm db:check-drift\`, \`pnpm db:check-rpcs\`, or \`pnpm db:check-functions\` returned a non-zero exit code.`,
                 ``,
                 `Run: ${runUrl}`,
                 ``,
