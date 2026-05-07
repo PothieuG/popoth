@@ -109,6 +109,7 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql` |
 | `pnpm db:check-rpcs` | Vérifie via `pg_proc` que les 4 RPC C3 existent en prod |
 | `pnpm db:check-functions` | Vérifie via `pg_proc` que les 4 fonctions trigger custom existent (Sprint Audit-Triggers / A3) |
+| `pnpm db:check-types-fresh` | Vérifie que [`lib/database.types.ts`](./lib/database.types.ts) correspond à ce que `supabase gen types --linked` produirait à l'instant T contre prod. Exit 0 = synchro, 1 = stale + diff sur stdout, 2 = fatal (Sprint Hygiene-CI / E2) |
 | `pnpm db:audit-functions` | **Audit générique** : liste TOUTES les `public.*` fonctions de `pg_proc` et vérifie chaque présence dans `supabase/migrations/` (Sprint Audit-Functions-v2 / B1) |
 | `pnpm db:audit-objects` | **Audit générique étendu** : 5 catégories `pg_catalog` (functions, composite types, enums, domains, operators). À lancer après toute migration ajoutant un `CREATE TYPE` / `CREATE DOMAIN` / `CREATE OPERATOR` (Sprint Cleanup-Legacy / C2) |
 | `pnpm supabase ...` | CLI Supabase (lié au projet distant) |
@@ -159,6 +160,7 @@ scripts/                   # outils API Management (sans Docker)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
   check-trigger-functions.mjs # backend de pnpm db:check-functions (4 fonctions custom)
+  check-types-fresh.mjs    # backend de pnpm db:check-types-fresh (lib/database.types.ts ↔ prod)
   audit-functions.mjs      # backend de pnpm db:audit-functions (générique pg_proc ↔ migrations)
   audit-db-objects.mjs     # backend de pnpm db:audit-objects (5 catégories pg_catalog : functions, types, enums, domains, operators)
   dump-functions.sql       # dump pg_get_functiondef ad-hoc
@@ -254,16 +256,17 @@ erDiagram
 | `pnpm test:run` (gated) | Tests d'intégration contre Supabase prod, voir Configuration |
 | `pnpm db:check-drift` | Compare prod ↔ baseline SQL — exit 1 si drift |
 | `pnpm db:check-rpcs` | Vérifie les 4 RPC C3 dans `pg_proc` |
+| `pnpm db:check-types-fresh` | Vérifie que `lib/database.types.ts` est à jour vs prod (Sprint Hygiene-CI / E2) |
 
 **Pas de mocks DB** dans les tests d'intégration (interdiction explicite — cf. CLAUDE.md §8). Les fixtures créent un `auth.users` réel via `admin.auth.admin.createUser` et nettoient en cascade dans `afterAll`.
 
-CI : `.github/workflows/` contient un cron weekly `pnpm db:check-drift` + `db:check-rpcs` + `db:check-functions` (Sprint Hardening / H5, Sprint Audit-Triggers / A4) et un PR-time gate sur les paths DB-relevant (Sprint Audit-Functions-v2 / B3).
+CI : `.github/workflows/` contient un cron weekly `pnpm db:check-drift` + `db:check-rpcs` + `db:check-functions` + `db:check-types-fresh` (Sprint Hardening / H5, Sprint Audit-Triggers / A4, Sprint Hygiene-CI / E2) et un PR-time gate sur les paths DB-relevant (Sprint Audit-Functions-v2 / B3).
 
 ---
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Polish-CI (~78/100) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Hygiene-CI (~79/100) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
 - ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
@@ -274,6 +277,7 @@ L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-
 - ✅ **Audit générique fonctions** (Sprint Audit-Functions-v2 / B1–B3) : `pnpm db:audit-functions` enumère toutes les `public.*` fonctions et confirme leur présence dans `supabase/migrations/`. Au premier run, 4 fonctions legacy supplémentaires ont été surfacées (toutes dead code) et capturées dans [`supabase/migrations/20260513000000_capture_legacy_functions.sql`](./supabase/migrations/20260513000000_capture_legacy_functions.sql). Tests comportement trigger ([`lib/__tests__/trigger-behavior.test.ts`](./lib/__tests__/trigger-behavior.test.ts), gated `SUPABASE_TRIGGER_TESTS=1`) couvrent les 4 fonctions custom (auto-create on JOIN, recalc on UPDATE, cascade DELETE, touch updated_at).
 - ✅ **Cleanup legacy + audit étendu** (Sprint Cleanup-Legacy / C1–C3) : C1 a DROP les 4 fonctions legacy capturées en B1 ([`supabase/migrations/20260514000000_drop_legacy_functions.sql`](./supabase/migrations/20260514000000_drop_legacy_functions.sql)) — `pnpm db:audit-functions` est passé à 9 fonctions versionnées (vs 13). C2 a ajouté `pnpm db:audit-objects` ([`scripts/audit-db-objects.mjs`](./scripts/audit-db-objects.mjs)) pour couvrir 5 catégories `pg_catalog` (functions + types + enums + domains + operators). C3 a validé end-to-end le PR-time gate B3 et fixé 2 vrais bugs CI au passage : conflit `pnpm/action-setup@v4 ↔ packageManager` (le cron weekly n'avait jamais tourné depuis B3) + secret `SUPABASE_ACCESS_TOKEN` perdu lors du rename du repo.
 - ✅ **Polish CI/DX** (Sprint Polish-CI / D1–D6) : D1 `pnpm db:types` self-redirige (le wrapper pnpm ne pollue plus le fichier généré). D2 `pnpm db:check-drift` idempotent face à CRLF Windows (root cause subtile : regex JS `.+$` ne consomme pas `\r`). D3 augmentation `lib/database.ts` supprimée — depuis le regen `--linked` (C1), les 4 RPC C3 sont dans les types générés et l'augmentation est devenue no-op (47 LOC + 6 imports migrés). D4 path filter du PR-time gate étendu aux 2 YAML eux-mêmes + `audit-*.mjs` (self-monitoring contre une régression C3 redux). D5 cron weekly à observer manuellement via `workflow_dispatch`. D6 Node.js 24 migration déférée à juin 2026.
+- ✅ **Hygiene CI** (Sprint Hygiene-CI / E1–E3) : E1 [`.gitattributes`](./.gitattributes) ajouté avec `* text=auto eol=lf` — élimine le warning `LF will be replaced by CRLF` sur chaque commit Windows et obsolète le fix D2 en steady state (renormalize a été un no-op : repo + working tree étaient déjà LF en storage, il manquait juste la déclaration explicite). E2 `pnpm db:check-types-fresh` ([`scripts/check-types-fresh.mjs`](./scripts/check-types-fresh.mjs)) : détecte une désynchro `lib/database.types.ts` ↔ prod via `supabase gen types --linked` + line-by-line diff. Wirage : step ajouté à db-drift-pr.yml ET db-drift-check.yml (`if: always()`) ; path filter du PR-time gate étendu à `lib/database.types.ts`. E3 cron weekly étendu à 5 checks à observer manuellement (re-run du défer D5).
 
 L'historique des sprints sécurité est consigné dans [`CLAUDE.md`](./CLAUDE.md) §7.
 
@@ -295,7 +299,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`POST-MORTEM-C3-DRIFT.md`](./docs/audit/POST-MORTEM-C3-DRIFT.md) — post-mortem du drift `schema_migrations` ↔ `pg_proc`.
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
-- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Polish-CI (v9, livré). [`prompt-00-executive-summary-v10.md`](./prompts/prompt-00-executive-summary-v10.md) (Sprint Hygiene-CI : `.gitattributes` + `db:check-types-fresh` + D5 follow-up) est le prochain à exécuter.
+- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Hygiene-CI (v10, livré).
 
 ---
 
