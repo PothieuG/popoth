@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "db:types": "supabase gen types typescript --linked --schema public > lib/database.types.ts",
+    "db:types": "supabase gen types typescript --project-id jzmppreybwabaeycvasz --schema public > lib/database.types.ts",
     "db:check-drift": "node scripts/check-drift.mjs",
     "db:check-rpcs": "node scripts/check-rpcs.mjs",
     "db:check-functions": "node scripts/check-trigger-functions.mjs",
