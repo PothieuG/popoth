@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
+type BudgetForProgress = { id: string; name: string; estimated_amount: number; cumulated_savings: number | null }
+type ExpenseForProgress = { amount: number; estimated_budget_id: string | null; amount_from_piggy_bank: number | null; amount_from_budget_savings: number | null; amount_from_budget: number | null }
+
 /**
  * GET /api/finances/expenses/progress
  * Récupère la progression des dépenses par budget estimé
@@ -23,8 +26,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
 
-    let budgets: any[] = []
-    let expenses: any[] = []
+    let budgets: BudgetForProgress[] = []
+    let expenses: ExpenseForProgress[] = []
 
     if (context === 'profile') {
       // Récupérer les budgets du profil avec leurs économies
@@ -89,10 +92,9 @@ export async function GET(request: NextRequest) {
       const spentAmount = relatedExpenses.reduce((sum, expense) => {
           // Use amount_from_budget if available, otherwise use amount (backward compatibility)
           const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-            ? parseFloat(expense.amount_from_budget)
-            : parseFloat(expense.amount)
+            ? Number(expense.amount_from_budget)
+            : Number(expense.amount)
 
-          console.log(`🔍 [PROGRESS DEBUG]   - Dépense: ${expense.description || 'N/A'}`)
           console.log(`🔍 [PROGRESS DEBUG]     amount: ${expense.amount}`)
           console.log(`🔍 [PROGRESS DEBUG]     amount_from_budget: ${expense.amount_from_budget}`)
           console.log(`🔍 [PROGRESS DEBUG]     amountFromBudget calculé: ${amountFromBudget}`)

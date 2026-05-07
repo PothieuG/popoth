@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
-import type { TablesInsert } from '@/lib/database.types'
+import type { TablesInsert, Database } from '@/lib/database.types'
+import type { FinancialData } from '@/lib/financial-calculations'
+
+type MonthlyRecapInsert = Database['public']['Tables']['monthly_recaps']['Insert']
 
 declare global {
   // eslint-disable-next-line no-var
@@ -120,7 +123,7 @@ export async function POST(request: NextRequest) {
     // Récupérer les données financières en temps réel
     const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/financial-calculations')
 
-    let financialData: any
+    let financialData: FinancialData
     if (context === 'profile') {
       financialData = await getProfileFinancialData(contextId)
     } else {
@@ -172,7 +175,7 @@ export async function POST(request: NextRequest) {
     const totalDeficit = currentBudgets?.reduce((sum, b) => sum + (b.monthly_deficit || 0), 0) || 0
 
     // Préparer les données du récap
-    const recapData: any = {
+    const recapData: MonthlyRecapInsert = {
       recap_month: currentMonth,
       recap_year: currentYear,
       initial_remaining_to_live: initialRemainingToLive,
@@ -347,7 +350,7 @@ export async function POST(request: NextRequest) {
 
           // Stocker les totaux pour ajuster la dépense exceptionnelle RAV (section 3.6)
           global.preTransferBudgetDeficit = preTransferBudgetDeficit
-          global.postTransferBudgetDeficit = global.carryoverUpdates.reduce((sum: number, u: any) => sum + u.carryover_amount, 0)
+          global.postTransferBudgetDeficit = global.carryoverUpdates.reduce((sum: number, u) => sum + u.carryover_amount, 0)
           console.log(`📊 [Deficit Processing] Déficit pré-transfert: ${preTransferBudgetDeficit}€, post-transfert: ${global.postTransferBudgetDeficit}€`)
 
           console.log(`🔄 [Deficit Processing] ${global.carryoverUpdates.length} budget(s) à mettre à jour après reset`)

@@ -6,6 +6,9 @@ import { calculateBreakdown } from '@/lib/expense-allocation'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
+import type { Database } from '@/lib/database.types'
+
+type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
 
 export interface AddExpenseWithLogicRequest {
   amount: number
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // If exceptional (no budget), just create the expense directly
     if (!estimated_budget_id) {
-      const insertData: any = {
+      const insertData: RealExpenseInsert = {
         amount,
         description: description.trim(),
         expense_date: expense_date || new Date().toISOString().split('T')[0],
@@ -247,7 +250,7 @@ export async function POST(request: NextRequest) {
 
     // Step 7: Create the real expense with FULL amount and breakdown tracking
     // The expense always appears in the list, but we track where the money came from
-    const insertData: any = {
+    const insertData: RealExpenseInsert = {
       amount: amount, // Full amount for display
       description: description.trim(),
       expense_date: expense_date || new Date().toISOString().split('T')[0],

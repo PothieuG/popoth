@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { Database } from '@/lib/database.types'
+
+type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
+type EstimatedBudgetInsert = Database['public']['Tables']['estimated_budgets']['Insert']
+type EstimatedBudgetUpdate = Database['public']['Tables']['estimated_budgets']['Update']
 
 export interface EstimatedBudgetData {
   id: string
@@ -84,7 +89,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate spent amount this month for each budget
-    const budgetsWithSpending = await Promise.all((data || []).map(async (budget: any) => {
+    const budgetsWithSpending = await Promise.all((data || []).map(async (budget: EstimatedBudgetRow) => {
       const currentDate = new Date()
       const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
       const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
@@ -156,7 +161,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const insertData: any = {
+    const insertData: EstimatedBudgetInsert = {
       name: name.trim(),
       estimated_amount,
       is_monthly_recurring,
@@ -234,7 +239,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updates: any = {}
+    const updates: EstimatedBudgetUpdate = {}
     
     if (name !== undefined) {
       if (!name || name.trim().length === 0) {

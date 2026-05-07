@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { Database } from '@/lib/database.types'
+
+type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
+type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['Update']
 
 export interface EstimatedIncomeData {
   id: string
@@ -163,7 +167,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const insertData: any = {
+    const insertData: EstimatedIncomeInsert = {
       name: name.trim(),
       estimated_amount,
       is_monthly_recurring
@@ -240,8 +244,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updates: any = {}
-    
+    const updates: EstimatedIncomeUpdate = {}
+
     if (name !== undefined) {
       if (!name || name.trim().length === 0) {
         return NextResponse.json(

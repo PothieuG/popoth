@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Determine context filter
     const isGroup = context === 'group'
-    let contextFilter: any
+    let contextFilter: { group_id: string } | { profile_id: string }
 
     if (isGroup) {
       const { data: profile } = await supabaseServer

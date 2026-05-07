@@ -3,6 +3,10 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
+import type { Database } from '@/lib/database.types'
+
+type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
+type RealExpenseUpdate = Database['public']['Tables']['real_expenses']['Update']
 
 export interface RealExpenseData {
   id: string
@@ -179,7 +183,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const insertData: any = {
+    const insertData: RealExpenseInsert = {
       amount,
       description: description.trim(),
       expense_date: expense_date || new Date().toISOString().split('T')[0],
@@ -269,7 +273,7 @@ export async function POST(request: NextRequest) {
     if (data.is_exceptional) {
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: is_for_group ? undefined : session.userId,
-        groupId: is_for_group ? insertData.group_id : undefined,
+        groupId: is_for_group ? (insertData.group_id ?? undefined) : undefined,
         reason: 'exceptional_expense_created'
       })
 
@@ -316,8 +320,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updates: any = {}
-    
+    const updates: RealExpenseUpdate = {}
+
     if (amount !== undefined) {
       if (amount <= 0) {
         return NextResponse.json(

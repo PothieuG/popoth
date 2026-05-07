@@ -3,6 +3,10 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import FinancialLogger from '@/lib/financial-logger'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import type { Database } from '@/lib/database.types'
+
+type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
+type RealIncomeUpdate = Database['public']['Tables']['real_income_entries']['Update']
 
 export interface RealIncomeEntryData {
   id: string
@@ -172,7 +176,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const insertData: any = {
+    const insertData: RealIncomeInsert = {
       amount,
       description: description.trim(),
       entry_date: entry_date || new Date().toISOString().split('T')[0],
@@ -263,7 +267,7 @@ export async function POST(request: NextRequest) {
       const reason = data.is_exceptional ? 'exceptional_income_created' : 'associated_income_created'
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: is_for_group ? undefined : session.userId,
-        groupId: is_for_group ? insertData.group_id : undefined,
+        groupId: is_for_group ? (insertData.group_id ?? undefined) : undefined,
         reason
       })
 
@@ -310,8 +314,8 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updates: any = {}
-    
+    const updates: RealIncomeUpdate = {}
+
     if (amount !== undefined) {
       if (amount <= 0) {
         return NextResponse.json(

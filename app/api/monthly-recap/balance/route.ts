@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     console.log(`🎯 [Balance API] Début équilibrage PROPORTIONNEL pour ${context}:${contextId}`)
 
     // 1. Calculer le reste à vivre actuel et budgétaire
-    let financialData: any
+    let financialData: FinancialData
     if (context === 'profile') {
       financialData = await getProfileFinancialData(contextId)
     } else {
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 7. Vérification finale avec les nouvelles données
-    let finalFinancialData: any
+    let finalFinancialData: FinancialData
     if (context === 'profile') {
       finalFinancialData = await getProfileFinancialData(contextId)
     } else {

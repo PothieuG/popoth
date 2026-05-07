@@ -23,8 +23,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
 
-    let incomes: any[] = []
-    let realIncomes: any[] = []
+    let incomes: { id: string; name: string; estimated_amount: number }[] = []
+    let realIncomes: { amount: number; estimated_income_id: string | null }[] = []
 
     if (context === 'profile') {
       // Récupérer les revenus estimés du profil

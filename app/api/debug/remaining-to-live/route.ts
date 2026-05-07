@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 [RAV Debug] Analyse détaillée pour ${context}:${contextId}`)
 
     // 1. Récupérer les données financières calculées
-    let financialData: any
+    let financialData: FinancialData
     if (context === 'profile') {
       financialData = await getProfileFinancialData(contextId)
     } else {

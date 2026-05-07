@@ -225,7 +225,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const group = profile.groups as any
+    const group = profile.groups as { id: string; name: string; creator_id: string } | null
     if (!group) {
       return NextResponse.json(
         { error: 'Groupe introuvable' },
