@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { createSessionToken, decrypt, type SessionPayload } from './session'
+import { SESSION_EXPIRATION_SECONDS } from './constants/auth'
 
 /**
  * Server-side session management utilities
@@ -19,7 +20,7 @@ export async function createSession(userId: string, email: string): Promise<void
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 3600, // 1 hour
+    maxAge: SESSION_EXPIRATION_SECONDS,
     path: '/',
   })
 }
@@ -37,7 +38,7 @@ export async function updateSession(userId: string, email: string): Promise<void
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 3600, // 1 hour (normal usage)
+    maxAge: SESSION_EXPIRATION_SECONDS,
     path: '/',
   })
 }

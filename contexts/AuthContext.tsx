@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { signInWithPassword, signUp, signOut, getCurrentUser, refreshSession, isAuthenticated, type AuthUser } from '@/lib/auth'
+import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
 
 // Auth context interface
 interface AuthContextType {
@@ -108,7 +109,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.error('Auto refresh error:', error)
         await handleLogout()
       }
-    }, 50 * 60 * 1000) // 50 minutes (refresh before 1h expiration)
+    }, SESSION_REFRESH_INTERVAL_MS)
     
     setRefreshInterval(interval)
   }
@@ -150,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           await handleLogout()
         }
       }
-    }, 5 * 60 * 1000) // Check every 5 minutes
+    }, AUTH_CHECK_INTERVAL_MS)
     
     setCheckInterval(interval)
   }

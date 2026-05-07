@@ -1,0 +1,1 @@
+export const ROUNDING_TOLERANCE = 0.01

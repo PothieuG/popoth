@@ -5,6 +5,7 @@ import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import { ROUNDING_TOLERANCE } from '@/lib/constants/finance'
 
 // God route per CLAUDE.md (chantier I5 — do not refactor). Scope-cast to
 // untyped to preserve the existing implementation under <Database>.
@@ -399,7 +400,7 @@ export async function POST(request: NextRequest) {
       // NOTE: Les déficits sont DÉJÀ inclus dans le calcul du gap, donc on ne crée PAS de crédits
       console.log(`🔄 ÉTAPE 2.3: Consommation du surplus pour combler le gap`)
 
-      if (gapACombler > 0.01) {
+      if (gapACombler > ROUNDING_TOLERANCE) {
         // Calculer le surplus total disponible
         const totalSurplusAvailable = budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)
 
@@ -483,7 +484,7 @@ export async function POST(request: NextRequest) {
       console.log(`   💰 Ressources utilisées pour renflouer: ${ressourcesUtilisees.toFixed(2)}€`)
       console.log(`   ⚠️ Gap non couvert: ${gapACombler.toFixed(2)}€`)
 
-      if (totalDeficit > 0 && ressourcesUtilisees > 0.01) {
+      if (totalDeficit > 0 && ressourcesUtilisees > ROUNDING_TOLERANCE) {
         // On ne peut renflouer que proportionnellement aux ressources disponibles
         const montantARenflouer = Math.min(ressourcesUtilisees, totalDeficit)
 
@@ -494,7 +495,7 @@ export async function POST(request: NextRequest) {
             // Montant de renflouage = proportion * ressources disponibles
             const transferAmount = Math.min(proportion * montantARenflouer, deficitBudget.deficit)
 
-            if (transferAmount > 0.01) {
+            if (transferAmount > ROUNDING_TOLERANCE) {
               const { error: transferError } = await supabaseServer
                 .from('budget_transfers')
                 .insert([{
@@ -545,7 +546,7 @@ export async function POST(request: NextRequest) {
       // ÉTAPE 2.4: Après retour à l'équilibre
       // NOTE: Le surplus restant n'est PAS automatiquement transféré vers économies
       // L'utilisateur pourra le faire manuellement à l'écran 2
-      if (gapACombler <= 0.01) {
+      if (gapACombler <= ROUNDING_TOLERANCE) {
         console.log(`✅ ÉQUILIBRE ATTEINT`)
 
         // Récupérer les nouvelles données
@@ -674,7 +675,7 @@ export async function POST(request: NextRequest) {
               }
             }
 
-            if (remainingDeficit > 0.01) {
+            if (remainingDeficit > ROUNDING_TOLERANCE) {
               console.log(`      ⚠️ Déficit résiduel de ${remainingDeficit.toFixed(2)}€ pour "${budget.name}" (ressources épuisées)`)
             }
 
@@ -716,7 +717,7 @@ export async function POST(request: NextRequest) {
         final_rav: finalFinancialData.remainingToLive,
         difference: difference,
         gap_residuel: gapACombler,
-        is_fully_balanced: gapACombler <= 0.01,
+        is_fully_balanced: gapACombler <= ROUNDING_TOLERANCE,
         piggy_bank_final: piggyBankAmount,
         operations_performed: operations,
         timestamp: Date.now()
