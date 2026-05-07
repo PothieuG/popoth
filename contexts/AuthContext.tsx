@@ -285,12 +285,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Initialize auth on component mount
   useEffect(() => {
     initializeAuth()
-    
+
     // Cleanup on unmount
     return () => {
       stopTokenRefresh()
       stopAuthCheck()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only effect; init/cleanup helpers are recreated each render but we want exactly one initializeAuth call per provider instance
   }, [])
 
   // Check if user is logged in

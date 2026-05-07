@@ -113,6 +113,7 @@ export function useBankBalance(context?: 'profile' | 'group') {
   // Chargement initial du solde
   useEffect(() => {
     fetchBankBalance()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchBankBalance is recreated each render; only refetch when context changes
   }, [context])
 
   return {

@@ -139,6 +139,7 @@ export default function MonthlyRecapStep2({
   // Récupérer les données au montage du composant
   useEffect(() => {
     fetchStep2Data()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchStep2Data is intentionally re-created each render; refetch only on mount or context change
   }, [context])
 
   // Calculer les variables dérivées seulement si on a des données

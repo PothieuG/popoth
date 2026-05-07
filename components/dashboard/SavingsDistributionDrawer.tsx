@@ -101,6 +101,7 @@ export default function SavingsDistributionDrawer({
     if (isOpen) {
       fetchSavingsData()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSavingsData is intentionally re-created each render; we want to refetch only when the drawer toggles or context switches
   }, [isOpen, context])
 
   // Reset modal state when data changes

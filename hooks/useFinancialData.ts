@@ -117,6 +117,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
   // Charger les données financières au montage du composant
   useEffect(() => {
     fetchFinancialData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchFinancialData is recreated each render; only refetch when forceContext changes
   }, [forceContext])
 
   // Register for global financial refresh notifications
@@ -127,6 +128,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     }
     const unregister = registerFinancialRefreshCallback(refreshHandler)
     return () => { unregister() }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only registration; the closure captures the latest fetchFinancialData via re-render
   }, [])
 
   return {

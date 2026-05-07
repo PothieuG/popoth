@@ -84,6 +84,7 @@ export function useAuth() {
       const interval = setInterval(checkSessionExpiry, 60000) // Check every minute
       return () => clearInterval(interval)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- checkSessionExpiry is recreated each render; effect only needs to react to login state
   }, [authContext.isLoggedIn])
 
   // Return extended auth object with additional utilities
@@ -113,11 +114,12 @@ export function useAuth() {
  */
 export function useRequireAuth() {
   const auth = useAuth()
-  
+
   useEffect(() => {
     auth.requireAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auth object identity changes each render; only react to loading/isLoggedIn transitions
   }, [auth.loading, auth.isLoggedIn])
-  
+
   return auth
 }
 
@@ -127,11 +129,12 @@ export function useRequireAuth() {
  */
 export function useRequireGuest() {
   const auth = useAuth()
-  
+
   useEffect(() => {
     auth.requireGuest()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- auth object identity changes each render; only react to loading/isLoggedIn transitions
   }, [auth.loading, auth.isLoggedIn])
-  
+
   return auth
 }
 
