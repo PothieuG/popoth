@@ -6,7 +6,7 @@
 
 **Popoth** : PWA francophone de gestion financière personnelle et en groupe. Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après Sprint 0, ~58 après Sprint DB). Carte du schéma post-Sprint DB dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dans [docs/audit/](docs/audit/) (score 47/100 avant Sprint 0, ~51 après Sprint 0, ~58 après Sprint DB, ~62-65 après Sprint Refactor, ~70 après Sprint Hardening). Carte du schéma post-Sprint DB dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md).
 
 ## 2. Stack
 
@@ -252,7 +252,8 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 - ✅ **Sprint 0** (`cleanup` branch) : C1–C5 + follow-up RLS audit (livré)
 - ✅ **Sprint DB** ([prompt-00-executive-summary-v2.md](prompts/prompt-00-executive-summary-v2.md)) : D1–D11 livré 2026-05-07, 5 commits (`39e56f8 → 55d1606`), score ~58/100
 - ✅ **Sprint Refactor** ([prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md)) : R0 post-mortem + R1 routes debug + R2 wirage `<Database>` (avec scope-cast à dérouler en H1) + R3 dedup schéma + R4 drift detection + R6 tests RLS D2/D3 + drop policy récursive profiles. R5 (overdraft) reporté en H3. Livré 2026-05-07, 6 commits (`5efacfe → ab58db2`), score estimé ~62-65/100
-- ⏭️ **Sprint Hardening** ([prompt-00-executive-summary-v4.md](prompts/prompt-00-executive-summary-v4.md)) : H1 unwind des 17 scope-casts R2 + H2 ghost table `financial_snapshots` + H3 overdraft `bank_balances.balance` (R5 carryover) + H4 `pnpm db:check-rpcs` + H5 GH Actions cron drift + H6 trigger investigation
+- ✅ **Sprint Hardening** (prompt-00-executive-summary-v4 inline cette session) : H1 unwind 17 scope-casts (5 restants tous god/debug) + H2 ghost table `financial_snapshots` + H3 overdraft `bank_balances` (RAISE EXCEPTION dans la RPC) + H4 `pnpm db:check-rpcs` + H5 GH Actions cron drift + H6 trigger forensics. **3 bugs réels surfacés et fixés** : `current_savings`/`cumulated_savings` (R2), RPC fantôme `calculate_available_cash` dans dashboard, `total_real_income`/`total_real_expenses` qui retombent toujours sur 0 (T1 Sprint Polish corrigera ce dernier). Livré 2026-05-07, 9 commits (`858b243 → 5d65922`), score estimé ~70/100
+- ⏭️ **Sprint Polish** ([prompt-00-executive-summary-v5.md](prompts/prompt-00-executive-summary-v5.md)) : T1 dashboard aggregates (vraie computation pour `total_real_income`/`total_real_expenses`) + T2 audit des 3 debug routes restantes + T3 regression tests pour les bugs surfacés en H1/H2 + T4 `SnapshotPayload` type discriminé + T5 trigger inventory complet
 - ⏭️ **Sprint 1** : Prettier + Husky + CI + upgrade `eslint-config-next` 15→16
 - ⏭️ **Chantier I4** : refactor `lib/financial-calculations.ts` (god file 1075 LOC)
 - ⏭️ **Chantier I5** : extraction logique métier de `app/api/monthly-recap/process-step1/route.ts`
