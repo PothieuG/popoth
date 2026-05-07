@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Scope-cast: GroupData / member shapes don't match generated row types
+// (created_at: string | null). Tracked as a follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 // Group data types
 export interface GroupData {

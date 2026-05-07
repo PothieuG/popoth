@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+
+// Scope-cast: estimated_income shape narrowing diverges from generated row
+// type. Tracked as a follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API pour la gestion des revenus estimés

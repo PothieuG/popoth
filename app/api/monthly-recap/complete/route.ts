@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Scope-cast to untyped: this route consumes nullable owner ids and writes
+// dynamic shapes that need narrowing across the whole flow. Tracked as a
+// follow-up to the <Database> wire-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 declare global {
   // eslint-disable-next-line no-var

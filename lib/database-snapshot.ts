@@ -1,4 +1,12 @@
-import { supabaseServer } from '@/lib/supabase-server'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Snapshot helper queries `financial_snapshots`, a table that is not present
+// in the generated Database type (and may not exist in prod — the warning is
+// already swallowed by checkError). Scope-cast to untyped to keep the helper
+// compiling. Tracked as a follow-up: confirm whether financial_snapshots is
+// supposed to exist or whether this read should be removed.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * Crée un snapshot complet de toutes les données financières d'un utilisateur/groupe

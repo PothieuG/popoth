@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
+import type { Database } from '@/lib/database'
 
 // NOTE: lib/finance/* is loaded dynamically inside beforeAll because it
 // transitively evaluates lib/supabase-server.ts which calls createClient at
@@ -15,7 +16,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
-  let admin: SupabaseClient
+  let admin: SupabaseClient<Database>
   let testUserId: string
   let testBudgetId: string
   let updatePiggyBank: PiggyMod['updatePiggyBank']
@@ -58,7 +59,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
       )
     }
 
-    admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 

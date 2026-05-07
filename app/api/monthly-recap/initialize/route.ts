@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
+
+// Scope-cast: nullable owner ids and snapshot payload writes. Tracked as a
+// follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/monthly-recap/initialize

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// The recovery flow uses a dynamic-table helper (`restoreTable(tableName,
+// data, ...)`) and reads JSON snapshot blobs whose shape is intentionally
+// loose. Scope-cast to untyped to keep the restore logic compiling without a
+// switch over every literal table name.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/monthly-recap/recover

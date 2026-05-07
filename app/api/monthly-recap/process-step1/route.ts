@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+
+// God route per CLAUDE.md (chantier I5 — do not refactor). Scope-cast to
+// untyped to preserve the existing implementation under <Database>.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/monthly-recap/process-step1

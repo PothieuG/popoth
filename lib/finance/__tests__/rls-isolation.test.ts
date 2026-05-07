@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
+import type { Database } from '@/lib/database'
 
 const RLS_TESTS_ENABLED = process.env.SUPABASE_RLS_TESTS === '1'
 
@@ -11,11 +12,11 @@ const ANON_KEY =
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
-  let admin: SupabaseClient
+  let admin: SupabaseClient<Database>
   let userAId: string
   let userBId: string
-  let clientA: SupabaseClient
-  let clientB: SupabaseClient
+  let clientA: SupabaseClient<Database>
+  let clientB: SupabaseClient<Database>
 
   const stamp = Date.now()
   const emailA = `rls-test-a-${stamp}@popoth.test`
@@ -23,11 +24,11 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
   const passwordA = `rls-A-${randomUUID()}`
   const passwordB = `rls-B-${randomUUID()}`
 
-  async function buildClientForUser(email: string, password: string): Promise<SupabaseClient> {
-    const tmp = createClient(SUPABASE_URL!, ANON_KEY!)
+  async function buildClientForUser(email: string, password: string): Promise<SupabaseClient<Database>> {
+    const tmp = createClient<Database>(SUPABASE_URL!, ANON_KEY!)
     const { data, error } = await tmp.auth.signInWithPassword({ email, password })
     if (error || !data.session) throw error ?? new Error('signInWithPassword returned no session')
-    return createClient(SUPABASE_URL!, ANON_KEY!, {
+    return createClient<Database>(SUPABASE_URL!, ANON_KEY!, {
       global: {
         headers: { Authorization: `Bearer ${data.session.access_token}` }
       },
@@ -41,7 +42,7 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
         'RLS tests require NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, and SUPABASE_SERVICE_ROLE_KEY'
       )
     }
-    admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false }
     })
 

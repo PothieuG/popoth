@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Debug route iterates over dynamic table names (string variable feeding
+// .from(...)). Scope-cast to untyped client; literal-table refactor is out of
+// scope for the typing wire-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * API POST /api/debug/test-balance

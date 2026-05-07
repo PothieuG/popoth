@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Scope-cast: nullable group_id flows into .eq(...). Tracked as a follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 /**
  * GET - Récupère le solde bancaire de l'utilisateur ou du groupe

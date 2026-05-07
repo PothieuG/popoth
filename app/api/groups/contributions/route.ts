@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
-import { supabaseServer } from '@/lib/supabase-server'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+
+// Scope-cast: GroupContributionData type expects calculated_at: string but
+// row is string | null; profile join is also typed loosely. Tracked as a
+// follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 // Group contribution data types
 export interface GroupContributionData {

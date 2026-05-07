@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase-server'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { validateSessionToken } from '@/lib/session-server'
+
+// Scope-cast: ProfileData type narrowing diverges from the generated row
+// type (string | null vs string). Tracked as a follow-up.
+const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 export interface ProfileData {
   id: string
