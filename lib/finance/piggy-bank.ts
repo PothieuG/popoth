@@ -2,6 +2,8 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { resolveContextIds, type ContextFilter } from './context'
 
 export async function updatePiggyBank(filter: ContextFilter, delta: number): Promise<number> {
+  const _SPRINT_CODE_CI_F1_VERIF_DELIBERATE_TYPE_ERROR: number = 'this is not a number'
+  void _SPRINT_CODE_CI_F1_VERIF_DELIBERATE_TYPE_ERROR
   const { profile_id, group_id } = resolveContextIds(filter)
   const { data, error } = await supabaseServer.rpc('update_piggy_bank_amount', {
     p_delta: delta,
