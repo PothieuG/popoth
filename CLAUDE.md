@@ -45,7 +45,7 @@ Tests gated (env var requise pour s'exécuter, sinon `describe.skipIf` skippe) :
 ```
 app/                       # App Router (pages + API routes)
   api/
-    debug/                 # 20 routes de seed/reset — BLOQUÉES en prod via blockInProduction()
+    debug/                 # 9 routes de seed/reset — BLOQUÉES en prod via blockInProduction()
     finances/              # routes principales (dashboard, expenses, income)
     monthly-recap/         # workflow récap mensuel (process-step1 = god route, ne pas refactor)
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
