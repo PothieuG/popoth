@@ -535,7 +535,6 @@ CREATE POLICY "Users can view their own remaining to live snapshots"
 -- ============================================================================
 -- Triggers
 -- ============================================================================
-CREATE TRIGGER update_bank_balances_updated_at BEFORE UPDATE ON public.bank_balances FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER groups_budget_contribution_recalc AFTER UPDATE ON public.groups FOR EACH ROW EXECUTE FUNCTION trigger_group_budget_change();
 CREATE TRIGGER groups_cleanup_contributions BEFORE DELETE ON public.groups FOR EACH ROW EXECUTE FUNCTION cleanup_group_contributions();
 CREATE TRIGGER update_groups_updated_at BEFORE UPDATE ON public.groups FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
