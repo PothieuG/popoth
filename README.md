@@ -38,7 +38,7 @@ Popoth aide un foyer ou un groupe à piloter mensuellement ses budgets : revenus
 | Backend | API routes Next.js + **Supabase** (PostgreSQL + Auth) (`@supabase/supabase-js@^2.57.4`) |
 | Auth | JWT custom (`jose`) — pas Supabase Auth direct |
 | Tests | **Vitest 4.1.5** (env `node`) |
-| Package manager | **pnpm 9.15.5** (verrouillé), Node ≥ 20 |
+| Package manager | **pnpm 9.15.5** (verrouillé via `packageManager` + `engines.pnpm >=9.0.0`), Node ≥ 20.10.0 (`.nvmrc` pinné `20` LTS major) |
 
 `eslint-config-next 15.0.0` reste sur la version Next 15 — incompatible avec Next 16, ne pas upgrader avant le Sprint 1.
 
@@ -46,7 +46,7 @@ Popoth aide un foyer ou un groupe à piloter mensuellement ses budgets : revenus
 
 ## Prérequis
 
-- [Node.js](https://nodejs.org/) ≥ 20
+- [Node.js](https://nodejs.org/) ≥ 20.10 (utilisateurs `nvm` : `nvm use` lit [`.nvmrc`](./.nvmrc) qui pin sur la LTS major `20`)
 - [pnpm](https://pnpm.io/) 9.x (`corepack enable && corepack prepare pnpm@9.15.5 --activate`)
 - Un projet [Supabase](https://supabase.com/) (URL + clés service_role et anon)
 
@@ -105,10 +105,14 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm start` | Serveur production (après `build`) |
 | `pnpm typecheck` | `tsc --noEmit` strict (BLOQUANT en CI) |
 | `pnpm lint` | ESLint avec `--fix` |
-| `pnpm lint:check` | ESLint sans modification |
+| `pnpm lint:fix` | Alias de `pnpm lint` (conformité template canonique) |
+| `pnpm lint:check` | ESLint sans modification — **baseline cassé**, 125 erreurs pré-existantes documentées dans [CLAUDE.md §3](./CLAUDE.md#3-commandes), aucun workflow CI ne le lance |
+| `pnpm ci` | Chaîne code-side : `typecheck` + `lint:check` + `test:run` + `build`. Bloque actuellement sur `lint:check` (cf. dette ci-dessus). Utilisable pleinement après le chantier `lint-baseline-cleanup`. |
 | `pnpm test` | Vitest watch |
 | `pnpm test:run` | Vitest single run (CI) |
 | `pnpm db:types` | Régénère [lib/database.types.ts](./lib/database.types.ts) depuis le schéma prod |
+| `pnpm db:diff` | Wrapper `supabase db diff` — pas dans le workflow réel, à préférer `pnpm db:check-drift` (le repo n'utilise pas Docker) |
+| `pnpm db:reset` | Wrapper `supabase db reset` — **nécessite Docker local** (pas dans le workflow réel) |
 | `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql` |
 | `pnpm db:check-rpcs` | Vérifie via `pg_proc` que les 4 RPC C3 existent en prod |
 | `pnpm db:check-functions` | Vérifie via `pg_proc` que les 4 fonctions trigger custom existent (Sprint Audit-Triggers / A3) |
