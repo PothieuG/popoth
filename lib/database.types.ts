@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -92,13 +92,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "budget_transfers_from_budget_fkey"
-            columns: ["from_budget_id"]
-            isOneToOne: false
-            referencedRelation: "estimated_budgets"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "budget_transfers_from_budget_id_fkey"
             columns: ["from_budget_id"]
             isOneToOne: false
             referencedRelation: "estimated_budgets"
@@ -714,25 +707,26 @@ export type Database = {
         Args: { group_id_param: string }
         Returns: undefined
       }
-      check_column_exists: {
-        Args: { column_name: string; table_name: string }
-        Returns: boolean
+      transfer_from_piggy_to_budget: {
+        Args: {
+          p_amount: number
+          p_budget_id: string
+          p_group_id?: string
+          p_profile_id?: string
+        }
+        Returns: Json
       }
-      create_recap_snapshot: {
-        Args: { context_type?: string; user_id: string }
-        Returns: string
+      update_bank_balance: {
+        Args: { p_delta: number; p_group_id?: string; p_profile_id?: string }
+        Returns: number
       }
-      final_verification: {
-        Args: never
-        Returns: {
-          component: string
-          count_found: number
-          status: string
-        }[]
+      update_budget_cumulated_savings: {
+        Args: { p_budget_id: string; p_delta: number }
+        Returns: number
       }
-      is_monthly_recap_required: {
-        Args: { context_type?: string; user_id: string }
-        Returns: boolean
+      update_piggy_bank_amount: {
+        Args: { p_delta: number; p_group_id?: string; p_profile_id?: string }
+        Returns: number
       }
     }
     Enums: {
