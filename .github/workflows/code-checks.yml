@@ -68,6 +68,10 @@ jobs:
       - name: TypeScript check (strict, blocking)
         run: pnpm typecheck
 
+      - name: ESLint check (strict, blocking)
+        if: always()
+        run: pnpm lint:check
+
       - name: Vitest single run
         if: always()
         run: pnpm test:run
