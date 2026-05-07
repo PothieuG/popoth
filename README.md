@@ -23,6 +23,7 @@ Popoth aide un foyer ou un groupe à piloter mensuellement ses budgets : revenus
 - [Déploiement](#déploiement)
 - [Documentation](#documentation)
 - [Conventions](#conventions)
+- [Contribution](#contribution)
 - [Licence](#licence)
 
 ---
@@ -58,12 +59,14 @@ Optionnel pour les opérations DB hors-app :
 ## Installation
 
 ```bash
-git clone https://…/Popoth_App_Claude.git
-cd Popoth_App_Claude
+git clone git@github.com:PothieuG/popoth.git
+cd popoth
 pnpm install
 cp .env.example .env.local        # voir Configuration
 pnpm dev                          # http://localhost:3000
 ```
+
+> **Note historique** : le repo s'appelait `Popoth_App_Claude` jusqu'au rename Sprint Cleanup-Legacy / C3. GitHub redirige encore l'ancien URL ; nouveau clone → utiliser `popoth.git` directement.
 
 ---
 
@@ -313,6 +316,23 @@ Cf. [`CLAUDE.md`](./CLAUDE.md) §6 et §8 pour le détail. Résumé :
 - **Naming** : DB en `snake_case`, TS en `camelCase`, migrations Supabase nommées `<YYYYMMDDHHMMSS>_<verb>_<scope>.sql`.
 - **Git** : Conventional Commits (`fix:`, `feat:`, `chore:`, `docs:`, `perf:`, `test:`), un commit par item dans les sprints multi-items, pas de `--amend` sur un commit publié, jamais `--no-verify` sans demande explicite.
 - **DB writes** : pour `piggy_bank`/`bank_balances`/`cumulated_savings`, **toujours** via les helpers `lib/finance/*`. Pas de SELECT-then-UPDATE direct.
+
+---
+
+## Contribution
+
+Le repo est privé et maintenu en solo aujourd'hui. Si vous arrivez sur ce code via un fork ou une collaboration ad-hoc :
+
+1. **Lire d'abord** [`CLAUDE.md`](./CLAUDE.md) — c'est le guide de référence pour les conventions, les pièges connus, l'historique des sprints (§7), et la roadmap (§11). Le fichier est dense mais à jour.
+2. **Branche par sujet** : créer une branche depuis `cleanup` (la default branch — cf. Sprint Hygiene-CI / E3 dans CLAUDE.md §11). Pas depuis `main` (gelé à 3 commits derrière).
+3. **PR vers `cleanup`** : tout PR sera gaté par 2 workflows GitHub Actions :
+   - `code-checks.yml` — `pnpm typecheck` + `pnpm test:run` sur tout PR touchant `**/*.ts` ou les configs (Sprint Code-CI / F1).
+   - `db-drift-pr.yml` — `pnpm db:check-drift` + 3 autres détecteurs sur tout PR touchant `supabase/migrations/**` ou les types générés (Sprint Audit-Functions-v2 / B3, Sprint Hygiene-CI / E2).
+4. **Commits** : Conventional Commits (`fix:`, `feat:`, `chore:`, `docs:`, `perf:`, `test:`), un commit par item logique. Voir CLAUDE.md §6 (Git).
+5. **Migrations DB** : suivre le push gate de CLAUDE.md §8 (`pnpm supabase db push --dry-run` → STOP confirmation → `db push` → re-audit Management API → commit). Pour rétro-capturer une fonction PL/pgSQL ou DROP un objet legacy, suivre les workflows capture-then-drop / capture rétroactive documentés dans CLAUDE.md §8.
+6. **Tests d'intégration gated** : `SUPABASE_RPC_CONCURRENCY_TESTS=1` etc. créent de vraies données dans Supabase prod. À lancer manuellement uniquement, jamais en CI.
+
+Issues / discussions : pas de canal formel aujourd'hui (repo privé, mainteneur solo).
 
 ---
 
