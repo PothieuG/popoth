@@ -17,7 +17,8 @@
     "db:check-functions": "node scripts/check-trigger-functions.mjs",
     "db:check-types-fresh": "node scripts/check-types-fresh.mjs",
     "db:audit-functions": "node scripts/audit-functions.mjs",
-    "db:audit-objects": "node scripts/audit-db-objects.mjs"
+    "db:audit-objects": "node scripts/audit-db-objects.mjs",
+    "verify": "pnpm typecheck && pnpm test:run && pnpm db:check-drift && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.63.0",
