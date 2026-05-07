@@ -142,8 +142,7 @@ hooks/                     # 18 hooks React (useFinancialData, useGroups, ...)
 lib/
   supabase-server.ts       # client serveur (service_role, BYPASS RLS)
   supabase-client.ts       # client browser (anon key, soumis à RLS)
-  database.ts              # Database type augmenté avec les 4 RPC C3
-  database.types.ts        # types Supabase générés
+  database.types.ts        # types Supabase générés (inclut les 4 RPC C3 depuis Sprint Cleanup-Legacy / C1)
   session.ts               # JWT (jose) pour cookie session
   expense-allocation.ts    # règles d'allocation tirelire/savings/budget
   financial-calculations.ts # GOD FILE — chantier I4
@@ -264,7 +263,7 @@ CI : `.github/workflows/` contient un cron weekly `pnpm db:check-drift` + `db:ch
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Cleanup-Legacy (~77/100) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Polish-CI (~78/100) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
 - ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
@@ -274,6 +273,7 @@ L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-
 - ✅ **Triggers et fonctions PL/pgSQL versionnés** (Sprint Audit-Triggers / A1–A4) : les 6 triggers `public.*` sont dans le baseline + les 4 fonctions custom + le canonique `update_updated_at_column` sont capturés dans [`supabase/migrations/20260512000000_capture_trigger_functions.sql`](./supabase/migrations/20260512000000_capture_trigger_functions.sql). `calculate_group_contributions` (5ème fonction non-versionnée découverte en cours) est inclus.
 - ✅ **Audit générique fonctions** (Sprint Audit-Functions-v2 / B1–B3) : `pnpm db:audit-functions` enumère toutes les `public.*` fonctions et confirme leur présence dans `supabase/migrations/`. Au premier run, 4 fonctions legacy supplémentaires ont été surfacées (toutes dead code) et capturées dans [`supabase/migrations/20260513000000_capture_legacy_functions.sql`](./supabase/migrations/20260513000000_capture_legacy_functions.sql). Tests comportement trigger ([`lib/__tests__/trigger-behavior.test.ts`](./lib/__tests__/trigger-behavior.test.ts), gated `SUPABASE_TRIGGER_TESTS=1`) couvrent les 4 fonctions custom (auto-create on JOIN, recalc on UPDATE, cascade DELETE, touch updated_at).
 - ✅ **Cleanup legacy + audit étendu** (Sprint Cleanup-Legacy / C1–C3) : C1 a DROP les 4 fonctions legacy capturées en B1 ([`supabase/migrations/20260514000000_drop_legacy_functions.sql`](./supabase/migrations/20260514000000_drop_legacy_functions.sql)) — `pnpm db:audit-functions` est passé à 9 fonctions versionnées (vs 13). C2 a ajouté `pnpm db:audit-objects` ([`scripts/audit-db-objects.mjs`](./scripts/audit-db-objects.mjs)) pour couvrir 5 catégories `pg_catalog` (functions + types + enums + domains + operators). C3 a validé end-to-end le PR-time gate B3 et fixé 2 vrais bugs CI au passage : conflit `pnpm/action-setup@v4 ↔ packageManager` (le cron weekly n'avait jamais tourné depuis B3) + secret `SUPABASE_ACCESS_TOKEN` perdu lors du rename du repo.
+- ✅ **Polish CI/DX** (Sprint Polish-CI / D1–D6) : D1 `pnpm db:types` self-redirige (le wrapper pnpm ne pollue plus le fichier généré). D2 `pnpm db:check-drift` idempotent face à CRLF Windows (root cause subtile : regex JS `.+$` ne consomme pas `\r`). D3 augmentation `lib/database.ts` supprimée — depuis le regen `--linked` (C1), les 4 RPC C3 sont dans les types générés et l'augmentation est devenue no-op (47 LOC + 6 imports migrés). D4 path filter du PR-time gate étendu aux 2 YAML eux-mêmes + `audit-*.mjs` (self-monitoring contre une régression C3 redux). D5 cron weekly à observer manuellement via `workflow_dispatch`. D6 Node.js 24 migration déférée à juin 2026.
 
 L'historique des sprints sécurité est consigné dans [`CLAUDE.md`](./CLAUDE.md) §7.
 
@@ -295,7 +295,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`POST-MORTEM-C3-DRIFT.md`](./docs/audit/POST-MORTEM-C3-DRIFT.md) — post-mortem du drift `schema_migrations` ↔ `pg_proc`.
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
-- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Cleanup-Legacy (v8, livré). [`prompt-00-executive-summary-v9.md`](./prompts/prompt-00-executive-summary-v9.md) (Sprint Polish-CI : 4 fixes surfacés par v8) est le prochain à exécuter.
+- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Polish-CI (v9, livré). [`prompt-00-executive-summary-v10.md`](./prompts/prompt-00-executive-summary-v10.md) (Sprint Hygiene-CI : `.gitattributes` + `db:check-types-fresh` + D5 follow-up) est le prochain à exécuter.
 
 ---
 
