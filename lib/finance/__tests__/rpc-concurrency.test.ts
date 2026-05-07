@@ -9,6 +9,7 @@ import type { Database } from '@/lib/database'
 // the describe block is later skipped.
 type PiggyMod = typeof import('@/lib/finance/piggy-bank')
 type SavingsMod = typeof import('@/lib/finance/budget-savings')
+type BankMod = typeof import('@/lib/finance/bank-balance')
 
 const ENABLED = process.env.SUPABASE_RPC_CONCURRENCY_TESTS === '1'
 
@@ -22,6 +23,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
   let updatePiggyBank: PiggyMod['updatePiggyBank']
   let transferFromPiggyToBudget: PiggyMod['transferFromPiggyToBudget']
   let updateBudgetCumulatedSavings: SavingsMod['updateBudgetCumulatedSavings']
+  let updateBankBalance: BankMod['updateBankBalance']
 
   const stamp = Date.now()
   const testEmail = `rpc-concurrency-${stamp}@popoth.test`
@@ -65,9 +67,11 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
 
     const piggyMod = await import('@/lib/finance/piggy-bank')
     const savingsMod = await import('@/lib/finance/budget-savings')
+    const bankMod = await import('@/lib/finance/bank-balance')
     updatePiggyBank = piggyMod.updatePiggyBank
     transferFromPiggyToBudget = piggyMod.transferFromPiggyToBudget
     updateBudgetCumulatedSavings = savingsMod.updateBudgetCumulatedSavings
+    updateBankBalance = bankMod.updateBankBalance
 
     const { data: userData, error: userErr } = await admin.auth.admin.createUser({
       email: testEmail,
@@ -91,6 +95,13 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     })
     if (piggyErr) throw piggyErr
 
+    const { error: bankErr } = await admin.from('bank_balances').insert({
+      profile_id: testUserId,
+      group_id: null,
+      balance: 100,
+    })
+    if (bankErr) throw bankErr
+
     const { data: budgetData, error: budgetErr } = await admin
       .from('estimated_budgets')
       .insert({
@@ -107,8 +118,9 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
 
   afterAll(async () => {
     if (!admin || !testUserId) return
-    // piggy_bank FK -> profiles(id) has NO ON DELETE; delete manually first.
+    // piggy_bank / bank_balances FK -> profiles(id) have NO ON DELETE; delete manually first.
     await admin.from('piggy_bank').delete().eq('profile_id', testUserId)
+    await admin.from('bank_balances').delete().eq('profile_id', testUserId)
     // estimated_budgets cascades from profiles; explicit delete is harmless.
     await admin.from('estimated_budgets').delete().eq('profile_id', testUserId)
     // profiles cascades from auth.users on delete.
@@ -171,6 +183,31 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     expect(savings).toBe(50)
     expect(piggy + savings).toBe(1000)
   }, 120_000)
+
+  it('updateBankBalance rejects overdraft and leaves balance untouched (Sprint Hardening / H3)', async () => {
+    // Reset to a known state: balance = 100.
+    const { error: resetErr } = await admin
+      .from('bank_balances')
+      .update({ balance: 100 })
+      .eq('profile_id', testUserId)
+    expect(resetErr).toBeNull()
+
+    // -200 would land at -100. RPC must throw, balance must stay at 100.
+    // Either error wins: the new RPC guard ("cannot become negative") or the
+    // existing CHECK constraint (bank_balances_balance_check). Both preserve
+    // the invariant — accept either message.
+    await expect(updateBankBalance({ profile_id: testUserId }, -200)).rejects.toThrow(
+      /negative|bank_balances_balance_check/i
+    )
+
+    const { data, error } = await admin
+      .from('bank_balances')
+      .select('balance')
+      .eq('profile_id', testUserId)
+      .single()
+    expect(error).toBeNull()
+    expect(Number(data?.balance)).toBe(100)
+  }, 60_000)
 
   it('updateBudgetCumulatedSavings × 100 alternating ±1 returns to start', async () => {
     // Start at 100 to keep the running balance >= 0 regardless of interleave
