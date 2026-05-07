@@ -188,50 +188,31 @@ here instead.
 
 | Table | Trigger | Function | Timing | Events | Status |
 |---|---|---|---|---|---|
-| `public.bank_balances` | `update_bank_balances_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ trigger present in prod, **not** in baseline (export filter bug, see below). Function body not versioned. |
-| `public.groups` | `groups_budget_contribution_recalc` | `public.trigger_group_budget_change` | AFTER | UPDATE | ⚠️ trigger + function not versioned anywhere in `supabase/`. |
-| `public.groups` | `groups_cleanup_contributions` | `public.cleanup_group_contributions` | BEFORE | DELETE | ⚠️ trigger + function not versioned anywhere in `supabase/`. |
-| `public.groups` | `update_groups_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ same as bank_balances. |
-| `public.profiles` | `profiles_contribution_recalc` | `public.trigger_recalculate_contributions` | AFTER | INSERT, DELETE, UPDATE | ⚠️ this is the H6-discovered "auto-create group_contributions on profile.group_id change" trigger. Function body **not** versioned. |
-| `public.profiles` | `update_profiles_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ same as bank_balances. |
-| `realtime.subscription` | `tr_check_filters` | `realtime.subscription_check_filters` | BEFORE | INSERT, UPDATE | ⚠️ Supabase-managed (realtime extension). Expected. |
+| `public.bank_balances` | `update_bank_balances_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ✅ trigger in baseline (A1); function in [20260512000000_capture_trigger_functions.sql](../../supabase/migrations/20260512000000_capture_trigger_functions.sql) (A2). |
+| `public.groups` | `groups_budget_contribution_recalc` | `public.trigger_group_budget_change` | AFTER | UPDATE | ✅ trigger in baseline (A1); function captured (A2). |
+| `public.groups` | `groups_cleanup_contributions` | `public.cleanup_group_contributions` | BEFORE | DELETE | ✅ trigger in baseline (A1); function captured (A2). |
+| `public.groups` | `update_groups_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ✅ same as `bank_balances`. |
+| `public.profiles` | `profiles_contribution_recalc` | `public.trigger_recalculate_contributions` | AFTER | INSERT, DELETE, UPDATE | ✅ "auto-create group_contributions on profile.group_id change" — function captured (A2). RLS test R6 depends on it. |
+| `public.profiles` | `update_profiles_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ✅ same as `bank_balances`. |
+| `realtime.subscription` | `tr_check_filters` | `realtime.subscription_check_filters` | BEFORE | INSERT, UPDATE | ⚠️ Supabase-managed (realtime extension). Expected, intentionally out-of-scope (H6 decision). |
 | `storage.buckets` | `enforce_bucket_name_length_trigger` | `storage.enforce_bucket_name_length` | BEFORE | INSERT, UPDATE | ⚠️ Supabase-managed (storage). Expected. |
 | `storage.buckets` | `protect_buckets_delete` | `storage.protect_delete` | BEFORE | DELETE | ⚠️ Supabase-managed. Expected. |
 | `storage.objects` | `protect_objects_delete` | `storage.protect_delete` | BEFORE | DELETE | ⚠️ Supabase-managed. Expected. |
 | `storage.objects` | `update_objects_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ Supabase-managed binding to a `public.*` function. Expected. |
 
-**Findings:**
+**Hidden dependency found in-flight (A2):** `calculate_group_contributions` (~80 LOC, core métier du recalcul des contributions de groupe) was also non-versioned and is `PERFORM`-called by 2 of the 3 trigger functions above. Captured in the same A2 migration. Now pinned by `pnpm db:check-functions`.
 
-1. **Export filter bug.** The baseline currently says `-- (no user triggers)`,
-   yet 6 triggers exist on `public.*` tables. The query in
-   [scripts/export-schema.mjs:320](../../scripts/export-schema.mjs)
-   filters with `tgrelid::regclass::text LIKE 'public.%'`, but
-   `regclass::text` returns an **unqualified** name (`bank_balances`)
-   when `public` is on the connection's `search_path` — which it is by
-   default. The filter never matches. Fix: use `c.relnamespace =
-   'public'::regnamespace` or query through `pg_class` + `pg_namespace`
-   directly. Tracked as a separate fix-it (not a Sprint Polish T5
-   deliverable — the doc captures the gap, the fix is its own commit).
+**Status (post Sprint Audit-Triggers, 2026-05-07):**
 
-2. **Function bodies not versioned.** Three trigger functions exist in
-   `public` but no `CREATE FUNCTION` for them appears anywhere in
-   `supabase/migrations/`: `trigger_group_budget_change`,
-   `cleanup_group_contributions`, `trigger_recalculate_contributions`.
-   Same risk class as the C3 RPC drift — they could disappear and
-   nothing in this repo would catch it. The standard `update_updated_at_column`
-   is also undocumented but is canonical Supabase boilerplate.
+1. **Export filter fixed (A1).** [scripts/export-schema.mjs](../../scripts/export-schema.mjs) now joins `pg_class` + `pg_namespace` explicitly (`n.nspname = 'public'`) instead of relying on `tgrelid::regclass::text LIKE 'public.%'`. The 6 `public.*` triggers are in the baseline and `pnpm db:check-drift` would flag a drop.
 
-3. **H6 attribution updated.** H6 documented the
-   `profiles_contribution_recalc` trigger as living "in a non-`public`
-   schema (likely Supabase-managed)". The inventory shows it actually
-   lives in `public` — the H6 hypothesis was wrong, but the
-   conclusion (trigger not in baseline) was right, just for a
-   different reason (export filter bug, not schema scope).
+2. **Function bodies captured (A2).** All 4 custom PL/pgSQL functions + the canonical `update_updated_at_column` are now versioned in [20260512000000_capture_trigger_functions.sql](../../supabase/migrations/20260512000000_capture_trigger_functions.sql). The migration was applied via `apply-sql.mjs` (idempotent `CREATE OR REPLACE`) + `supabase migration repair --status applied 20260512000000`.
 
-4. **Cross-schema triggers** (`storage.*`, `realtime.*`) are
-   Supabase-managed and intentionally out of scope for the baseline,
-   per the H6 decision. The inventory above lets future audits diff
-   against this snapshot to detect new entries.
+3. **Drift detection extended (A3).** `pnpm db:check-functions` ([scripts/check-trigger-functions.mjs](../../scripts/check-trigger-functions.mjs)) verifies the 4 custom functions are in `pg_proc` (excludes `update_updated_at_column` to avoid false positives on Supabase canonical evolution). The script mirrors `db:check-rpcs` (Sprint Hardening / H4).
+
+4. **CI extended (A4).** `.github/workflows/db-drift-check.yml` runs `db:check-drift` + `db:check-rpcs` + `db:check-functions` weekly.
+
+5. **Cross-schema triggers** (`storage.*`, `realtime.*`) remain intentionally out-of-scope for the baseline (H6 decision). The inventory above is the canonical snapshot; future audits should diff against it.
 
 ## Migration timeline
 

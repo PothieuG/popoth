@@ -212,16 +212,19 @@ prompts/                   # prompts Claude Code par chantier
 - T3 — [lib/__tests__/api-regressions.test.ts](lib/__tests__/api-regressions.test.ts) : 3 tests gated `SUPABASE_API_TESTS=1` couvrant les régressions H1/H2/R2 (cumulated_savings, total_real_*, availableBalance). Pattern dynamic-import + cleanup cascade calé sur `rpc-concurrency.test.ts`.
 - T5 — [scripts/list-triggers.sql](scripts/list-triggers.sql) + section "Inventory" dans [docs/db/SCHEMA.md](docs/db/SCHEMA.md). **2 trouvailles** documentées non-fixées (Sprint Audit-Triggers v6) : (a) le filtre `LIKE 'public.%'` du baseline exporter ne matche jamais → 6 triggers `public.*` invisibles dans le baseline ; (b) 3 fonctions trigger non-versionnées en prod (`trigger_group_budget_change`, `cleanup_group_contributions`, `trigger_recalculate_contributions`).
 
+### ✅ Fait (Sprint Audit-Triggers — livré 2026-05-07)
+- A1 — Fix du filtre trigger dans [scripts/export-schema.mjs](scripts/export-schema.mjs) : JOIN explicite `pg_class`+`pg_namespace` (le `tgrelid::regclass::text LIKE 'public.%'` précédent ne matchait jamais quand `public` est dans le `search_path`). Baseline ré-exporté contient désormais les 6 `CREATE TRIGGER` `public.*`. `pnpm db:check-drift` détecte maintenant la suppression d'un trigger.
+- A2 — Migration [20260512000000_capture_trigger_functions.sql](supabase/migrations/20260512000000_capture_trigger_functions.sql) : capture verbatim de **5 fonctions PL/pgSQL** non-versionnées (`update_updated_at_column`, `calculate_group_contributions`, `trigger_group_budget_change`, `cleanup_group_contributions`, `trigger_recalculate_contributions`). `calculate_group_contributions` (~80 LOC, core métier) découverte en cours de route via `PERFORM` depuis 2 des 3 triggers — capturée pour ne pas laisser un trou caché. Migration appliquée via `apply-sql.mjs` (idempotent `CREATE OR REPLACE`) + `supabase migration repair --status applied 20260512000000`. Pas de `db push` (les fonctions existent déjà en prod). Helper [scripts/dump-functions.sql](scripts/dump-functions.sql) committé pour audits futurs.
+- A3 — `pnpm db:check-functions` ([scripts/check-trigger-functions.mjs](scripts/check-trigger-functions.mjs)) : pendant `db:check-rpcs` pour les 4 fonctions custom (exclut `update_updated_at_column` canonique pour éviter false positives). Comble le trou que `db:check-drift` ne couvre pas (le baseline ne capture pas les bodies de fonction).
+- A4 — [.github/workflows/db-drift-check.yml](.github/workflows/db-drift-check.yml) étendu : `db:check-drift` + `db:check-rpcs` + `db:check-functions` weekly cron + on-demand.
+
 ### ⚠️ Drift C3 résolu
 Le drift `supabase_migrations.schema_migrations` ↔ `pg_proc` (les 4 RPC C3 marquées appliquées sans exécution du SQL) est documenté dans [docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md). Le filet aujourd'hui :
 - `pnpm db:check-drift` pour le drift table/colonne/policy/index.
 - `pnpm db:check-rpcs` pour la présence des 4 RPC C3 dans `pg_proc` (livré Sprint Hardening / H4).
 - `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` pour vérifier que les RPC fonctionnent réellement sous concurrence (gated).
 
-Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB), [prompts/prompt-00-executive-summary-v5.md](prompts/prompt-00-executive-summary-v5.md) (Sprint Polish — livré), et [prompts/prompt-00-executive-summary-v6.md](prompts/prompt-00-executive-summary-v6.md) (Sprint Audit-Triggers — à exécuter).
-
-### ⚠️ Trigger inventory gap (Sprint Audit-Triggers / v6)
-Le baseline `20260101000000_remote_schema.sql` dit `-- (no user triggers)` mais 6 triggers existent en prod sur `public.*` (cf. [docs/db/SCHEMA.md](docs/db/SCHEMA.md) section "Inventory"). Conséquence : `pnpm db:check-drift` ne détecterait pas la suppression d'un trigger. Fix prévu dans Sprint Audit-Triggers (filtre + capture des fonctions). En attendant, ne pas s'appuyer sur `db:check-drift` seul comme garde-fou — relancer manuellement `node scripts/apply-sql.mjs scripts/list-triggers.sql` après chaque migration touchant aux tables `public.*`.
+Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB), [prompts/prompt-00-executive-summary-v5.md](prompts/prompt-00-executive-summary-v5.md) (Sprint Polish — livré), et [prompts/prompt-00-executive-summary-v6.md](prompts/prompt-00-executive-summary-v6.md) (Sprint Audit-Triggers — livré).
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
@@ -233,6 +236,7 @@ Le baseline `20260101000000_remote_schema.sql` dit `-- (no user triggers)` mais 
 - Lancer `pnpm typecheck && pnpm test:run` après chaque modif significative.
 - Pour les requêtes hors de l'app (audit, migration, debug schéma) : préférer l'API Management `POST /v1/projects/{ref}/database/query` (sans Docker) plutôt que `psql` ou `db pull`. `scripts/export-schema.mjs` et `scripts/apply-sql.mjs` exposent ce pattern.
 - Pour toute nouvelle RPC : `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public`. **Suivre la migration de** `NOTIFY pgrst, 'reload schema';` pour forcer le rafraîchissement du cache PostgREST (sinon `.rpc()` lève "Could not find the function in the schema cache" — leçon Sprint DB).
+- Pour toute nouvelle fonction trigger ou modification d'une existante : versionner dans une migration dédiée (pattern : [supabase/migrations/20260512000000_capture_trigger_functions.sql](supabase/migrations/20260512000000_capture_trigger_functions.sql), `CREATE OR REPLACE FUNCTION`). Le baseline n'inclut PAS les bodies de fonction — c'est volontaire (pattern C3) et `pnpm db:check-functions` tient le filet. Ajouter le nom de la nouvelle fonction à `EXPECTED_FUNCTIONS` dans [scripts/check-trigger-functions.mjs](scripts/check-trigger-functions.mjs) si elle est custom (pas Supabase canonique).
 - Push gate prod : `pnpm supabase db push --dry-run` → STOP confirmation utilisateur → `db push` → re-audit Management API → commit.
 - Régénérer les types après changement de schéma : `pnpm db:types` (puis ajuster `lib/database.ts` si nouvelles RPC service-role-only).
 - Après chaque migration non-triviale : lancer `pnpm db:check-drift`. Si exit 1, re-exporter le baseline via `node scripts/export-schema.mjs supabase/migrations/20260101000000_remote_schema.sql` et committer (sinon le détecteur reste rouge et on retombe dans la trap C3).
@@ -276,7 +280,14 @@ Pour les opérations CLI Supabase qui requièrent l'access token + DB password :
 SUPABASE_ACCESS_TOKEN=sbp_...        # https://supabase.com/dashboard/account/tokens
 SUPABASE_DB_PASSWORD=...             # Project Settings > Database > Reset password si oublié
 ```
-Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`), **jamais** persisté dans un fichier committé.
+Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`) ou persistés au niveau User env (`[Environment]::SetEnvironmentVariable(...)`), **jamais** committés dans un fichier.
+
+> 🚨 **Règle absolue (sécurité)** : Claude **ne doit JAMAIS lire la valeur** de `SUPABASE_ACCESS_TOKEN` ni `SUPABASE_DB_PASSWORD` (ni de tout autre secret du `.env.local`).
+>
+> - ❌ **Interdit** : `Write-Output $env:SUPABASE_ACCESS_TOKEN`, `echo $env:SUPABASE_DB_PASSWORD`, `Get-Content .env.local`, ou toute commande qui rend la valeur visible dans le transcript.
+> - ✅ **Autorisé** : test de présence binaire (`if ($env:SUPABASE_ACCESS_TOKEN) { "OK" } else { "MISSING" }`) — ne révèle pas la valeur.
+> - ✅ **Autorisé** : laisser les scripts (`apply-sql.mjs`, `export-schema.mjs`, `check-rpcs.mjs`) lire `process.env.SUPABASE_ACCESS_TOKEN` en interne — la valeur ne transite pas par stdout/stderr.
+> - **Si une commande échoue avec "TOKEN_MISSING"** : demander à l'utilisateur de le set lui-même via `[Environment]::SetEnvironmentVariable(...)` puis redémarrer Claude Code. **Ne jamais** lui demander de coller le secret dans le chat.
 
 ## 11. Roadmap (à jour 2026-05-07)
 
@@ -285,7 +296,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 - ✅ **Sprint Refactor** ([prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md)) : R0 post-mortem + R1 routes debug + R2 wirage `<Database>` (avec scope-cast à dérouler en H1) + R3 dedup schéma + R4 drift detection + R6 tests RLS D2/D3 + drop policy récursive profiles. R5 (overdraft) reporté en H3. Livré 2026-05-07, 6 commits (`5efacfe → ab58db2`), score estimé ~62-65/100
 - ✅ **Sprint Hardening** ([prompt-00-executive-summary-v4.md](prompts/prompt-00-executive-summary-v4.md)) : H1 unwind 17 scope-casts (5 restants tous god/debug) + H2 ghost table `financial_snapshots` + H3 overdraft `bank_balances` (RAISE EXCEPTION dans la RPC) + H4 `pnpm db:check-rpcs` + H5 GH Actions cron drift + H6 trigger forensics. **3 bugs réels surfacés et fixés** : `current_savings`/`cumulated_savings` (R2), RPC fantôme `calculate_available_cash` dans dashboard, `total_real_income`/`total_real_expenses` qui retombent toujours sur 0 (T1 Sprint Polish corrigera ce dernier). Livré 2026-05-07, 9 commits (`858b243 → 5d65922`), score estimé ~70/100
 - ✅ **Sprint Polish** ([prompt-00-executive-summary-v5.md](prompts/prompt-00-executive-summary-v5.md)) : T1 dashboard aggregates fix + T2 delete 3 debug routes + T3 regression tests gated `SUPABASE_API_TESTS=1` + T4 `SnapshotPayload` discriminé + T5 trigger inventory + 2 trouvailles documentées. Livré 2026-05-07, 6 commits (`be6af8e → c54fb7f`), score estimé ~73/100
-- ⏭️ **Sprint Audit-Triggers** ([prompt-00-executive-summary-v6.md](prompts/prompt-00-executive-summary-v6.md)) : A1 fix filtre baseline trigger + A2 capture des 3 fonctions trigger non-versionnées + A3 `pnpm db:check-functions` + A4 CI extension
+- ✅ **Sprint Audit-Triggers** ([prompt-00-executive-summary-v6.md](prompts/prompt-00-executive-summary-v6.md)) : A1 fix filtre baseline trigger + A2 capture des **5** fonctions PL/pgSQL non-versionnées (les 3 du prompt + `update_updated_at_column` canonique + `calculate_group_contributions` découverte en cours via `PERFORM`) + A3 `pnpm db:check-functions` (pin 4 custom) + A4 CI extension. Livré 2026-05-07, 6 commits (`f747e98 → ...`), score estimé ~75/100
 - ⏭️ **Sprint 1** : Prettier + Husky + CI + upgrade `eslint-config-next` 15→16
 - ⏭️ **Chantier I4** : refactor `lib/financial-calculations.ts` (god file 1075 LOC)
 - ⏭️ **Chantier I5** : extraction logique métier de `app/api/monthly-recap/process-step1/route.ts`
