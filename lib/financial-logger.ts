@@ -14,7 +14,20 @@ export interface LogContext {
   userId?: string
   groupId?: string
   duration?: number
-  [key: string]: any
+  [key: string]: unknown
+}
+
+interface DatabaseErrorLike {
+  message?: string
+  code?: string
+  details?: string
+  hint?: string
+}
+
+interface ErrorLike {
+  message?: string
+  stack?: string
+  name?: string
 }
 
 export interface LogEntry extends LogContext {
@@ -78,7 +91,7 @@ export class FinancialLogger {
   /**
    * Log successful operation completion
    */
-  static success(context: LogContext, additionalData?: any): void {
+  static success(context: LogContext, additionalData?: Record<string, unknown>): void {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
@@ -91,7 +104,7 @@ export class FinancialLogger {
   /**
    * Log validation error
    */
-  static validationError(context: LogContext, validationDetails: any): void {
+  static validationError(context: LogContext, validationDetails: unknown): void {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'warn',
@@ -104,15 +117,16 @@ export class FinancialLogger {
   /**
    * Log database error
    */
-  static databaseError(context: LogContext, error: any): void {
+  static databaseError(context: LogContext, error: unknown): void {
+    const dbError = error as DatabaseErrorLike
     const logEntry = this.createLogEntry({
       ...context,
       level: 'error',
       error: {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
+        message: dbError.message,
+        code: dbError.code,
+        details: dbError.details,
+        hint: dbError.hint
       }
     })
 
@@ -134,14 +148,15 @@ export class FinancialLogger {
   /**
    * Log general error
    */
-  static error(context: LogContext, error: any): void {
+  static error(context: LogContext, error: unknown): void {
+    const errLike = error as ErrorLike
     const logEntry = this.createLogEntry({
       ...context,
       level: 'error',
       error: {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
+        message: errLike.message,
+        stack: errLike.stack,
+        name: errLike.name
       }
     })
 
@@ -165,7 +180,7 @@ export class FinancialLogger {
   /**
    * Log financial calculation
    */
-  static financialCalculation(context: LogContext, calculationData: any): void {
+  static financialCalculation(context: LogContext, calculationData: unknown): void {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
@@ -178,7 +193,7 @@ export class FinancialLogger {
   /**
    * Log data access audit trail
    */
-  static dataAccess(context: LogContext, accessDetails: any): void {
+  static dataAccess(context: LogContext, accessDetails: unknown): void {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
@@ -191,7 +206,7 @@ export class FinancialLogger {
   /**
    * Log data modification audit trail
    */
-  static dataModification(context: LogContext, modificationDetails: any): void {
+  static dataModification(context: LogContext, modificationDetails: unknown): void {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
@@ -216,7 +231,7 @@ export class FinancialLogger {
 /**
  * Middleware wrapper for API routes with automatic logging
  */
-export function withFinancialLogging<T extends any[], R>(
+export function withFinancialLogging<T extends unknown[], R>(
   component: string,
   operation: string,
   handler: (...args: T) => Promise<R>
@@ -255,7 +270,7 @@ export function withFinancialLogging<T extends any[], R>(
  */
 export function createLoggedResponse(
   context: LogContext,
-  data: any,
+  data: unknown,
   status: number = 200
 ): Response {
   if (status >= 400) {
