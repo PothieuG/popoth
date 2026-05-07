@@ -165,23 +165,32 @@ when discovered):
   fires `BEFORE UPDATE` on most tables. Captured by `export-schema.mjs`
   (lives in `public.update_updated_at_column`).
 
-To audit cross-schema triggers ad-hoc:
+To audit cross-schema triggers ad-hoc, run
+[scripts/list-triggers.sql](../../scripts/list-triggers.sql):
 
-```sql
-SELECT n.nspname, t.tgname, c.relname, p.proname
-FROM pg_trigger t
-JOIN pg_class c ON c.oid = t.tgrelid
-JOIN pg_namespace n ON n.oid = c.relnamespace
-JOIN pg_proc p ON p.oid = t.tgfoid
-WHERE NOT t.tgisinternal
-ORDER BY n.nspname, c.relname, t.tgname;
+```sh
+$env:SUPABASE_ACCESS_TOKEN = "sbp_..."
+node scripts/apply-sql.mjs scripts/list-triggers.sql
 ```
 
-Run via Management API (`scripts/apply-sql.mjs` is for writes — use
-`fetch` against the same endpoint with the SELECT for reads). Decision
-during Sprint Hardening / H6: do **not** widen the export filter to
-non-`public` schemas — that would pull in Supabase-managed internals
-(auth, storage, realtime). Document them here instead.
+The query returns `(schema, table_name, trigger_name, function_schema,
+function_name, timing, events)` for every non-internal trigger across
+all schemas. `apply-sql.mjs` works for SELECT just as well as for
+mutations — the Management API `/database/query` endpoint accepts any
+SQL.
+
+Decision during Sprint Hardening / H6 (preserved): do **not** widen the
+export filter to non-`public` schemas — that would pull in
+Supabase-managed internals (auth, storage, realtime). Document them
+here instead.
+
+### Inventory (run [scripts/list-triggers.sql](../../scripts/list-triggers.sql) to refresh)
+
+> _Last updated: pending — run the inventory query and paste the output
+> here. Mark each row:_
+> - ✅ tracked in the baseline `20260101000000_remote_schema.sql`
+> - ⚠️ cross-schema or Supabase-managed — not in the baseline
+> - ❌ orphan / function deleted (cleanup candidate)
 
 ## Migration timeline
 
