@@ -1,0 +1,55 @@
+# Dependabot — auto-PR weekly for outdated deps and GitHub Actions versions.
+# PRs are gated by code-checks.yml (Sprint Code-CI / F1) and db-drift-pr.yml
+# (Sprint Audit-Functions-v2 / B3) so we can merge with confidence.
+#
+# Sprint DX-Verify / G2.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    target-branch: cleanup
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - npm
+    groups:
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      supabase:
+        patterns:
+          - "@supabase/*"
+          - "supabase"
+      eslint:
+        patterns:
+          - "eslint*"
+          - "@eslint/*"
+      test-stack:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    target-branch: cleanup
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
