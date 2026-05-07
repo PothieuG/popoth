@@ -33,6 +33,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). Audit complet 2026-04 dan
 | `pnpm test:run` | Vitest single run (CI) |
 | `pnpm db:types` | Régénère `lib/database.types.ts` depuis le schéma prod (Sprint DB / D6) |
 | `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql`. Exit 0 = clean, 1 = drift (Sprint Refactor / R4) |
+| `pnpm db:check-rpcs` | Vérifie via `pg_proc` que les 4 RPC C3 (`update_piggy_bank_amount`, `update_bank_balance`, `update_budget_cumulated_savings`, `transfer_from_piggy_to_budget`) existent en prod. Exit 0 = présentes, 1 = manquantes (Sprint Hardening / H4) |
 | `pnpm supabase ...` | Supabase CLI (lié à `jzmppreybwabaeycvasz`) |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker) |
 | `node scripts/apply-sql.mjs <file.sql>` | Applique un fichier SQL via API Management (drift recovery) |
@@ -183,7 +184,8 @@ prompts/                   # prompts Claude Code par chantier
 ### ⚠️ Drift C3 résolu
 Le drift `supabase_migrations.schema_migrations` ↔ `pg_proc` (les 4 RPC C3 marquées appliquées sans exécution du SQL) est documenté dans [docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md). Le filet aujourd'hui :
 - `pnpm db:check-drift` pour le drift table/colonne/policy/index.
-- `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` pour le drift RPC (gated, à scripter en `pnpm db:check-rpcs` dans le Sprint Hardening / H4).
+- `pnpm db:check-rpcs` pour la présence des 4 RPC C3 dans `pg_proc` (livré Sprint Hardening / H4).
+- `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` pour vérifier que les RPC fonctionnent réellement sous concurrence (gated).
 
 Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB), [prompts/prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md) (Sprint Refactor — livré), et [prompts/prompt-00-executive-summary-v4.md](prompts/prompt-00-executive-summary-v4.md) (Sprint Hardening — à exécuter).
 
