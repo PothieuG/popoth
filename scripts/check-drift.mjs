@@ -76,7 +76,8 @@ async function main() {
     committedRaw = readFileSync(BASELINE_PATH, 'utf8')
   } catch (err) {
     console.error(`ERROR: cannot read committed baseline at ${BASELINE_PATH}: ${err.message}`)
-    process.exit(2)
+    process.exitCode = 2
+    return
   }
 
   const live = stripTimestamp(liveRaw).trimEnd()
@@ -84,7 +85,8 @@ async function main() {
 
   if (live === committed) {
     console.error('OK: prod schema matches committed baseline.')
-    process.exit(0)
+    process.exitCode = 0
+    return
   }
 
   console.error('DRIFT DETECTED: prod schema differs from committed baseline.')
@@ -93,10 +95,13 @@ async function main() {
   console.error('or push the missing migrations (if the repo is the source of truth).')
   console.error('')
   process.stdout.write(unifiedDiff(committed, live) + '\n')
-  process.exit(1)
+  process.exitCode = 1
 }
 
+// Use process.exitCode (not process.exit) so Node drains the undici keep-alive
+// sockets cleanly. process.exit() while sockets are closing triggers a libuv
+// assertion on Windows (`!(handle->flags & UV_HANDLE_CLOSING)`).
 main().catch((err) => {
   console.error('FATAL:', err.message)
-  process.exit(2)
+  process.exitCode = 2
 })

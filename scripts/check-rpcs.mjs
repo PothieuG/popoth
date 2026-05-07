@@ -68,7 +68,8 @@ async function main() {
   if (missing.length === 0) {
     console.error(`OK: all ${EXPECTED_RPCS.length} finance RPCs present in prod (public schema).`)
     for (const name of EXPECTED_RPCS) console.error(`  - ${name}`)
-    process.exit(0)
+    process.exitCode = 0
+    return
   }
 
   console.error(`DRIFT DETECTED: ${missing.length} RPC(s) missing in prod public schema.`)
@@ -82,10 +83,13 @@ async function main() {
   console.error('')
   console.error(`This is exactly the failure mode of the C3 drift post-mortem`)
   console.error(`(docs/audit/POST-MORTEM-C3-DRIFT.md).`)
-  process.exit(1)
+  process.exitCode = 1
 }
 
+// Use process.exitCode (not process.exit) so Node drains the undici keep-alive
+// sockets cleanly. process.exit() while sockets are closing triggers a libuv
+// assertion on Windows (`!(handle->flags & UV_HANDLE_CLOSING)`).
 main().catch((err) => {
   console.error('FATAL:', err.message)
-  process.exit(2)
+  process.exitCode = 2
 })
