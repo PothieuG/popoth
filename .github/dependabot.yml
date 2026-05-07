@@ -37,6 +37,16 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
+      # react and react-dom must move in lockstep — version mismatch (e.g.
+      # react 19.2 + react-dom 19.1) is a runtime crash, not a typecheck
+      # error, so the PR-time gate misses it. Group both packages plus
+      # their @types siblings so a single PR carries the whole stack.
+      react-stack:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
 
   - package-ecosystem: github-actions
     directory: /
