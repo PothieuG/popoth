@@ -36,7 +36,7 @@
     "clsx": "^2.1.1",
     "jose": "^6.1.0",
     "lucide-react": "^0.544.0",
-    "next": "16.1.6",
+    "next": "16.2.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1"
@@ -51,7 +51,7 @@
     "eslint": "^8",
     "eslint-config-next": "15.0.0",
     "husky": "^9.1.7",
-    "postcss": "^8",
+    "postcss": "^8.5.14",
     "supabase": "^2.98.2",
     "tailwindcss": "^3.4.1",
     "typescript": "^5",
@@ -61,5 +61,24 @@
     "node": ">=20.10.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@9.15.5+sha512.845196026aab1cc3f098a0474b64dfbab2afe7a1b4e91dd86895d8e4aa32a7a6d03049e2d0ad770bbe4de023a7122fb68c1a1d6e0d033c7076085f9d5d4800d4"
+  "packageManager": "pnpm@9.15.5+sha512.845196026aab1cc3f098a0474b64dfbab2afe7a1b4e91dd86895d8e4aa32a7a6d03049e2d0ad770bbe4de023a7122fb68c1a1d6e0d033c7076085f9d5d4800d4",
+  "pnpm": {
+    "overrides": {
+      "ajv@6": "^6.14.0",
+      "brace-expansion@1": "^1.1.13",
+      "brace-expansion@2": "^2.0.3",
+      "flatted": "^3.4.2",
+      "glob@10": "^10.5.0",
+      "js-yaml": "^4.1.1",
+      "lodash": "^4.18.0",
+      "minimatch@3": "^3.1.4",
+      "minimatch@9": "^9.0.7",
+      "picomatch@2": "^2.3.2",
+      "picomatch@4": "^4.0.4",
+      "playwright": "^1.55.1",
+      "postcss": "^8.5.10",
+      "serialize-javascript": "^7.0.5",
+      "yaml@2": "^2.8.3"
+    }
+  }
 }
