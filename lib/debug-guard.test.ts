@@ -27,4 +27,8 @@ describe('blockInProduction', () => {
     vi.stubEnv('NODE_ENV', undefined)
     expect(blockInProduction()).toBeNull()
   })
+
+  it('SPRINT_CODE_CI_F1_VERIF — deliberate failure to validate vitest gate', () => {
+    expect(true).toBe(false)
+  })
 })
