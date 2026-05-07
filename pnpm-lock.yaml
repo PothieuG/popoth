@@ -48,7 +48,7 @@ importers:
         specifier: 16.1.6
         version: 16.1.6(@babel/core@7.29.0)(@playwright/test@1.55.0)(react-dom@19.1.1(react@19.2.6))(react@19.2.6)
       react:
-        specifier: ^19.2.6
+        specifier: ^19.1.1
         version: 19.2.6
       react-dom:
         specifier: ^19.1.1
@@ -64,7 +64,7 @@ importers:
         specifier: ^20.19.14
         version: 20.19.14
       '@types/react':
-        specifier: ^19.2.14
+        specifier: ^19.1.13
         version: 19.2.14
       '@types/react-dom':
         specifier: ^19.1.9
