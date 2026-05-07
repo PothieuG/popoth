@@ -312,13 +312,21 @@ export async function buildBaseline() {
   // TRIGGERS
   // -------------------------------------------------------------------------
   section('Triggers')
+  // Join pg_namespace explicitly: tgrelid::regclass::text is unqualified when
+  // 'public' is on search_path (the Supabase default), so a LIKE 'public.%'
+  // filter never matches and silently captures zero triggers. (Sprint
+  // Audit-Triggers / A1 — fixes the gap that left the baseline blind to the
+  // 6 public.* triggers since Sprint DB.)
   const triggers = await query(`
-    SELECT tgname, tgrelid::regclass::text AS table_name,
-           pg_get_triggerdef(oid) AS def
-      FROM pg_trigger
-     WHERE NOT tgisinternal
-       AND tgrelid::regclass::text LIKE 'public.%'
-     ORDER BY tgrelid::regclass::text, tgname;
+    SELECT t.tgname,
+           (n.nspname || '.' || c.relname) AS table_name,
+           pg_get_triggerdef(t.oid) AS def
+      FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE NOT t.tgisinternal
+       AND n.nspname = 'public'
+     ORDER BY n.nspname, c.relname, t.tgname;
   `)
   if (triggers.length === 0) emit('-- (no user triggers)')
   for (const t of triggers) {
