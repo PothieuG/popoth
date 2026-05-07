@@ -15,6 +15,7 @@
     "db:check-drift": "node scripts/check-drift.mjs",
     "db:check-rpcs": "node scripts/check-rpcs.mjs",
     "db:check-functions": "node scripts/check-trigger-functions.mjs",
+    "db:check-types-fresh": "node scripts/check-types-fresh.mjs",
     "db:audit-functions": "node scripts/audit-functions.mjs",
     "db:audit-objects": "node scripts/audit-db-objects.mjs"
   },

@@ -17,6 +17,7 @@ on:
       - 'scripts/audit-*.mjs'
       - 'scripts/export-schema.mjs'
       - 'scripts/dump-functions.sql'
+      - 'lib/database.types.ts'
       - '.github/workflows/db-drift-pr.yml'
       - '.github/workflows/db-drift-check.yml'
 
@@ -52,5 +53,11 @@ jobs:
       - name: Check trigger functions presence (4 captured functions)
         if: always()
         run: pnpm db:check-functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Check generated types are fresh (lib/database.types.ts vs prod)
+        if: always()
+        run: pnpm db:check-types-fresh
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
