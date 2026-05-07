@@ -299,7 +299,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`POST-MORTEM-C3-DRIFT.md`](./docs/audit/POST-MORTEM-C3-DRIFT.md) — post-mortem du drift `schema_migrations` ↔ `pg_proc`.
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
-- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Hygiene-CI (v10, livré).
+- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 à Sprint Hygiene-CI (v10, livré). [`prompt-00-executive-summary-v11.md`](./prompts/prompt-00-executive-summary-v11.md) (Sprint Code-CI : PR-time gate `pnpm typecheck` + `pnpm test:run`, alignement `db:types --project-id`) est le prochain à exécuter.
 
 ---
 
