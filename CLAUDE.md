@@ -165,17 +165,27 @@ prompts/                   # prompts Claude Code par chantier
 - D3 — `remaining_to_live_snapshots.INSERT` restreint à `service_role`.
 - D4 — Tests d'isolation RLS gated (`SUPABASE_RLS_TESTS=1`).
 - D5 — Schéma prod versionné en baseline backdaté (`20260101000000_remote_schema.sql`) via API Management (Docker absent).
-- D6 — `lib/database.types.ts` généré + augmenté dans `lib/database.ts` avec les 4 RPC C3 service-role-only. Wirage `<Database>` aux clients **différé** (Sprint Refactor v3) à cause de ~105 erreurs TS pré-existantes dans les routes `app/api/debug/populate-*`.
+- D6 — `lib/database.types.ts` généré + augmenté dans `lib/database.ts` avec les 4 RPC C3 service-role-only. Wirage `<Database>` aux clients livré au Sprint Refactor / R2.
 - D7 — `piggy_bank` indexé (2 partial unique indexes par owner).
 - D8 — `piggy_bank` contraint (amount ≥ 0, owner XOR).
 - D9 — Tests concurrence RPC (4/4 verts, 100× parallèles convergent).
 - D10 — Policy SELECT redondante sur `profiles` supprimée.
 - D11 — [docs/db/SCHEMA.md](docs/db/SCHEMA.md) ajouté.
 
-### ⚠️ Drift découvert pendant Sprint DB
-- `supabase_migrations.schema_migrations` listait `20260506000000_create_finance_rpcs.sql` comme appliquée **sans que le SQL ait jamais été exécuté en prod** : les 4 RPC C3 étaient absentes de `pg_proc`. Recouvrement via `node scripts/apply-sql.mjs supabase/migrations/20260506000000_create_finance_rpcs.sql` + `NOTIFY pgrst, 'reload schema'`. Origine du drift inconnue, hypothèses ouvertes documentées dans [docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md) (Sprint Refactor R0). Garde-fou durable depuis R4 : `pnpm db:check-drift` ([scripts/check-drift.mjs](scripts/check-drift.mjs)) compare prod ↔ baseline et sort en exit 1 dès qu'un drift apparaît.
+### ✅ Fait (Sprint Refactor — livré 2026-05-07)
+- R0 — post-mortem du drift C3 documenté ([docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md)).
+- R1 — 11 routes `app/api/debug/populate-*` cassées supprimées (~2 800 LOC).
+- R2 — `createClient<Database>(...)` activé sur `lib/supabase-server.ts` + `lib/supabase-client.ts` + fixtures Vitest. **17 routes scope-cast** `as unknown as SupabaseClient` (dette H1 Sprint Hardening). Bug réel corrigé : `current_savings` → `cumulated_savings` dans `app/api/finances/expenses/progress/route.ts`.
+- R3 — Migration `20260510000000_dedupe_indexes_constraints.sql` : 6 indexes, 1 FK, 3 CHECKs dupliqués droppés + le CHECK NULL-hole `budget_transfers_different_budgets`. Le baseline a aussi rattrapé D7/D8 (piggy_bank constraints/indexes) et D10 (policy profiles) qui n'avaient jamais été ré-exportés.
+- R4 — `pnpm db:check-drift` ([scripts/check-drift.mjs](scripts/check-drift.mjs)) — compare prod ↔ baseline, exit 0 = clean, 1 = drift.
+- R6 — Tests RLS D2 (group_contributions cross-membre) + D3 (remaining_to_live_snapshots INSERT rejet authenticated) implémentés. **Bug critique découvert** : la SELECT policy `Group members can see each other` sur `profiles` se référençait elle-même → `42P17 infinite recursion` sur toute lecture anon traversant `profiles`. Corrigé via `20260510000001_drop_recursive_profiles_policy.sql`.
 
-Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB) et [prompts/prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md) (Sprint Refactor — angles morts post-Sprint DB).
+### ⚠️ Drift C3 résolu
+Le drift `supabase_migrations.schema_migrations` ↔ `pg_proc` (les 4 RPC C3 marquées appliquées sans exécution du SQL) est documenté dans [docs/audit/POST-MORTEM-C3-DRIFT.md](docs/audit/POST-MORTEM-C3-DRIFT.md). Le filet aujourd'hui :
+- `pnpm db:check-drift` pour le drift table/colonne/policy/index.
+- `SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run` pour le drift RPC (gated, à scripter en `pnpm db:check-rpcs` dans le Sprint Hardening / H4).
+
+Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint DB), [prompts/prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md) (Sprint Refactor — livré), et [prompts/prompt-00-executive-summary-v4.md](prompts/prompt-00-executive-summary-v4.md) (Sprint Hardening — à exécuter).
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
@@ -233,7 +243,8 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 - ✅ **Sprint 0** (`cleanup` branch) : C1–C5 + follow-up RLS audit (livré)
 - ✅ **Sprint DB** ([prompt-00-executive-summary-v2.md](prompts/prompt-00-executive-summary-v2.md)) : D1–D11 livré 2026-05-07, 5 commits (`39e56f8 → 55d1606`), score ~58/100
-- ⏭️ **Sprint Refactor** ([prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md)) : R0 post-mortem drift C3 + R1 routes debug cassées + R2 wirage `<Database>` + R3 dedup schéma + R4 drift detection + R5 contrainte `bank_balances.balance` + R6 tests RLS isolation D2/D3
+- ✅ **Sprint Refactor** ([prompt-00-executive-summary-v3.md](prompts/prompt-00-executive-summary-v3.md)) : R0 post-mortem + R1 routes debug + R2 wirage `<Database>` (avec scope-cast à dérouler en H1) + R3 dedup schéma + R4 drift detection + R6 tests RLS D2/D3 + drop policy récursive profiles. R5 (overdraft) reporté en H3. Livré 2026-05-07, 6 commits (`5efacfe → ab58db2`), score estimé ~62-65/100
+- ⏭️ **Sprint Hardening** ([prompt-00-executive-summary-v4.md](prompts/prompt-00-executive-summary-v4.md)) : H1 unwind des 17 scope-casts R2 + H2 ghost table `financial_snapshots` + H3 overdraft `bank_balances.balance` (R5 carryover) + H4 `pnpm db:check-rpcs` + H5 GH Actions cron drift + H6 trigger investigation
 - ⏭️ **Sprint 1** : Prettier + Husky + CI + upgrade `eslint-config-next` 15→16
 - ⏭️ **Chantier I4** : refactor `lib/financial-calculations.ts` (god file 1075 LOC)
 - ⏭️ **Chantier I5** : extraction logique métier de `app/api/monthly-recap/process-step1/route.ts`
