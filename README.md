@@ -332,7 +332,7 @@ Le repo est privé et maintenu en solo aujourd'hui. Si vous arrivez sur ce code 
 1. **Lire d'abord** [`CLAUDE.md`](./CLAUDE.md) — c'est le guide de référence pour les conventions, les pièges connus, l'historique des sprints (§7), et la roadmap (§11). Le fichier est dense mais à jour.
 2. **Branche par sujet** : créer une branche depuis `cleanup` (la default branch — cf. Sprint Hygiene-CI / E3 dans CLAUDE.md §11). Pas depuis `main` (gelé à 3 commits derrière).
 3. **PR vers `cleanup`** : tout PR sera gaté par 2 workflows GitHub Actions :
-   - `code-checks.yml` — `pnpm typecheck` + `pnpm test:run` sur tout PR touchant `**/*.ts` ou les configs (Sprint Code-CI / F1).
+   - `code-checks.yml` — `pnpm typecheck` + `pnpm test:run` sur tout PR touchant `**/*.ts` ou les configs (Sprint Code-CI / F1). Tourne aussi sur `push: branches: [cleanup]` pour valider l'état post-merge (Sprint Stabilize-Deps / S2 — ferme le trou des merges UI Dependabot qui ne re-triggerent pas `pull_request:`).
    - `db-drift-pr.yml` — `pnpm db:check-drift` + 3 autres détecteurs sur tout PR touchant `supabase/migrations/**` ou les types générés (Sprint Audit-Functions-v2 / B3, Sprint Hygiene-CI / E2).
 4. **Commits** : Conventional Commits (`fix:`, `feat:`, `chore:`, `docs:`, `perf:`, `test:`), un commit par item logique. Voir CLAUDE.md §6 (Git).
 5. **Migrations DB** : suivre le push gate de CLAUDE.md §8 (`pnpm supabase db push --dry-run` → STOP confirmation → `db push` → re-audit Management API → commit). Pour rétro-capturer une fonction PL/pgSQL ou DROP un objet legacy, suivre les workflows capture-then-drop / capture rétroactive documentés dans CLAUDE.md §8.
