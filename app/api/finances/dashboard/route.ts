@@ -3,8 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 
-// Scope-cast: aggregates many tables (incl. financial_snapshots ghost) and
-// nullable owner ids. Tracked as a follow-up.
+// Scope-cast: aggregates many tables with nullable owner ids. Tracked as a
+// follow-up.
 const supabaseServer = typedSupabase as unknown as SupabaseClient
 
 export interface FinancialDashboardData {
@@ -222,24 +222,6 @@ export async function GET(request: NextRequest) {
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] *** CONTEXTE: ${forGroup ? 'GROUP' : 'PROFILE'} | ID: ${forGroup ? groupId : userId} ***`)
     console.log(`🔍 [DEBUG FINANCES DASHBOARD] ====================================`)
 
-    // Get financial snapshot (for comparison/backup)
-    const { data: snapshot, error: snapshotError } = await supabaseServer
-      .from('financial_snapshots')
-      .select('*')
-      .match(ownerCondition)
-      .eq('is_current', true)
-      .single()
-    
-    console.log('📊 Snapshot query result', {
-      timestamp: new Date().toISOString(),
-      level: 'debug',
-      component: '/api/finances/dashboard',
-      operation: 'snapshot_query',
-      operationId: operationId,
-      hasSnapshot: !!snapshot,
-      snapshotError: snapshotError?.message
-    })
-
     // Get estimated incomes
     const { data: estimatedIncomes } = await supabaseServer
       .from('estimated_incomes')
@@ -351,22 +333,25 @@ export async function GET(request: NextRequest) {
     // Build dashboard data using database calculations
     const dashboardData: FinancialDashboardData = {
       // Main indicators (from database functions)
-      available_cash: calculatedData || snapshot?.available_cash || 0,
-      remaining_to_live: remainingToLive || snapshot?.remaining_to_live || 0,
+      available_cash: calculatedData || 0,
+      remaining_to_live: remainingToLive || 0,
       total_savings: totalSavings,
-      
+
       // Income data
       total_estimated_income: totalEstimatedIncome,
-      total_real_income: snapshot?.total_real_income || 0,
+      // total_real_income / total_real_expenses previously fell back to a
+      // financial_snapshots ghost table that never existed in prod, so they
+      // always landed on 0. Aggregate computation is a separate chantier.
+      total_real_income: 0,
       estimated_incomes: estimatedIncomes || [],
       recent_income_entries: (recentIncomeEntries || []) as unknown as FinancialDashboardData['recent_income_entries'],
-      
+
       // Budget data
       total_estimated_budgets: totalEstimatedBudgets,
       estimated_budgets: budgetsWithSpending || [],
-      
+
       // Expense data
-      total_real_expenses: snapshot?.total_real_expenses || 0,
+      total_real_expenses: 0,
       recent_expenses: (recentExpenses || []) as unknown as FinancialDashboardData['recent_expenses'],
       
       // Monthly summary

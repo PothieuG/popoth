@@ -1,12 +1,5 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-
-// Snapshot helper queries `financial_snapshots`, a table that is not present
-// in the generated Database type (and may not exist in prod — the warning is
-// already swallowed by checkError). Scope-cast to untyped to keep the helper
-// compiling. Tracked as a follow-up: confirm whether financial_snapshots is
-// supposed to exist or whether this read should be removed.
-const supabaseServer = typedSupabase as unknown as SupabaseClient
+import type { TablesInsert } from '@/lib/database.types'
+import { supabaseServer } from '@/lib/supabase-server'
 
 /**
  * Crée un snapshot complet de toutes les données financières d'un utilisateur/groupe
@@ -21,7 +14,6 @@ const supabaseServer = typedSupabase as unknown as SupabaseClient
  * - group_contributions (si contexte groupe)
  * - groups (si contexte groupe)
  * - remaining_to_live_snapshots (historique RAV)
- * - financial_snapshots (cache calculs)
  */
 export async function createFullDatabaseSnapshot(
   contextId: string,
@@ -41,7 +33,6 @@ export async function createFullDatabaseSnapshot(
       realExpenses,
       bankBalances,
       piggyBank,
-      financialSnapshots,
       budgetTransfers,
       monthlyRecaps,
       remainingToLiveSnapshots,
@@ -74,10 +65,6 @@ export async function createFullDatabaseSnapshot(
         .eq(ownerField, contextId),
       supabaseServer
         .from('piggy_bank')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('financial_snapshots')
         .select('*')
         .eq(ownerField, contextId),
       supabaseServer
@@ -119,7 +106,6 @@ export async function createFullDatabaseSnapshot(
     checkError('real_expenses', realExpenses)
     checkError('bank_balances', bankBalances)
     checkError('piggy_bank', piggyBank)
-    checkError('financial_snapshots', financialSnapshots)
     checkError('budget_transfers', budgetTransfers)
     checkError('monthly_recaps', monthlyRecaps)
     checkError('remaining_to_live_snapshots', remainingToLiveSnapshots)
@@ -136,7 +122,6 @@ export async function createFullDatabaseSnapshot(
       real_expenses: realExpenses.data?.length ?? 0,
       bank_balances: bankBalances.data?.length ?? 0,
       piggy_bank: piggyBank.data?.length ?? 0,
-      financial_snapshots: financialSnapshots.data?.length ?? 0,
       budget_transfers: budgetTransfers.data?.length ?? 0,
       monthly_recaps: monthlyRecaps.data?.length ?? 0,
       remaining_to_live_snapshots: remainingToLiveSnapshots.data?.length ?? 0,
@@ -164,7 +149,6 @@ export async function createFullDatabaseSnapshot(
       bank_balance: bankBalances.data?.[0]?.balance ?? null,
       piggy_bank: piggyBank.data || [],
       // Snapshots et historique
-      financial_snapshots: financialSnapshots.data || [],
       remaining_to_live_snapshots: remainingToLiveSnapshots.data || [],
       // Transferts et recaps existants
       budget_transfers: budgetTransfers.data || [],
@@ -181,8 +165,9 @@ export async function createFullDatabaseSnapshot(
     }
 
     // Insérer le snapshot
-    const insertData: Record<string, any> = {
-      [ownerField]: contextId,
+    const insertData: TablesInsert<'recap_snapshots'> = {
+      profile_id: context === 'profile' ? contextId : null,
+      group_id: context === 'group' ? contextId : null,
       snapshot_month: snapshotMonth,
       snapshot_year: snapshotYear,
       snapshot_data: snapshotData,
