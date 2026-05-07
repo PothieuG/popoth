@@ -90,6 +90,7 @@ export default function UserAvatar({
       disabled={!onClick}
     >
       {hasCustomAvatar ? (
+        // eslint-disable-next-line @next/next/no-img-element -- avatar URLs come from Supabase Storage with arbitrary remote hosts; migration to next/image deferred until next.config remotePatterns are audited
         <img
           key={imageKey} // Force re-render when key changes
           src={profile.avatar_url ?? undefined}
