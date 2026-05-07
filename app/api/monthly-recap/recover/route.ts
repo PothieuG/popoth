@@ -136,8 +136,8 @@ export async function POST(request: NextRequest) {
       estimated_budgets: number
       real_incomes: number
       real_expenses: number
-      bank_balance: boolean | number
-      piggy_bank: boolean | number
+      bank_balance: boolean
+      piggy_bank: boolean
       budget_transfers: number
       errors: string[]
     } = {
@@ -154,11 +154,16 @@ export async function POST(request: NextRequest) {
     // Helper: supprimer + réinsérer une table complète. Switch sur les 7
     // tables littérales — chaque branche garde le typage <Database> de bout
     // en bout (delete + insert), aucun cast au client.
-    type CountKey = 'estimated_incomes' | 'estimated_budgets' | 'real_incomes' | 'real_expenses' | 'budget_transfers' | 'bank_balance' | 'piggy_bank'
+    // bank_balance/piggy_bank exposent un flag boolean (sémantique v1) plutôt
+    // qu'un compteur — le path v1 assigne `true` (route line 288), donc le
+    // path v2 doit faire pareil pour qu'un consumer `=== true` soit cohérent.
+    type CountKey = 'estimated_incomes' | 'estimated_budgets' | 'real_incomes' | 'real_expenses' | 'budget_transfers'
+    type BooleanKey = 'bank_balance' | 'piggy_bank'
+    type ResultKey = CountKey | BooleanKey
     const restoreTable = async (
       tableName: RestorableTable,
       data: unknown[] | null | undefined,
-      resultKey: CountKey
+      resultKey: ResultKey
     ) => {
       if (!data || data.length === 0) return
 
@@ -230,6 +235,8 @@ export async function POST(request: NextRequest) {
       }
       if (insertError) {
         recoveryResults.errors.push(`Erreur restauration ${tableName}: ${insertError.message}`)
+      } else if (resultKey === 'bank_balance' || resultKey === 'piggy_bank') {
+        recoveryResults[resultKey] = true
       } else {
         recoveryResults[resultKey] = data.length
       }
