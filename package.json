@@ -22,7 +22,8 @@
     "db:audit-functions": "node scripts/audit-functions.mjs",
     "db:audit-objects": "node scripts/audit-db-objects.mjs",
     "verify": "pnpm typecheck && pnpm test:run && pnpm db:check-drift && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
-    "ci": "pnpm typecheck && pnpm lint:check && pnpm test:run && pnpm build"
+    "ci": "pnpm typecheck && pnpm lint:check && pnpm test:run && pnpm build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -49,6 +50,7 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^8",
     "eslint-config-next": "15.0.0",
+    "husky": "^9.1.7",
     "postcss": "^8",
     "supabase": "^2.98.2",
     "tailwindcss": "^3.4.1",
