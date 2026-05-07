@@ -80,8 +80,15 @@ async function main() {
     return
   }
 
-  const live = stripTimestamp(liveRaw).trimEnd()
-  const committed = stripTimestamp(committedRaw).trimEnd()
+  // Normalize CRLF → LF BEFORE stripTimestamp. buildBaseline() emits LF
+  // (parts.join('\n')); the on-disk baseline can be CRLF on Windows working
+  // copies after `git checkout` if core.autocrlf=true. CRLF also breaks
+  // the TIMESTAMP_LINE regex (`.+$` does not consume `\r` in JS), so without
+  // normalizing first the timestamp line is NOT stripped from the committed
+  // file, producing a one-line shift and a fully-spurious diff.
+  const normalize = (s) => stripTimestamp(s.replace(/\r\n/g, '\n')).trimEnd()
+  const live = normalize(liveRaw)
+  const committed = normalize(committedRaw)
 
   if (live === committed) {
     console.error('OK: prod schema matches committed baseline.')
