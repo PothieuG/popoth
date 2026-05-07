@@ -1,16 +1,39 @@
-name: Code checks (PR)
+name: Code checks (PR + post-merge)
 
 # Runs typecheck + tests on PRs that touch source code so we don't merge
-# a TypeScript regression or a broken test. Companion to
+# a TypeScript regression or a broken test, AND on push to cleanup so
+# the post-merge state is also validated. Companion to
 # .github/workflows/db-drift-pr.yml (DB-side checks).
 #
 # Path filter keeps Actions minutes low — only fires when source code,
 # config, or dependencies change.
 #
-# Sprint Code-CI / F1.
+# Why both pull_request AND push: branches: [cleanup]?
+# When a Dependabot PR is merged via GitHub UI, the merge commit fast-
+# forwards the default branch but does NOT re-trigger pull_request
+# workflows (PR is closed). Without push:, nothing validates the post-
+# merge state — the user discovered the @supabase/supabase-js wave
+# break by running `pnpm verify` locally, not via CI. Sprint
+# Stabilize-Deps / S2 closes this gap.
+#
+# Sprint Code-CI / F1, extended Sprint Stabilize-Deps / S2.
 
 on:
   pull_request:
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - 'next.config.*'
+      - 'eslint.config.*'
+      - '.eslintrc*'
+      - '.github/workflows/code-checks.yml'
+  push:
+    branches:
+      - cleanup
     paths:
       - '**/*.ts'
       - '**/*.tsx'
