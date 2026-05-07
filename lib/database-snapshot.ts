@@ -1,5 +1,6 @@
-import type { TablesInsert } from '@/lib/database.types'
+import type { Json, TablesInsert } from '@/lib/database.types'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { SnapshotPayloadV2 } from '@/lib/recap-snapshot.types'
 
 /**
  * Crée un snapshot complet de toutes les données financières d'un utilisateur/groupe
@@ -132,7 +133,7 @@ export async function createFullDatabaseSnapshot(
     }
 
     // Construire le JSONB complet
-    const snapshotData: Record<string, any> = {
+    const snapshotData: SnapshotPayloadV2 = {
       context,
       snapshot_version: 2,
       created_at: new Date().toISOString(),
@@ -170,7 +171,7 @@ export async function createFullDatabaseSnapshot(
       group_id: context === 'group' ? contextId : null,
       snapshot_month: snapshotMonth,
       snapshot_year: snapshotYear,
-      snapshot_data: snapshotData,
+      snapshot_data: snapshotData as unknown as Json,
       is_active: true,
     }
 

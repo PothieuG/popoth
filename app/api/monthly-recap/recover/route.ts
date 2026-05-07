@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
+import {
+  isSnapshotV2,
+  type SnapshotPayload,
+} from '@/lib/recap-snapshot.types'
 
 // Tables that the recovery flow restores from a snapshot blob. Restoration
 // follows a delete-by-owner + bulk-insert pattern, so each branch picks the
@@ -115,9 +119,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔄 [Monthly Recap Recovery] Début de la récupération pour ${context}:${contextId}`)
     console.log(`🔄 [Monthly Recap Recovery] Snapshot: ${snapshot.id} du ${snapshot.created_at}`)
 
-    const snapshotData = snapshot.snapshot_data as any
-
-    const isV2 = snapshotData.snapshot_version === 2
+    const snapshotData = snapshot.snapshot_data as unknown as SnapshotPayload
 
     if (!snapshotData || !snapshotData.estimated_incomes || !snapshotData.estimated_budgets) {
       return NextResponse.json(
@@ -126,7 +128,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`🔄 [Recovery] Version du snapshot: ${isV2 ? 'v2 (complet)' : 'v1 (legacy)'}`)
+    console.log(`🔄 [Recovery] Version du snapshot: ${isSnapshotV2(snapshotData) ? 'v2 (complet)' : 'v1 (legacy)'}`)
 
     // Commencer la récupération des données
     const recoveryResults: Record<string, any> = {
@@ -253,7 +255,7 @@ export async function POST(request: NextRequest) {
       )
 
       // 5. Restaurer les soldes bancaires
-      if (isV2 && snapshotData.bank_balances && snapshotData.bank_balances.length > 0) {
+      if (isSnapshotV2(snapshotData) && snapshotData.bank_balances.length > 0) {
         // V2 : restauration complète des bank_balances (avec current_remaining_to_live)
         await restoreTable(
           'bank_balances',
@@ -261,7 +263,7 @@ export async function POST(request: NextRequest) {
           'bank_balance'
         )
       } else if (typeof snapshotData.bank_balance === 'number') {
-        // V1 : mise à jour simple du montant
+        // V1 (ou V2 avec bank_balances vide) : mise à jour simple du montant
         const { error: updateBankBalanceError } = await supabaseServer
           .from('bank_balances')
           .update({
@@ -278,7 +280,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 6. Restaurer la tirelire (v2 uniquement)
-      if (isV2 && snapshotData.piggy_bank && snapshotData.piggy_bank.length > 0) {
+      if (isSnapshotV2(snapshotData) && snapshotData.piggy_bank.length > 0) {
         await restoreTable(
           'piggy_bank',
           snapshotData.piggy_bank,
@@ -287,7 +289,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 7. Restaurer les transferts de budget (v2 uniquement)
-      if (isV2 && snapshotData.budget_transfers && snapshotData.budget_transfers.length > 0) {
+      if (isSnapshotV2(snapshotData) && snapshotData.budget_transfers.length > 0) {
         await restoreTable(
           'budget_transfers',
           snapshotData.budget_transfers,
