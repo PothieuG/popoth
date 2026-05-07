@@ -104,12 +104,12 @@ export default function MotDePasseOubliePage() {
                   Demande traitée
                 </h2>
                 <p className="text-gray-600">
-                  Si un compte existe avec l'adresse <strong>{email}</strong>, vous recevrez un lien de réinitialisation.
+                  Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un lien de réinitialisation.
                 </p>
                 <div className="text-sm text-gray-500 space-y-2">
                   <p>• Vérifiez votre boîte de réception et votre dossier spam</p>
                   <p>• Le lien expire après 1 heure</p>
-                  <p>• Si vous ne recevez rien, vérifiez que l'adresse est correcte</p>
+                  <p>• Si vous ne recevez rien, vérifiez que l&apos;adresse est correcte</p>
                 </div>
               </div>
 

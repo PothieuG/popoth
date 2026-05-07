@@ -486,7 +486,7 @@ export default function MonthlyRecapStep2({
                   </div>
                   {budget.cumulated_savings > 0 && (
                     <div className="text-sm text-purple-600 mt-1">
-                      +{formatCurrency(budget.cumulated_savings)} d'économies
+                      +{formatCurrency(budget.cumulated_savings)} d&apos;économies
                     </div>
                   )}
                 </div>

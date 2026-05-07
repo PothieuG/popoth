@@ -138,7 +138,7 @@ export default function GroupMembersWithContributionsModal({ group, isOpen, onCl
                   </svg>
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun membre</h3>
-                <p className="text-gray-600">Ce groupe n'a actuellement aucun membre.</p>
+                <p className="text-gray-600">Ce groupe n&apos;a actuellement aucun membre.</p>
               </div>
             ) : (
               /* Members List with Contributions */

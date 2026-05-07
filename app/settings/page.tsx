@@ -320,7 +320,7 @@ export default function SettingsPage() {
                   </div>
                   <h3 className="text-lg font-medium text-gray-900">Aucun groupe</h3>
                   <p className="text-gray-500">
-                    Vous n'appartenez à aucun groupe. Créez-en un ou rejoignez un groupe existant.
+                    Vous n&apos;appartenez à aucun groupe. Créez-en un ou rejoignez un groupe existant.
                   </p>
                 </div>
               </Card>
@@ -413,7 +413,7 @@ export default function SettingsPage() {
                   Vous appartenez déjà à un groupe
                 </h3>
                 <p className="mt-1 text-sm text-blue-700">
-                  Pour rejoindre un autre groupe, vous devez d'abord quitter votre groupe actuel.
+                  Pour rejoindre un autre groupe, vous devez d&apos;abord quitter votre groupe actuel.
                 </p>
               </div>
             </div>

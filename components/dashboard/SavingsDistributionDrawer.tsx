@@ -321,7 +321,7 @@ export default function SavingsDistributionDrawer({
                             Budget: {formatCurrency(budget.estimated_amount)}
                           </div>
                           <div className="text-lg font-bold text-green-600 mt-1">
-                            {formatCurrency(budget.cumulated_savings || 0)} d'économies
+                            {formatCurrency(budget.cumulated_savings || 0)} d&apos;économies
                           </div>
                         </div>
                         <Button

@@ -132,7 +132,7 @@ function MonthlyRecapPageContent() {
       <div className="sr-only">
         <p>
           Ce récapitulatif mensuel est obligatoire et doit être complété
-          avant de pouvoir accéder aux autres fonctionnalités de l'application.
+          avant de pouvoir accéder aux autres fonctionnalités de l&apos;application.
         </p>
       </div>
     </div>

@@ -180,7 +180,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
           </div>
           <h4 className="text-lg font-medium text-gray-900 mb-2">Contribution non calculée</h4>
           <p className="text-gray-600 mb-4">
-            Vos contributions ne sont pas encore calculées. Assurez-vous d'avoir défini votre salaire.
+            Vos contributions ne sont pas encore calculées. Assurez-vous d&apos;avoir défini votre salaire.
           </p>
           <Button
             onClick={recalculateContributions}

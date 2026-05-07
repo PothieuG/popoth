@@ -47,7 +47,7 @@ export default function UserGroupsList({ groups, isLoading, onDeleteGroup }: Use
           </div>
           <h3 className="text-lg font-medium text-gray-900">Aucun groupe</h3>
           <p className="text-gray-500">
-            Vous n'êtes membre d'aucun groupe. Créez-en un ou rejoignez un groupe existant.
+            Vous n&apos;êtes membre d&apos;aucun groupe. Créez-en un ou rejoignez un groupe existant.
           </p>
         </div>
       </Card>

@@ -112,7 +112,7 @@ export default function DeleteGroupModal({ group, isOpen, onClose, onConfirm }: 
                   <div className="mt-2 text-sm text-red-700">
                     <p>La suppression du groupe entraînera :</p>
                     <ul className="list-disc list-inside mt-1 space-y-1">
-                      <li>La suppression définitive du groupe "<strong>{group.name}</strong>"</li>
+                      <li>La suppression définitive du groupe &quot;<strong>{group.name}</strong>&quot;</li>
                       <li>La suppression de tous les membres du groupe</li>
                       <li>La perte de toutes les données associées</li>
                     </ul>
@@ -153,7 +153,7 @@ export default function DeleteGroupModal({ group, isOpen, onClose, onConfirm }: 
               
               {confirmText && !isConfirmValid && (
                 <p className="text-xs text-red-500">
-                  Le texte ne correspond pas. Vérifiez l'orthographe et les majuscules.
+                  Le texte ne correspond pas. Vérifiez l&apos;orthographe et les majuscules.
                 </p>
               )}
             </div>
