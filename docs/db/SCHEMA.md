@@ -184,13 +184,54 @@ export filter to non-`public` schemas — that would pull in
 Supabase-managed internals (auth, storage, realtime). Document them
 here instead.
 
-### Inventory (run [scripts/list-triggers.sql](../../scripts/list-triggers.sql) to refresh)
+### Inventory (last refreshed 2026-05-07 via [scripts/list-triggers.sql](../../scripts/list-triggers.sql))
 
-> _Last updated: pending — run the inventory query and paste the output
-> here. Mark each row:_
-> - ✅ tracked in the baseline `20260101000000_remote_schema.sql`
-> - ⚠️ cross-schema or Supabase-managed — not in the baseline
-> - ❌ orphan / function deleted (cleanup candidate)
+| Table | Trigger | Function | Timing | Events | Status |
+|---|---|---|---|---|---|
+| `public.bank_balances` | `update_bank_balances_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ trigger present in prod, **not** in baseline (export filter bug, see below). Function body not versioned. |
+| `public.groups` | `groups_budget_contribution_recalc` | `public.trigger_group_budget_change` | AFTER | UPDATE | ⚠️ trigger + function not versioned anywhere in `supabase/`. |
+| `public.groups` | `groups_cleanup_contributions` | `public.cleanup_group_contributions` | BEFORE | DELETE | ⚠️ trigger + function not versioned anywhere in `supabase/`. |
+| `public.groups` | `update_groups_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ same as bank_balances. |
+| `public.profiles` | `profiles_contribution_recalc` | `public.trigger_recalculate_contributions` | AFTER | INSERT, DELETE, UPDATE | ⚠️ this is the H6-discovered "auto-create group_contributions on profile.group_id change" trigger. Function body **not** versioned. |
+| `public.profiles` | `update_profiles_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ same as bank_balances. |
+| `realtime.subscription` | `tr_check_filters` | `realtime.subscription_check_filters` | BEFORE | INSERT, UPDATE | ⚠️ Supabase-managed (realtime extension). Expected. |
+| `storage.buckets` | `enforce_bucket_name_length_trigger` | `storage.enforce_bucket_name_length` | BEFORE | INSERT, UPDATE | ⚠️ Supabase-managed (storage). Expected. |
+| `storage.buckets` | `protect_buckets_delete` | `storage.protect_delete` | BEFORE | DELETE | ⚠️ Supabase-managed. Expected. |
+| `storage.objects` | `protect_objects_delete` | `storage.protect_delete` | BEFORE | DELETE | ⚠️ Supabase-managed. Expected. |
+| `storage.objects` | `update_objects_updated_at` | `public.update_updated_at_column` | BEFORE | UPDATE | ⚠️ Supabase-managed binding to a `public.*` function. Expected. |
+
+**Findings:**
+
+1. **Export filter bug.** The baseline currently says `-- (no user triggers)`,
+   yet 6 triggers exist on `public.*` tables. The query in
+   [scripts/export-schema.mjs:320](../../scripts/export-schema.mjs)
+   filters with `tgrelid::regclass::text LIKE 'public.%'`, but
+   `regclass::text` returns an **unqualified** name (`bank_balances`)
+   when `public` is on the connection's `search_path` — which it is by
+   default. The filter never matches. Fix: use `c.relnamespace =
+   'public'::regnamespace` or query through `pg_class` + `pg_namespace`
+   directly. Tracked as a separate fix-it (not a Sprint Polish T5
+   deliverable — the doc captures the gap, the fix is its own commit).
+
+2. **Function bodies not versioned.** Three trigger functions exist in
+   `public` but no `CREATE FUNCTION` for them appears anywhere in
+   `supabase/migrations/`: `trigger_group_budget_change`,
+   `cleanup_group_contributions`, `trigger_recalculate_contributions`.
+   Same risk class as the C3 RPC drift — they could disappear and
+   nothing in this repo would catch it. The standard `update_updated_at_column`
+   is also undocumented but is canonical Supabase boilerplate.
+
+3. **H6 attribution updated.** H6 documented the
+   `profiles_contribution_recalc` trigger as living "in a non-`public`
+   schema (likely Supabase-managed)". The inventory shows it actually
+   lives in `public` — the H6 hypothesis was wrong, but the
+   conclusion (trigger not in baseline) was right, just for a
+   different reason (export filter bug, not schema scope).
+
+4. **Cross-schema triggers** (`storage.*`, `realtime.*`) are
+   Supabase-managed and intentionally out of scope for the baseline,
+   per the H6 decision. The inventory above lets future audits diff
+   against this snapshot to detect new entries.
 
 ## Migration timeline
 
