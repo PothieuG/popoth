@@ -1,0 +1,30 @@
+-- Sprint Refactor R6: drop the recursive `Group members can see each other`
+-- SELECT policy on profiles.
+--
+-- The policy was defined as:
+--   USING (group_id IS NOT NULL AND group_id IN (
+--     SELECT profiles_1.group_id FROM profiles profiles_1
+--      WHERE profiles_1.id = auth.uid()
+--   ))
+--
+-- The subquery `SELECT FROM profiles` is itself subject to RLS on profiles.
+-- Postgres re-applies the same permissive policy to that inner read, then
+-- re-applies it to the next nested read, and so on -> 42P17
+-- "infinite recursion detected in policy for relation profiles".
+--
+-- The recursion is triggered for *any* anon-client query whose policy
+-- traverses profiles (piggy_bank, estimated_budgets, group_contributions,
+-- monthly_recaps, ...). Production avoided the explosion because every
+-- server route uses lib/supabase-server.ts (service_role bypasses RLS) and
+-- no browser-client code reads profiles directly today.
+--
+-- Surviving SELECT policy on profiles is `Users can read own profile`
+-- (USING (id = auth.uid()) TO authenticated). Cross-member profile reads
+-- can be reintroduced later via a SECURITY DEFINER `current_user_group_id()`
+-- helper if a browser-side use case shows up.
+--
+-- Detected by the new RLS isolation suite (lib/finance/__tests__/rls-isolation.test.ts)
+-- once the gated `SUPABASE_RLS_TESTS=1` run finally surfaced 42P17 against
+-- prod.
+
+DROP POLICY IF EXISTS "Group members can see each other" ON public.profiles;
