@@ -24,7 +24,7 @@ function getCookie(name: string): string | null {
 }
 
 /**
- * Deletes a cookie by setting its expiration to the past
+ * ADeletes a cookie by setting its expiration to the past
  * Only works on the client side
  */
 function deleteCookie(name: string): void {
