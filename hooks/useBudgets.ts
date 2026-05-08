@@ -53,7 +53,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       setLoading(true)
       setError(null)
 
-      const url = context ? `/api/finances/budgets/estimated?group=${context === 'group'}` : '/api/finances/budgets/estimated'
+      const url = context ? `/api/finance/budgets/estimated?group=${context === 'group'}` : '/api/finance/budgets/estimated'
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
@@ -87,7 +87,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         estimatedAmount: budgetData.estimatedAmount
       }
 
-      const url = context ? `/api/budgets?context=${context}` : `/api/budgets`
+      const url = context ? `/api/finance/budgets?context=${context}` : `/api/finance/budgets`
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -130,7 +130,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         estimatedAmount: budgetData.estimatedAmount
       }
 
-      const response = await fetch(`/api/budgets?id=${budgetId}`, {
+      const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -171,7 +171,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     try {
       setError(null)
 
-      const response = await fetch(`/api/budgets?id=${budgetId}`, {
+      const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
         method: 'DELETE',
         credentials: 'include'
       })

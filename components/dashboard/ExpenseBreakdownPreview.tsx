@@ -60,7 +60,7 @@ export default function ExpenseBreakdownPreview({
           params.set('expense_id', expenseId)
         }
 
-        const response = await fetch(`/api/finances/expenses/preview-breakdown?${params}`, {
+        const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {
           credentials: 'include',
           signal: controller.signal
         })

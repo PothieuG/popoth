@@ -49,11 +49,11 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
 
       // Récupérer les progressions des dépenses et revenus en parallèle
       const [expenseResponse, incomeResponse] = await Promise.all([
-        fetch(`/api/finances/expenses/progress${contextParam}`, {
+        fetch(`/api/finance/expenses/progress${contextParam}`, {
           method: 'GET',
           credentials: 'include'
         }),
-        fetch(`/api/finances/income/progress${contextParam}`, {
+        fetch(`/api/finance/income/progress${contextParam}`, {
           method: 'GET',
           credentials: 'include'
         })

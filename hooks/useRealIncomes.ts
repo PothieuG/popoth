@@ -73,7 +73,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       }
       params.append('limit', '100') // Get more items for transaction listing
 
-      const response = await fetch(`/api/finances/income/real?${params.toString()}`, {
+      const response = await fetch(`/api/finance/income/real?${params.toString()}`, {
         method: 'GET',
         credentials: 'include'
       })
@@ -106,7 +106,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         is_for_group: context === 'group'
       }
 
-      const response = await fetch('/api/finances/income/real', {
+      const response = await fetch('/api/finance/income/real', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -142,7 +142,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     try {
       setError(null)
 
-      const response = await fetch(`/api/finances/income/real?id=${incomeData.id}`, {
+      const response = await fetch(`/api/finance/income/real?id=${incomeData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -183,7 +183,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       setError(null)
       console.log('🗑️ [useRealIncomes] Deleting income:', incomeId)
 
-      const response = await fetch(`/api/finances/income/real?id=${incomeId}`, {
+      const response = await fetch(`/api/finance/income/real?id=${incomeId}`, {
         method: 'DELETE',
         credentials: 'include'
       })

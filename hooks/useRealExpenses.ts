@@ -76,7 +76,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       }
       params.append('limit', '100') // Get more items for transaction listing
 
-      const response = await fetch(`/api/finances/expenses/real?${params.toString()}`, {
+      const response = await fetch(`/api/finance/expenses/real?${params.toString()}`, {
         method: 'GET',
         credentials: 'include'
       })
@@ -111,7 +111,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       }
 
       // Use the new smart allocation endpoint
-      const response = await fetch('/api/finances/expenses/add-with-logic', {
+      const response = await fetch('/api/finance/expenses/add-with-logic', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -151,7 +151,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     try {
       setError(null)
 
-      const response = await fetch(`/api/finances/expenses/real?id=${expenseData.id}`, {
+      const response = await fetch(`/api/finance/expenses/real?id=${expenseData.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -192,7 +192,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       setError(null)
       console.log('🗑️ [useRealExpenses] Deleting expense:', expenseId)
 
-      const response = await fetch(`/api/finances/expenses/real?id=${expenseId}`, {
+      const response = await fetch(`/api/finance/expenses/real?id=${expenseId}`, {
         method: 'DELETE',
         credentials: 'include'
       })

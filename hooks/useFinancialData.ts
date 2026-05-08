@@ -41,8 +41,8 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
 
       // Construire l'URL avec le paramètre de contexte si spécifié
       const url = forceContext
-        ? `/api/financial/dashboard?context=${forceContext}`
-        : '/api/financial/dashboard'
+        ? `/api/finance/summary?context=${forceContext}`
+        : '/api/finance/summary'
 
       const response = await fetch(url, {
         method: 'GET',

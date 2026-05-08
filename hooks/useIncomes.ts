@@ -48,7 +48,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       setLoading(true)
       setError(null)
 
-      const url = context ? `/api/incomes?context=${context}` : '/api/incomes'
+      const url = context ? `/api/finance/incomes?context=${context}` : '/api/finance/incomes'
       const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
@@ -82,7 +82,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
         estimatedAmount: incomeData.estimatedAmount
       }
 
-      const url = context ? `/api/incomes?context=${context}` : '/api/incomes'
+      const url = context ? `/api/finance/incomes?context=${context}` : '/api/finance/incomes'
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -125,7 +125,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
         estimatedAmount: incomeData.estimatedAmount
       }
 
-      const response = await fetch(`/api/incomes?id=${incomeId}`, {
+      const response = await fetch(`/api/finance/incomes?id=${incomeId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -166,7 +166,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
     try {
       setError(null)
 
-      const response = await fetch(`/api/incomes?id=${incomeId}`, {
+      const response = await fetch(`/api/finance/incomes?id=${incomeId}`, {
         method: 'DELETE',
         credentials: 'include'
       })

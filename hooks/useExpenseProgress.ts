@@ -31,8 +31,8 @@ export function useExpenseProgress(context?: 'profile' | 'group'): UseExpensePro
       setError(null)
 
       const url = context
-        ? `/api/finances/expenses/progress?context=${context}`
-        : '/api/finances/expenses/progress'
+        ? `/api/finance/expenses/progress?context=${context}`
+        : '/api/finance/expenses/progress'
 
       const response = await fetch(url, {
         method: 'GET',
