@@ -1,11 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 interface RouteParams {
-  params: Promise<{
-    id: string
-  }>
+  id: string
 }
 
 export interface GroupMember {
@@ -18,36 +16,14 @@ export interface GroupMember {
 /**
  * GET /api/groups/[id]/members - Get all members of a group
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile }, routeContext) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
-    const resolvedParams = await params
+    const resolvedParams = await routeContext!.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 
-    // Get user's profile to check group membership
-    const { data: userProfile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !userProfile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
-
     // Check if user is a member of this group
-    if (userProfile.group_id !== groupId) {
+    if (profile.group_id !== groupId) {
       return NextResponse.json(
         { error: 'Vous n\'êtes pas membre de ce groupe' },
         { status: 403 }
@@ -90,38 +66,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/groups/[id]/members - Join a group
  */
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withAuthAndProfile<RouteParams>(async (_request, { profile }, routeContext) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
-    const resolvedParams = await params
+    const resolvedParams = await routeContext!.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
-
-    // Get user's profile and current group status
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // Check if user is already in a group
     if (profile.group_id) {
@@ -166,8 +120,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json({ 
-      message: `Vous avez rejoint le groupe "${group.name}" avec succès` 
+    return NextResponse.json({
+      message: `Vous avez rejoint le groupe "${group.name}" avec succès`
     })
   } catch (error) {
     console.error('Error in POST /api/groups/[id]/members:', error)
@@ -176,46 +130,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/groups/[id]/members - Leave a group
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withAuthAndProfile<RouteParams>(async (_request, { userId, profile }, routeContext) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
-    const resolvedParams = await params
+    const resolvedParams = await routeContext!.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
-
-    // Get user's profile and group information
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        group_id,
-        groups (
-          id,
-          name,
-          creator_id
-        )
-      `)
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // Check if user is member of this group
     if (profile.group_id !== groupId) {
@@ -225,8 +149,14 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const group = profile.groups as { id: string; name: string; creator_id: string } | null
-    if (!group) {
+    // Fetch group to check creator
+    const { data: group, error: groupError } = await supabase
+      .from('groups')
+      .select('id, name, creator_id')
+      .eq('id', groupId)
+      .single()
+
+    if (groupError || !group) {
       return NextResponse.json(
         { error: 'Groupe introuvable' },
         { status: 404 }
@@ -234,7 +164,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Prevent creator from leaving their own group
-    if (group.creator_id === session.userId) {
+    if (group.creator_id === userId) {
       return NextResponse.json(
         { error: 'Le créateur ne peut pas quitter son propre groupe. Supprimez le groupe si nécessaire.' },
         { status: 403 }
@@ -255,8 +185,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json({ 
-      message: `Vous avez quitté le groupe "${group.name}" avec succès` 
+    return NextResponse.json({
+      message: `Vous avez quitté le groupe "${group.name}" avec succès`
     })
   } catch (error) {
     console.error('Error in DELETE /api/groups/[id]/members:', error)
@@ -265,4 +195,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     )
   }
-}
+})

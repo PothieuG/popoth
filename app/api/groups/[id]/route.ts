@@ -1,11 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 interface RouteParams {
-  params: Promise<{
-    id: string
-  }>
+  id: string
 }
 
 export interface UpdateGroupRequest {
@@ -16,17 +14,9 @@ export interface UpdateGroupRequest {
 /**
  * PUT /api/groups/[id] - Update a group (only by creator)
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContext) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
-    const resolvedParams = await params
+    const resolvedParams = await routeContext!.params
     const groupId = resolvedParams.id
     const body: UpdateGroupRequest = await request.json()
     const { name, monthly_budget_estimate } = body
@@ -62,7 +52,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (group.creator_id !== session.userId) {
+    if (group.creator_id !== userId) {
       return NextResponse.json(
         { error: 'Seul le créateur peut modifier le groupe' },
         { status: 403 }
@@ -105,9 +95,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       group: updatedGroup,
-      message: 'Groupe mis à jour avec succès' 
+      message: 'Groupe mis à jour avec succès'
     })
   } catch (error) {
     console.error('Error in PUT /api/groups/[id]:', error)
@@ -116,22 +106,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/groups/[id] - Delete a group (only by creator)
  */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeContext) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
-    const resolvedParams = await params
+    const resolvedParams = await routeContext!.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 
@@ -149,7 +131,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    if (group.creator_id !== session.userId) {
+    if (group.creator_id !== userId) {
       return NextResponse.json(
         { error: 'Seul le créateur peut supprimer le groupe' },
         { status: 403 }
@@ -170,8 +152,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    return NextResponse.json({ 
-      message: 'Groupe supprimé avec succès' 
+    return NextResponse.json({
+      message: 'Groupe supprimé avec succès'
     })
   } catch (error) {
     console.error('Error in DELETE /api/groups/[id]:', error)
@@ -180,4 +162,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     )
   }
-}
+})
