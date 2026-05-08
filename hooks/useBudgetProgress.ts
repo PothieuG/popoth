@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 
 /**
@@ -71,10 +71,6 @@ export function useBudgetProgress(
   budgets: EstimatedBudget[],
   context?: 'profile' | 'group'
 ): UseBudgetProgressReturn {
-  const [budgetProgresses, setBudgetProgresses] = useState<BudgetProgress[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   // Hook pour récupérer les dépenses réelles
   const {
     expenses,
@@ -133,20 +129,13 @@ export function useBudgetProgress(
     []
   )
 
-  // Calculer les progressions - toujours recalculer en temps réel
-  const calculatedProgresses = useMemo(() => {
+  // Source unique de vérité : calcul memorise a partir de budgets + expenses
+  const budgetProgresses = useMemo<BudgetProgress[]>(() => {
     if (!budgets.length || expensesLoading) {
       return []
     }
     return calculateBudgetProgresses(budgets, expenses)
   }, [budgets, expenses, expensesLoading, calculateBudgetProgresses])
-
-  // Mettre à jour l'état quand les calculs changent
-  useEffect(() => {
-    setBudgetProgresses(calculatedProgresses)
-    setLoading(expensesLoading)
-    setError(expensesError)
-  }, [calculatedProgresses, expensesLoading, expensesError])
 
   /**
    * Rafraîchit les données de progression
@@ -164,8 +153,8 @@ export function useBudgetProgress(
 
   return {
     budgetProgresses,
-    loading,
-    error,
+    loading: expensesLoading,
+    error: expensesError,
     refreshProgress,
     getBudgetProgress
   }
