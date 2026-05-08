@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { validateSessionToken } from '@/lib/session-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 export interface ProfileData {
   id: string
@@ -25,31 +25,18 @@ export interface CreateProfileRequest {
  * GET /api/profile - Récupère le profil de l'utilisateur connecté
  * Retourne les données du profil ou null si aucun profil n'existe
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (_request, { userId }) => {
   try {
-    console.log('🔍 GET /api/profile - Début')
-    
-    // Valider la session utilisateur
-    const sessionData = await validateSessionToken(request)
-    console.log('📋 Session data:', { userId: sessionData?.userId })
-    
-    if (!sessionData?.userId) {
-      console.log('❌ Session invalide')
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
+    console.log('🔍 GET /api/profile - userId:', userId)
 
-    // Récupérer le profil depuis Supabase
-    console.log('🔍 Requête Supabase pour userId:', sessionData.userId)
+    // Récupérer le profil depuis Supabase (full row — withAuthAndProfile's
+    // narrow select would lose salary/avatar_url/timestamps; the 200-on-no-
+    // profile fallback below also rules it out)
     const { data, error } = await supabaseServer
       .from('profiles')
       .select('*')
-      .eq('id', sessionData.userId)
+      .eq('id', userId)
       .single()
-
-    console.log('📊 Réponse Supabase:', { data, error })
 
     if (error) {
       // Si le profil n'existe pas, ce n'est pas une erreur
@@ -57,7 +44,7 @@ export async function GET(request: NextRequest) {
         console.log('✅ Aucun profil trouvé (normal pour première connexion)')
         return NextResponse.json({ profile: null })
       }
-      
+
       console.error('❌ Erreur Supabase lors de la récupération du profil:', error)
       return NextResponse.json(
         { error: `Erreur Supabase: ${error.message}` },
@@ -65,8 +52,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    console.log('✅ Profil récupéré avec succès:', data)
-    
     // Get group information if user belongs to a group
     let groupName: string | null = null
     if (data.group_id) {
@@ -75,10 +60,10 @@ export async function GET(request: NextRequest) {
         .select('name')
         .eq('id', data.group_id)
         .single()
-      
+
       groupName = groupData?.name || null
     }
-    
+
     // Format the profile data to include group information
     const profileData: ProfileData = {
       id: data.id,
@@ -91,7 +76,7 @@ export async function GET(request: NextRequest) {
       created_at: data.created_at,
       updated_at: data.updated_at
     }
-    
+
     return NextResponse.json({ profile: profileData })
   } catch (error) {
     console.error('❌ Erreur inattendue lors de la récupération du profil:', error)
@@ -100,27 +85,15 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/profile - Crée un nouveau profil pour l'utilisateur connecté
  * Prend en paramètre first_name et last_name
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, { userId }) => {
   try {
-    console.log('🚀 POST /api/profile - Début')
-    
-    // Valider la session utilisateur
-    const sessionData = await validateSessionToken(request)
-    console.log('📋 Session data:', { userId: sessionData?.userId })
-    
-    if (!sessionData?.userId) {
-      console.log('❌ Session invalide')
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
+    console.log('🚀 POST /api/profile - userId:', userId)
 
     // Parser les données de la requête
     const body = await request.json() as CreateProfileRequest
@@ -154,19 +127,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer le profil dans Supabase
-    console.log('💾 Insertion dans Supabase avec userId:', sessionData.userId)
+    console.log('💾 Insertion dans Supabase avec userId:', userId)
     const { data, error } = await supabaseServer
       .from('profiles')
       .insert({
-        id: sessionData.userId,
+        id: userId,
         first_name: first_name.trim(),
         last_name: last_name.trim(),
         salary: salary || 1
       })
       .select()
       .single()
-
-    console.log('📊 Réponse Supabase:', { data, error })
 
     if (error) {
       // Si le profil existe déjà
@@ -186,7 +157,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ Profil créé avec succès:', data)
-    
+
     // Format the profile data
     const profileData: ProfileData = {
       id: data.id,
@@ -199,8 +170,8 @@ export async function POST(request: NextRequest) {
       created_at: data.created_at,
       updated_at: data.updated_at
     }
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       profile: profileData,
       message: 'Profil créé avec succès'
     })
@@ -211,25 +182,15 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * PUT /api/profile - Met à jour le profil de l'utilisateur connecté
  * Prend en paramètre first_name et/ou last_name
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(async (request, { userId }) => {
   try {
-    // Valider la session utilisateur
-    const sessionData = await validateSessionToken(request)
-    console.log('🔍 Session data for PUT:', sessionData)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Non autorisé' },
-        { status: 401 }
-      )
-    }
-
-    console.log('👤 User ID for update:', sessionData.userId, 'type:', typeof sessionData.userId)
+    console.log('👤 User ID for update:', userId)
 
     // Parser les données de la requête
     const body = await request.json()
@@ -278,22 +239,13 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Vérifier que userId est valide avant la requête
-    if (!sessionData.userId || sessionData.userId === 'null' || sessionData.userId === null) {
-      console.error('❌ User ID invalide:', sessionData.userId)
-      return NextResponse.json(
-        { error: 'ID utilisateur invalide' },
-        { status: 400 }
-      )
-    }
-
-    console.log('💾 Updating profile for userId:', sessionData.userId, 'with:', updates)
+    console.log('💾 Updating profile for userId:', userId, 'with:', updates)
 
     // Mettre à jour le profil dans Supabase
     const { data, error } = await supabaseServer
       .from('profiles')
       .update(updates)
-      .eq('id', sessionData.userId)
+      .eq('id', userId)
       .select('*')
       .single()
 
@@ -313,7 +265,7 @@ export async function PUT(request: NextRequest) {
         .select('name')
         .eq('id', data.group_id)
         .single()
-      
+
       groupName = groupData?.name || null
     }
 
@@ -330,7 +282,7 @@ export async function PUT(request: NextRequest) {
       updated_at: data.updated_at
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       profile: profileData,
       message: 'Profil mis à jour avec succès'
     })
@@ -341,4 +293,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
