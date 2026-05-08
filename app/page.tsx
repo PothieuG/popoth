@@ -2,14 +2,14 @@
 
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuthUser } from '@/contexts/AuthContext'
 
 /**
  * HomePage component - main landing page of the application
  * Redirects to dashboard if logged in, shows login/register buttons otherwise
  */
 export default function HomePage() {
-  const { isLoggedIn } = useAuth()
+  const { isLoggedIn } = useAuthUser()
 
   useEffect(() => {
     if (isLoggedIn) {

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/hooks/useAuth'
+import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupSearch } from '@/hooks/useGroupSearch'
 import CreateGroupForm from '@/components/groups/CreateGroupForm'
@@ -18,7 +18,7 @@ import type { GroupData } from '@/app/api/groups/route'
  * Settings page - User settings and group management
  */
 export default function SettingsPage() {
-  const { logoutAndRedirect } = useAuth()
+  const { logoutAndRedirect } = useLogoutAndRedirect()
   const { currentGroup, hasGroup, isLoading: groupsLoading, createGroup, deleteGroup, leaveGroup } = useGroups()
   const { 
     searchResults, 

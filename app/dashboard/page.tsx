@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/hooks/useAuth'
+import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useFinancialData } from '@/hooks/useFinancialData'
@@ -26,7 +26,7 @@ type EditableTransaction = RealExpense | RealIncome
  * Clean interface with sticky navbar, slide-out menu panel, and sticky footer
  */
 export default function DashboardPage() {
-  const { logoutAndRedirect } = useAuth()
+  const { logoutAndRedirect } = useLogoutAndRedirect()
   const { profile, hasProfile, createProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
   const { financialData, loading: financialLoading, error: financialError, context, refreshFinancialData } = useFinancialData()

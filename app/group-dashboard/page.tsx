@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { useAuth } from '@/hooks/useAuth'
+import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
 import { useFinancialData } from '@/hooks/useFinancialData'
@@ -19,7 +19,7 @@ import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComp
  * Same UI as personal dashboard but with group-specific navbar and data
  */
 export default function GroupDashboardPage() {
-  const { logoutAndRedirect } = useAuth()
+  const { logoutAndRedirect } = useLogoutAndRedirect()
   const { profile, isLoading } = useProfile()
   const { members, fetchGroupMembers } = useGroupMembers()
   const { financialData, loading: financialLoading, error: financialError, refreshFinancialData } = useFinancialData('group')
