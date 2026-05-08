@@ -11,9 +11,25 @@ Chaque handler vit dans [`lib/api/finance/<route>.ts`](../../lib/api/finance/) (
 export { GET } from '@/lib/api/finance/summary'
 ```
 
+Depuis le **Sprint Refactor-Architecture-v3** (livré 2026-05-08), tous les handlers sont wrappés par un higher-order helper depuis [`lib/api/with-auth.ts`](../../lib/api/with-auth.ts) :
+
+```ts
+// Auth + profile fetch (always-fetch handlers : budgets, incomes, rav, summary)
+export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
+  // direct work — userId et profile.group_id disponibles, ownership condition à construire dans le body
+})
+
+// Auth seul (conditional-fetch handlers : budgets-estimated, expenses-*, income-{real,estimated,progress})
+export const GET = withAuth(async (request, { userId }) => {
+  // direct work — fetch lazy du profil seulement quand context==='group' ou forGroup=true
+})
+```
+
+Le wrapper ne capture **pas** d'outer try/catch — chaque handler garde son `try/catch` route-aware avec `console.error('... /api/finance/X:', error)`. C'est volontaire : préserve aussi le fallback 200-with-default-data de `summary.ts` sur catch interne.
+
 ## Authentification
 
-Toutes les routes valident le cookie `session` via `validateSessionToken(request)` (cf. [`lib/session-server.ts`](../../lib/session-server.ts)). Réponse `401 { error: 'Non autorisé' }` ou `401 { error: 'Non authentifié' }` selon la route si invalide.
+Toutes les routes valident le cookie `session` via le wrapper `withAuth` / `withAuthAndProfile` (qui appelle `validateSessionToken` depuis [`lib/session-server.ts`](../../lib/session-server.ts) en interne). Réponse harmonisée depuis Sprint v3 : `401 { error: 'Session invalide' }` (CLAUDE.md §6 — supplante l'ancienne drift `'Non autorisé'` / `'Non authentifié'`). En cas de profil introuvable (uniquement avec `withAuthAndProfile`) : `404 { error: 'Profil non trouvé' }`.
 
 ## Format de réponse
 
@@ -122,5 +138,16 @@ Pour la liste des routes au build :
 
 ```bash
 pnpm build 2>&1 | grep "/api/finance"
-# Doit lister les 11 paths sous /api/finance/ (tous canoniques)
+# Doit lister les 12 paths sous /api/finance/ (tous canoniques)
+```
+
+## Vérifications de cohérence post-Sprint-v3
+
+```bash
+# Aucun callsite direct de validateSessionToken — tout passe par les wrappers
+rg -n "validateSessionToken" lib/api/finance/   # → 0 lignes
+
+# Messages d'erreur harmonisés
+rg -n "'Non autoris" lib/api/finance/           # → 0 lignes
+rg -n "'Non authentifi" lib/api/finance/        # → 0 lignes
 ```

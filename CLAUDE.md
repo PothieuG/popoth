@@ -93,6 +93,7 @@ lib/
   recap/
     check-status.ts        # ✅ Sprint Refactor-Architecture — checkRecapStatus(userId, context) Edge-safe ; importé par middleware.ts ET app/api/monthly-recap/status/route.ts (au lieu d'un fetch HTTP self-call)
   api/                     # ✅ Sprint Refactor-Architecture v1+v2 — handlers extraits, ré-exportés par app/api/finance/**/route.ts
+    with-auth.ts           # ✅ Sprint Refactor-Architecture-v3 — withAuth(handler) + withAuthAndProfile(handler) higher-order helpers utilisés par les 12 modules finance/
     finance/               # 12 modules : summary, rav, budgets (POST/PUT/DELETE), budgets-estimated, incomes, income-{real,estimated,progress}, expenses-{real,add-with-logic,preview-breakdown,progress}
   constants/               # ✅ Sprint Hygiène-Code — magic numbers extraits
     auth.ts                # SESSION_EXPIRATION_SECONDS (3600), SESSION_EXPIRATION_JOSE ('1h'), SESSION_REFRESH_INTERVAL_MS (50min), AUTH_CHECK_INTERVAL_MS (5min)
