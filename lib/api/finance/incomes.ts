@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API pour la gestion des revenus estimés
@@ -9,42 +10,15 @@ import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
  * - POST: Crée un nouveau revenu estimé
  */
 
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
     console.log('🔄 API GET /api/finance/incomes - Début')
-    
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-    console.log('🔐 Session validation - userId:', userId)
-    
-    if (!userId) {
-      console.log('❌ Utilisateur non autorisé')
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
 
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
     const supabase = supabaseServer
-
-    // Récupérer les informations du profil avec le groupe
-    console.log('📊 Récupération du profil pour userId:', userId)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Erreur lors de la récupération du profil' }, { status: 500 })
-    }
-
-    if (!profile) {
-      console.log('❌ Profil non trouvé pour userId:', userId)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     console.log('✅ Profil trouvé:', profile)
 
@@ -86,16 +60,10 @@ export async function GET(request: NextRequest) {
     console.error('Erreur dans GET /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
-}
+})
 
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
@@ -113,17 +81,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = supabaseServer
-
-    // Récupérer les informations du profil
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     // Vérifier le contexte et l'appartenance à un groupe
     if (context === 'group' && !profile.group_id) {
@@ -181,20 +138,11 @@ export async function POST(request: NextRequest) {
     console.error('Erreur dans POST /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
-}
+})
 
-export async function PUT(request: NextRequest) {
+export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
     console.log('🔄 API PUT /api/finance/incomes - Début')
-
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-    console.log('🔐 Session validation:', userId ? '✅ Valid' : '❌ Invalid')
-
-    if (!userId) {
-      console.log('❌ Utilisateur non autorisé')
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
 
     const { searchParams } = new URL(request.url)
     const incomeId = searchParams.get('id')
@@ -223,19 +171,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const supabase = supabaseServer
-
-    // Récupérer les informations du profil
-    console.log('📊 Récupération du profil pour userId:', userId)
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Erreur lors de la récupération du profil' }, { status: 500 })
-    }
 
     console.log('✅ Profil trouvé:', profile)
 
@@ -301,16 +236,10 @@ export async function PUT(request: NextRequest) {
     console.error('Erreur dans PUT /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
-}
+})
 
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const incomeId = searchParams.get('id')
 
@@ -319,17 +248,6 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = supabaseServer
-
-    // Récupérer les informations du profil
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     // Vérifier d'abord que le revenu appartient à l'utilisateur ou à son groupe
     let ownershipCondition = `profile_id.eq.${userId}`
@@ -380,4 +298,4 @@ export async function DELETE(request: NextRequest) {
     console.error('Erreur dans DELETE /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
-}
+})

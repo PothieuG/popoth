@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getProfileFinancialData, getGroupFinancialData, getRavFromDatabase, type FinancialData } from '@/lib/financial-calculations'
-import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API Dashboard Financier
@@ -12,31 +12,12 @@ import { supabaseServer } from '@/lib/supabase-server'
  * - Query param 'recalculate=true' forces full recalculation and saves to DB
  */
 
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     // Récupérer les paramètres depuis l'URL
     const { searchParams } = new URL(request.url)
     const forceContext = searchParams.get('context') as 'profile' | 'group' | null
     const shouldRecalculate = searchParams.get('recalculate') === 'true'
-
-    // Récupérer les informations du profil pour savoir si l'utilisateur fait partie d'un groupe
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     // Déterminer le contexte à utiliser
     let context: 'profile' | 'group'
@@ -49,7 +30,7 @@ export async function GET(request: NextRequest) {
     } else {
       // Contexte profil par défaut
       context = 'profile'
-      contextId = profile.id
+      contextId = userId
     }
 
     console.log('🎯 Contexte déterminé:', { forceContext, context, contextId, hasGroup: !!profile.group_id, shouldRecalculate })
@@ -63,7 +44,7 @@ export async function GET(request: NextRequest) {
       if (context === 'group') {
         financialData = await getGroupFinancialData(profile.group_id!)
       } else {
-        financialData = await getProfileFinancialData(profile.id)
+        financialData = await getProfileFinancialData(userId)
       }
 
       console.log(`✅ [DASHBOARD] Recalculation complete - RAV: ${financialData.remainingToLive}€`)
@@ -83,7 +64,7 @@ export async function GET(request: NextRequest) {
       if (context === 'group') {
         financialData = await getGroupFinancialData(profile.group_id!)
       } else {
-        financialData = await getProfileFinancialData(profile.id)
+        financialData = await getProfileFinancialData(userId)
       }
 
       // Override the calculated RAV with the persisted one from DB
@@ -139,4 +120,4 @@ export async function GET(request: NextRequest) {
       error: 'Données par défaut - erreur de calcul'
     }, { status: 200 }) // 200 pour éviter de casser l'UI
   }
-}
+})
