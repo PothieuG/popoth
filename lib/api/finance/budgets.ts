@@ -4,75 +4,10 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 /**
- * API pour la gestion des budgets estimés
- * - GET: Récupère tous les budgets de l'utilisateur ou du groupe
- * - POST: Crée un nouveau budget estimé
+ * API pour la création/modification/suppression des budgets estimés.
+ * La lecture passe par /api/finance/budgets/estimated (handler dédié avec
+ * cumulated_savings + spent_this_month).
  */
-
-export async function GET(request: NextRequest) {
-  try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
-    // Récupérer le paramètre de contexte depuis l'URL
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' | null
-
-    const supabase = supabaseServer
-
-    // Récupérer les informations du profil avec le groupe
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (!profile) {
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
-
-    // Construire la requête selon le contexte demandé
-    console.log('📋 Construction de la requête pour les budgets, contexte:', context)
-
-    let query
-    if (context === 'group' && profile.group_id) {
-      // Récupérer seulement les budgets du groupe
-      console.log('👥 Récupération des budgets de groupe uniquement:', profile.group_id)
-      query = supabase
-        .from('estimated_budgets')
-        .select('*')
-        .eq('group_id', profile.group_id)
-        .is('profile_id', null)
-    } else {
-      // Récupérer seulement les budgets personnels
-      console.log('👤 Récupération des budgets personnels uniquement:', userId)
-      query = supabase
-        .from('estimated_budgets')
-        .select('*')
-        .eq('profile_id', userId)
-        .is('group_id', null)
-    }
-
-    const { data: budgets, error } = await query.order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('❌ Erreur lors de la récupération des budgets:', error)
-      return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
-    }
-
-    console.log('✅ Budgets récupérés:', budgets?.length || 0, 'éléments')
-    console.log('📄 Détail des budgets:', budgets)
-
-    return NextResponse.json({ budgets: budgets || [] })
-
-  } catch (error) {
-    console.error('Erreur dans GET /api/budgets:', error)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
-  }
-}
 
 export async function POST(request: NextRequest) {
   try {

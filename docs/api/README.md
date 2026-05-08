@@ -51,13 +51,10 @@ Toutes les routes valident le cookie `session` via `validateSessionToken(request
 
 | Path | Verbes | Module | Consumer |
 |---|---|---|---|
-| `/api/finance/budgets` | GET, POST, PUT, DELETE | [`lib/api/finance/budgets.ts`](../../lib/api/finance/budgets.ts) | [`hooks/useBudgets.ts`](../../hooks/useBudgets.ts) (write only — POST/PUT/DELETE) |
+| `/api/finance/budgets` | POST, PUT, DELETE | [`lib/api/finance/budgets.ts`](../../lib/api/finance/budgets.ts) | [`hooks/useBudgets.ts`](../../hooks/useBudgets.ts) (write only — POST/PUT/DELETE) |
 | `/api/finance/budgets/estimated` | GET, POST, PUT, DELETE | [`lib/api/finance/budgets-estimated.ts`](../../lib/api/finance/budgets-estimated.ts) | [`hooks/useBudgets.ts`](../../hooks/useBudgets.ts) (read — GET) |
 
-**Note** : la GET de `/api/finance/budgets` n'a aucun consumer applicatif. Candidat à la suppression dans le sprint v2.
-
 **Query params** :
-- `budgets` GET : `?context=profile|group`.
 - `budgets` POST : body `{ name, estimatedAmount }` + query `?context=profile|group`.
 - `budgets` PUT/DELETE : query `?id=<uuid>`.
 - `budgets/estimated` GET : `?group=true` pour le contexte groupe.
