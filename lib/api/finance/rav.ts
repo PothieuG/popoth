@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { getRavFromDatabase } from '@/lib/financial-calculations'
-import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API to retrieve the current Remaining to Live (RAV) from database
@@ -10,30 +10,11 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Query params:
  * - context: 'profile' | 'group' (optional, defaults to profile)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     // Get query params
     const { searchParams } = new URL(request.url)
     const forceContext = searchParams.get('context') as 'profile' | 'group' | null
-
-    // Retrieve profile to determine context
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Error retrieving profile:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     // Determine context
     let context: 'profile' | 'group'
@@ -44,7 +25,7 @@ export async function GET(request: NextRequest) {
       contextId = profile.group_id
     } else {
       context = 'profile'
-      contextId = profile.id
+      contextId = userId
     }
 
     console.log(`🔍 [GET /api/finance/rav] Fetching RAV from database for ${context}: ${contextId}`)
@@ -73,4 +54,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
