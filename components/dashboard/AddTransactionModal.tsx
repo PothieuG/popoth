@@ -13,6 +13,7 @@ import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePrevie
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
 import { useFinancialData } from '@/hooks/useFinancialData'
+import { useRavValidation } from '@/hooks/useRavValidation'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface AddTransactionModalProps {
@@ -59,41 +60,14 @@ export default function AddTransactionModal({
   const previewAmount = parseFloat(formData.amount) || 0
 
   // Validation : vérifier si la dépense ferait passer le reste à vivre en négatif
-  const ravValidation = (() => {
-    if (transactionType !== 'expense' || !financialData || previewAmount <= 0) {
-      return { blocked: false, newRav: 0 }
-    }
-
-    const currentRav = financialData.remainingToLive
-
-    if (isExceptional) {
-      // Dépense exceptionnelle : impact direct sur le RAV
-      const newRav = currentRav - previewAmount
-      return { blocked: newRav < 0, newRav }
-    }
-
-    if (formData.budgetId) {
-      // Dépense budgétée : seul le dépassement impacte le RAV
-      const progress = expenseProgress[formData.budgetId]
-      if (progress) {
-        const currentSpent = progress.spentAmount
-        const newTotalSpent = currentSpent + previewAmount
-        const budgetAmount = progress.estimatedAmount
-
-        if (newTotalSpent > budgetAmount) {
-          const previousOverrun = Math.max(0, currentSpent - budgetAmount)
-          const newOverrun = newTotalSpent - budgetAmount
-          const additionalOverrun = newOverrun - previousOverrun
-          const newRav = currentRav - additionalOverrun
-          return { blocked: newRav < 0, newRav }
-        }
-      }
-      // Dans les limites du budget : pas d'impact
-      return { blocked: false, newRav: currentRav }
-    }
-
-    return { blocked: false, newRav: 0 }
-  })()
+  const ravValidation = useRavValidation({
+    transactionType,
+    isExceptional,
+    amount: previewAmount,
+    remainingToLive: financialData?.remainingToLive,
+    budgetId: formData.budgetId,
+    budgetProgress: expenseProgress[formData.budgetId],
+  })
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
