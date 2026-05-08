@@ -25,13 +25,13 @@ export interface CreateEstimatedIncomeRequest {
 }
 
 /**
- * GET /api/finances/income/estimated - Récupère les revenus estimés
+ * GET /api/finance/income/estimated - Récupère les revenus estimés
  * Retourne les revenus estimés de l'utilisateur ou de son groupe
  */
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const logContext = {
-    component: '/api/finances/income/estimated',
+    component: '/api/finance/income/estimated',
     operation: 'fetch_estimated_incomes',
     timestamp: new Date().toISOString()
   }
@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/finances/income/estimated - Crée un nouveau revenu estimé
+ * POST /api/finance/income/estimated - Crée un nouveau revenu estimé
  */
 export async function POST(request: NextRequest) {
   try {
@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
       message: 'Revenu estimé créé avec succès'
     })
   } catch (error) {
-    console.error('Error in POST /api/finances/income/estimated:', error)
+    console.error('Error in POST /api/finance/income/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/finances/income/estimated - Met à jour un revenu estimé
+ * PUT /api/finance/income/estimated - Met à jour un revenu estimé
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -298,7 +298,7 @@ export async function PUT(request: NextRequest) {
       message: 'Revenu estimé mis à jour avec succès'
     })
   } catch (error) {
-    console.error('Error in PUT /api/finances/income/estimated:', error)
+    console.error('Error in PUT /api/finance/income/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -307,7 +307,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE /api/finances/income/estimated - Supprime un revenu estimé
+ * DELETE /api/finance/income/estimated - Supprime un revenu estimé
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -347,7 +347,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Revenu estimé supprimé avec succès'
     })
   } catch (error) {
-    console.error('Error in DELETE /api/finances/income/estimated:', error)
+    console.error('Error in DELETE /api/finance/income/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

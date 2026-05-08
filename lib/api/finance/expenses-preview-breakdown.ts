@@ -18,7 +18,7 @@ export interface ExpenseBreakdownPreview {
 }
 
 /**
- * GET /api/finances/expenses/preview-breakdown
+ * GET /api/finance/expenses/preview-breakdown
  *
  * Previews how an expense will be allocated without actually creating it
  * Query params:
@@ -190,7 +190,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ breakdown })
 
   } catch (error) {
-    console.error('❌ Error in GET /api/finances/expenses/preview-breakdown:', error)
+    console.error('❌ Error in GET /api/finance/expenses/preview-breakdown:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

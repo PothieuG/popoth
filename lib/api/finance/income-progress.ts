@@ -3,7 +3,7 @@ import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
- * GET /api/finances/income/progress
+ * GET /api/finance/income/progress
  * Récupère la progression des revenus par revenu estimé
  */
 export async function GET(request: NextRequest) {
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(progressData)
 
   } catch (error) {
-    console.error('❌ Erreur dans /api/finances/income/progress:', error)
+    console.error('❌ Erreur dans /api/finance/income/progress:', error)
     return NextResponse.json(
       { error: 'Erreur serveur' },
       { status: 500 }

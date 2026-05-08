@@ -118,7 +118,7 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
   // Regression for Sprint Refactor R2 — the route once read a non-existent
   // column `current_savings` and the cast hid it. Test asserts the column
   // name `cumulated_savings` continues to round-trip on the same select
-  // shape /api/finances/expenses/progress uses.
+  // shape /api/finance/expenses/progress uses.
   it('estimated_budgets.cumulated_savings round-trips through the progress-route select', async () => {
     const { data, error } = await admin
       .from('estimated_budgets')

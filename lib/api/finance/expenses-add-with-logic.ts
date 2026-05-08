@@ -32,7 +32,7 @@ export interface ExpenseBreakdown {
 }
 
 /**
- * POST /api/finances/expenses/add-with-logic
+ * POST /api/finance/expenses/add-with-logic
  *
  * Adds an expense with the following priority logic:
  * 1. First, deplete piggy bank
@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('❌ Error in POST /api/finances/expenses/add-with-logic:', error)
+    console.error('❌ Error in POST /api/finance/expenses/add-with-logic:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

@@ -32,12 +32,12 @@ export interface CreateRealIncomeEntryRequest {
 }
 
 /**
- * GET /api/finances/income/real - Récupère les entrées réelles d'argent
+ * GET /api/finance/income/real - Récupère les entrées réelles d'argent
  * Retourne les entrées d'argent de l'utilisateur ou de son groupe
  */
 export async function GET(request: NextRequest) {
   const { operationId, log } = FinancialLogger.startOperation({
-    component: '/api/finances/income/real',
+    component: '/api/finance/income/real',
     operation: 'fetch_real_income_entries'
   })
   
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     const session = await validateSessionToken(request)
     if (!session?.userId) {
       FinancialLogger.authError({
-        component: '/api/finances/income/real',
+        component: '/api/finance/income/real',
         operation: 'fetch_real_income_entries',
         operationId
       })
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       offset
     })
   } catch (error) {
-    console.error('Error in GET /api/finances/income/real:', error)
+    console.error('Error in GET /api/finance/income/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/finances/income/real - Crée une nouvelle entrée réelle d'argent
+ * POST /api/finance/income/real - Crée une nouvelle entrée réelle d'argent
  */
 export async function POST(request: NextRequest) {
   try {
@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
       message: 'Entrée d\'argent créée avec succès'
     })
   } catch (error) {
-    console.error('Error in POST /api/finances/income/real:', error)
+    console.error('Error in POST /api/finance/income/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -292,7 +292,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/finances/income/real - Met à jour une entrée réelle d'argent
+ * PUT /api/finance/income/real - Met à jour une entrée réelle d'argent
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -392,7 +392,7 @@ export async function PUT(request: NextRequest) {
       message: 'Entrée d\'argent mise à jour avec succès'
     })
   } catch (error) {
-    console.error('Error in PUT /api/finances/income/real:', error)
+    console.error('Error in PUT /api/finance/income/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -401,7 +401,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE /api/finances/income/real - Supprime une entrée réelle d'argent
+ * DELETE /api/finance/income/real - Supprime une entrée réelle d'argent
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -464,7 +464,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Entrée d\'argent supprimée avec succès'
     })
   } catch (error) {
-    console.error('Error in DELETE /api/finances/income/real:', error)
+    console.error('Error in DELETE /api/finance/income/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

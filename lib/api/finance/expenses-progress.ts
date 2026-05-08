@@ -6,7 +6,7 @@ type BudgetForProgress = { id: string; name: string; estimated_amount: number; c
 type ExpenseForProgress = { amount: number; estimated_budget_id: string | null; amount_from_piggy_bank: number | null; amount_from_budget_savings: number | null; amount_from_budget: number | null }
 
 /**
- * GET /api/finances/expenses/progress
+ * GET /api/finance/expenses/progress
  * Récupère la progression des dépenses par budget estimé
  */
 export async function GET(request: NextRequest) {
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(progressData)
 
   } catch (error) {
-    console.error('❌ Erreur dans /api/finances/expenses/progress:', error)
+    console.error('❌ Erreur dans /api/finance/expenses/progress:', error)
     return NextResponse.json(
       { error: 'Erreur serveur' },
       { status: 500 }

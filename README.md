@@ -142,14 +142,10 @@ SUPABASE_TRIGGER_TESTS=1        pnpm test:run   # trigger-behavior.test.ts (Spri
 app/                       # App Router (pages + routes API)
   api/
     debug/                 # routes dev/seed — bloquées en prod via blockInProduction()
-    finance/               # ✅ namespace canonique unifié (Sprint Refactor-Architecture, livré 2026-05-08)
-                           #   12 paths : dashboard, summary, rav, budgets, budgets/estimated, incomes,
+    finance/               # ✅ namespace canonique unifié (Sprint Refactor-Architecture v1+v2, livré 2026-05-08)
+                           #   12 paths : summary, rav, budgets, budgets/estimated, incomes,
                            #   income/{real,estimated,progress}, expenses/{real,add-with-logic,preview-breakdown,progress}
                            #   Chaque route.ts ré-exporte les handlers depuis lib/api/finance/<route>.ts
-    finances/              # ⚠️ DEPRECATED (1 sprint d'observation) — wrappers withDeprecation autour des handlers lib
-    financial/             # ⚠️ DEPRECATED — idem, dashboard → /api/finance/summary, rav → /api/finance/rav
-    budgets/               # ⚠️ DEPRECATED — wrapper, pointe vers lib/api/finance/budgets.ts
-    incomes/               # ⚠️ DEPRECATED — wrapper, pointe vers lib/api/finance/incomes.ts
     monthly-recap/         # workflow récap mensuel
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
 components/                # composants UI (shadcn/ui sous components/ui/)

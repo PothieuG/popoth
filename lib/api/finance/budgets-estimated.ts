@@ -29,7 +29,7 @@ export interface CreateEstimatedBudgetRequest {
 }
 
 /**
- * GET /api/finances/budgets/estimated - Récupère les budgets estimés
+ * GET /api/finance/budgets/estimated - Récupère les budgets estimés
  * Retourne les budgets estimés de l'utilisateur ou de son groupe
  */
 export async function GET(request: NextRequest) {
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ estimated_budgets: budgetsWithSpending })
   } catch (error) {
-    console.error('Error in GET /api/finances/budgets/estimated:', error)
+    console.error('Error in GET /api/finance/budgets/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/finances/budgets/estimated - Crée un nouveau budget estimé
+ * POST /api/finance/budgets/estimated - Crée un nouveau budget estimé
  */
 export async function POST(request: NextRequest) {
   try {
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
       message: 'Budget estimé créé avec succès'
     })
   } catch (error) {
-    console.error('Error in POST /api/finances/budgets/estimated:', error)
+    console.error('Error in POST /api/finance/budgets/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -217,7 +217,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/finances/budgets/estimated - Met à jour un budget estimé
+ * PUT /api/finance/budgets/estimated - Met à jour un budget estimé
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -313,7 +313,7 @@ export async function PUT(request: NextRequest) {
       message: 'Budget estimé mis à jour avec succès'
     })
   } catch (error) {
-    console.error('Error in PUT /api/finances/budgets/estimated:', error)
+    console.error('Error in PUT /api/finance/budgets/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -322,7 +322,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE /api/finances/budgets/estimated - Supprime un budget estimé
+ * DELETE /api/finance/budgets/estimated - Supprime un budget estimé
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -362,7 +362,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Budget estimé supprimé avec succès'
     })
   } catch (error) {
-    console.error('Error in DELETE /api/finances/budgets/estimated:', error)
+    console.error('Error in DELETE /api/finance/budgets/estimated:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }

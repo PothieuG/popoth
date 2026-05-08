@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('❌ Erreur dans GET /api/financial/dashboard:', error)
+    console.error('❌ Erreur dans GET /api/finance/summary:', error)
 
     // En cas d'erreur, retourner des données par défaut pour éviter de casser l'UI
     return NextResponse.json({

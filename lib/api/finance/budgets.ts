@@ -11,7 +11,7 @@ import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 API POST /api/budgets - Début')
+    console.log('🔄 API POST /api/finance/budgets - Début')
     
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId
@@ -125,14 +125,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ budget }, { status: 201 })
 
   } catch (error) {
-    console.error('Erreur dans POST /api/budgets:', error)
+    console.error('Erreur dans POST /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    console.log('🔄 API PUT /api/budgets - Début')
+    console.log('🔄 API PUT /api/finance/budgets - Début')
 
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId
@@ -245,7 +245,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ budget })
 
   } catch (error) {
-    console.error('Erreur dans PUT /api/budgets:', error)
+    console.error('Erreur dans PUT /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -324,7 +324,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: 'Budget supprimé avec succès' })
 
   } catch (error) {
-    console.error('Erreur dans DELETE /api/budgets:', error)
+    console.error('Erreur dans DELETE /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

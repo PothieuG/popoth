@@ -11,7 +11,7 @@ import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔄 API GET /api/incomes - Début')
+    console.log('🔄 API GET /api/finance/incomes - Début')
     
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ incomes: incomes || [] })
 
   } catch (error) {
-    console.error('Erreur dans GET /api/incomes:', error)
+    console.error('Erreur dans GET /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -178,14 +178,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ income }, { status: 201 })
 
   } catch (error) {
-    console.error('Erreur dans POST /api/incomes:', error)
+    console.error('Erreur dans POST /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    console.log('🔄 API PUT /api/incomes - Début')
+    console.log('🔄 API PUT /api/finance/incomes - Début')
 
     const sessionData = await validateSessionToken(request)
     const userId = sessionData?.userId
@@ -298,7 +298,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ income })
 
   } catch (error) {
-    console.error('Erreur dans PUT /api/incomes:', error)
+    console.error('Erreur dans PUT /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -377,7 +377,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: 'Revenu supprimé avec succès' })
 
   } catch (error) {
-    console.error('Erreur dans DELETE /api/incomes:', error)
+    console.error('Erreur dans DELETE /api/finance/incomes:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

@@ -32,7 +32,7 @@ export interface CreateRealExpenseRequest {
 }
 
 /**
- * GET /api/finances/expenses/real - Récupère les dépenses réelles
+ * GET /api/finance/expenses/real - Récupère les dépenses réelles
  * Retourne les dépenses de l'utilisateur ou de son groupe
  */
 export async function GET(request: NextRequest) {
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
       offset
     })
   } catch (error) {
-    console.error('Error in GET /api/finances/expenses/real:', error)
+    console.error('Error in GET /api/finance/expenses/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/finances/expenses/real - Crée une nouvelle dépense réelle
+ * POST /api/finance/expenses/real - Crée une nouvelle dépense réelle
  */
 export async function POST(request: NextRequest) {
   try {
@@ -289,7 +289,7 @@ export async function POST(request: NextRequest) {
       message: 'Dépense créée avec succès'
     })
   } catch (error) {
-    console.error('Error in POST /api/finances/expenses/real:', error)
+    console.error('Error in POST /api/finance/expenses/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * PUT /api/finances/expenses/real - Met à jour une dépense réelle
+ * PUT /api/finance/expenses/real - Met à jour une dépense réelle
  */
 export async function PUT(request: NextRequest) {
   try {
@@ -430,7 +430,7 @@ export async function PUT(request: NextRequest) {
       message: 'Dépense mise à jour avec succès'
     })
   } catch (error) {
-    console.error('Error in PUT /api/finances/expenses/real:', error)
+    console.error('Error in PUT /api/finance/expenses/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
@@ -439,7 +439,7 @@ export async function PUT(request: NextRequest) {
 }
 
 /**
- * DELETE /api/finances/expenses/real - Supprime une dépense réelle
+ * DELETE /api/finance/expenses/real - Supprime une dépense réelle
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -513,7 +513,7 @@ export async function DELETE(request: NextRequest) {
       message: 'Dépense supprimée avec succès'
     })
   } catch (error) {
-    console.error('Error in DELETE /api/finances/expenses/real:', error)
+    console.error('Error in DELETE /api/finance/expenses/real:', error)
     return NextResponse.json(
       { error: 'Erreur interne du serveur' },
       { status: 500 }
