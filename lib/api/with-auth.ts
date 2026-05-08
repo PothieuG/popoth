@@ -21,6 +21,8 @@ export interface AuthedContext {
 export interface AuthedProfile {
   id: string
   group_id: string | null
+  first_name: string | null
+  last_name: string | null
 }
 
 export interface AuthedProfileContext {
@@ -28,44 +30,50 @@ export interface AuthedProfileContext {
   profile: AuthedProfile
 }
 
-type AuthedHandler = (
+export type RouteContext<TParams = Record<string, string>> = {
+  params: Promise<TParams>
+}
+
+type AuthedHandler<TParams> = (
   request: NextRequest,
-  ctx: AuthedContext
+  ctx: AuthedContext,
+  routeContext?: RouteContext<TParams>
 ) => Promise<NextResponse>
 
-type AuthedProfileHandler = (
+type AuthedProfileHandler<TParams> = (
   request: NextRequest,
-  ctx: AuthedProfileContext
+  ctx: AuthedProfileContext,
+  routeContext?: RouteContext<TParams>
 ) => Promise<NextResponse>
 
-export function withAuth(
-  handler: AuthedHandler
-): (request: NextRequest) => Promise<NextResponse> {
-  return async (request) => {
+export function withAuth<TParams = Record<string, string>>(
+  handler: AuthedHandler<TParams>
+): (request: NextRequest, routeContext?: RouteContext<TParams>) => Promise<NextResponse> {
+  return async (request, routeContext) => {
     const session = await validateSessionToken(request)
     if (!session?.userId) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
-    return handler(request, { userId: session.userId })
+    return handler(request, { userId: session.userId }, routeContext)
   }
 }
 
-export function withAuthAndProfile(
-  handler: AuthedProfileHandler
-): (request: NextRequest) => Promise<NextResponse> {
-  return async (request) => {
+export function withAuthAndProfile<TParams = Record<string, string>>(
+  handler: AuthedProfileHandler<TParams>
+): (request: NextRequest, routeContext?: RouteContext<TParams>) => Promise<NextResponse> {
+  return async (request, routeContext) => {
     const session = await validateSessionToken(request)
     if (!session?.userId) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
     const { data: profile, error } = await supabaseServer
       .from('profiles')
-      .select('id, group_id')
+      .select('id, group_id, first_name, last_name')
       .eq('id', session.userId)
       .single()
     if (error || !profile) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
-    return handler(request, { userId: session.userId, profile })
+    return handler(request, { userId: session.userId, profile }, routeContext)
   }
 }
