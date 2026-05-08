@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import { withAuthAndProfile, type AuthedProfile } from '@/lib/api/with-auth'
 
 /**
  * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
@@ -21,26 +21,19 @@ import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
  *   amount: number
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     const body = await request.json()
     const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
 
     // Si c'est une action tirelire, déléguer à la fonction appropriée
     if (action && ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)) {
-      return handlePiggyBankAction(userId, context, action, amount)
+      return handlePiggyBankAction(profile, context, action, amount)
     }
 
     // Transfert budget → tirelire
     if (action === 'budget_to_piggy_bank') {
-      return handleBudgetToPiggyBank(userId, context, from_budget_id, amount)
+      return handleBudgetToPiggyBank(profile, context, from_budget_id, amount)
     }
 
     // Sinon, c'est un transfert entre budgets
@@ -74,18 +67,6 @@ export async function POST(request: NextRequest) {
     console.log(`💸 Vers budget: ${to_budget_id}`)
     console.log(`💸 Montant: ${amount}€`)
     console.log(`💸💸💸 ========================================================`)
-
-    // Get user profile to determine context
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
 
     // Determine context filter
     const contextFilter = context === 'group' && profile.group_id
@@ -202,13 +183,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * Handle Piggy Bank Actions (set, add, remove)
  */
 async function handlePiggyBankAction(
-  userId: string,
+  profile: AuthedProfile,
   context: string,
   action: string,
   amount: number
@@ -227,19 +208,7 @@ async function handlePiggyBankAction(
   console.log(`🐷 Action: ${action}`)
   console.log(`🐷 Montant: ${amount}€`)
   console.log(`🐷 Contexte: ${context}`)
-  console.log(`🐷 User ID: ${userId}`)
-
-  // Get user profile
-  const { data: profile, error: profileError } = await supabaseServer
-    .from('profiles')
-    .select('id, group_id')
-    .eq('id', userId)
-    .single()
-
-  if (profileError || !profile) {
-    console.error('❌ Erreur récupération profil:', profileError)
-    return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-  }
+  console.log(`🐷 User ID: ${profile.id}`)
 
   // Determine context filter
   const contextFilter = context === 'group' && profile.group_id
@@ -341,7 +310,7 @@ async function handlePiggyBankAction(
  * Removes savings from a budget and adds them to the piggy bank
  */
 async function handleBudgetToPiggyBank(
-  userId: string,
+  profile: AuthedProfile,
   context: string,
   fromBudgetId: string,
   amount: number
@@ -351,17 +320,6 @@ async function handleBudgetToPiggyBank(
       { error: 'Paramètres manquants ou invalides' },
       { status: 400 }
     )
-  }
-
-  // Get user profile
-  const { data: profile, error: profileError } = await supabaseServer
-    .from('profiles')
-    .select('id, group_id')
-    .eq('id', userId)
-    .single()
-
-  if (profileError || !profile) {
-    return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
   }
 
   const contextFilter = context === 'group' && profile.group_id

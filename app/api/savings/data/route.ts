@@ -1,21 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API Get Savings Data
  * Returns all estimated budgets with their cumulated savings
  * GET /api/savings/data?context=profile|group
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
@@ -31,19 +24,7 @@ export async function GET(request: NextRequest) {
     console.log(`💰💰💰 [SAVINGS DATA] RÉCUPÉRATION DES ÉCONOMIES`)
     console.log(`💰💰💰 ========================================================`)
     console.log(`💰 Contexte: ${context}`)
-    console.log(`💰 User ID: ${userId}`)
-
-    // Get user profile
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
+    console.log(`💰 User ID: ${profile.id}`)
 
     // Determine context filter
     const contextFilter = context === 'group' && profile.group_id
@@ -121,4 +102,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

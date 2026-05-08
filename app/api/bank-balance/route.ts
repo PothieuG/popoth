@@ -1,23 +1,17 @@
-import { NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 /**
  * GET - Récupère le solde bancaire de l'utilisateur ou du groupe
  */
-export async function GET(request: Request) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData) {
-      console.error('Token non valide dans bank-balance API')
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
-    console.log('Récupération du solde bancaire, contexte:', context, 'userId:', sessionData.userId)
+    console.log('Récupération du solde bancaire, contexte:', context, 'userId:', userId)
 
     let query
     if (context === 'group') {
@@ -25,7 +19,7 @@ export async function GET(request: Request) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', sessionData.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -43,7 +37,7 @@ export async function GET(request: Request) {
       query = supabaseServer
         .from('bank_balances')
         .select('balance')
-        .eq('profile_id', sessionData.userId)
+        .eq('profile_id', userId)
         .single()
     }
 
@@ -82,25 +76,19 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST - Met à jour le solde bancaire de l'utilisateur ou du groupe
  */
-export async function POST(request: Request) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData) {
-      console.error('Token non valide dans POST bank-balance')
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
     const { balance } = await request.json()
-    console.log('Mise à jour du solde bancaire:', balance, 'contexte:', context, 'userId:', sessionData.userId)
+    console.log('Mise à jour du solde bancaire:', balance, 'contexte:', context, 'userId:', userId)
 
     if (typeof balance !== 'number' || isNaN(balance)) {
       console.error('Solde invalide:', balance)
@@ -119,7 +107,7 @@ export async function POST(request: Request) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', sessionData.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -138,11 +126,11 @@ export async function POST(request: Request) {
       checkQuery = supabaseServer
         .from('bank_balances')
         .select('id')
-        .eq('profile_id', sessionData.userId)
+        .eq('profile_id', userId)
         .single()
 
-      checkCondition = { profile_id: sessionData.userId }
-      insertData = { profile_id: sessionData.userId, group_id: null, balance }
+      checkCondition = { profile_id: userId }
+      insertData = { profile_id: userId, group_id: null, balance }
     }
 
     // Vérifier si un solde existe déjà
@@ -209,4 +197,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-}
+})
