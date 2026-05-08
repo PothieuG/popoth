@@ -142,12 +142,22 @@ SUPABASE_TRIGGER_TESTS=1        pnpm test:run   # trigger-behavior.test.ts (Spri
 app/                       # App Router (pages + routes API)
   api/
     debug/                 # routes dev/seed — bloquées en prod via blockInProduction()
-    finances/              # dashboard, expenses, income
+    finance/               # ✅ namespace canonique unifié (Sprint Refactor-Architecture, livré 2026-05-08)
+                           #   12 paths : dashboard, summary, rav, budgets, budgets/estimated, incomes,
+                           #   income/{real,estimated,progress}, expenses/{real,add-with-logic,preview-breakdown,progress}
+                           #   Chaque route.ts ré-exporte les handlers depuis lib/api/finance/<route>.ts
+    finances/              # ⚠️ DEPRECATED (1 sprint d'observation) — wrappers withDeprecation autour des handlers lib
+    financial/             # ⚠️ DEPRECATED — idem, dashboard → /api/finance/summary, rav → /api/finance/rav
+    budgets/               # ⚠️ DEPRECATED — wrapper, pointe vers lib/api/finance/budgets.ts
+    incomes/               # ⚠️ DEPRECATED — wrapper, pointe vers lib/api/finance/incomes.ts
     monthly-recap/         # workflow récap mensuel
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
 components/                # composants UI (shadcn/ui sous components/ui/)
-contexts/                  # React contexts (AuthContext)
-hooks/                     # 18 hooks React (useFinancialData, useGroups, ...)
+contexts/                  # React contexts (AuthContext split en AuthUserContext + AuthActionsContext)
+hooks/                     # 20 hooks React
+  useRavValidation.ts      # validation { blocked, newRav } extraite de AddTransactionModal (Sprint Refactor-Architecture)
+  useStep1Data.ts          # fetch /api/monthly-recap/step1-data + { data, loading, error, refresh }
+  ...                      # useFinancialData, useGroups, useProfile, useBudgetProgress, ...
 lib/
   supabase-server.ts       # client serveur (service_role, BYPASS RLS)
   supabase-client.ts       # client browser (anon key, soumis à RLS)
@@ -156,11 +166,13 @@ lib/
   expense-allocation.ts    # règles d'allocation tirelire/savings/budget
   financial-calculations.ts # GOD FILE — chantier I4
   recap-snapshot.types.ts  # SnapshotPayload v1/v2 discriminé
-  finance/                 # helpers RPC atomiques
-    piggy-bank.ts          # updatePiggyBank, transferFromPiggyToBudget
-    bank-balance.ts        # updateBankBalance
-    budget-savings.ts      # updateBudgetCumulatedSavings
+  finance/                 # helpers RPC atomiques (piggy-bank, bank-balance, budget-savings)
     __tests__/             # rpc-concurrency, rls-isolation (gated)
+  recap/
+    check-status.ts        # ✅ checkRecapStatus(userId, context) Edge-safe — appelé directement par middleware.ts ET la route status (Sprint Refactor-Architecture)
+  api/
+    with-deprecation.ts    # helper : ajoute `Deprecation: true` à la response (utilisé par les anciens chemins gardés en alias)
+    finance/               # 13 modules : handlers extraits, ré-exportés par app/api/finance/**/route.ts
   __tests__/               # api-regressions (gated)
 scripts/                   # outils API Management (sans Docker)
   export-schema.mjs        # snapshot prod schema → SQL baseline
@@ -214,6 +226,8 @@ flowchart LR
 - Les **écritures sur les invariants financiers** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) **doivent passer par les helpers `lib/finance/*`** qui appellent les 4 RPC atomiques `SECURITY DEFINER`. Pas de SELECT-then-UPDATE direct.
 - L'**auth** est un JWT custom signé via `jose`, vérifié par `validateSessionToken(request)` dans chaque route API. Pas Supabase Auth direct côté serveur.
 - Le **workflow récap mensuel** (`app/api/monthly-recap/*`) est un état-machine en 3 étapes ; le cœur algorithmique (`process-step1`, >700 LOC) reste un god file en attente de refactor (chantier I5).
+- **Pattern API canonique** depuis Sprint Refactor-Architecture : les handlers vivent dans [`lib/api/finance/*`](./lib/api/finance/) (named exports `GET` / `POST` / etc.) et les `route.ts` sous [`app/api/finance/`](./app/api/finance/) ré-exportent. Ça permet aux handlers d'être importés ailleurs (tests, autres routes, middleware) sans dépendre de la convention `route.ts`. Les renames d'API utilisent le helper [`lib/api/with-deprecation.ts`](./lib/api/with-deprecation.ts) qui ajoute `Deprecation: true` à la response des anciens chemins pendant 1 sprint d'observation. Voir [docs/api/README.md](./docs/api/README.md) pour la liste complète des endpoints `/api/finance/*` et leurs shapes.
+- **Edge runtime** (middleware) : pas de fetch HTTP self-call vers une route locale. Extraire la logique en lib pure et l'importer directement (pattern : [`lib/recap/check-status.ts`](./lib/recap/check-status.ts) appelé depuis [`middleware.ts`](./middleware.ts) ET la route API canonique). Vérifier que les imports transitifs restent Edge-safe (pas de `node:fs`, `node:path`, `next/headers`).
 
 ---
 
@@ -279,7 +293,7 @@ CI : `.github/workflows/` contient (a) un cron weekly DB-side `pnpm db:check-dri
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Hygiène-Code-v2 2026-05-08 (~87/100) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après Sprint Refactor-Architecture 2026-05-08 (~89/100) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
 - ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
@@ -297,6 +311,7 @@ L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-
 - ✅ **Sprint Lint-Followups** (livré 2026-05-08) : Item 1 fix `recover.ts` v1/v2 type mismatch — `bank_balance` / `piggy_bank` normalisés sur strict `boolean` partout, 3 régressions gated `SUPABASE_API_TESTS=1`. Item 2 triage Dependabot **31 → 0** : `next 16.1.6 → 16.2.6` + `postcss 8.5.6 → 8.5.14` direct, 12 `pnpm.overrides` pour transitives (minimatch, flatted, picomatch, brace-expansion, ajv, js-yaml, yaml, playwright, serialize-javascript, lodash, glob, postcss bundled). `pnpm audit` exit 0. Item 3 hook Husky `pre-push` ([`.husky/pre-push`](./.husky/pre-push)) lance `pnpm lint:check && pnpm typecheck` fail-fast — première gate locale alignée sur le PR gate.
 - ✅ **Sprint Hygiène-Code** (livré 2026-05-08) : 4 chantiers en scope Medium, 4 commits (`a2e0b18` → `58620b9`). (1) Magic numbers extraits dans [`lib/constants/auth.ts`](./lib/constants/auth.ts) + [`lib/constants/finance.ts`](./lib/constants/finance.ts) — 13 substitutions (TTL session, intervalles refresh/auth-check, tolérance d'arrondi `0.01` recap step1). (2) Dead code : `getRemainingToLiveHistory` + `getGroupRemainingToLiveHistory` + interface `RemainingToLiveSnapshot` supprimés de [`lib/financial-calculations.ts`](./lib/financial-calculations.ts) (–95 LOC, 0 callsites). (3) Split `AuthContext` ([`contexts/AuthContext.tsx`](./contexts/AuthContext.tsx)) en `AuthUserContext` + `AuthActionsContext`, nouveaux hooks `useAuthUser()` / `useAuthActions()`, `useAuth()` rétro-compat agrégateur ; intervals migrés `useState` → `useRef`, public handlers `useCallback`. (4) Lazy-load 5 modals dans [`components/dashboard/PlanningDrawer.tsx`](./components/dashboard/PlanningDrawer.tsx) via `next/dynamic` + `ssr: false`. **Inventaire pré-sprint a invalidé 4 des 8 objectifs du prompt source** (audit 02 stale post-Lint-Baseline-Cleanup) : `: any` count = 0, silent catches déjà loggés, patterns `array[key]` safe, key listes déjà stables. Suite documentée dans [`prompts/prompt-02-code-quality-v2.md`](./prompts/prompt-02-code-quality-v2.md) (migration consumers AuthContext + extension lazy-load + closeout audit doc).
 - ✅ **Sprint Hygiène-Code-v2** (livré 2026-05-08) : 3 items, 3 commits code + 1 closeout (`53a9c97` → closeout). (1) Migration des 4 single-concern consumers (`app/page.tsx` → `useAuthUser()` ; `dashboard` + `group-dashboard` + `settings` → nouveau `useLogoutAndRedirect()`) + refactor des internals de [`hooks/useAuth.ts`](./hooks/useAuth.ts) — chaque hook composé subscribe à la slice la plus narrow (`useRequireAuth` / `useRequireGuest` → `useAuthUser` only ; `useLogin` / `useRegister` → split user-state pour `error` et actions pour le reste). `useAuth()` agrégateur préservé inchangé pour rétro-compat (page connexion consumer-side inchangé, le bénéfice flow par les internals). (2) Lazy-load 3 modals outer-level (`AddTransactionModal` 491 LOC, `PlanningDrawer` 688 LOC, `SavingsDistributionDrawer` 540 LOC) via `next/dynamic` + `ssr: false` — étend le pattern de v1 à ≈1.7k LOC supplémentaires, le wrapper `SavingsDrawer` (29 LOC) reste static. (3) Header stale-content sur [`docs/audit/02-code-quality.md`](./docs/audit/02-code-quality.md) pointant vers la roadmap CLAUDE.md §11. Trouvaille au pré-sprint : `useRegister()` n'a aucun consumer (page inscription utilise `supabase.auth.signUp` direct) — refactoré pour cohérence d'API, pas supprimé.
+- ✅ **Sprint Refactor-Architecture** (livré 2026-05-08) : 5 chantiers, 5 commits sur `cleanup` (`35c86e7` → `3601b28`). (1) Middleware self-call HTTP supprimé — extraction en [`lib/recap/check-status.ts`](./lib/recap/check-status.ts) Edge-safe, importée directement par middleware ET la route API canonique. (2) Namespace `/api/finance/*` unifié (13 routes) avec aliases rétro-compat taggés `Deprecation: true` via [`lib/api/with-deprecation.ts`](./lib/api/with-deprecation.ts) ; handlers extraits dans [`lib/api/finance/`](./lib/api/finance/) ; 29 fetch URLs migrées dans 7 hooks + 1 component ; 2 ambiguïtés résiduelles (`/api/finance/budgets` GET vs `/api/finance/budgets/estimated` GET ; `/api/finance/dashboard` vs `/api/finance/summary`) préservées zero-risk, cleanup planifié dans [`prompts/prompt-03-architecture-v2.md`](./prompts/prompt-03-architecture-v2.md). (3) [`hooks/useRavValidation.ts`](./hooks/useRavValidation.ts) extrait de l'IIFE inline de `AddTransactionModal` (memoize via `useMemo`). (4) [`hooks/useStep1Data.ts`](./hooks/useStep1Data.ts) extrait de `MonthlyRecapStep1` — hook custom maison `{ data, loading, error, refresh }`, pas TanStack Query. (5) [`hooks/useBudgetProgress.ts`](./hooks/useBudgetProgress.ts) déduplication state + sync effect → return `useMemo` direct. **Skip arbitré Phase 1** : Context local `PlanningDrawer` non créé après inventaire qui a montré que l'audit était stale (`context` ne traverse qu'1 niveau, pas 8+). PlanningDrawer reste structurellement inchangé.
 
 L'historique des sprints sécurité est consigné dans [`CLAUDE.md`](./CLAUDE.md) §7.
 
@@ -318,7 +333,8 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`POST-MORTEM-C3-DRIFT.md`](./docs/audit/POST-MORTEM-C3-DRIFT.md) — post-mortem du drift `schema_migrations` ↔ `pg_proc`.
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
-- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint Hygiène-Code-v2 (livré). Voir [`prompts/README.md`](./prompts/README.md) pour le sommaire chronologique. Voir roadmap §11 dans [CLAUDE.md](./CLAUDE.md) pour les chantiers planifiés : Sprint 1 (Prettier/Husky lint-staged + ESLint 8→9 + eslint-config-next 15→16), Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I4 (financial-calculations), chantier I5 (process-step1), chantier console.log cleanup, chantier Zod rollout, GH Actions Node.js 24 migration (juin 2026).
+- [`docs/api/README.md`](./docs/api/README.md) — référence rapide du namespace canonique `/api/finance/*` (Sprint Refactor-Architecture) : endpoints, verbes, query params, shapes de réponse.
+- [`prompts/`](./prompts/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint Refactor-Architecture (livré). Voir [`prompts/README.md`](./prompts/README.md) pour le sommaire chronologique. Voir roadmap §11 dans [CLAUDE.md](./CLAUDE.md) pour les chantiers planifiés : Sprint Refactor-Architecture-v2 (cleanup deprecated + ambiguïtés résiduelles), Sprint 1 (Prettier/Husky lint-staged + eslint-config-next 15→16), Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I4 (financial-calculations), chantier I5 (process-step1), chantier console.log cleanup, chantier Zod rollout, GH Actions Node.js 24 migration (juin 2026).
 
 ---
 
