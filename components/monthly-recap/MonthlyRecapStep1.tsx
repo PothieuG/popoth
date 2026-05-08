@@ -1,45 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { useStep1Data } from '@/hooks/useStep1Data'
 
 interface MonthlyRecapStep1Props {
   context: 'profile' | 'group'
   onNext: () => void | Promise<void>
-}
-
-interface Step1Data {
-  current_remaining_to_live: number
-  budgetary_remaining_to_live: number
-  normal_remaining_to_live: number
-  factual_remaining_to_live: number
-  piggy_bank_amount: number
-  needs_balancing: boolean
-  balance_amount: number
-  surplus_for_next_step: number
-  is_positive: boolean
-  deficit: number
-  budgets_with_surplus: Array<{
-    id: string
-    name: string
-    estimated_amount: number
-    spent_amount: number
-    surplus: number
-  }>
-  budgets_with_savings: Array<{
-    id: string
-    name: string
-    estimated_amount: number
-    spent_amount: number
-    savings: number
-  }>
-  total_surplus_available: number
-  total_savings_available: number
-  total_available: number
-  can_balance: boolean
-  can_fully_balance: boolean
-  user_name: string
 }
 
 /**
@@ -52,10 +20,8 @@ export default function MonthlyRecapStep1({
   context,
   onNext
 }: MonthlyRecapStep1Props) {
-  const [step1Data, setStep1Data] = useState<Step1Data | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: step1Data, loading: isLoading, error, refresh: fetchStep1Data } = useStep1Data(context)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const monthNames = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -65,55 +31,6 @@ export default function MonthlyRecapStep1({
   const currentDate = new Date()
   const currentMonthName = monthNames[currentDate.getMonth()]
   const currentYear = currentDate.getFullYear()
-
-  /**
-   * Récupère les données live depuis l'API step1-data
-   */
-  const fetchStep1Data = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      console.log('🔄 [Step1] Récupération des données live depuis l\'API step1-data')
-
-      const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la récupération des données')
-      }
-
-      console.log(``)
-      console.log(`🎯🎯🎯 ========================================================`)
-      console.log(`🎯🎯🎯 [FRONTEND] ÉTAPE 1 - DONNÉES REÇUES`)
-      console.log(`🎯🎯🎯 ========================================================`)
-      console.log(`💰 RESTE À VIVRE: ${data.current_remaining_to_live}€`)
-      console.log(`📊 Est positif: ${data.is_positive}`)
-      console.log(`📉 Déficit: ${data.deficit}€`)
-      console.log(`💎 Économies disponibles: ${data.total_savings_available}€`)
-      console.log(`📊 Excédents disponibles: ${data.total_surplus_available}€`)
-      console.log(`💰 Total disponible: ${data.total_available}€`)
-      console.log(`✅ Peut équilibrer: ${data.can_balance}`)
-      console.log(`✅ Peut équilibrer complètement: ${data.can_fully_balance}`)
-      console.log(`🎯🎯🎯 ========================================================`)
-      console.log(``)
-
-      setStep1Data(data)
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      console.error('❌ [Step1] Erreur lors de la récupération des données:', err)
-      setError(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Récupérer les données au montage du composant
-  useEffect(() => {
-    fetchStep1Data()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchStep1Data is intentionally re-created each render; refetch only on mount or context change
-  }, [context])
 
   // Debug des données récupérées
   useEffect(() => {
