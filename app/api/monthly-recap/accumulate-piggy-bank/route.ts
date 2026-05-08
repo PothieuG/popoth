@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API POST /api/monthly-recap/accumulate-piggy-bank
@@ -21,17 +21,8 @@ import { updatePiggyBank } from '@/lib/finance/piggy-bank'
  *   new_amount: number
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { context = 'profile', amount } = body
 
@@ -48,22 +39,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Montant invalide' },
         { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
       )
     }
 
@@ -161,4 +136,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

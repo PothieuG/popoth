@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API GET /api/monthly-recap/resume
@@ -13,17 +13,8 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
  *
  * Query: ?context=profile|group
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') || 'profile'
 
@@ -35,24 +26,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const userId = sessionData.userId
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
     const currentYear = currentDate.getFullYear()
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
-    }
 
     let contextId: string
     if (context === 'profile') {
@@ -239,4 +215,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

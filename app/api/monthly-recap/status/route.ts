@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { checkRecapStatus, RecapStatusError, type RecapContext } from '@/lib/recap/check-status'
+import { withAuth } from '@/lib/api/with-auth'
 
 /**
  * API GET /api/monthly-recap/status
@@ -9,13 +9,8 @@ import { checkRecapStatus, RecapStatusError, type RecapContext } from '@/lib/rec
  * Logique métier dans lib/recap/check-status.ts (réutilisée par le middleware
  * en appel direct sans aller-retour HTTP).
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request, { userId }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const rawContext = searchParams.get('context') || 'profile'
 
@@ -28,9 +23,9 @@ export async function GET(request: NextRequest) {
 
     const context: RecapContext = rawContext
 
-    const status = await checkRecapStatus(sessionData.userId, context)
+    const status = await checkRecapStatus(userId, context)
 
-    console.log(`📅 [Monthly Recap Status] Context: ${context}, User: ${sessionData.userId}`)
+    console.log(`📅 [Monthly Recap Status] Context: ${context}, User: ${userId}`)
     console.log(`📅 [Monthly Recap Status] Date: ${status.currentMonth}/${status.currentYear}`)
     console.log(
       `📅 [Monthly Recap Status] Required: ${status.required} (Has existing: ${status.hasExistingRecap})`,
@@ -46,4 +41,4 @@ export async function GET(request: NextRequest) {
     console.error('❌ Erreur lors de la vérification du statut du récap mensuel:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
-}
+})

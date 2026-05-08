@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API GET /api/monthly-recap/step2-data
@@ -28,17 +28,8 @@ import { getProfileFinancialData, getGroupFinancialData, type FinancialData } fr
  * - total_surplus: nombre (après transferts)
  * - total_deficit: nombre (après transferts)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const context = url.searchParams.get('context') || 'profile'
 
@@ -47,22 +38,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
         { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
       )
     }
 
@@ -358,4 +333,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
