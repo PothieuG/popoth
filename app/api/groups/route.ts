@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 // Group data types
 export interface GroupData {
@@ -23,31 +23,9 @@ export interface CreateGroupRequest {
  * GET /api/groups - Get the user's group (single group per user)
  * Returns the group the user belongs to, if any
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const supabase = supabaseServer
-
-    // Get user's profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // If user has no group, return empty array
     if (!profile.group_id) {
@@ -80,7 +58,7 @@ export async function GET(request: NextRequest) {
       created_at: group.created_at,
       updated_at: group.updated_at,
       member_count: count || 0,
-      is_creator: group.creator_id === session.userId
+      is_creator: group.creator_id === userId
     }
 
     return NextResponse.json({ groups: [groupData] })
@@ -92,21 +70,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/groups - Create a new group
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: CreateGroupRequest = await request.json()
     const { name, monthly_budget_estimate } = body
 
@@ -127,20 +97,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = supabaseServer
 
-    // Get user's profile and check if already in a group
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
-
     // Check if user is already in a group
     if (profile.group_id) {
       return NextResponse.json(
@@ -155,7 +111,7 @@ export async function POST(request: NextRequest) {
       .insert({
         name: name.trim(),
         monthly_budget_estimate,
-        creator_id: session.userId
+        creator_id: userId
       })
       .select()
       .single()
@@ -168,7 +124,7 @@ export async function POST(request: NextRequest) {
           { status: 409 }
         )
       }
-      
+
       console.error('Error creating group:', createError)
       return NextResponse.json(
         { error: 'Erreur lors de la création du groupe' },
@@ -186,7 +142,7 @@ export async function POST(request: NextRequest) {
       console.error('Error adding creator to group:', joinError)
       // Try to cleanup the created group
       await supabase.from('groups').delete().eq('id', group.id)
-      
+
       return NextResponse.json(
         { error: 'Erreur lors de l\'ajout du créateur au groupe' },
         { status: 500 }
@@ -205,9 +161,9 @@ export async function POST(request: NextRequest) {
       is_creator: true
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       group: groupData,
-      message: 'Groupe créé avec succès' 
+      message: 'Groupe créé avec succès'
     })
   } catch (error) {
     console.error('Error in POST /api/groups:', error)
@@ -216,4 +172,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

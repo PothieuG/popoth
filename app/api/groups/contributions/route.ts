@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 // Group contribution data types
 export interface GroupContributionData {
@@ -32,31 +32,9 @@ export interface GroupContributionsResponse {
  * GET /api/groups/contributions - Get contributions for the user's group
  * Returns calculated contributions for all members of the user's group
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (_request, { profile }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const supabase = supabaseServer
-
-    // Get user's profile and group
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // Check if user has a group
     if (!profile.group_id) {
@@ -136,37 +114,15 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/groups/contributions/recalculate - Force recalculation of contributions
  * Triggers a manual recalculation of contributions for the user's group
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (_request, { profile }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const supabase = supabaseServer
-
-    // Get user's profile and group
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // Check if user has a group
     if (!profile.group_id) {
@@ -201,4 +157,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

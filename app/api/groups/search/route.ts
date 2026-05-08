@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 export interface SearchableGroup {
   id: string
@@ -18,35 +18,13 @@ export interface SearchableGroup {
  * - q: search query (optional)
  * - limit: number of results (default: 20, max: 50)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session || !session.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')?.trim() || ''
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
 
     const supabase = supabaseServer
-
-    // Get user's profile ID
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', session.userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
 
     // Build the query
     let groupsQuery = supabase
@@ -76,22 +54,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get user's current group membership (single group)
-    const { data: userProfile, error: userProfileError } = await supabase
-      .from('profiles')
-      .select('group_id')
-      .eq('id', profile.id)
-      .single()
-
-    if (userProfileError) {
-      console.error('Error fetching user profile:', userProfileError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la vérification du profil' },
-        { status: 500 }
-      )
-    }
-
-    const userGroupId = userProfile.group_id
+    const userGroupId = profile.group_id
 
     // Transform groups with additional info
     const searchableGroups: SearchableGroup[] = await Promise.all(
@@ -108,7 +71,7 @@ export async function GET(request: NextRequest) {
           .select('first_name, last_name')
           .eq('id', group.creator_id)
           .single()
-        
+
         return {
           id: group.id,
           name: group.name,
@@ -116,14 +79,14 @@ export async function GET(request: NextRequest) {
           created_at: group.created_at,
           member_count: count || 0,
           is_member: userGroupId === group.id,
-          creator_name: creatorProfile 
+          creator_name: creatorProfile
             ? `${creatorProfile.first_name} ${creatorProfile.last_name}`
             : 'Utilisateur inconnu'
         }
       })
     )
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       groups: searchableGroups,
       total: searchableGroups.length,
       query: query || null
@@ -135,4 +98,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
