@@ -1,24 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 /**
  * GET /api/finance/income/progress
  * Récupère la progression des revenus par revenu estimé
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    // Vérifier l'authentification
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     // Récupérer le contexte depuis les paramètres URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
@@ -103,4 +93,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

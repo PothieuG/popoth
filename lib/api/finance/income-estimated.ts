@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
+import { withAuth } from '@/lib/api/with-auth'
 
 type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
 type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['Update']
@@ -28,40 +29,27 @@ export interface CreateEstimatedIncomeRequest {
  * GET /api/finance/income/estimated - Récupère les revenus estimés
  * Retourne les revenus estimés de l'utilisateur ou de son groupe
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   const startTime = Date.now()
   const logContext = {
     component: '/api/finance/income/estimated',
     operation: 'fetch_estimated_incomes',
     timestamp: new Date().toISOString()
   }
-  
+
   console.log('📖 Fetching estimated incomes', {
     ...logContext,
     level: 'info'
   })
-  
-  try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      console.log('❌ Authentication failed', {
-        ...logContext,
-        level: 'warn',
-        error: 'no_session'
-      })
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
 
+  try {
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
-    
+
     console.log('🔍 Query context', {
       ...logContext,
       level: 'debug',
-      userId: session.userId,
+      userId,
       forGroup: forGroup
     })
 
@@ -72,7 +60,7 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -85,7 +73,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('group_id', profile.group_id)
         .order('created_at', { ascending: false })
-      
+
       data = result.data
       error = result.error
     } else {
@@ -93,9 +81,9 @@ export async function GET(request: NextRequest) {
       const result = await supabaseServer
         .from('estimated_incomes')
         .select('*')
-        .eq('profile_id', session.userId)
+        .eq('profile_id', userId)
         .order('created_at', { ascending: false })
-      
+
       data = result.data
       error = result.error
     }
@@ -111,12 +99,12 @@ export async function GET(request: NextRequest) {
     console.log('✅ Estimated incomes fetched successfully', {
       ...logContext,
       level: 'info',
-      userId: session.userId,
+      userId,
       forGroup: forGroup,
       count: data?.length || 0,
       duration: Date.now() - startTime
     })
-    
+
     return NextResponse.json({ estimated_incomes: data || [] })
   } catch (error) {
     console.error('❌ Error fetching estimated incomes', {
@@ -134,21 +122,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/finance/income/estimated - Crée un nouveau revenu estimé
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: CreateEstimatedIncomeRequest = await request.json()
     const { name, estimated_amount, is_monthly_recurring = true, is_for_group = false } = body
 
@@ -178,7 +158,7 @@ export async function POST(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -190,7 +170,7 @@ export async function POST(request: NextRequest) {
 
       insertData.group_id = profile.group_id
     } else {
-      insertData.profile_id = session.userId
+      insertData.profile_id = userId
     }
 
     // Create the estimated income
@@ -219,21 +199,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * PUT /api/finance/income/estimated - Met à jour un revenu estimé
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { id, name, estimated_amount, is_monthly_recurring } = body
 
@@ -304,21 +276,13 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/finance/income/estimated - Supprime un revenu estimé
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
 
@@ -353,4 +317,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

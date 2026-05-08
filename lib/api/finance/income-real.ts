@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import FinancialLogger from '@/lib/financial-logger'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import type { Database } from '@/lib/database.types'
+import { withAuth } from '@/lib/api/with-auth'
 
 type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
 type RealIncomeUpdate = Database['public']['Tables']['real_income_entries']['Update']
@@ -35,29 +36,16 @@ export interface CreateRealIncomeEntryRequest {
  * GET /api/finance/income/real - Récupère les entrées réelles d'argent
  * Retourne les entrées d'argent de l'utilisateur ou de son groupe
  */
-export async function GET(request: NextRequest) {
-  const { operationId, log } = FinancialLogger.startOperation({
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
+  const { log } = FinancialLogger.startOperation({
     component: '/api/finance/income/real',
     operation: 'fetch_real_income_entries'
   })
-  
+
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      FinancialLogger.authError({
-        component: '/api/finance/income/real',
-        operation: 'fetch_real_income_entries',
-        operationId
-      })
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-    
     log({
       level: 'debug',
-      userId: session.userId,
+      userId,
       message: 'Session validated successfully'
     })
 
@@ -81,7 +69,7 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -90,7 +78,7 @@ export async function GET(request: NextRequest) {
 
       query = query.eq('group_id', profile.group_id)
     } else {
-      query = query.eq('profile_id', session.userId)
+      query = query.eq('profile_id', userId)
     }
 
     const { data, error } = await query
@@ -112,20 +100,20 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (profile?.group_id) {
         countQuery = countQuery.eq('group_id', profile.group_id)
       }
     } else {
-      countQuery = countQuery.eq('profile_id', session.userId)
+      countQuery = countQuery.eq('profile_id', userId)
     }
 
     const { count } = await countQuery
 
-    return NextResponse.json({ 
-      real_income_entries: data || [], 
+    return NextResponse.json({
+      real_income_entries: data || [],
       total: count || 0,
       limit,
       offset
@@ -137,28 +125,20 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/finance/income/real - Crée une nouvelle entrée réelle d'argent
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: CreateRealIncomeEntryRequest = await request.json()
-    const { 
-      amount, 
-      description, 
-      entry_date, 
+    const {
+      amount,
+      description,
+      entry_date,
       estimated_income_id,
-      is_for_group = false 
+      is_for_group = false
     } = body
 
     // Validation
@@ -203,7 +183,7 @@ export async function POST(request: NextRequest) {
         const { data: profile } = await supabaseServer
           .from('profiles')
           .select('group_id')
-          .eq('id', session.userId)
+          .eq('id', userId)
           .single()
 
         if (!profile?.group_id || estimatedIncome.group_id !== profile.group_id) {
@@ -213,7 +193,7 @@ export async function POST(request: NextRequest) {
           )
         }
       } else {
-        if (estimatedIncome.profile_id !== session.userId) {
+        if (estimatedIncome.profile_id !== userId) {
           return NextResponse.json(
             { error: 'Revenu estimé non autorisé pour cet utilisateur' },
             { status: 403 }
@@ -229,7 +209,7 @@ export async function POST(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -241,7 +221,7 @@ export async function POST(request: NextRequest) {
 
       insertData.group_id = profile.group_id
     } else {
-      insertData.profile_id = session.userId
+      insertData.profile_id = userId
     }
 
     // Create the real income entry
@@ -266,7 +246,7 @@ export async function POST(request: NextRequest) {
     if (data.is_exceptional || data.estimated_income_id) {
       const reason = data.is_exceptional ? 'exceptional_income_created' : 'associated_income_created'
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
-        profileId: is_for_group ? undefined : session.userId,
+        profileId: is_for_group ? undefined : userId,
         groupId: is_for_group ? (insertData.group_id ?? undefined) : undefined,
         reason
       })
@@ -289,21 +269,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * PUT /api/finance/income/real - Met à jour une entrée réelle d'argent
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { id, amount, description, entry_date, estimated_income_id } = body
 
@@ -398,21 +370,13 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/finance/income/real - Supprime une entrée réelle d'argent
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
 
@@ -470,4 +434,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
