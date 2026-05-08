@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { calculateBreakdown } from '@/lib/expense-allocation'
@@ -7,6 +7,7 @@ import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
+import { withAuth } from '@/lib/api/with-auth'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
 
@@ -41,16 +42,8 @@ export interface ExpenseBreakdown {
  *
  * Returns a detailed breakdown of how the expense was allocated
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: AddExpenseWithLogicRequest = await request.json()
     const {
       amount,
@@ -92,7 +85,7 @@ export async function POST(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -103,7 +96,7 @@ export async function POST(request: NextRequest) {
       }
       group_id = profile.group_id
     } else {
-      profile_id = session.userId
+      profile_id = userId
     }
 
     const contextFilter = is_for_group ? { group_id } : { profile_id }
@@ -309,4 +302,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

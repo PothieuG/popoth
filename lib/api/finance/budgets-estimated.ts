@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
+import { withAuth } from '@/lib/api/with-auth'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
 type EstimatedBudgetInsert = Database['public']['Tables']['estimated_budgets']['Insert']
@@ -32,16 +33,8 @@ export interface CreateEstimatedBudgetRequest {
  * GET /api/finance/budgets/estimated - Récupère les budgets estimés
  * Retourne les budgets estimés de l'utilisateur ou de son groupe
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
 
@@ -52,7 +45,7 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -65,7 +58,7 @@ export async function GET(request: NextRequest) {
         .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
         .eq('group_id', profile.group_id)
         .order('created_at', { ascending: false })
-      
+
       data = result.data
       error = result.error
     } else {
@@ -73,7 +66,7 @@ export async function GET(request: NextRequest) {
       const result = await supabaseServer
         .from('estimated_budgets')
         .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
-        .eq('profile_id', session.userId)
+        .eq('profile_id', userId)
         .order('created_at', { ascending: false })
       
       data = result.data
@@ -128,21 +121,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/finance/budgets/estimated - Crée un nouveau budget estimé
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: CreateEstimatedBudgetRequest = await request.json()
     const { name, estimated_amount, is_monthly_recurring = true, is_for_group = false } = body
 
@@ -173,7 +158,7 @@ export async function POST(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -185,7 +170,7 @@ export async function POST(request: NextRequest) {
 
       insertData.group_id = profile.group_id
     } else {
-      insertData.profile_id = session.userId
+      insertData.profile_id = userId
     }
 
     // Create the estimated budget
@@ -214,21 +199,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * PUT /api/finance/budgets/estimated - Met à jour un budget estimé
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { id, name, estimated_amount, is_monthly_recurring } = body
 
@@ -319,21 +296,13 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/finance/budgets/estimated - Supprime un budget estimé
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
 
@@ -368,4 +337,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 type BudgetForProgress = { id: string; name: string; estimated_amount: number; cumulated_savings: number | null }
 type ExpenseForProgress = { amount: number; estimated_budget_id: string | null; amount_from_piggy_bank: number | null; amount_from_budget_savings: number | null; amount_from_budget: number | null }
@@ -9,19 +10,8 @@ type ExpenseForProgress = { amount: number; estimated_budget_id: string | null; 
  * GET /api/finance/expenses/progress
  * Récupère la progression des dépenses par budget estimé
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    // Vérifier l'authentification
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     // Récupérer le contexte depuis les paramètres URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
@@ -128,4 +118,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
+import { withAuth } from '@/lib/api/with-auth'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
 type RealExpenseUpdate = Database['public']['Tables']['real_expenses']['Update']
@@ -35,16 +36,8 @@ export interface CreateRealExpenseRequest {
  * GET /api/finance/expenses/real - Récupère les dépenses réelles
  * Retourne les dépenses de l'utilisateur ou de son groupe
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
     const limit = parseInt(url.searchParams.get('limit') || '50')
@@ -67,7 +60,7 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -76,7 +69,7 @@ export async function GET(request: NextRequest) {
 
       query = query.eq('group_id', profile.group_id)
     } else {
-      query = query.eq('profile_id', session.userId)
+      query = query.eq('profile_id', userId)
     }
 
     // Additional filters
@@ -109,14 +102,14 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (profile?.group_id) {
         countQuery = countQuery.eq('group_id', profile.group_id)
       }
     } else {
-      countQuery = countQuery.eq('profile_id', session.userId)
+      countQuery = countQuery.eq('profile_id', userId)
     }
 
     if (budgetId) {
@@ -131,8 +124,8 @@ export async function GET(request: NextRequest) {
 
     const { count } = await countQuery
 
-    return NextResponse.json({ 
-      real_expenses: data || [], 
+    return NextResponse.json({
+      real_expenses: data || [],
       total: count || 0,
       limit,
       offset
@@ -144,21 +137,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * POST /api/finance/expenses/real - Crée une nouvelle dépense réelle
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body: CreateRealExpenseRequest = await request.json()
     const { 
       amount, 
@@ -210,7 +195,7 @@ export async function POST(request: NextRequest) {
         const { data: profile } = await supabaseServer
           .from('profiles')
           .select('group_id')
-          .eq('id', session.userId)
+          .eq('id', userId)
           .single()
 
         if (!profile?.group_id || estimatedBudget.group_id !== profile.group_id) {
@@ -220,7 +205,7 @@ export async function POST(request: NextRequest) {
           )
         }
       } else {
-        if (estimatedBudget.profile_id !== session.userId) {
+        if (estimatedBudget.profile_id !== userId) {
           return NextResponse.json(
             { error: 'Budget estimé non autorisé pour cet utilisateur' },
             { status: 403 }
@@ -236,7 +221,7 @@ export async function POST(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -248,7 +233,7 @@ export async function POST(request: NextRequest) {
 
       insertData.group_id = profile.group_id
     } else {
-      insertData.profile_id = session.userId
+      insertData.profile_id = userId
     }
 
     // Create the real expense
@@ -272,7 +257,7 @@ export async function POST(request: NextRequest) {
     // Sauvegarder automatiquement le nouveau reste à vivre si c'est une dépense exceptionnelle
     if (data.is_exceptional) {
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
-        profileId: is_for_group ? undefined : session.userId,
+        profileId: is_for_group ? undefined : userId,
         groupId: is_for_group ? (insertData.group_id ?? undefined) : undefined,
         reason: 'exceptional_expense_created'
       })
@@ -295,21 +280,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * PUT /api/finance/expenses/real - Met à jour une dépense réelle
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const { id, amount, description, expense_date, estimated_budget_id } = body
 
@@ -436,21 +413,13 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
 
 /**
  * DELETE /api/finance/expenses/real - Supprime une dépense réelle
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const url = new URL(request.url)
     const id = url.searchParams.get('id')
 
@@ -519,4 +488,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

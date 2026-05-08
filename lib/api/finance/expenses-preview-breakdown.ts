@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuth } from '@/lib/api/with-auth'
 
 export interface ExpenseBreakdownPreview {
   total_amount: number
@@ -26,16 +27,8 @@ export interface ExpenseBreakdownPreview {
  * - budget_id: estimated budget ID
  * - context: 'profile' or 'group'
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const session = await validateSessionToken(request)
-    if (!session?.userId) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      )
-    }
-
     const { searchParams } = new URL(request.url)
     const amount = parseFloat(searchParams.get('amount') || '0')
     const budgetId = searchParams.get('budget_id')
@@ -64,7 +57,7 @@ export async function GET(request: NextRequest) {
       const { data: profile } = await supabaseServer
         .from('profiles')
         .select('group_id')
-        .eq('id', session.userId)
+        .eq('id', userId)
         .single()
 
       if (!profile?.group_id) {
@@ -75,7 +68,7 @@ export async function GET(request: NextRequest) {
       }
       contextFilter = { group_id: profile.group_id }
     } else {
-      contextFilter = { profile_id: session.userId }
+      contextFilter = { profile_id: userId }
     }
 
     // Get piggy bank
@@ -196,4 +189,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
