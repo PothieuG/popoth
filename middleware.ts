@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/lib/session'
+import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
 
 // Define protected and public routes
 const protectedRoutes = ['/dashboard', '/profile', '/settings', '/group-dashboard']
@@ -55,31 +56,22 @@ export default async function middleware(req: NextRequest) {
     // Check for monthly recap requirement on protected routes (but not on monthly-recap page itself)
     if ((isProtectedRoute || path === '/') && session?.userId && !isSpecialRoute) {
       try {
-        // Get the context based on the current path
         const context = path.startsWith('/group-dashboard') ? 'group' : 'profile'
 
-        // Make a request to check if monthly recap is required
-        const baseUrl = req.nextUrl.origin
-        const checkUrl = `${baseUrl}/api/monthly-recap/status?context=${context}`
+        const status = await checkRecapStatus(session.userId, context)
 
-        const response = await fetch(checkUrl, {
-          headers: {
-            'Cookie': req.headers.get('Cookie') || ''
-          }
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-
-          if (data.required) {
-            console.log(`📅 [Middleware] Récap mensuel requis pour ${context}, redirection`)
-            const recapUrl = new URL('/monthly-recap', req.url)
-            recapUrl.searchParams.set('context', context)
-            return NextResponse.redirect(recapUrl)
-          }
+        if (status.required) {
+          console.log(`📅 [Middleware] Récap mensuel requis pour ${context}, redirection`)
+          const recapUrl = new URL('/monthly-recap', req.url)
+          recapUrl.searchParams.set('context', context)
+          return NextResponse.redirect(recapUrl)
         }
       } catch (error) {
-        console.error('❌ [Middleware] Erreur lors de la vérification du récap mensuel:', error)
+        if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
+          // Pas de groupe attaché : l'utilisateur n'est pas concerné par le récap groupe
+        } else {
+          console.error('❌ [Middleware] Erreur lors de la vérification du récap mensuel:', error)
+        }
         // En cas d'erreur, continuer normalement plutôt que de bloquer l'utilisateur
       }
     }
