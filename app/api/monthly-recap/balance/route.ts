@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
  * API POST /api/monthly-recap/balance
@@ -14,17 +14,8 @@ import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
  * 3. Phase 3: Utiliser les excédents (estimated - spent) de manière PROPORTIONNELLE
  * 4. Objectif: Atteindre le RAV budgétaire si possible
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
     const { context } = await request.json()
 
     // Validation des paramètres
@@ -32,22 +23,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
         { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
       )
     }
 
@@ -463,4 +438,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})

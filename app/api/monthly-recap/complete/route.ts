@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert, Database } from '@/lib/database.types'
 import type { FinancialData } from '@/lib/financial-calculations'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 type MonthlyRecapInsert = Database['public']['Tables']['monthly_recaps']['Insert']
 
@@ -36,17 +36,8 @@ declare global {
  *   }
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
     const body = await request.json()
     const {
       context = 'profile',
@@ -92,24 +83,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const userId = sessionData.userId
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
     const currentYear = currentDate.getFullYear()
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
-    }
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
@@ -671,4 +647,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
