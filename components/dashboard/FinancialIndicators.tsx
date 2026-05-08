@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import PlanningDrawer from './PlanningDrawer'
 import SavingsDrawer from './SavingsDrawer'
+
+const PlanningDrawer = dynamic(() => import('./PlanningDrawer'), { ssr: false })
 
 interface FinancialIndicatorsProps {
   availableBalance: number

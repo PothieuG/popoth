@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
@@ -11,8 +12,9 @@ import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
-import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
+
+const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), { ssr: false })
 
 /**
  * Group Dashboard page - dashboard view for group finances

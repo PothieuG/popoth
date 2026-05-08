@@ -1,6 +1,8 @@
 'use client'
 
-import SavingsDistributionDrawer from './SavingsDistributionDrawer'
+import dynamic from 'next/dynamic'
+
+const SavingsDistributionDrawer = dynamic(() => import('./SavingsDistributionDrawer'), { ssr: false })
 
 interface SavingsDrawerProps {
   isOpen: boolean

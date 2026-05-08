@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
@@ -13,11 +14,12 @@ import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
-import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
 import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
+
+const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), { ssr: false })
 
 type EditableTransaction = RealExpense | RealIncome
 
