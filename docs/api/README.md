@@ -18,7 +18,6 @@ Toutes les routes valident le cookie `session` via `validateSessionToken(request
 ## Format de réponse
 
 `{ <field>: T } | { error: string }`. Les shapes sont **non-uniformes** entre routes (héritage pré-sprint, à harmoniser dans un futur chantier Zod) :
-- `dashboard` retourne `{ dashboard: FinancialDashboardData }`
 - `summary` retourne `{ data: FinancialData, context, timestamp }`
 - `rav` retourne `{ remainingToLive, context, timestamp }`
 - `budgets/estimated` retourne `{ estimated_budgets: [...] }`
@@ -31,21 +30,16 @@ Toutes les routes valident le cookie `session` via `validateSessionToken(request
 
 ## Endpoints
 
-### Dashboard / Summary / RAV
+### Summary / RAV
 
 | Path | Verbes | Module | Consumer principal |
 |---|---|---|---|
-| `/api/finance/dashboard` | GET, POST | [`lib/api/finance/dashboard.ts`](../../lib/api/finance/dashboard.ts) | _dashboard UI complet_ — pas de hook applicatif identifié, à investiguer (cf. prompt-v2) |
 | `/api/finance/summary` | GET | [`lib/api/finance/summary.ts`](../../lib/api/finance/summary.ts) | [`hooks/useFinancialData.ts`](../../hooks/useFinancialData.ts) |
 | `/api/finance/rav` | GET | [`lib/api/finance/rav.ts`](../../lib/api/finance/rav.ts) | (lecture RAV persisté seul) |
 
 **Query params** :
-- `dashboard` GET : `?group=true` pour le contexte groupe.
-- `dashboard` POST : `{ for_group?: boolean }` body — déclenche un recalcul (insert+delete dummy entry).
 - `summary` GET : `?context=profile|group` + `?recalculate=true` (force le recalcul, sinon RAV lu depuis DB).
 - `rav` GET : `?context=profile|group`.
-
-**Note** : `dashboard` (456 LOC) et `summary` (141 LOC) ont des shapes différentes — le premier assemble manuellement le breakdown UI (incomes + budgets + expenses + monthly_summary), le second renvoie `FinancialData` brut (cf. [`lib/financial-calculations.ts`](../../lib/financial-calculations.ts)). À consolider ou nettoyer dans le sprint v2.
 
 ### Budgets
 
