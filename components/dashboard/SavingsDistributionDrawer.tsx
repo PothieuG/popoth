@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
@@ -47,9 +48,6 @@ export default function SavingsDistributionDrawer({
   context = 'profile',
   onSavingsChange,
 }: SavingsDistributionDrawerProps) {
-  const [savingsData, setSavingsData] = useState<SavingsData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [selectedFromBudget, setSelectedFromBudget] = useState<BudgetSavings | null>(null)
   const [selectedToBudget, setSelectedToBudget] = useState<string>('')
@@ -60,23 +58,21 @@ export default function SavingsDistributionDrawer({
   const [isProcessing, setIsProcessing] = useState(false)
   const [validationError, setValidationError] = useState<string>('')
 
-  /**
-   * Récupère les données des économies depuis l'API
-   */
-  const fetchSavingsData = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
+  const {
+    data: savingsData = null,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<SavingsData>({
+    queryKey: ['savings-data', context],
+    enabled: isOpen,
+    queryFn: async () => {
       console.log('🔄 [SavingsDrawer] Récupération des données des économies')
-
       const response = await fetch(`/api/savings/data?context=${context}`)
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
-
       console.log(``)
       console.log(`💰💰💰 ========================================================`)
       console.log(`💰💰💰 [SAVINGS DRAWER] DONNÉES REÇUES`)
@@ -86,34 +82,10 @@ export default function SavingsDistributionDrawer({
       console.log(`💰 Total budgets: ${data.statistics.total_budgets}`)
       console.log(`💰💰💰 ========================================================`)
       console.log(``)
-
-      setSavingsData(data)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      console.error('❌ [SavingsDrawer] Erreur:', err)
-      setError(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Récupérer les données quand le drawer s'ouvre
-  useEffect(() => {
-    if (isOpen) {
-      fetchSavingsData()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSavingsData is intentionally re-created each render; we want to refetch only when the drawer toggles or context switches
-  }, [isOpen, context])
-
-  // Reset modal state when data changes
-  useEffect(() => {
-    if (savingsData && isTransferModalOpen) {
-      setSelectedToBudget('')
-      setTransferAmount('')
-      setTransferDestinationType(null)
-      setValidationError('')
-    }
-  }, [savingsData, isTransferModalOpen])
+      return data as SavingsData
+    },
+  })
+  const error = queryError instanceof Error ? queryError.message : null
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -189,7 +161,7 @@ export default function SavingsDistributionDrawer({
       setValidationError('')
 
       // Rafraîchir les données
-      await fetchSavingsData()
+      await refetch()
 
       // Notifier le parent pour rafraîchir les données financières
       if (onSavingsChange) {
@@ -312,7 +284,9 @@ export default function SavingsDistributionDrawer({
                   <h3 className="mb-2 text-lg font-semibold text-red-900">Erreur</h3>
                   <p className="mb-4 text-red-700">{error}</p>
                   <Button
-                    onClick={fetchSavingsData}
+                    onClick={() => {
+                      void refetch()
+                    }}
                     className="bg-red-600 text-white hover:bg-red-700"
                   >
                     Réessayer

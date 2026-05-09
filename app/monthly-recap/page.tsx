@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import MonthlyRecapFlow from '@/components/monthly-recap/MonthlyRecapFlow'
 
@@ -25,17 +25,10 @@ export default function MonthlyRecapPage() {
 
 function MonthlyRecapPageContent() {
   const searchParams = useSearchParams()
-  const [context, setContext] = useState<'profile' | 'group'>('profile')
-  const [isChecking, setIsChecking] = useState(true)
-
-  // Récupérer le contexte depuis les paramètres URL
-  useEffect(() => {
-    const contextParam = searchParams.get('context')
-    if (contextParam === 'group') {
-      setContext('group')
-    }
-    setIsChecking(false)
-  }, [searchParams])
+  // Context is derived directly from the URL parameter — useSearchParams is
+  // synchronous, so no loading state is needed here.
+  const context: 'profile' | 'group' =
+    searchParams.get('context') === 'group' ? 'group' : 'profile'
 
   // TEMPORAIREMENT DÉSACTIVÉ : Double vérification pour éviter les boucles
   // La redirection est déjà gérée par le middleware
@@ -103,17 +96,6 @@ function MonthlyRecapPageContent() {
       window.removeEventListener('popstate', handlePopState)
     }
   }, [])
-
-  if (isChecking) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <p className="text-gray-600">Vérification du récapitulatif mensuel...</p>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="monthly-recap-page">
