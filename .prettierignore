@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+dist
+build
+coverage
+public/sw.js
+public/workbox-*.js
+pnpm-lock.yaml
+lib/database.types.ts
