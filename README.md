@@ -352,8 +352,10 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
 
 ## Documentation
 
-- [`CLAUDE.md`](./CLAUDE.md) — guide pour sessions [Claude Code](https://claude.com/claude-code) sur ce repo (conventions, à-faire/à-ne-pas-faire, état des lieux).
-- [`docs/audit/`](./docs/audit/) — audit complet de la codebase (2026-04), 47/100 baseline, plan d'action multi-sprint.
+> ⚠️ **Note 2026-05-09** — Une réorganisation de la doc est en cours dans le working tree (uncommitted) : `prompts/` a été migré vers `prompt/` (singulier) et plusieurs fichiers `docs/audit/`, `docs/db/`, `docs/api/` sont en cours de suppression / refactor. Les liens ci-dessous sont valides _aujourd'hui_ pour la version committée (HEAD = `cleanup`) ; après le prochain commit de migration, certains pointeront vers du contenu déplacé. La source de vérité maintenue à jour reste [`CLAUDE.md`](./CLAUDE.md) — sa §11 Roadmap est la référence canonique pour suivre où en est chaque sprint.
+
+- [`CLAUDE.md`](./CLAUDE.md) — guide pour sessions [Claude Code](https://claude.com/claude-code) sur ce repo (conventions, à-faire/à-ne-pas-faire, état des lieux). **Source de vérité maintenue à jour** — préférer ce fichier aux audits historiques en cas de divergence.
+- [`docs/audit/`](./docs/audit/) — audit complet de la codebase (2026-04), 47/100 baseline, plan d'action multi-sprint. _Snapshot historique_ ; les audits individuels peuvent diverger de l'état actuel (cf. CLAUDE.md §11 pour la roadmap maintenue).
   - [`00-executive-summary.md`](./docs/audit/00-executive-summary.md) — vue d'ensemble + score.
   - [`06-action-plan.md`](./docs/audit/06-action-plan.md) — plan multi-sprint.
   - [`RLS-FINDINGS.md`](./docs/audit/RLS-FINDINGS.md) — snapshot RLS pré-Sprint DB.
@@ -361,7 +363,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
 - [`docs/api/README.md`](./docs/api/README.md) — référence rapide du namespace canonique `/api/finance/*` (Sprint Refactor-Architecture) : endpoints, verbes, query params, shapes de réponse.
-- [`prompt/`](./prompt/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint 2-followup (livré 2026-05-09). Voir [`prompt/README.md`](./prompt/README.md) pour le sommaire chronologique. Roadmap planifiée dans [CLAUDE.md](./CLAUDE.md) §11 : Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I4 (financial-calculations), chantier I5 (process-step1), chantier console.log cleanup, chantier Zod rollout, GH Actions Node.js 24 migration (juin 2026).
+- [`prompt/`](./prompt/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint 2-followup (livré 2026-05-09) + le prompt suivant [`prompt-04-tooling-dx-v5.md`](./prompt/prompt-04-tooling-dx-v5.md) (`useGroups` invalidation gap + AuthContext `set-state-in-effect` last disable). Voir [`prompt/README.md`](./prompt/README.md) pour le sommaire chronologique. Roadmap planifiée dans [CLAUDE.md](./CLAUDE.md) §11 : Sprint 2-followup-v2 (v5 prompt), Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I4 (financial-calculations), chantier I5 (process-step1), chantier console.log cleanup, chantier Zod rollout, GH Actions Node.js 24 migration (juin 2026).
 
 ---
 
