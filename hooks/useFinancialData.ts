@@ -59,27 +59,6 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
 
       const payload: FinancialApiResponse = await response.json()
 
-      console.log(``)
-      console.log(`🏠🏠🏠 ========================================================`)
-      console.log(`🏠🏠🏠 [FRONTEND] DONNÉES FINANCIÈRES REÇUES`)
-      console.log(`🏠🏠🏠 ========================================================`)
-      console.log(`🏠 CONTEXTE: ${payload.context}`)
-      console.log(`🏠 TIMESTAMP: ${new Date().toISOString()}`)
-      console.log(``)
-      console.log(`💰 RESTE À VIVRE (RAV): ${payload.data.remainingToLive}€`)
-      console.log(``)
-      console.log(`📊 DÉTAILS FINANCIERS:`)
-      console.log(`   - Solde disponible: ${payload.data.availableBalance}€`)
-      console.log(`   - Revenus estimés: ${payload.data.totalEstimatedIncome}€`)
-      console.log(`   - Revenus réels: ${payload.data.totalRealIncome}€`)
-      console.log(
-        `   - Budgets estimés: ${payload.data.totalEstimatedBudgets || payload.data.totalEstimatedBudget}€`,
-      )
-      console.log(`   - Dépenses réelles: ${payload.data.totalRealExpenses}€`)
-      console.log(`   - Total économies: ${payload.data.totalSavings}€`)
-      console.log(`🏠🏠🏠 ========================================================`)
-      console.log(``)
-
       return payload
     },
   })
