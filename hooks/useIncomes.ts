@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
 
 export interface EstimatedIncome {
@@ -38,192 +38,156 @@ interface UseIncomesReturn {
  * Gère le CRUD complet avec la base de données
  */
 export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
-  const [incomes, setIncomes] = useState<EstimatedIncome[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const queryKey = ['incomes', context ?? null]
 
-  /**
-   * Calcule le total des revenus estimés
-   */
-  const totalIncomes = incomes.reduce((sum, income) => sum + income.estimated_amount, 0)
-
-  /**
-   * Récupère tous les revenus depuis l'API
-   */
-  const fetchIncomes = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
+  const {
+    data: incomes = [],
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<EstimatedIncome[]>({
+    queryKey,
+    queryFn: async () => {
       const url = context ? `/api/finance/incomes?context=${context}` : '/api/finance/incomes'
-      const response = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-      })
-
+      const response = await fetch(url, { method: 'GET', credentials: 'include' })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
         console.error('Erreur API revenus:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
-
       const data = await response.json()
-      setIncomes(data.incomes || [])
-    } catch (err) {
-      console.error('Erreur lors de la récupération des revenus:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-    } finally {
-      setLoading(false)
-    }
-  }, [context])
-
-  /**
-   * Ajoute un nouveau revenu
-   */
-  const addIncome = useCallback(
-    async (incomeData: {
-      name: string
-      estimatedAmount: number
-      isGroupIncome?: boolean
-    }): Promise<boolean> => {
-      try {
-        setError(null)
-
-        const requestBody = {
-          name: incomeData.name,
-          estimatedAmount: incomeData.estimatedAmount,
-        }
-
-        const url = context ? `/api/finance/incomes?context=${context}` : '/api/finance/incomes'
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null)
-          console.error('❌ Erreur API revenu:', response.status, errorData)
-          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setIncomes((prev) => [data.income, ...prev])
-
-        // Rafraîchir les données financières
-        triggerFinancialRefresh()
-
-        return true
-      } catch (err) {
-        console.error("Erreur lors de l'ajout du revenu:", err)
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
-        return false
-      }
+      return (data.incomes ?? []) as EstimatedIncome[]
     },
-    [context],
-  )
+  })
 
-  /**
-   * Met à jour un revenu existant
-   */
-  const updateIncome = useCallback(
-    async (
-      incomeId: string,
-      incomeData: { name: string; estimatedAmount: number },
-    ): Promise<boolean> => {
-      try {
-        setError(null)
-
-        const requestBody = {
-          name: incomeData.name,
-          estimatedAmount: incomeData.estimatedAmount,
-        }
-
-        const response = await fetch(`/api/finance/incomes?id=${incomeId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null)
-          console.error('❌ Erreur API revenu:', response.status, errorData)
-          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-
-        // Met à jour le revenu dans la liste
-        setIncomes((prev) => prev.map((income) => (income.id === incomeId ? data.income : income)))
-
-        // Rafraîchir les données financières
-        triggerFinancialRefresh()
-
-        return true
-      } catch (err) {
-        console.error('Erreur lors de la mise à jour du revenu:', err)
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
-        return false
+  const addMutation = useMutation<
+    EstimatedIncome,
+    Error,
+    { name: string; estimatedAmount: number; isGroupIncome?: boolean }
+  >({
+    mutationFn: async (incomeData) => {
+      const requestBody = {
+        name: incomeData.name,
+        estimatedAmount: incomeData.estimatedAmount,
       }
+      const url = context ? `/api/finance/incomes?context=${context}` : '/api/finance/incomes'
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Erreur API revenu:', response.status, errorData)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.income as EstimatedIncome
     },
-    [],
-  )
+    onSuccess: (newIncome) => {
+      queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) => [newIncome, ...prev])
+      triggerFinancialRefresh()
+    },
+    onError: (err) => {
+      console.error("Erreur lors de l'ajout du revenu:", err)
+    },
+  })
 
-  /**
-   * Supprime un revenu
-   */
-  const deleteIncome = useCallback(async (incomeId: string): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateMutation = useMutation<
+    EstimatedIncome,
+    Error,
+    { incomeId: string; incomeData: { name: string; estimatedAmount: number } }
+  >({
+    mutationFn: async ({ incomeId, incomeData }) => {
+      const requestBody = {
+        name: incomeData.name,
+        estimatedAmount: incomeData.estimatedAmount,
+      }
+      const response = await fetch(`/api/finance/incomes?id=${incomeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Erreur API revenu:', response.status, errorData)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.income as EstimatedIncome
+    },
+    onSuccess: (updatedIncome, { incomeId }) => {
+      queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) =>
+        prev.map((income) => (income.id === incomeId ? updatedIncome : income)),
+      )
+      triggerFinancialRefresh()
+    },
+    onError: (err) => {
+      console.error('Erreur lors de la mise à jour du revenu:', err)
+    },
+  })
 
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: async (incomeId) => {
       const response = await fetch(`/api/finance/incomes?id=${incomeId}`, {
         method: 'DELETE',
         credentials: 'include',
       })
-
       if (!response.ok) {
         throw new Error('Erreur lors de la suppression du revenu')
       }
-
-      setIncomes((prev) => prev.filter((income) => income.id !== incomeId))
-
-      // Rafraîchir les données financières
+    },
+    onSuccess: (_, incomeId) => {
+      queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) =>
+        prev.filter((income) => income.id !== incomeId),
+      )
       triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error('Erreur lors de la suppression du revenu:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
+    },
+  })
 
-  /**
-   * Rafraîchit la liste des revenus
-   */
-  const refreshIncomes = useCallback(async () => {
-    await fetchIncomes()
-  }, [fetchIncomes])
+  const totalIncomes = incomes.reduce((sum, income) => sum + income.estimated_amount, 0)
 
-  // Charger les revenus au montage du composant
-  useEffect(() => {
-    fetchIncomes()
-  }, [fetchIncomes])
+  const latestError =
+    addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
+  const error = latestError instanceof Error ? latestError.message : null
 
   return {
     incomes,
-    loading,
+    loading: isLoading,
     error,
-    addIncome,
-    updateIncome,
-    deleteIncome,
-    refreshIncomes,
+    addIncome: async (incomeData) => {
+      try {
+        await addMutation.mutateAsync(incomeData)
+        return true
+      } catch {
+        return false
+      }
+    },
+    updateIncome: async (incomeId, incomeData) => {
+      try {
+        await updateMutation.mutateAsync({ incomeId, incomeData })
+        return true
+      } catch {
+        return false
+      }
+    },
+    deleteIncome: async (incomeId) => {
+      try {
+        await deleteMutation.mutateAsync(incomeId)
+        return true
+      } catch {
+        return false
+      }
+    },
+    refreshIncomes: async () => {
+      await refetch()
+    },
     totalIncomes,
   }
 }
