@@ -257,15 +257,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null)
   }, [])
 
-  /* eslint-disable react-hooks/set-state-in-effect -- initializeAuth() is an async setup pipeline (token validation + setUser/setLoading after the await); the rule cannot tell that the setStates fire in the async continuation, not synchronously in the effect body. */
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initializeAuth() is an async setup pipeline; the setStates inside fire after `await getCurrentUser()` resolves, not synchronously in the effect body. Scoped to this single call so any future setState added directly to the effect body is still flagged.
     initializeAuth()
     return () => {
       stopTokenRefresh()
       stopAuthCheck()
     }
   }, [initializeAuth, stopTokenRefresh, stopAuthCheck])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const isLoggedIn = user !== null
 
