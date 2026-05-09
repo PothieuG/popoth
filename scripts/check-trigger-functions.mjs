@@ -34,11 +34,15 @@ const URL_API = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/qu
 const EXPECTED_FUNCTIONS = [
   'calculate_group_contributions',
   'cleanup_group_contributions',
+  'cleanup_group_members_on_delete',
   'trigger_group_budget_change',
   'trigger_recalculate_contributions',
 ]
 
-const MIGRATION_PATH = 'supabase/migrations/20260512000000_capture_trigger_functions.sql'
+const MIGRATION_PATHS = [
+  'supabase/migrations/20260512000000_capture_trigger_functions.sql',
+  'supabase/migrations/20260515000000_add_group_members_cleanup_trigger.sql',
+]
 
 async function query(sql) {
   const res = await fetch(URL_API, {
@@ -87,8 +91,10 @@ async function main() {
   }
   console.error('')
   console.error(`To resolve: re-apply the migration that defines these functions.`)
-  console.error(`Source: ${MIGRATION_PATH}`)
-  console.error(`Recovery: node scripts/apply-sql.mjs ${MIGRATION_PATH}`)
+  for (const path of MIGRATION_PATHS) {
+    console.error(`Source: ${path}`)
+    console.error(`Recovery: node scripts/apply-sql.mjs ${path}`)
+  }
   console.error('')
   console.error(`This is the same failure mode as the C3 RPC drift post-mortem`)
   console.error(`(docs/audit/POST-MORTEM-C3-DRIFT.md), applied to trigger functions.`)
