@@ -1,12 +1,7 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-
-function invalidateFinancialRefreshes(qc: QueryClient) {
-  qc.invalidateQueries({ queryKey: ['financial-summary'] })
-  qc.invalidateQueries({ queryKey: ['progress-data'] })
-  qc.invalidateQueries({ queryKey: ['budgets'] })
-}
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface RealIncome {
   id: string
