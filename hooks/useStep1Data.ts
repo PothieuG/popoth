@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 export interface Step1Data {
   current_remaining_to_live: number
@@ -47,37 +47,24 @@ interface UseStep1DataReturn {
  * Refetch à chaque changement de contexte ; expose `refresh` pour le bouton retry.
  */
 export function useStep1Data(context: 'profile' | 'group'): UseStep1DataReturn {
-  const [data, setData] = useState<Step1Data | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchStep1Data = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      console.log("🔄 [Step1] Récupération des données live depuis l'API step1-data")
-
+  const { data, isLoading, error, refetch } = useQuery<Step1Data>({
+    queryKey: ['step1-data', context],
+    queryFn: async () => {
       const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
       const payload = await response.json()
-
       if (!response.ok) {
         throw new Error(payload?.error || 'Erreur lors de la récupération des données')
       }
+      return payload as Step1Data
+    },
+  })
 
-      setData(payload as Step1Data)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      console.error('❌ [Step1] Erreur lors de la récupération des données:', err)
-      setError(errorMessage)
-    } finally {
-      setLoading(false)
-    }
-  }, [context])
-
-  useEffect(() => {
-    fetchStep1Data()
-  }, [fetchStep1Data])
-
-  return { data, loading, error, refresh: fetchStep1Data }
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error instanceof Error ? error.message : null,
+    refresh: async () => {
+      await refetch()
+    },
+  }
 }
