@@ -11,7 +11,7 @@ Chaque handler vit dans [`lib/api/finance/<route>.ts`](../../lib/api/finance/) (
 export { GET } from '@/lib/api/finance/summary'
 ```
 
-Depuis le **Sprint Refactor-Architecture-v3** (livré 2026-05-08, finance) et le **Sprint Refactor-Architecture-v4** (livré 2026-05-08, Volet C — extension aux 21 routes hors finance), tous les handlers sont wrappés par un higher-order helper depuis [`lib/api/with-auth.ts`](../../lib/api/with-auth.ts) :
+Depuis le **Sprint Refactor-Architecture-v3** (livré 2026-05-08, finance) et le **Sprint Refactor-Architecture-v4** (livré 2026-05-08, Volet C — extension aux 21 routes hors finance), tous les handlers sont wrappés par un higher-order helper depuis [`lib/api/with-auth.ts`](../../lib/api/with-auth.ts). Le **Sprint Refactor-Architecture-v5** (livré 2026-05-09) a hardenisé le wrapper avec 2 overloads TypeScript par helper — la signature dynamic-route rend `routeContext` non-optionnel quand `<TParams>` est fourni, donc plus besoin du `routeContext!` aux 5 callsites de `app/api/groups/[id]/**`. Les routes finance n'utilisent pas de generic (toutes statiques sous `/api/finance/*`), donc le pattern call-site reste inchangé pour ce dossier :
 
 ```ts
 // Auth + profile fetch (always-fetch handlers : budgets, incomes, rav, summary)
