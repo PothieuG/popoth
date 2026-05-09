@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -71,10 +72,7 @@ export default function MonthlyRecapStep2({
   onTransfer,
   onAutoBalance,
 }: MonthlyRecapStep2Props) {
-  const [step2Data, setStep2Data] = useState<Step2Data | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [selectedFromBudget, setSelectedFromBudget] = useState<BudgetStat | null>(null)
   const [selectedToBudget, setSelectedToBudget] = useState<string>('')
@@ -100,20 +98,20 @@ export default function MonthlyRecapStep2({
   /**
    * Récupère les données live depuis l'API step2-data
    */
-  const fetchStep2Data = async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
+  const {
+    data: step2Data = null,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<Step2Data>({
+    queryKey: ['step2-data', context],
+    queryFn: async () => {
       console.log("🔄 [Step2] Récupération des données live depuis l'API step2-data")
-
       const response = await fetch(`/api/monthly-recap/step2-data?context=${context}`)
       const data = await response.json()
-
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
-
       console.log(``)
       console.log(`📊📊📊 ========================================================`)
       console.log(`📊📊📊 [FRONTEND] ÉTAPE 2 - DONNÉES REÇUES`)
@@ -136,22 +134,10 @@ export default function MonthlyRecapStep2({
       }
       console.log(`📊📊📊 ========================================================`)
       console.log(``)
-
-      setStep2Data(data)
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      console.error('❌ [Step2] Erreur lors de la récupération des données:', err)
-      setError(errorMessage)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Récupérer les données au montage du composant
-  useEffect(() => {
-    fetchStep2Data()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchStep2Data is intentionally re-created each render; refetch only on mount or context change
-  }, [context])
+      return data as Step2Data
+    },
+  })
+  const error = queryError instanceof Error ? queryError.message : null
 
   // Calculer les variables dérivées seulement si on a des données
   const currentMonthName = step2Data ? monthNames[step2Data.month - 1] : ''
@@ -172,27 +158,6 @@ export default function MonthlyRecapStep2({
   const currentTotalDeficit = step2Data
     ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
     : 0
-
-  // Reset modal state when step2Data changes (after successful transfers)
-  useEffect(() => {
-    if (step2Data) {
-      console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
-        totalSurplus: currentTotalSurplus,
-        totalDeficit: currentTotalDeficit,
-        budgets: step2Data.budget_stats.map(
-          (b) => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`,
-        ),
-      })
-
-      // Reset modal state when data changes to prevent stale states
-      if (isTransferModalOpen) {
-        console.log('🔄 [Component] Data updated, resetting modal state')
-        setSelectedToBudget('')
-        setTransferAmount('')
-        setValidationError('')
-      }
-    }
-  }, [step2Data, isTransferModalOpen, currentTotalSurplus, currentTotalDeficit])
 
   // Helper function to convert budget stats to dropdown options for transfer mode
   const getTransferDestinationOptions = (): DropdownOption[] => {
@@ -246,7 +211,7 @@ export default function MonthlyRecapStep2({
       setValidationError('')
 
       // Rafraîchir les données
-      await fetchStep2Data()
+      await refetch()
     } catch (error) {
       console.error('❌ [Step2] Erreur lors du transfert:', error)
       setValidationError('Erreur lors du transfert. Veuillez réessayer.')
@@ -261,7 +226,7 @@ export default function MonthlyRecapStep2({
       await onAutoBalance()
 
       // Rafraîchir les données après équilibrage automatique
-      await fetchStep2Data()
+      await refetch()
     } catch (error) {
       console.error("❌ [Step2] Erreur lors de l'équilibrage automatique:", error)
     } finally {
@@ -406,7 +371,9 @@ export default function MonthlyRecapStep2({
           <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
           <p className="mb-4 text-gray-600">{error}</p>
           <Button
-            onClick={fetchStep2Data}
+            onClick={() => {
+              void refetch()
+            }}
             className="w-full bg-red-600 text-white hover:bg-red-700"
           >
             Réessayer
