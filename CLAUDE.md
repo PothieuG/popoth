@@ -76,12 +76,25 @@ app/                       # App Router (pages + API routes)
     monthly-recap/         # workflow récap mensuel (process-step1 = god route, ne pas refactor)
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
 components/                # UI (shadcn/ui sous components/ui/)
-contexts/AuthContext.tsx   # ✅ Sprint Hygiène-Code — split en `AuthUserContext` + `AuthActionsContext` ; hooks `useAuthUser()` / `useAuthActions()` ; `useAuth()` rétro-compat (agrège, subscribe both)
-hooks/                     # 20 hooks React
+  providers/QueryProvider.tsx # ✅ Sprint 1.5 — 'use client' wrapper QueryClientProvider + ReactQueryDevtools (dev only). Mounted outermost in app/layout.tsx
+contexts/AuthContext.tsx   # ✅ Sprint Hygiène-Code — split en `AuthUserContext` + `AuthActionsContext` ; hooks `useAuthUser()` / `useAuthActions()` ; `useAuth()` rétro-compat (agrège, subscribe both). ⚠ Sprint 1.5 — eslint-disable react-hooks/set-state-in-effect bloc sur le mount effect (false positive : initializeAuth est async pipeline, setStates fire dans la continuation)
+hooks/                     # 20 hooks React — ✅ Sprint 1.5 : 11 hooks fetcher migrés sur TanStack Query (useQuery + useMutation)
   useRavValidation.ts      # ✅ Sprint Refactor-Architecture — useMemo pur, validation { blocked, newRav } pour AddTransactionModal
-  useStep1Data.ts          # ✅ Sprint Refactor-Architecture — fetch /api/monthly-recap/step1-data + { data, loading, error, refresh }
+  useStep1Data.ts          # ✅ Sprint 1.5 — useQuery({ queryKey: ['step1-data', context] }) ; { data, loading, error, refresh } shape preserved
   useBudgetProgress.ts     # ✅ Sprint Refactor-Architecture — dedupe state + sync effect → return useMemo direct
+  useFinancialData.ts      # ✅ Sprint 1.5 — useQuery + bridge `triggerFinancialRefresh()`/`registerFinancialRefreshCallback()` exports préservés pour back-compat (pattern à supprimer en Sprint 2 — voir prompt/prompt-04-tooling-dx-v3.md)
+  useProgressData.ts       # ✅ Sprint 1.5 — useQuery({ queryKey: ['progress-data', context] }) ; le contextRef pattern C ref site est éliminé natif via queryKey
+  useBudgets.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation (add/update/delete) ; bridge effect register a callback that invalidates ['budgets']
+  useIncomes.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation
+  useRealExpenses.ts       # ✅ Sprint 1.5 — useQuery + 3 useMutation (smart-allocation : mutation result peut être null si dépense couverte 100% par piggy/savings)
+  useRealIncomes.ts        # ✅ Sprint 1.5 — useQuery + 3 useMutation
+  useProfile.ts            # ✅ Sprint 1.5 — useQuery + 2 useMutation (create/update)
+  useGroups.ts             # ✅ Sprint 1.5 — useQuery + 5 useMutation (create/update/delete/join/leave) avec optimistic updates via setQueryData
+  useExpenseProgress.ts    # ✅ Sprint 1.5 — useQuery (fetcher pur) ; renvoie Record<budgetId, ExpenseProgress>
+  useIncomeProgress.ts     # ✅ Sprint 1.5 — derived state via useMemo direct (pas Query, dépend de useRealIncomes)
 lib/
+lib/
+  query-client.ts          # ✅ Sprint 1.5 — createQueryClient() factory (staleTime 30s, refetchOnWindowFocus false, retry 1) ; consommé par components/providers/QueryProvider.tsx
   supabase-server.ts       # client serveur (service_role) — BYPASS RLS
   supabase-client.ts       # client browser (anon key) — soumis à RLS
   database.types.ts        # types Supabase générés (pnpm db:types) — Sprint DB D6 (inclut désormais les 4 RPC C3 depuis le regen Sprint Cleanup-Legacy / C1, augmentation lib/database.ts supprimée en Sprint Polish-CI / D3)
@@ -523,7 +536,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
   - **Bridge legacy callback registry préservé** : `triggerFinancialRefresh()` / `registerFinancialRefreshCallback()` exports dans `useFinancialData` restent (back-compat) mais maintenant les handlers font `queryClient.invalidateQueries({ queryKey: ['financial-summary'] })` — Query owns the cache lifecycle. Eventually deletable mais low-value cleanup.
   - **2 disables documented** (false positives) : ProfileSettingsCard (form state mirrors async profile load), AuthContext (`initializeAuth()` async pipeline calls setState in continuation, not in effect body). Les autres 24 sites refactorés sans disable.
   - **Verif end-to-end** : `pnpm typecheck` + `pnpm lint:check` (exit 0, **0 errors / 1012 warnings** down from 1039 = 26 fewer warnings + 1 unused-disable supprimée) + `pnpm build` (57/57 routes) après chaque commit. Smoke browser **deferred to user verification**. Livré 2026-05-09, 14 commits sur `cleanup`, score estimé ~95/100. **Pattern Sprint 1.5 → standard du repo** : pour tout nouveau hook fetcher, utiliser `useQuery`/`useMutation` ; pour modal form-state-from-prop, utiliser `key` + lazy `useState(() => ...)`.
-- ⏭️ **Sprint 1 — followups (commitlint + lint-staged extensions)** : commitlint via `@commitlint/cli` + `@commitlint/config-conventional` + hook `commit-msg` (skip Sprint 1 par arbitrage user — convention CLAUDE.md §6 documentée par confiance ; à reconsidérer si autres contributeurs joignent le projet).
+- ⏭️ **Sprint 2 — TanStack Query bridge cleanup + Sprint 1 followups** ([prompt/prompt-04-tooling-dx-v3.md](prompt/prompt-04-tooling-dx-v3.md)) : sprint de polish post-Sprint 1.5 — (1) supprimer le bridge legacy `triggerFinancialRefresh()` / `registerFinancialRefreshCallback()` dans [hooks/useFinancialData.ts](hooks/useFinancialData.ts) maintenant que tous les hooks sont sur TanStack Query (remplacer ~11 callsites par `queryClient.invalidateQueries()` directement, supprimer 3 bridge effects, ~−50 LOC) ; (2) optionnel : retirer les 4 `if (!isOpen) return null` defensive checks devenus dead code dans les modals depuis le parent-conditional-render Sprint 1.5 ; (3) optionnel : split ProfileSettingsCard en sub-component pour retirer le `eslint-disable react-hooks/set-state-in-effect` (1 disable au lieu de 2) ; (4) commitlint via `@commitlint/cli` + `@commitlint/config-conventional` + hook `commit-msg` (deferred Sprint 1, à reconsidérer maintenant ou skip si solo workflow inchangé). Score estimé ~95 → ~96.
 - ⏭️ **Sprint Tailwind-v4** (émergé du Sprint DX-Verify follow-up) : migrer tailwindcss 3 → 4. Auto-migration via `npx @tailwindcss/upgrade`. Audit visuel UI complet (shadcn/ui new-york theme tokens peuvent shifter), regen des CSS variables, possible bump @ducanh2912/next-pwa si compat issue. Fichiers touchés : `tailwind.config.ts` (CSS-first ou JS compat), `postcss.config.js` (nouveau plugin `@tailwindcss/postcss`), `app/globals.css` (`@import "tailwindcss"` au lieu de `@tailwind base/components/utilities`).
 - ⏭️ **Sprint Supabase-Strict-Types** (émergé du Sprint DX-Verify follow-up) : refactorer 5 sites `app/api/monthly-recap/*` pour satisfaire `RejectExcessProperties` introduit en `@supabase/supabase-js` 2.105+. Concerne `accumulate-piggy-bank/route.ts:133`, `auto-balance/route.ts:556+588`, `transfer/route.ts:182`, `update-step/route.ts:154`. Implique de typer explicitement les inserts au lieu de spreader des objets `[x: string]: any`. **Couplé avec chantier I5** (extraction logique métier process-step1) qui touche le même domaine — opportunité de bundling.
 - ⏭️ **Chantier I4** : refactor `lib/financial-calculations.ts` (god file 1075 LOC)
