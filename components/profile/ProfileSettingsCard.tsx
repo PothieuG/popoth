@@ -14,23 +14,59 @@ import {
   formatPercentage,
 } from '@/lib/contribution-calculator'
 import AvatarUpload from '@/components/ui/AvatarUpload'
+import type { ProfileData } from '@/app/api/profile/route'
 
 interface ProfileSettingsCardProps {
   className?: string
 }
 
 /**
- * Component for managing user profile settings including personal information and salary
+ * Outer wrapper: fetches the profile and gates the form on a non-null
+ * profile, so the inner form can lazy-init its useState from `profile.*`
+ * without a sync effect. The `key={profile.id}` remounts the form if the
+ * underlying profile identity changes (e.g. account swap).
  */
 export default function ProfileSettingsCard({ className }: ProfileSettingsCardProps) {
-  const { profile, isLoading, updateProfile, hasProfile } = useProfile()
+  const { profile, isLoading } = useProfile()
+
+  if (isLoading || !profile) {
+    return (
+      <Card className={`p-6 ${className}`}>
+        <div className="animate-pulse">
+          <div className="mb-4 h-6 rounded bg-gray-200"></div>
+          <div className="space-y-3">
+            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
+            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
+          </div>
+        </div>
+      </Card>
+    )
+  }
+
+  return <ProfileSettingsForm key={profile.id} profile={profile} className={className} />
+}
+
+interface ProfileSettingsFormProps {
+  profile: ProfileData
+  className?: string
+}
+
+/**
+ * Inner form: receives a non-null profile prop and lazy-inits the form
+ * fields from it. Remounts cleanly via `key={profile.id}` if the outer
+ * swaps profile identity.
+ */
+function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
+  const { updateProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
   const { contributions, fetchContributions } = useGroupContributions()
 
-  // Form state
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [salary, setSalary] = useState('')
+  // Form state — lazy init from the (non-null) profile prop. The outer
+  // gates rendering until profile is loaded, so the legacy sync effect
+  // (and its eslint-disable) is no longer needed.
+  const [firstName, setFirstName] = useState(() => profile.first_name || '')
+  const [lastName, setLastName] = useState(() => profile.last_name || '')
+  const [salary, setSalary] = useState(() => (profile.salary ? profile.salary.toString() : ''))
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -39,17 +75,6 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
     message: string
     suggestions: string[]
   } | null>(null)
-
-  // Initialize form with profile data once it loads.
-  /* eslint-disable react-hooks/set-state-in-effect -- form state mirrors profile prop on first non-null arrival (and on post-save refetch); the rule cannot distinguish controlled async-init from cascading-render anti-pattern. Splitting into a sub-component would require moving ~400 LOC of validation/handlers. */
-  useEffect(() => {
-    if (profile) {
-      setFirstName(profile.first_name || '')
-      setLastName(profile.last_name || '')
-      setSalary(profile.salary ? profile.salary.toString() : '')
-    }
-  }, [profile])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load contributions when component mounts and user has a group
   useEffect(() => {
@@ -76,7 +101,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
     // Get other group members' salaries (excluding current user)
     const otherMembers = contributions
-      .filter((contrib) => contrib.profile_id !== profile?.id)
+      .filter((contrib) => contrib.profile_id !== profile.id)
       .map((contrib) => ({
         id: contrib.profile_id,
         salary: contrib.salary,
@@ -192,14 +217,12 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   }
 
   /**
-   * Handles edit cancellation
+   * Handles edit cancellation — revert form to current profile values.
    */
   const handleCancel = () => {
-    if (profile) {
-      setFirstName(profile.first_name || '')
-      setLastName(profile.last_name || '')
-      setSalary(profile.salary ? profile.salary.toString() : '')
-    }
+    setFirstName(profile.first_name || '')
+    setLastName(profile.last_name || '')
+    setSalary(profile.salary ? profile.salary.toString() : '')
     setIsEditing(false)
     setErrors({})
     setSuccessMessage('')
@@ -225,20 +248,6 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount)
-  }
-
-  if (isLoading || !hasProfile) {
-    return (
-      <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse">
-          <div className="mb-4 h-6 rounded bg-gray-200"></div>
-          <div className="space-y-3">
-            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
-            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
-          </div>
-        </div>
-      </Card>
-    )
   }
 
   return (
@@ -294,7 +303,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
               {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
             </div>
           ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile?.first_name || 'Non défini'}</p>
+            <p className="mt-1 text-sm text-gray-900">{profile.first_name || 'Non défini'}</p>
           )}
         </div>
 
@@ -316,7 +325,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
               {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
             </div>
           ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile?.last_name || 'Non défini'}</p>
+            <p className="mt-1 text-sm text-gray-900">{profile.last_name || 'Non défini'}</p>
           )}
         </div>
 
@@ -387,7 +396,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
           ) : (
             <div className="mt-1 space-y-2">
               <p className="text-sm text-gray-900">
-                {profile?.salary && profile.salary > 0 ? (
+                {profile.salary && profile.salary > 0 ? (
                   formatSalary(profile.salary)
                 ) : (
                   <span className="text-red-600">Non défini (requis)</span>
@@ -395,14 +404,14 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
               </p>
 
               {/* Display contribution if user has a group and salary */}
-              {hasGroup && currentGroup && profile?.salary && profile.salary > 0 && (
+              {hasGroup && currentGroup && profile.salary && profile.salary > 0 && (
                 <div className="rounded-md bg-blue-50 p-2">
                   <p className="mb-1 text-xs font-medium text-blue-700">
                     Votre contribution au groupe :
                   </p>
                   {(() => {
                     const otherMembers = contributions
-                      .filter((contrib) => contrib.profile_id !== profile?.id)
+                      .filter((contrib) => contrib.profile_id !== profile.id)
                       .map((contrib) => ({ id: contrib.profile_id, salary: contrib.salary }))
 
                     const calculation = calculateUserContribution(
@@ -430,7 +439,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
                 </div>
               )}
 
-              {profile?.salary && profile.salary > 0 && (
+              {profile.salary && profile.salary > 0 && (
                 <p className="text-xs text-gray-500">
                   <span className="text-red-500">*</span> Utilisé pour le calcul des contributions
                 </p>
