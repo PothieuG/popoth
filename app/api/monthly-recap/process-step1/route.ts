@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { validateSessionToken } from '@/lib/session-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
@@ -30,19 +30,11 @@ const supabaseServer = typedSupabase as unknown as SupabaseClient
  *   2.3.1. Créer CRÉDITS sur budgets déficitaires (pour annuler leurs déficits)
  *   2.4. Le surplus restant reste comme "surplus" pour l'écran 2.
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
     // ============================================================================
-    // VALIDATION SESSION ET CONTEXTE
+    // VALIDATION CONTEXTE
     // ============================================================================
-
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
 
     const { context } = await request.json()
 
@@ -50,22 +42,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
         { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
       )
     }
 
@@ -731,4 +707,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-}
+})
