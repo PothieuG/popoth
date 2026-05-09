@@ -420,7 +420,6 @@ export default function DashboardPage() {
          init runs fresh on each open. */}
       {isAddTransactionModalOpen && (
         <AddTransactionModal
-          isOpen={isAddTransactionModalOpen}
           onClose={() => setIsAddTransactionModalOpen(false)}
           context="profile"
           onTransactionAdded={handleTransactionAdded}
@@ -432,7 +431,6 @@ export default function DashboardPage() {
       {isEditTransactionModalOpen && editingTransaction && (
         <EditTransactionModal
           key={editingTransaction.id}
-          isOpen={isEditTransactionModalOpen}
           onClose={() => {
             setIsEditTransactionModalOpen(false)
             setEditingTransaction(null)

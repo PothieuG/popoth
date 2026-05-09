@@ -768,7 +768,6 @@ export default function PlanningDrawer({
         {isEditBudgetOpen && editingBudget && (
           <EditBudgetDialog
             key={editingBudget.id}
-            isOpen={isEditBudgetOpen}
             onClose={() => setIsEditBudgetOpen(false)}
             onSave={handleSaveEditedBudget}
             budget={editingBudget}
@@ -781,7 +780,6 @@ export default function PlanningDrawer({
         {isEditIncomeOpen && editingIncome && (
           <EditIncomeDialog
             key={editingIncome.id}
-            isOpen={isEditIncomeOpen}
             onClose={() => setIsEditIncomeOpen(false)}
             onSave={handleSaveEditedIncome}
             income={editingIncome}

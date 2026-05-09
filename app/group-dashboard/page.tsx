@@ -310,7 +310,6 @@ export default function GroupDashboardPage() {
          init runs fresh on each open. */}
       {isAddTransactionModalOpen && (
         <AddTransactionModal
-          isOpen={isAddTransactionModalOpen}
           onClose={() => setIsAddTransactionModalOpen(false)}
           context="group"
           onTransactionAdded={handleTransactionAdded}

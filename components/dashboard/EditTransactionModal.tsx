@@ -15,7 +15,6 @@ import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPrev
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface EditTransactionModalProps {
-  isOpen: boolean
   onClose: () => void
   transaction: RealExpense | RealIncome | null
   transactionType: 'expense' | 'income'
@@ -28,7 +27,6 @@ interface EditTransactionModalProps {
  * Pre-fills form with existing transaction data
  */
 export default function EditTransactionModal({
-  isOpen,
   onClose,
   transaction,
   transactionType,
@@ -48,13 +46,9 @@ export default function EditTransactionModal({
       amount: transaction.amount.toString(),
       date: dateField,
       budgetId:
-        transactionType === 'expense'
-          ? (transaction as RealExpense).estimated_budget_id || ''
-          : '',
+        transactionType === 'expense' ? (transaction as RealExpense).estimated_budget_id || '' : '',
       incomeId:
-        transactionType === 'income'
-          ? (transaction as RealIncome).estimated_income_id || ''
-          : '',
+        transactionType === 'income' ? (transaction as RealIncome).estimated_income_id || '' : '',
     }
   })
   const [isExceptional, setIsExceptional] = useState(() => transaction?.is_exceptional ?? false)
@@ -191,7 +185,7 @@ export default function EditTransactionModal({
     }
   }
 
-  if (!isOpen || !transaction) return null
+  if (!transaction) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

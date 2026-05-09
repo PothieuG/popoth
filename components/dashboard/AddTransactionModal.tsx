@@ -17,7 +17,6 @@ import { useRavValidation } from '@/hooks/useRavValidation'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface AddTransactionModalProps {
-  isOpen: boolean
   onClose: () => void
   context?: 'profile' | 'group'
   onTransactionAdded?: () => void
@@ -30,7 +29,6 @@ type TransactionType = 'expense' | 'income'
  * Adaptive form based on transaction type and exceptional vs budgeted/estimated
  */
 export default function AddTransactionModal({
-  isOpen,
   onClose,
   context,
   onTransactionAdded,
@@ -198,8 +196,6 @@ export default function AddTransactionModal({
       onClose()
     }
   }
-
-  if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

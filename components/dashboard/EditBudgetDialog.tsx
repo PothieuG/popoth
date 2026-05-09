@@ -10,7 +10,6 @@ interface EstimatedBudget {
 }
 
 interface EditBudgetDialogProps {
-  isOpen: boolean
   onClose: () => void
   onSave: (budgetData: { name: string; estimatedAmount: number }) => Promise<boolean>
   budget: EstimatedBudget | null
@@ -23,7 +22,6 @@ interface EditBudgetDialogProps {
  * Permet de modifier le nom et le montant d'un budget
  */
 export default function EditBudgetDialog({
-  isOpen,
   onClose,
   onSave,
   budget,
@@ -67,7 +65,7 @@ export default function EditBudgetDialog({
     setIsLoading(false)
   }
 
-  if (!isOpen || !budget) return null
+  if (!budget) return null
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {

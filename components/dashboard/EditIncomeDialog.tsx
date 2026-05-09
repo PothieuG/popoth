@@ -9,7 +9,6 @@ interface EstimatedIncome {
 }
 
 interface EditIncomeDialogProps {
-  isOpen: boolean
   onClose: () => void
   onSave: (incomeData: { name: string; estimatedAmount: number }) => Promise<boolean>
   income: EstimatedIncome | null
@@ -21,7 +20,6 @@ interface EditIncomeDialogProps {
  * Permet de modifier le nom et le montant d'un revenu
  */
 export default function EditIncomeDialog({
-  isOpen,
   onClose,
   onSave,
   income,
@@ -57,7 +55,7 @@ export default function EditIncomeDialog({
     setIsLoading(false)
   }
 
-  if (!isOpen || !income) return null
+  if (!income) return null
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
