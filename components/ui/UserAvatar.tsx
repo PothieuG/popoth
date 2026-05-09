@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { ProfileData } from '@/app/api/profile/route'
 
 interface UserAvatarProps {
@@ -24,13 +24,6 @@ export default function UserAvatar({
   style = {},
 }: UserAvatarProps) {
   const [imageLoadError, setImageLoadError] = useState(false)
-  const [imageKey, setImageKey] = useState(0)
-
-  // Reset image state when avatar_url changes
-  useEffect(() => {
-    setImageLoadError(false)
-    setImageKey((prev) => prev + 1) // Force image reload
-  }, [profile?.avatar_url])
 
   // Generate initials from profile
   const getInitials = () => {
@@ -81,7 +74,7 @@ export default function UserAvatar({
       {hasCustomAvatar ? (
         // eslint-disable-next-line @next/next/no-img-element -- avatar URLs come from Supabase Storage with arbitrary remote hosts; migration to next/image deferred until next.config remotePatterns are audited
         <img
-          key={imageKey} // Force re-render when key changes
+          key={profile.avatar_url ?? ''} // React natively remounts on URL change → resets onLoad/onError state
           src={profile.avatar_url ?? undefined}
           alt={`Avatar de ${profile.first_name} ${profile.last_name}`}
           className="h-full w-full object-cover"

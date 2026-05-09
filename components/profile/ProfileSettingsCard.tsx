@@ -40,7 +40,8 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
     suggestions: string[]
   } | null>(null)
 
-  // Initialize form with profile data
+  // Initialize form with profile data once it loads.
+  /* eslint-disable react-hooks/set-state-in-effect -- form state mirrors profile prop on first non-null arrival (and on post-save refetch); the rule cannot distinguish controlled async-init from cascading-render anti-pattern. Splitting into a sub-component would require moving ~400 LOC of validation/handlers. */
   useEffect(() => {
     if (profile) {
       setFirstName(profile.first_name || '')
@@ -48,6 +49,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       setSalary(profile.salary ? profile.salary.toString() : '')
     }
   }, [profile])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load contributions when component mounts and user has a group
   useEffect(() => {

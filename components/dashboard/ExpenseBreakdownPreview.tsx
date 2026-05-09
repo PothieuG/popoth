@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card } from '@/components/ui/card'
 
 interface ExpenseBreakdownPreviewProps {
@@ -35,68 +35,44 @@ export default function ExpenseBreakdownPreview({
   context = 'profile',
   expenseId,
 }: ExpenseBreakdownPreviewProps) {
-  const [breakdown, setBreakdown] = useState<BreakdownData | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const enabled = amount > 0 && !!budgetId
 
-  useEffect(() => {
-    if (!amount || amount <= 0 || !budgetId) {
-      setBreakdown(null)
-      return
-    }
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(async () => {
-      try {
-        setLoading(true)
-        setError(null)
-
-        const params = new URLSearchParams({
-          amount: amount.toString(),
-          budget_id: budgetId,
-          context,
-        })
-        if (expenseId) {
-          params.set('expense_id', expenseId)
-        }
-
-        const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {
-          credentials: 'include',
-          signal: controller.signal,
-        })
-
-        if (!response.ok) {
-          throw new Error('Erreur lors du calcul du breakdown')
-        }
-
-        const data = await response.json()
-        if (!controller.signal.aborted) {
-          setBreakdown(data.breakdown)
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return
-        console.error('Error fetching breakdown:', err)
-        if (!controller.signal.aborted) {
-          setError(err instanceof Error ? err.message : 'Erreur inconnue')
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false)
-        }
+  const {
+    data: breakdown = null,
+    isLoading,
+    error,
+  } = useQuery<BreakdownData>({
+    queryKey: ['expense-breakdown', amount, budgetId, context, expenseId ?? null],
+    enabled,
+    queryFn: async ({ signal }) => {
+      const params = new URLSearchParams({
+        amount: amount.toString(),
+        budget_id: budgetId,
+        context,
+      })
+      if (expenseId) {
+        params.set('expense_id', expenseId)
       }
-    }, 300)
 
-    return () => {
-      clearTimeout(timeoutId)
-      controller.abort()
-    }
-  }, [amount, budgetId, context, expenseId])
+      const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {
+        credentials: 'include',
+        signal,
+      })
+
+      if (!response.ok) {
+        throw new Error('Erreur lors du calcul du breakdown')
+      }
+
+      const data = await response.json()
+      return data.breakdown as BreakdownData
+    },
+  })
 
   const formatCurrency = (value: number) => {
     return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="border-blue-200 bg-blue-50 p-4">
         <div className="animate-pulse">
@@ -110,7 +86,9 @@ export default function ExpenseBreakdownPreview({
   if (error) {
     return (
       <Card className="border-red-200 bg-red-50 p-4">
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600">
+          {error instanceof Error ? error.message : 'Erreur inconnue'}
+        </p>
       </Card>
     )
   }
