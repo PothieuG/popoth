@@ -1,7 +1,12 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+
+function invalidateFinancialRefreshes(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['financial-summary'] })
+  qc.invalidateQueries({ queryKey: ['progress-data'] })
+  qc.invalidateQueries({ queryKey: ['budgets'] })
+}
 
 export interface RealExpense {
   id: string
@@ -109,7 +114,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       if (newExpense) {
         queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) => [newExpense, ...prev])
       }
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error in addExpense:', err)
@@ -136,7 +141,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
         prev.map((expense) => (expense.id === expenseData.id ? updatedExpense : expense)),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error in updateExpense:', err)
@@ -166,7 +171,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       )
       console.log('✅ [useRealExpenses] Expense removed from local state')
       console.log('🔄 [useRealExpenses] Refreshing financial data...')
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
       console.log('✅ [useRealExpenses] Financial data refreshed')
     },
     onError: (err) => {

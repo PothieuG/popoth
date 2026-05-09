@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  registerFinancialRefreshCallback,
-  triggerFinancialRefresh,
-} from '@/hooks/useFinancialData'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+
+function invalidateFinancialRefreshes(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['financial-summary'] })
+  qc.invalidateQueries({ queryKey: ['progress-data'] })
+  qc.invalidateQueries({ queryKey: ['budgets'] })
+}
 
 export interface EstimatedBudget {
   id: string
@@ -99,7 +100,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     },
     onSuccess: (newBudget) => {
       queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) => [newBudget, ...prev])
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error("Erreur lors de l'ajout du budget:", err)
@@ -134,7 +135,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) =>
         prev.map((budget) => (budget.id === budgetId ? updatedBudget : budget)),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Erreur lors de la mise à jour du budget:', err)
@@ -155,23 +156,12 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) =>
         prev.filter((budget) => budget.id !== budgetId),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Erreur lors de la suppression du budget:', err)
     },
   })
-
-  // Bridge: re-sync this query when global financial refresh fires
-  // (e.g. after a transaction in another hook)
-  useEffect(() => {
-    const unregister = registerFinancialRefreshCallback(() => {
-      queryClient.invalidateQueries({ queryKey: ['budgets'] })
-    })
-    return () => {
-      unregister()
-    }
-  }, [queryClient])
 
   const totalBudgets = budgets.reduce((sum, budget) => sum + budget.estimated_amount, 0)
 
