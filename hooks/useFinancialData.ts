@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FinancialData } from '@/lib/financial-calculations'
 
 interface UseFinancialDataReturn {
@@ -18,6 +19,16 @@ interface FinancialApiResponse {
   error?: string
 }
 
+const defaultFinancialData: FinancialData = {
+  availableBalance: 0,
+  remainingToLive: 0,
+  totalSavings: 0,
+  totalEstimatedIncome: 0,
+  totalEstimatedBudgets: 0,
+  totalRealIncome: 0,
+  totalRealExpenses: 0,
+}
+
 /**
  * Hook personnalisé pour gérer les données financières en temps réel
  * - Récupère les données financières via l'API
@@ -26,20 +37,11 @@ interface FinancialApiResponse {
  * - Calcul toujours en temps réel sans cache
  */
 export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinancialDataReturn {
-  const [financialData, setFinancialData] = useState<FinancialData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [context, setContext] = useState<'profile' | 'group' | null>(null)
+  const queryClient = useQueryClient()
 
-  /**
-   * Récupère les données financières depuis l'API
-   */
-  const fetchFinancialData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Construire l'URL avec le paramètre de contexte si spécifié
+  const { data: apiResponse, isLoading, error, refetch } = useQuery<FinancialApiResponse>({
+    queryKey: ['financial-summary', forceContext ?? null],
+    queryFn: async () => {
       const url = forceContext
         ? `/api/finance/summary?context=${forceContext}`
         : '/api/finance/summary'
@@ -53,93 +55,54 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
         throw new Error(`Erreur ${response.status}: ${response.statusText}`)
       }
 
-      const apiResponse: FinancialApiResponse = await response.json()
+      const payload: FinancialApiResponse = await response.json()
 
-      // Log détaillé des données reçues
       console.log(``)
       console.log(`🏠🏠🏠 ========================================================`)
       console.log(`🏠🏠🏠 [FRONTEND] DONNÉES FINANCIÈRES REÇUES`)
       console.log(`🏠🏠🏠 ========================================================`)
-      console.log(`🏠 CONTEXTE: ${apiResponse.context}`)
+      console.log(`🏠 CONTEXTE: ${payload.context}`)
       console.log(`🏠 TIMESTAMP: ${new Date().toISOString()}`)
       console.log(``)
-      console.log(`💰 RESTE À VIVRE (RAV): ${apiResponse.data.remainingToLive}€`)
+      console.log(`💰 RESTE À VIVRE (RAV): ${payload.data.remainingToLive}€`)
       console.log(``)
       console.log(`📊 DÉTAILS FINANCIERS:`)
-      console.log(`   - Solde disponible: ${apiResponse.data.availableBalance}€`)
-      console.log(`   - Revenus estimés: ${apiResponse.data.totalEstimatedIncome}€`)
-      console.log(`   - Revenus réels: ${apiResponse.data.totalRealIncome}€`)
+      console.log(`   - Solde disponible: ${payload.data.availableBalance}€`)
+      console.log(`   - Revenus estimés: ${payload.data.totalEstimatedIncome}€`)
+      console.log(`   - Revenus réels: ${payload.data.totalRealIncome}€`)
       console.log(
-        `   - Budgets estimés: ${apiResponse.data.totalEstimatedBudgets || apiResponse.data.totalEstimatedBudget}€`,
+        `   - Budgets estimés: ${payload.data.totalEstimatedBudgets || payload.data.totalEstimatedBudget}€`,
       )
-      console.log(`   - Dépenses réelles: ${apiResponse.data.totalRealExpenses}€`)
-      console.log(`   - Total économies: ${apiResponse.data.totalSavings}€`)
+      console.log(`   - Dépenses réelles: ${payload.data.totalRealExpenses}€`)
+      console.log(`   - Total économies: ${payload.data.totalSavings}€`)
       console.log(`🏠🏠🏠 ========================================================`)
       console.log(``)
 
-      setFinancialData(apiResponse.data)
-      setContext(apiResponse.context)
+      return payload
+    },
+  })
 
-      // Si il y a un message d'erreur dans la réponse, l'afficher
-      if (apiResponse.error) {
-        setError(apiResponse.error)
-      }
-    } catch (err) {
-      console.error('❌ Erreur dans useFinancialData:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-
-      // En cas d'erreur, définir des données par défaut seulement une fois
-      setFinancialData((prevData) => {
-        if (!prevData) {
-          return {
-            availableBalance: 0,
-            remainingToLive: 0,
-            totalSavings: 0,
-            totalEstimatedIncome: 0,
-            totalEstimatedBudgets: 0,
-            totalRealIncome: 0,
-            totalRealExpenses: 0,
-          }
-        }
-        return prevData
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  /**
-   * Force le rafraîchissement des données
-   */
-  const refreshFinancialData = async () => {
-    await fetchFinancialData()
-  }
-
-  // Charger les données financières au montage du composant
+  // Bridge: legacy `triggerFinancialRefresh()` callsites (in useBudgets, useIncomes, etc.)
+  // invalidate the financial-summary query, which Query then refetches.
   useEffect(() => {
-    fetchFinancialData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchFinancialData is recreated each render; only refetch when forceContext changes
-  }, [forceContext])
-
-  // Register for global financial refresh notifications
-  useEffect(() => {
-    const refreshHandler = () => {
+    const handler = () => {
       console.log('🔄 [useFinancialData] Global refresh triggered')
-      fetchFinancialData()
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] })
     }
-    const unregister = registerFinancialRefreshCallback(refreshHandler)
+    const unregister = registerFinancialRefreshCallback(handler)
     return () => {
       unregister()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only registration; the closure captures the latest fetchFinancialData via re-render
-  }, [])
+  }, [queryClient])
 
   return {
-    financialData,
-    loading,
-    error,
-    context,
-    refreshFinancialData,
+    financialData: apiResponse?.data ?? (error ? defaultFinancialData : null),
+    loading: isLoading,
+    error: error instanceof Error ? error.message : (apiResponse?.error ?? null),
+    context: apiResponse?.context ?? null,
+    refreshFinancialData: async () => {
+      await refetch()
+    },
   }
 }
 
