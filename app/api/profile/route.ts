@@ -46,10 +46,7 @@ export const GET = withAuth(async (_request, { userId }) => {
       }
 
       console.error('❌ Erreur Supabase lors de la récupération du profil:', error)
-      return NextResponse.json(
-        { error: `Erreur Supabase: ${error.message}` },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: `Erreur Supabase: ${error.message}` }, { status: 500 })
     }
 
     // Get group information if user belongs to a group
@@ -74,7 +71,7 @@ export const GET = withAuth(async (_request, { userId }) => {
       group_name: groupName,
       avatar_url: data.avatar_url || null,
       created_at: data.created_at,
-      updated_at: data.updated_at
+      updated_at: data.updated_at,
     }
 
     return NextResponse.json({ profile: profileData })
@@ -82,7 +79,7 @@ export const GET = withAuth(async (_request, { userId }) => {
     console.error('❌ Erreur inattendue lors de la récupération du profil:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })
@@ -96,24 +93,21 @@ export const POST = withAuth(async (request, { userId }) => {
     console.log('🚀 POST /api/profile - userId:', userId)
 
     // Parser les données de la requête
-    const body = await request.json() as CreateProfileRequest
+    const body = (await request.json()) as CreateProfileRequest
     const { first_name, last_name, salary } = body
     console.log('📝 Données reçues:', { first_name, last_name, salary })
 
     // Validation des données
     if (!first_name || !last_name) {
       console.log('❌ Données manquantes')
-      return NextResponse.json(
-        { error: 'Le prénom et le nom sont requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le prénom et le nom sont requis' }, { status: 400 })
     }
 
     if (first_name.trim().length < 1 || last_name.trim().length < 1) {
       console.log('❌ Données vides après trim')
       return NextResponse.json(
         { error: 'Le prénom et le nom ne peuvent pas être vides' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -122,7 +116,7 @@ export const POST = withAuth(async (request, { userId }) => {
       console.log('❌ Salaire invalide')
       return NextResponse.json(
         { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -134,7 +128,7 @@ export const POST = withAuth(async (request, { userId }) => {
         id: userId,
         first_name: first_name.trim(),
         last_name: last_name.trim(),
-        salary: salary || 1
+        salary: salary || 1,
       })
       .select()
       .single()
@@ -145,15 +139,12 @@ export const POST = withAuth(async (request, { userId }) => {
         console.log('⚠️ Profil existe déjà')
         return NextResponse.json(
           { error: 'Un profil existe déjà pour cet utilisateur' },
-          { status: 409 }
+          { status: 409 },
         )
       }
 
       console.error('❌ Erreur Supabase lors de la création du profil:', error)
-      return NextResponse.json(
-        { error: `Erreur Supabase: ${error.message}` },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: `Erreur Supabase: ${error.message}` }, { status: 500 })
     }
 
     console.log('✅ Profil créé avec succès:', data)
@@ -168,18 +159,18 @@ export const POST = withAuth(async (request, { userId }) => {
       group_name: null, // Nouveau profil n'a pas de groupe
       avatar_url: data.avatar_url || null,
       created_at: data.created_at,
-      updated_at: data.updated_at
+      updated_at: data.updated_at,
     }
 
     return NextResponse.json({
       profile: profileData,
-      message: 'Profil créé avec succès'
+      message: 'Profil créé avec succès',
     })
   } catch (error) {
     console.error('❌ Erreur inattendue lors de la création du profil:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })
@@ -199,20 +190,14 @@ export const PUT = withAuth(async (request, { userId }) => {
     // Valider et préparer les mises à jour
     if (body.first_name !== undefined) {
       if (!body.first_name || body.first_name.trim().length < 1) {
-        return NextResponse.json(
-          { error: 'Le prénom ne peut pas être vide' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le prénom ne peut pas être vide' }, { status: 400 })
       }
       updates.first_name = body.first_name.trim()
     }
 
     if (body.last_name !== undefined) {
       if (!body.last_name || body.last_name.trim().length < 1) {
-        return NextResponse.json(
-          { error: 'Le nom ne peut pas être vide' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
       }
       updates.last_name = body.last_name.trim()
     }
@@ -221,7 +206,7 @@ export const PUT = withAuth(async (request, { userId }) => {
       if (body.salary <= 0 || body.salary > 999999.99) {
         return NextResponse.json(
           { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       updates.salary = body.salary
@@ -233,10 +218,7 @@ export const PUT = withAuth(async (request, { userId }) => {
 
     // Vérifier qu'il y a au moins une mise à jour
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'Aucune donnée à mettre à jour' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     console.log('💾 Updating profile for userId:', userId, 'with:', updates)
@@ -253,7 +235,7 @@ export const PUT = withAuth(async (request, { userId }) => {
       console.error('Erreur lors de la mise à jour du profil:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du profil' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -279,18 +261,15 @@ export const PUT = withAuth(async (request, { userId }) => {
       group_name: groupName,
       avatar_url: data.avatar_url || null,
       created_at: data.created_at,
-      updated_at: data.updated_at
+      updated_at: data.updated_at,
     }
 
     return NextResponse.json({
       profile: profileData,
-      message: 'Profil mis à jour avec succès'
+      message: 'Profil mis à jour avec succès',
     })
   } catch (error) {
     console.error('Erreur inattendue lors de la mise à jour du profil:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

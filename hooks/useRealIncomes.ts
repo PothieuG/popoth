@@ -53,7 +53,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   const [incomes, setIncomes] = useState<RealIncome[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   /**
    * Calculate total amount of all incomes
    */
@@ -75,7 +75,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
 
       const response = await fetch(`/api/finance/income/real?${params.toString()}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -97,83 +97,89 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   /**
    * Add a new income entry
    */
-  const addIncome = useCallback(async (incomeData: CreateRealIncomeRequest): Promise<boolean> => {
-    try {
-      setError(null)
+  const addIncome = useCallback(
+    async (incomeData: CreateRealIncomeRequest): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const requestBody = {
-        ...incomeData,
-        is_for_group: context === 'group'
+        const requestBody = {
+          ...incomeData,
+          is_for_group: context === 'group',
+        }
+
+        const response = await fetch('/api/finance/income/real', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('Error adding income:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        setIncomes((prev) => [data.real_income_entry, ...prev])
+
+        // Refresh financial dashboard
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error('Error in addIncome:', err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      const response = await fetch('/api/finance/income/real', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Error adding income:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      setIncomes(prev => [data.real_income_entry, ...prev])
-
-      // Refresh financial dashboard
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in addIncome:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [context])
+    },
+    [context],
+  )
 
   /**
    * Update an existing income entry
    */
-  const updateIncome = useCallback(async (incomeData: UpdateRealIncomeRequest): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateIncome = useCallback(
+    async (incomeData: UpdateRealIncomeRequest): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const response = await fetch(`/api/finance/income/real?id=${incomeData.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(incomeData)
-      })
+        const response = await fetch(`/api/finance/income/real?id=${incomeData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(incomeData),
+        })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Error updating income:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('Error updating income:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+
+        // Update the income in the list
+        setIncomes((prev) =>
+          prev.map((income) => (income.id === incomeData.id ? data.real_income_entry : income)),
+        )
+
+        // Refresh financial data
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error('Error in updateIncome:', err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      const data = await response.json()
-
-      // Update the income in the list
-      setIncomes(prev => prev.map(income =>
-        income.id === incomeData.id ? data.real_income_entry : income
-      ))
-
-      // Refresh financial data
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in updateIncome:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
+    },
+    [],
+  )
 
   /**
    * Delete an income entry
@@ -185,7 +191,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
 
       const response = await fetch(`/api/finance/income/real?id=${incomeId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -194,7 +200,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         throw new Error(errorData?.error || 'Erreur lors de la suppression du revenu')
       }
 
-      setIncomes(prev => prev.filter(income => income.id !== incomeId))
+      setIncomes((prev) => prev.filter((income) => income.id !== incomeId))
       console.log('✅ [useRealIncomes] Income removed from local state')
 
       // Refresh financial data
@@ -230,6 +236,6 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     addIncome,
     updateIncome,
     deleteIncome,
-    refreshIncomes
+    refreshIncomes,
   }
 }

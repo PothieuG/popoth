@@ -38,10 +38,7 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
 
     // Check if user has a group
     if (!profile.group_id) {
-      return NextResponse.json(
-        { error: 'Vous n\'appartenez à aucun groupe' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Vous n'appartenez à aucun groupe" }, { status: 400 })
     }
 
     // Get group information
@@ -52,22 +49,21 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
       .single()
 
     if (groupError || !group) {
-      return NextResponse.json(
-        { error: 'Groupe introuvable' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
     }
 
     // Get all contributions for the group with profile information
     const { data: contributions, error: contributionsError } = await supabase
       .from('group_contributions')
-      .select(`
+      .select(
+        `
         *,
         profiles:profile_id (
           first_name,
           last_name
         )
-      `)
+      `,
+      )
       .eq('group_id', profile.group_id)
       .order('contribution_amount', { ascending: false })
 
@@ -75,25 +71,27 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
       console.error('Error fetching contributions:', contributionsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des contributions' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Calculate totals
     const totalSalaries = contributions?.reduce((sum, contrib) => sum + contrib.salary, 0) || 0
-    const totalContributions = contributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
+    const totalContributions =
+      contributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
 
     // Format the response
-    const formattedContributions: GroupContributionData[] = contributions?.map(contrib => ({
-      id: contrib.id,
-      profile_id: contrib.profile_id,
-      group_id: contrib.group_id,
-      salary: contrib.salary,
-      contribution_amount: contrib.contribution_amount,
-      contribution_percentage: contrib.contribution_percentage,
-      calculated_at: contrib.calculated_at,
-      profile: contrib.profiles as { first_name: string; last_name: string } | null
-    })) || []
+    const formattedContributions: GroupContributionData[] =
+      contributions?.map((contrib) => ({
+        id: contrib.id,
+        profile_id: contrib.profile_id,
+        group_id: contrib.group_id,
+        salary: contrib.salary,
+        contribution_amount: contrib.contribution_amount,
+        contribution_percentage: contrib.contribution_percentage,
+        calculated_at: contrib.calculated_at,
+        profile: contrib.profiles as { first_name: string; last_name: string } | null,
+      })) || []
 
     const response: GroupContributionsResponse = {
       contributions: formattedContributions,
@@ -102,17 +100,14 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
         name: group.name,
         monthly_budget_estimate: group.monthly_budget_estimate,
         total_salaries: totalSalaries,
-        total_contributions: totalContributions
-      }
+        total_contributions: totalContributions,
+      },
     }
 
     return NextResponse.json(response)
   } catch (error) {
     console.error('Error in GET /api/groups/contributions:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -126,35 +121,28 @@ export const POST = withAuthAndProfile(async (_request, { profile }) => {
 
     // Check if user has a group
     if (!profile.group_id) {
-      return NextResponse.json(
-        { error: 'Vous n\'appartenez à aucun groupe' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: "Vous n'appartenez à aucun groupe" }, { status: 400 })
     }
 
     // Call the PostgreSQL function to recalculate contributions
-    const { error: calcError } = await supabase
-      .rpc('calculate_group_contributions', {
-        group_id_param: profile.group_id
-      })
+    const { error: calcError } = await supabase.rpc('calculate_group_contributions', {
+      group_id_param: profile.group_id,
+    })
 
     if (calcError) {
       console.error('Error recalculating contributions:', calcError)
       return NextResponse.json(
         { error: 'Erreur lors du recalcul des contributions' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       message: 'Contributions recalculées avec succès',
-      group_id: profile.group_id
+      group_id: profile.group_id,
     })
   } catch (error) {
     console.error('Error in POST /api/groups/contributions:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

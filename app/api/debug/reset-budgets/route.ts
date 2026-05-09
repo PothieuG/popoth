@@ -15,10 +15,7 @@ export async function POST(request: NextRequest) {
     // Validation de la session
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
 
     const userId = sessionData.userId
@@ -32,7 +29,10 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
 
     if (deleteTransfersError) {
-      console.error('❌ [Reset Budgets] Erreur lors de la suppression des transferts:', deleteTransfersError)
+      console.error(
+        '❌ [Reset Budgets] Erreur lors de la suppression des transferts:',
+        deleteTransfersError,
+      )
     } else {
       console.log('✅ [Reset Budgets] Transferts supprimés')
     }
@@ -45,7 +45,10 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
 
     if (deleteExpensesError) {
-      console.error('❌ [Reset Budgets] Erreur lors de la suppression des dépenses:', deleteExpensesError)
+      console.error(
+        '❌ [Reset Budgets] Erreur lors de la suppression des dépenses:',
+        deleteExpensesError,
+      )
     } else {
       console.log('✅ [Reset Budgets] Dépenses supprimées')
     }
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ [Reset Budgets] Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
         amount: expenseAmount,
         description: description,
         expense_date: '2025-09-22',
-        is_exceptional: false
+        is_exceptional: false,
       })
 
       const estimated = budget.estimated_amount
@@ -106,10 +109,12 @@ export async function POST(request: NextRequest) {
         spent: expenseAmount,
         difference: difference,
         surplus: Math.max(0, difference),
-        deficit: Math.max(0, -difference)
+        deficit: Math.max(0, -difference),
       })
 
-      console.log(`📝 [Reset Budgets] ${budget.name}: ${expenseAmount}€ / ${estimated}€ estimé → ${difference > 0 ? '+' : ''}${difference}€`)
+      console.log(
+        `📝 [Reset Budgets] ${budget.name}: ${expenseAmount}€ / ${estimated}€ estimé → ${difference > 0 ? '+' : ''}${difference}€`,
+      )
     }
 
     // 5. Insérer les nouvelles dépenses
@@ -119,10 +124,13 @@ export async function POST(request: NextRequest) {
       .insert(testExpenses)
 
     if (insertExpensesError) {
-      console.error('❌ [Reset Budgets] Erreur lors de l\'insertion des dépenses:', insertExpensesError)
+      console.error(
+        "❌ [Reset Budgets] Erreur lors de l'insertion des dépenses:",
+        insertExpensesError,
+      )
       return NextResponse.json(
-        { error: 'Erreur lors de l\'insertion des dépenses' },
-        { status: 500 }
+        { error: "Erreur lors de l'insertion des dépenses" },
+        { status: 500 },
       )
     }
 
@@ -137,7 +145,10 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
 
     if (deactivateSnapshotsError) {
-      console.error('❌ [Reset Budgets] Erreur lors de la désactivation des snapshots:', deactivateSnapshotsError)
+      console.error(
+        '❌ [Reset Budgets] Erreur lors de la désactivation des snapshots:',
+        deactivateSnapshotsError,
+      )
     } else {
       console.log('✅ [Reset Budgets] Snapshots désactivés')
     }
@@ -160,22 +171,18 @@ export async function POST(request: NextRequest) {
         totals: {
           surplus: totalSurplus,
           deficit: totalDeficit,
-          ratio: generalRatio
+          ratio: generalRatio,
         },
         actions: {
           transfersDeleted: true,
           expensesDeleted: true,
           newExpensesCreated: testExpenses.length,
-          snapshotsDeactivated: true
-        }
-      }
+          snapshotsDeactivated: true,
+        },
+      },
     })
-
   } catch (error) {
     console.error('❌ [Reset Budgets] Erreur générale:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 }

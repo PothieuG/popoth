@@ -14,7 +14,7 @@ interface IconProps {
 const sizeClasses = {
   sm: 'w-4 h-4',
   md: 'w-5 h-5',
-  lg: 'w-6 h-6'
+  lg: 'w-6 h-6',
 }
 
 // Icône de calendrier pour le récapitulatif mensuel
@@ -118,7 +118,11 @@ export function RefreshIcon({ className = '', size = 'md', color = 'currentColor
 }
 
 // Icône d'information
-export function InformationIcon({ className = '', size = 'md', color = 'currentColor' }: IconProps) {
+export function InformationIcon({
+  className = '',
+  size = 'md',
+  color = 'currentColor',
+}: IconProps) {
   return (
     <svg
       className={`${sizeClasses[size]} ${className}`}
@@ -138,7 +142,11 @@ export function InformationIcon({ className = '', size = 'md', color = 'currentC
 }
 
 // Icône d'attention/warning
-export function ExclamationIcon({ className = '', size = 'md', color = 'currentColor' }: IconProps) {
+export function ExclamationIcon({
+  className = '',
+  size = 'md',
+  color = 'currentColor',
+}: IconProps) {
   return (
     <svg
       className={`${sizeClasses[size]} ${className}`}
@@ -167,12 +175,7 @@ export function CheckIcon({ className = '', size = 'md', color = 'currentColor' 
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M5 13l4 4L19 7"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
     </svg>
   )
 }
@@ -187,12 +190,7 @@ export function XIcon({ className = '', size = 'md', color = 'currentColor' }: I
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M6 18L18 6M6 6l12 12"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
     </svg>
   )
 }
@@ -207,12 +205,7 @@ export function ArrowRightIcon({ className = '', size = 'md', color = 'currentCo
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M9 5l7 7-7 7"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
     </svg>
   )
 }
@@ -227,12 +220,7 @@ export function ArrowLeftIcon({ className = '', size = 'md', color = 'currentCol
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M15 19l-7-7 7-7"
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
     </svg>
   )
 }
@@ -278,7 +266,11 @@ export function ScaleIcon({ className = '', size = 'md', color = 'currentColor' 
 }
 
 // Icône de monnaie/euro
-export function CurrencyEuroIcon({ className = '', size = 'md', color = 'currentColor' }: IconProps) {
+export function CurrencyEuroIcon({
+  className = '',
+  size = 'md',
+  color = 'currentColor',
+}: IconProps) {
   return (
     <svg
       className={`${sizeClasses[size]} ${className}`}
@@ -333,5 +325,5 @@ export const Icons = {
   Save: SaveIcon,
   Scale: ScaleIcon,
   CurrencyEuro: CurrencyEuroIcon,
-  Trophy: TrophyIcon
+  Trophy: TrophyIcon,
 }

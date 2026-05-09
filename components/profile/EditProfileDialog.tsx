@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,12 +31,12 @@ interface EditProfileDialogProps {
  * Dialog pour modifier le profil utilisateur existant
  * Permet à l'utilisateur de modifier son prénom et son nom de famille
  */
-export default function EditProfileDialog({ 
-  isOpen, 
+export default function EditProfileDialog({
+  isOpen,
   onClose,
   profile,
-  onSubmit, 
-  onError 
+  onSubmit,
+  onError,
 }: EditProfileDialogProps) {
   const [firstName, setFirstName] = useState(profile.first_name)
   const [lastName, setLastName] = useState(profile.last_name)
@@ -68,7 +74,7 @@ export default function EditProfileDialog({
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!validateForm()) {
       return
     }
@@ -78,7 +84,7 @@ export default function EditProfileDialog({
 
     try {
       const success = await onSubmit(firstName.trim(), lastName.trim())
-      
+
       if (success) {
         onClose()
       } else {
@@ -110,11 +116,15 @@ export default function EditProfileDialog({
   /**
    * Vérifie s'il y a des changements
    */
-  const hasChanges = firstName.trim() !== profile.first_name || lastName.trim() !== profile.last_name
+  const hasChanges =
+    firstName.trim() !== profile.first_name || lastName.trim() !== profile.last_name
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md mx-4" aria-describedby="edit-profile-dialog-description">
+      <DialogContent
+        className="mx-4 sm:max-w-md"
+        aria-describedby="edit-profile-dialog-description"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
             <User className="h-6 w-6 text-blue-600" />
@@ -140,9 +150,7 @@ export default function EditProfileDialog({
               disabled={isSubmitting}
               className={errors.firstName ? 'border-red-500 focus:ring-red-500' : ''}
             />
-            {errors.firstName && (
-              <p className="text-sm text-red-600">{errors.firstName}</p>
-            )}
+            {errors.firstName && <p className="text-sm text-red-600">{errors.firstName}</p>}
           </div>
 
           {/* Nom */}
@@ -159,26 +167,19 @@ export default function EditProfileDialog({
               disabled={isSubmitting}
               className={errors.lastName ? 'border-red-500 focus:ring-red-500' : ''}
             />
-            {errors.lastName && (
-              <p className="text-sm text-red-600">{errors.lastName}</p>
-            )}
+            {errors.lastName && <p className="text-sm text-red-600">{errors.lastName}</p>}
           </div>
 
           {/* Erreur générale */}
           {errors.general && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-700">{errors.general}</p>
             </div>
           )}
 
           {/* Boutons d'action */}
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
               Annuler
             </Button>
             <Button
@@ -198,9 +199,7 @@ export default function EditProfileDialog({
           </div>
         </form>
 
-        <p className="text-xs text-gray-500 mt-4">
-          * Champs obligatoires
-        </p>
+        <p className="mt-4 text-xs text-gray-500">* Champs obligatoires</p>
       </DialogContent>
     </Dialog>
   )

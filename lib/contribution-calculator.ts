@@ -23,7 +23,7 @@ export interface GroupMember {
 export function calculateUserContribution(
   userSalary: number,
   groupBudget: number,
-  otherMembers: GroupMember[] = []
+  otherMembers: GroupMember[] = [],
 ): ContributionCalculation {
   // Input validation
   if (userSalary < 0) {
@@ -31,7 +31,7 @@ export function calculateUserContribution(
       userContribution: 0,
       userPercentage: 0,
       isValid: false,
-      errorMessage: "Le salaire ne peut pas être négatif"
+      errorMessage: 'Le salaire ne peut pas être négatif',
     }
   }
 
@@ -40,12 +40,15 @@ export function calculateUserContribution(
       userContribution: 0,
       userPercentage: 0,
       isValid: false,
-      errorMessage: "Le budget du groupe doit être positif"
+      errorMessage: 'Le budget du groupe doit être positif',
     }
   }
 
   // Calculate total salaries (user + other members)
-  const otherMembersSalaryTotal = otherMembers.reduce((sum, member) => sum + (member.salary || 0), 0)
+  const otherMembersSalaryTotal = otherMembers.reduce(
+    (sum, member) => sum + (member.salary || 0),
+    0,
+  )
   const totalGroupSalaries = userSalary + otherMembersSalaryTotal
 
   let userContribution: number
@@ -64,17 +67,17 @@ export function calculateUserContribution(
 
   // Validation: contribution should not exceed salary
   const isValid = userSalary === 0 || userContribution <= userSalary
-  
+
   let errorMessage: string | undefined
   let suggestions: string[] | undefined
 
   if (!isValid) {
     errorMessage = `Votre contribution calculée (${formatCurrency(userContribution)}) dépasse votre salaire (${formatCurrency(userSalary)})`
-    
+
     suggestions = [
       `Augmentez votre salaire à au moins ${formatCurrency(Math.ceil(userContribution))}`,
       `Demandez au groupe de réduire le budget à ${formatCurrency(Math.floor(totalGroupSalaries))} maximum`,
-      `Attendez que d'autres membres rejoignent le groupe pour réduire votre part`
+      `Attendez que d'autres membres rejoignent le groupe pour réduire votre part`,
     ]
 
     // If other members have salaries, suggest budget reduction more precisely
@@ -89,7 +92,7 @@ export function calculateUserContribution(
     userPercentage,
     isValid,
     errorMessage,
-    suggestions
+    suggestions,
   }
 }
 
@@ -101,7 +104,7 @@ export function formatCurrency(amount: number): string {
     style: 'currency',
     currency: 'EUR',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   }).format(amount)
 }
 
@@ -112,7 +115,7 @@ export function formatPercentage(percentage: number): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'percent',
     minimumFractionDigits: 1,
-    maximumFractionDigits: 1
+    maximumFractionDigits: 1,
   }).format(percentage / 100)
 }
 
@@ -126,7 +129,10 @@ export function calculateMinimumSalary(contribution: number, safetyMargin: numbe
 /**
  * Calculates the maximum group budget for given member salaries
  */
-export function calculateMaximumGroupBudget(memberSalaries: number[], safetyMargin: number = 0.9): number {
+export function calculateMaximumGroupBudget(
+  memberSalaries: number[],
+  safetyMargin: number = 0.9,
+): number {
   const totalSalaries = memberSalaries.reduce((sum, salary) => sum + salary, 0)
   return Math.floor(totalSalaries * safetyMargin)
 }

@@ -1,5 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
-import type { GroupContributionData, GroupContributionsResponse } from '@/app/api/groups/contributions/route'
+import type {
+  GroupContributionData,
+  GroupContributionsResponse,
+} from '@/app/api/groups/contributions/route'
 
 /**
  * Hook personnalisé pour gérer les contributions de groupe
@@ -22,7 +25,7 @@ export function useGroupContributions() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
-      
+
       abortControllerRef.current = new AbortController()
       setIsLoading(true)
       setError(null)
@@ -30,7 +33,7 @@ export function useGroupContributions() {
       const response = await fetch('/api/groups/contributions', {
         method: 'GET',
         credentials: 'include',
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       })
 
       const data = await response.json()
@@ -41,7 +44,7 @@ export function useGroupContributions() {
           console.error('Erreur API contributions:', {
             status: response.status,
             statusText: response.statusText,
-            data
+            data,
           })
         }
 
@@ -54,7 +57,7 @@ export function useGroupContributions() {
           setGroupInfo(null)
           return
         }
-        
+
         throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`)
       }
 
@@ -66,10 +69,10 @@ export function useGroupContributions() {
       if (err instanceof Error && err.name === 'AbortError') {
         return
       }
-      
+
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      
+
       // Log uniquement en développement
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur lors de la récupération des contributions:', err)
@@ -89,7 +92,7 @@ export function useGroupContributions() {
 
       const response = await fetch('/api/groups/contributions', {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -104,7 +107,7 @@ export function useGroupContributions() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur lors du recalcul des contributions:', err)
       }
@@ -117,9 +120,12 @@ export function useGroupContributions() {
   /**
    * Trouve la contribution de l'utilisateur actuel dans la liste
    */
-  const getUserContribution = useCallback((userId: string): GroupContributionData | null => {
-    return contributions.find(contrib => contrib.profile_id === userId) || null
-  }, [contributions])
+  const getUserContribution = useCallback(
+    (userId: string): GroupContributionData | null => {
+      return contributions.find((contrib) => contrib.profile_id === userId) || null
+    },
+    [contributions],
+  )
 
   /**
    * Calcule les statistiques du groupe
@@ -130,16 +136,16 @@ export function useGroupContributions() {
         averageContribution: 0,
         highestContribution: 0,
         lowestContribution: 0,
-        memberCount: 0
+        memberCount: 0,
       }
     }
 
-    const amounts = contributions.map(c => c.contribution_amount)
+    const amounts = contributions.map((c) => c.contribution_amount)
     return {
       averageContribution: amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length,
       highestContribution: Math.max(...amounts),
       lowestContribution: Math.min(...amounts),
-      memberCount: contributions.length
+      memberCount: contributions.length,
     }
   }, [contributions, groupInfo])
 
@@ -152,7 +158,7 @@ export function useGroupContributions() {
     setError(null)
     setIsLoading(false)
     setIsRecalculating(false)
-    
+
     // Cancel any pending request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -170,12 +176,12 @@ export function useGroupContributions() {
     // Data
     contributions,
     groupInfo,
-    
+
     // Loading states
     isLoading,
     error,
     isRecalculating,
-    
+
     // Methods
     fetchContributions,
     recalculateContributions,
@@ -183,11 +189,11 @@ export function useGroupContributions() {
     getGroupStats,
     resetContributions,
     cleanup,
-    
+
     // Computed values
     hasContributions: contributions.length > 0,
     hasGroup: groupInfo !== null,
     totalMembers: contributions.length,
-    isOperationInProgress: isLoading || isRecalculating
+    isOperationInProgress: isLoading || isRecalculating,
   }
 }

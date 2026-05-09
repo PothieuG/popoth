@@ -31,7 +31,12 @@ type TabType = 'budgets' | 'revenus'
  * Drawer de planification financière qui s'ouvre du bas vers le haut
  * Contient deux tabs : budgets estimés et revenus estimés
  */
-export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, context }: PlanningDrawerProps) {
+export default function PlanningDrawer({
+  isOpen,
+  onClose,
+  onPlanningChange,
+  context,
+}: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
@@ -44,13 +49,20 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
 
   // États pour la confirmation de suppression
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
-  const [deletingItem, setDeletingItem] = useState<{ id: string; name: string; type: 'budget' | 'income' } | null>(null)
+  const [deletingItem, setDeletingItem] = useState<{
+    id: string
+    name: string
+    type: 'budget' | 'income'
+  } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   // États pour la popup d'information des budgets/revenus entamés
   const [isStartedItemInfoOpen, setIsStartedItemInfoOpen] = useState(false)
-  const [startedItemInfo, setStartedItemInfo] = useState<{ name: string; type: 'budget' | 'income' } | null>(null)
-  
+  const [startedItemInfo, setStartedItemInfo] = useState<{
+    name: string
+    type: 'budget' | 'income'
+  } | null>(null)
+
   // Hooks pour la gestion des données
   const {
     budgets,
@@ -60,7 +72,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     updateBudget,
     deleteBudget,
     refreshBudgets,
-    totalBudgets
+    totalBudgets,
   } = useBudgets(context)
 
   const {
@@ -71,25 +83,25 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     updateIncome,
     deleteIncome,
     refreshIncomes,
-    totalIncomes
+    totalIncomes,
   } = useIncomes(context)
 
   // Hooks pour les calculs de progression
   const {
     budgetProgresses,
     loading: budgetProgressLoading,
-    refreshProgress: refreshBudgetProgress
+    refreshProgress: refreshBudgetProgress,
   } = useBudgetProgress(budgets, context)
 
   const {
     incomeProgresses,
     loading: incomeProgressLoading,
-    refreshProgress: refreshIncomeProgress
+    refreshProgress: refreshIncomeProgress,
   } = useIncomeProgress(incomes, context)
 
   // Récupérer le salaire du profil pour l'injecter comme revenu read-only
   const { profile } = useProfile()
-  const profileSalary = (context !== 'group' && profile?.salary) ? profile.salary : 0
+  const profileSalary = context !== 'group' && profile?.salary ? profile.salary : 0
   const totalIncomesWithSalary = totalIncomes + profileSalary
 
   // Refresh des données quand le drawer s'ouvre
@@ -106,7 +118,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -224,7 +236,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Vérifie si un budget est "entamé" (a des dépenses associées)
    */
   const isBudgetStarted = (budgetId: string): boolean => {
-    const progress = budgetProgresses.find(p => p.budgetId === budgetId)
+    const progress = budgetProgresses.find((p) => p.budgetId === budgetId)
     return progress ? progress.spentAmount > 0 : false
   }
 
@@ -232,7 +244,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Vérifie si un revenu est "entamé" (a des entrées associées)
    */
   const isIncomeStarted = (incomeId: string): boolean => {
-    const progress = incomeProgresses.find(p => p.incomeId === incomeId)
+    const progress = incomeProgresses.find((p) => p.incomeId === incomeId)
     return progress ? progress.receivedAmount > 0 : false
   }
 
@@ -298,29 +310,41 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     <>
       {/* Backdrop */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
+        <div
+          className="fixed inset-0 z-40 bg-black bg-opacity-50 transition-opacity duration-300"
           onClick={onClose}
         />
       )}
 
       {/* Drawer */}
-      <div className={cn(
-        'fixed inset-0 z-50 bg-white transition-transform duration-300 ease-out flex flex-col',
-        isOpen ? 'translate-y-0' : 'translate-y-full'
-      )}>
+      <div
+        className={cn(
+          'fixed inset-0 z-50 flex flex-col bg-white transition-transform duration-300 ease-out',
+          isOpen ? 'translate-y-0' : 'translate-y-full',
+        )}
+      >
         {/* Drag Handle */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
+        <div className="flex justify-center pb-2 pt-3">
+          <div className="h-1 w-12 rounded-full bg-gray-300"></div>
         </div>
 
         {/* Header avec background color léger */}
-        <div className="px-4 py-3 border-b border-gray-200 bg-blue-50/80">
+        <div className="border-b border-gray-200 bg-blue-50/80 px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
+                <svg
+                  className="h-4 w-4 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                  />
                 </svg>
               </div>
               <div>
@@ -330,30 +354,45 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
             >
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="h-4 w-4 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="px-4 py-2 border-b border-gray-200">
-          <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="border-b border-gray-200 px-4 py-2">
+          <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setActiveTab('budgets')}
               className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200',
-                activeTab === 'budgets' 
-                  ? 'bg-white text-orange-700 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
+                activeTab === 'budgets'
+                  ? 'bg-white text-orange-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900',
               )}
             >
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
                 </svg>
                 <span>Budgets</span>
               </div>
@@ -361,15 +400,20 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
             <button
               onClick={() => setActiveTab('revenus')}
               className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200',
-                activeTab === 'revenus' 
-                  ? 'bg-white text-green-700 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
+                activeTab === 'revenus'
+                  ? 'bg-white text-green-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900',
               )}
             >
               <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
                 <span>Revenus</span>
               </div>
@@ -378,71 +422,83 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         </div>
 
         {/* Content Area - Scrollable */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {/* Error Messages */}
           {(budgetsError || incomesError) && (
             <div className="p-4">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-800 text-sm font-medium">
-                  {budgetsError || incomesError}
-                </p>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">{budgetsError || incomesError}</p>
               </div>
             </div>
           )}
 
           {/* Budgets Tab Content */}
           {activeTab === 'budgets' && (
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
               {budgetsLoading && (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-orange-600"></div>
                 </div>
               )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Budgets Estimés</h3>
-                <button 
+                <button
                   onClick={() => setIsAddBudgetOpen(true)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700"
                 >
                   Ajouter un budget
                 </button>
               </div>
 
               {/* Total discret */}
-              <div className="px-3 py-2 bg-orange-50/50 rounded-lg border border-orange-100">
+              <div className="rounded-lg border border-orange-100 bg-orange-50/50 px-3 py-2">
                 <p className="text-sm text-orange-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span> (sans les économies)
+                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span>{' '}
+                  (sans les économies)
                 </p>
               </div>
-              
+
               {/* Budgets List or Empty State */}
               {!budgetsLoading && budgets.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                <div className="py-12 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+                    <svg
+                      className="h-8 w-8 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun budget configuré</h4>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h4 className="mb-2 text-lg font-medium text-gray-900">Aucun budget configuré</h4>
+                  <p className="mb-4 text-sm text-gray-600">
                     Commencez par ajouter vos catégories de dépenses mensuelles
                   </p>
-                  <button 
+                  <button
                     onClick={() => setIsAddBudgetOpen(true)}
-                    className="px-6 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                    className="rounded-lg bg-orange-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700"
                   >
                     Créer votre premier budget
                   </button>
                 </div>
-              ) : (!budgetsLoading && !budgetProgressLoading) ? (
+              ) : !budgetsLoading && !budgetProgressLoading ? (
                 <div className="space-y-3">
                   {budgets.map((budget) => {
-                    const progress = budgetProgresses.find(p => p.budgetId === budget.id)
+                    const progress = budgetProgresses.find((p) => p.budgetId === budget.id)
                     if (!progress) return null
 
                     return (
-                      <div key={budget.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
-                        <div className="flex justify-between items-center">
+                      <div
+                        key={budget.id}
+                        className="rounded-xl border border-gray-200 p-3 shadow-md"
+                      >
+                        <div className="flex items-center justify-between">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
                             <BudgetProgressIndicator progress={progress} />
@@ -455,24 +511,44 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                                 {
                                   label: 'Modifier',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleEditBudget(budget),
-                                  disabled: isBudgetStarted(budget.id)
+                                  disabled: isBudgetStarted(budget.id),
                                 },
                                 {
                                   label: 'Supprimer',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleRequestDelete(budget, 'budget'),
                                   variant: 'danger' as const,
-                                  disabled: isBudgetStarted(budget.id)
-                                }
+                                  disabled: isBudgetStarted(budget.id),
+                                },
                               ]}
                             />
                           </div>
@@ -487,76 +563,103 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
 
           {/* Revenus Tab Content */}
           {activeTab === 'revenus' && (
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
               {incomesLoading && (
                 <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div>
                 </div>
               )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Revenus Estimés</h3>
-                <button 
+                <button
                   onClick={() => setIsAddIncomeOpen(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
                 >
                   Ajouter un revenu
                 </button>
               </div>
 
               {/* Total discret */}
-              <div className="px-3 py-2 bg-green-50/50 rounded-lg border border-green-100">
+              <div className="rounded-lg border border-green-100 bg-green-50/50 px-3 py-2">
                 <p className="text-sm text-green-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span> (sans les économies)
+                  Total estimé:{' '}
+                  <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span> (sans
+                  les économies)
                 </p>
               </div>
-              
+
               {/* Incomes List or Empty State */}
               {!incomesLoading && incomes.length === 0 && profileSalary === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <div className="py-12 text-center">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                    <svg
+                      className="h-8 w-8 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun revenu configuré</h4>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h4 className="mb-2 text-lg font-medium text-gray-900">Aucun revenu configuré</h4>
+                  <p className="mb-4 text-sm text-gray-600">
                     Ajoutez vos sources de revenus mensuels récurrents
                   </p>
-                  <button 
+                  <button
                     onClick={() => setIsAddIncomeOpen(true)}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                    className="rounded-lg bg-green-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
                   >
                     Ajouter votre premier revenu
                   </button>
                 </div>
-              ) : (!incomesLoading && !incomeProgressLoading) ? (
+              ) : !incomesLoading && !incomeProgressLoading ? (
                 <div className="space-y-3">
                   {/* Salaire du profil (read-only) */}
                   {profileSalary > 0 && (
-                    <div className="p-3 border border-green-200 rounded-xl shadow-md bg-green-50/30">
-                      <div className="flex justify-between items-center">
+                    <div className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md">
+                      <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-gray-900">Salaire</span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                              <svg
+                                className="h-3 w-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
                               </svg>
                               Profil
                             </span>
                           </div>
-                          <p className="text-sm font-medium text-green-700 mt-1">{formatAmount(profileSalary)}</p>
+                          <p className="mt-1 text-sm font-medium text-green-700">
+                            {formatAmount(profileSalary)}
+                          </p>
                         </div>
                       </div>
                     </div>
                   )}
                   {incomes.map((income) => {
-                    const progress = incomeProgresses.find(p => p.incomeId === income.id)
+                    const progress = incomeProgresses.find((p) => p.incomeId === income.id)
                     if (!progress) return null
 
                     return (
-                      <div key={income.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
-                        <div className="flex justify-between items-center">
+                      <div
+                        key={income.id}
+                        className="rounded-xl border border-gray-200 p-3 shadow-md"
+                      >
+                        <div className="flex items-center justify-between">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
                             <IncomeProgressIndicator progress={progress} />
@@ -569,24 +672,44 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                                 {
                                   label: 'Modifier',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleEditIncome(income),
-                                  disabled: isIncomeStarted(income.id)
+                                  disabled: isIncomeStarted(income.id),
                                 },
                                 {
                                   label: 'Supprimer',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleRequestDelete(income, 'income'),
                                   variant: 'danger' as const,
-                                  disabled: isIncomeStarted(income.id)
-                                }
+                                  disabled: isIncomeStarted(income.id),
+                                },
                               ]}
                             />
                           </div>
@@ -601,18 +724,25 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         </div>
 
         {/* Bottom Summary - Always visible */}
-        <div className="px-4 py-3 bg-gray-100/80 border-t border-gray-200">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Différence estimée (sans les économies)</span>
-            <span className={cn(
-              "text-lg font-bold",
-              totalIncomesWithSalary - totalBudgets > 0 ? "text-green-700" :
-              totalIncomesWithSalary - totalBudgets < 0 ? "text-red-700" : "text-gray-900"
-            )}>
+        <div className="border-t border-gray-200 bg-gray-100/80 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-600">
+              Différence estimée (sans les économies)
+            </span>
+            <span
+              className={cn(
+                'text-lg font-bold',
+                totalIncomesWithSalary - totalBudgets > 0
+                  ? 'text-green-700'
+                  : totalIncomesWithSalary - totalBudgets < 0
+                    ? 'text-red-700'
+                    : 'text-gray-900',
+              )}
+            >
               {formatAmount(totalIncomesWithSalary - totalBudgets)}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Revenus - Budgets</p>
+          <p className="mt-1 text-xs text-gray-500">Revenus - Budgets</p>
         </div>
 
         {/* Add Budget Dialog */}

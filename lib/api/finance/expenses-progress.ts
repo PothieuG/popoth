@@ -3,8 +3,19 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
 
-type BudgetForProgress = { id: string; name: string; estimated_amount: number; cumulated_savings: number | null }
-type ExpenseForProgress = { amount: number; estimated_budget_id: string | null; amount_from_piggy_bank: number | null; amount_from_budget_savings: number | null; amount_from_budget: number | null }
+type BudgetForProgress = {
+  id: string
+  name: string
+  estimated_amount: number
+  cumulated_savings: number | null
+}
+type ExpenseForProgress = {
+  amount: number
+  estimated_budget_id: string | null
+  amount_from_piggy_bank: number | null
+  amount_from_budget_savings: number | null
+  amount_from_budget: number | null
+}
 
 /**
  * GET /api/finance/expenses/progress
@@ -14,7 +25,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
     // Récupérer le contexte depuis les paramètres URL
     const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
+    const context = (searchParams.get('context') as 'profile' | 'group') || 'profile'
 
     let budgets: BudgetForProgress[] = []
     let expenses: ExpenseForProgress[] = []
@@ -31,12 +42,13 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Récupérer les dépenses réelles associées aux budgets
       const { data: expensesData } = await supabaseServer
         .from('real_expenses')
-        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+        .select(
+          'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+        )
         .eq('profile_id', userId)
         .not('estimated_budget_id', 'is', null)
 
       expenses = expensesData || []
-
     } else {
       // Récupérer les informations du groupe de l'utilisateur
       const { data: profileData } = await supabaseServer
@@ -47,8 +59,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
       if (!profileData?.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 404 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 404 },
         )
       }
 
@@ -63,7 +75,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Récupérer les dépenses réelles du groupe associées aux budgets
       const { data: expensesData } = await supabaseServer
         .from('real_expenses')
-        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+        .select(
+          'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+        )
         .eq('group_id', profileData.group_id)
         .not('estimated_budget_id', 'is', null)
 
@@ -72,25 +86,28 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     // Calculer la progression pour chaque budget
     // Ne compter QUE amount_from_budget (pas tirelire ni savings)
-    const progressData = budgets.map(budget => {
-      const relatedExpenses = expenses.filter(expense => expense.estimated_budget_id === budget.id)
+    const progressData = budgets.map((budget) => {
+      const relatedExpenses = expenses.filter(
+        (expense) => expense.estimated_budget_id === budget.id,
+      )
 
       console.log(``)
       console.log(`🔍 [PROGRESS DEBUG] Budget: ${budget.name} (${budget.id})`)
       console.log(`🔍 [PROGRESS DEBUG] Nombre de dépenses: ${relatedExpenses.length}`)
 
       const spentAmount = relatedExpenses.reduce((sum, expense) => {
-          // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-          const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
             ? Number(expense.amount_from_budget)
             : Number(expense.amount)
 
-          console.log(`🔍 [PROGRESS DEBUG]     amount: ${expense.amount}`)
-          console.log(`🔍 [PROGRESS DEBUG]     amount_from_budget: ${expense.amount_from_budget}`)
-          console.log(`🔍 [PROGRESS DEBUG]     amountFromBudget calculé: ${amountFromBudget}`)
+        console.log(`🔍 [PROGRESS DEBUG]     amount: ${expense.amount}`)
+        console.log(`🔍 [PROGRESS DEBUG]     amount_from_budget: ${expense.amount_from_budget}`)
+        console.log(`🔍 [PROGRESS DEBUG]     amountFromBudget calculé: ${amountFromBudget}`)
 
-          return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-        }, 0)
+        return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+      }, 0)
 
       console.log(`🔍 [PROGRESS DEBUG] Total spentAmount: ${spentAmount}`)
       console.log(``)
@@ -105,17 +122,13 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         spentAmount,
         estimatedAmount: budget.estimated_amount,
         remainingAmount,
-        economyAmount
+        economyAmount,
       }
     })
 
     return NextResponse.json(progressData)
-
   } catch (error) {
     console.error('❌ Erreur dans /api/finance/expenses/progress:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

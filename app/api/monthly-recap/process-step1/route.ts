@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
+import {
+  getProfileFinancialData,
+  getGroupFinancialData,
+  type FinancialData,
+} from '@/lib/financial-calculations'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { ROUNDING_TOLERANCE } from '@/lib/constants/finance'
@@ -41,7 +45,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (!context || !['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -52,8 +56,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -148,7 +152,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     for (const budget of budgets) {
       const spentAmount = expenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
+        .filter((expense) => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       const difference = budget.estimated_amount - spentAmount
@@ -162,21 +166,29 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         spent_amount: spentAmount,
         surplus,
         deficit,
-        cumulated_savings: budget.cumulated_savings || 0
+        cumulated_savings: budget.cumulated_savings || 0,
       })
 
-      console.log(`📊 Budget "${budget.name}": ${budget.estimated_amount}€ estimé, ${spentAmount}€ dépensé, surplus=${surplus}€, déficit=${deficit}€, économies=${budget.cumulated_savings || 0}€`)
+      console.log(
+        `📊 Budget "${budget.name}": ${budget.estimated_amount}€ estimé, ${spentAmount}€ dépensé, surplus=${surplus}€, déficit=${deficit}€, économies=${budget.cumulated_savings || 0}€`,
+      )
     }
 
-    const budgetsWithSurplus = budgetAnalyses.filter(b => b.surplus > 0)
-    const budgetsWithDeficit = budgetAnalyses.filter(b => b.deficit > 0)
-    const budgetsWithSavings = budgetAnalyses.filter(b => b.cumulated_savings > 0)
+    const budgetsWithSurplus = budgetAnalyses.filter((b) => b.surplus > 0)
+    const budgetsWithDeficit = budgetAnalyses.filter((b) => b.deficit > 0)
+    const budgetsWithSavings = budgetAnalyses.filter((b) => b.cumulated_savings > 0)
 
     console.log(``)
     console.log(`📊 RÉSUMÉ:`)
-    console.log(`   - Budgets avec surplus: ${budgetsWithSurplus.length} (${budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)}€)`)
-    console.log(`   - Budgets avec déficit: ${budgetsWithDeficit.length} (${budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)}€)`)
-    console.log(`   - Budgets avec économies: ${budgetsWithSavings.length} (${budgetsWithSavings.reduce((s, b) => s + b.cumulated_savings, 0)}€)`)
+    console.log(
+      `   - Budgets avec surplus: ${budgetsWithSurplus.length} (${budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)}€)`,
+    )
+    console.log(
+      `   - Budgets avec déficit: ${budgetsWithDeficit.length} (${budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)}€)`,
+    )
+    console.log(
+      `   - Budgets avec économies: ${budgetsWithSavings.length} (${budgetsWithSavings.reduce((s, b) => s + b.cumulated_savings, 0)}€)`,
+    )
     console.log(``)
 
     // ============================================================================
@@ -199,7 +211,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
       // NOTE: Les surplus ne sont PAS automatiquement transférés vers les économies.
       // Ils restent comme "surplus" jusqu'à ce que l'utilisateur décide à l'écran 2.
-      console.log(`ℹ️ Les surplus (${budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)}€) restent comme "surplus"`)
+      console.log(
+        `ℹ️ Les surplus (${budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)}€) restent comme "surplus"`,
+      )
       console.log(`   → L'utilisateur pourra les répartir vers économies à l'écran 2`)
       console.log(``)
 
@@ -212,15 +226,18 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         const newPiggyBankAmount = piggyBankAmount + excedentPourTirelire
 
         try {
-          const filter = ownerField === 'profile_id'
-            ? { profile_id: contextId }
-            : { group_id: contextId }
+          const filter =
+            ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
           await updatePiggyBank(filter, excedentPourTirelire)
         } catch (updateError) {
-          throw new Error(`Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
+          throw new Error(
+            `Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
+          )
         }
 
-        console.log(`   ✅ Tirelire: ${piggyBankAmount}€ + ${excedentPourTirelire}€ = ${newPiggyBankAmount}€`)
+        console.log(
+          `   ✅ Tirelire: ${piggyBankAmount}€ + ${excedentPourTirelire}€ = ${newPiggyBankAmount}€`,
+        )
 
         operations.push({
           step: '1.1',
@@ -228,8 +245,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           details: {
             excedent_amount: excedentPourTirelire,
             old_piggy_bank: piggyBankAmount,
-            new_piggy_bank: newPiggyBankAmount
-          }
+            new_piggy_bank: newPiggyBankAmount,
+          },
         })
 
         piggyBankAmount = newPiggyBankAmount
@@ -243,7 +260,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       // Les déficits individuels sont déjà inclus dans le RAV.
       // La tirelire et les économies ne doivent pas être touchées en cas d'excédent global.
       if (budgetsWithDeficit.length > 0) {
-        console.log(`ℹ️ ${budgetsWithDeficit.length} budget(s) déficitaire(s) détecté(s), mais pas de renflouage en CAS 1 (excédent global)`)
+        console.log(
+          `ℹ️ ${budgetsWithDeficit.length} budget(s) déficitaire(s) détecté(s), mais pas de renflouage en CAS 1 (excédent global)`,
+        )
         console.log(`   Les déficits individuels sont déjà inclus dans le calcul du RAV`)
         console.log(``)
       } else {
@@ -279,14 +298,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         difference: difference,
         piggy_bank_final: piggyBankAmount,
         operations_performed: operations,
-        budgets_with_deficit_refloated: budgetsWithDeficit.map(b => ({
+        budgets_with_deficit_refloated: budgetsWithDeficit.map((b) => ({
           id: b.id,
           name: b.name,
-          deficit: b.deficit
+          deficit: b.deficit,
         })),
-        timestamp: Date.now()
+        timestamp: Date.now(),
       })
-
     } else {
       // ========================================================================
       // CAS 2: DÉFICIT (Différence < 0)
@@ -303,7 +321,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       console.log(`🐷 Tirelire disponible: ${piggyBankAmount}€`)
       console.log(`💎 Économies disponibles: ${totalSavingsAvailable}€`)
       console.log(`💚 Surplus disponible: ${totalSurplusAvailable}€`)
-      console.log(`💰 TOTAL RESSOURCES: ${piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable}€`)
+      console.log(
+        `💰 TOTAL RESSOURCES: ${piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable}€`,
+      )
       console.log(``)
 
       // NOTE: Les surplus NE SONT PAS automatiquement transférés vers les économies.
@@ -312,7 +332,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
       // ÉTAPE 2.1: La tirelire est préservée pour l'étape 2 (auto-répartition)
       // L'utilisateur pourra l'utiliser via l'auto-répartition à l'écran 2
-      console.log(`🔄 ÉTAPE 2.1: Tirelire préservée (${piggyBankAmount}€) - sera disponible à l'étape 2`)
+      console.log(
+        `🔄 ÉTAPE 2.1: Tirelire préservée (${piggyBankAmount}€) - sera disponible à l'étape 2`,
+      )
 
       console.log(``)
 
@@ -320,7 +342,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       console.log(`🔄 ÉTAPE 2.2: Utilisation proportionnelle des économies`)
 
       if (gapACombler > 0) {
-        const totalSavingsAvailable = budgetsWithSavings.reduce((s, b) => s + b.cumulated_savings, 0)
+        const totalSavingsAvailable = budgetsWithSavings.reduce(
+          (s, b) => s + b.cumulated_savings,
+          0,
+        )
 
         if (totalSavingsAvailable > 0) {
           console.log(`   💎 Économies disponibles: ${totalSavingsAvailable}€`)
@@ -332,7 +357,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               const proportion = budget.cumulated_savings / totalSavingsAvailable
               const amountToUse = Math.min(
                 proportion * amountToUseFromSavings,
-                budget.cumulated_savings
+                budget.cumulated_savings,
               )
 
               const newSavings = budget.cumulated_savings - amountToUse
@@ -340,11 +365,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               try {
                 await updateBudgetCumulatedSavings(budget.id, -amountToUse)
               } catch (updateError) {
-                throw new Error(`Erreur mise à jour économies ${budget.name}: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
+                throw new Error(
+                  `Erreur mise à jour économies ${budget.name}: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
+                )
               }
 
-              console.log(`      ✅ ${budget.name}: ${amountToUse.toFixed(2)}€ utilisés (${(proportion * 100).toFixed(1)}%)`)
-              console.log(`         Économies: ${budget.cumulated_savings}€ → ${newSavings.toFixed(2)}€`)
+              console.log(
+                `      ✅ ${budget.name}: ${amountToUse.toFixed(2)}€ utilisés (${(proportion * 100).toFixed(1)}%)`,
+              )
+              console.log(
+                `         Économies: ${budget.cumulated_savings}€ → ${newSavings.toFixed(2)}€`,
+              )
 
               operations.push({
                 step: '2.2',
@@ -355,8 +386,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                   amount_used: amountToUse,
                   proportion: proportion,
                   old_savings: budget.cumulated_savings,
-                  new_savings: newSavings
-                }
+                  new_savings: newSavings,
+                },
               })
 
               budget.cumulated_savings = newSavings
@@ -396,7 +427,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               const amountToConsume = Math.min(
                 proportion * surplusToConsume,
                 surplusBudget.surplus,
-                gapACombler
+                gapACombler,
               )
 
               // Créer un TRANSFERT FROM surplus budget TO null (couverture du gap)
@@ -404,21 +435,27 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               // Le transfert permet de tracker l'utilisation du surplus sans affecter le RAV
               const { error: transferError } = await supabaseServer
                 .from('budget_transfers')
-                .insert([{
-                  [ownerField]: contextId,
-                  from_budget_id: surplusBudget.id,  // FROM = budget avec surplus
-                  to_budget_id: null,                 // TO null = couverture du gap
-                  transfer_amount: amountToConsume,
-                  transfer_reason: `Surplus utilisé pour combler gap (récap mensuel)`,
-                  transfer_date: new Date().toISOString().split('T')[0]
-                }])
+                .insert([
+                  {
+                    [ownerField]: contextId,
+                    from_budget_id: surplusBudget.id, // FROM = budget avec surplus
+                    to_budget_id: null, // TO null = couverture du gap
+                    transfer_amount: amountToConsume,
+                    transfer_reason: `Surplus utilisé pour combler gap (récap mensuel)`,
+                    transfer_date: new Date().toISOString().split('T')[0],
+                  },
+                ])
 
               if (transferError) {
-                console.error(`      ❌ Erreur création transfert surplus: ${transferError.message}`)
+                console.error(
+                  `      ❌ Erreur création transfert surplus: ${transferError.message}`,
+                )
                 continue
               }
 
-              console.log(`      ✅ "${surplusBudget.name}": ${amountToConsume.toFixed(2)}€ surplus utilisé pour gap (${(proportion * 100).toFixed(1)}%)`)
+              console.log(
+                `      ✅ "${surplusBudget.name}": ${amountToConsume.toFixed(2)}€ surplus utilisé pour gap (${(proportion * 100).toFixed(1)}%)`,
+              )
 
               operations.push({
                 step: '2.3',
@@ -427,8 +464,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                   budget_id: surplusBudget.id,
                   budget_name: surplusBudget.name,
                   amount: amountToConsume,
-                  proportion: proportion
-                }
+                  proportion: proportion,
+                },
               })
 
               surplusBudget.surplus -= amountToConsume
@@ -453,8 +490,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
       // Calculer le montant qu'on a réellement pu fournir pour renflouer
       // C'est le gap initial MOINS le gap résiduel (ce qu'on n'a pas pu couvrir)
-      const gapInitial = Math.abs(difference)  // Le gap qu'on devait combler
-      const ressourcesUtilisees = gapInitial - gapACombler  // Ce qu'on a réellement pu couvrir
+      const gapInitial = Math.abs(difference) // Le gap qu'on devait combler
+      const ressourcesUtilisees = gapInitial - gapACombler // Ce qu'on a réellement pu couvrir
 
       console.log(`   📉 Déficit total des budgets: ${totalDeficit.toFixed(2)}€`)
       console.log(`   💰 Ressources utilisées pour renflouer: ${ressourcesUtilisees.toFixed(2)}€`)
@@ -474,22 +511,28 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             if (transferAmount > ROUNDING_TOLERANCE) {
               const { error: transferError } = await supabaseServer
                 .from('budget_transfers')
-                .insert([{
-                  [ownerField]: contextId,
-                  from_budget_id: null,  // null = tirelire/ressources générales
-                  to_budget_id: deficitBudget.id,
-                  transfer_amount: transferAmount,
-                  transfer_reason: `Renflouage partiel déficit (récap mensuel)`,
-                  transfer_date: new Date().toISOString().split('T')[0]
-                }])
+                .insert([
+                  {
+                    [ownerField]: contextId,
+                    from_budget_id: null, // null = tirelire/ressources générales
+                    to_budget_id: deficitBudget.id,
+                    transfer_amount: transferAmount,
+                    transfer_reason: `Renflouage partiel déficit (récap mensuel)`,
+                    transfer_date: new Date().toISOString().split('T')[0],
+                  },
+                ])
 
               if (transferError) {
-                console.error(`      ❌ Erreur création transfert pour "${deficitBudget.name}": ${transferError.message}`)
+                console.error(
+                  `      ❌ Erreur création transfert pour "${deficitBudget.name}": ${transferError.message}`,
+                )
                 continue
               }
 
               const deficitRestant = deficitBudget.deficit - transferAmount
-              console.log(`      ✅ "${deficitBudget.name}": ${transferAmount.toFixed(2)}€ renfloués, déficit restant: ${deficitRestant.toFixed(2)}€`)
+              console.log(
+                `      ✅ "${deficitBudget.name}": ${transferAmount.toFixed(2)}€ renfloués, déficit restant: ${deficitRestant.toFixed(2)}€`,
+              )
 
               operations.push({
                 step: '2.3.1',
@@ -498,8 +541,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                   budget_id: deficitBudget.id,
                   budget_name: deficitBudget.name,
                   transfer_amount: transferAmount,
-                  deficit_remaining: deficitRestant
-                }
+                  deficit_remaining: deficitRestant,
+                },
               })
 
               // NE PAS mettre le déficit à 0, mais soustraire le montant renfloué
@@ -509,7 +552,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         }
 
         const totalDeficitRestant = budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)
-        console.log(`   📊 Déficit total restant après renflouage: ${totalDeficitRestant.toFixed(2)}€`)
+        console.log(
+          `   📊 Déficit total restant après renflouage: ${totalDeficitRestant.toFixed(2)}€`,
+        )
       } else if (totalDeficit > 0) {
         console.log(`   ⚠️ Aucune ressource disponible pour renflouer les déficits`)
         console.log(`   📊 Déficit non couvert: ${totalDeficit.toFixed(2)}€`)
@@ -547,15 +592,18 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           const newPiggyBankAmount = piggyBankAmount + newDifference
 
           try {
-            const filter = ownerField === 'profile_id'
-              ? { profile_id: contextId }
-              : { group_id: contextId }
+            const filter =
+              ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
             await updatePiggyBank(filter, newDifference)
           } catch (updateError) {
-            throw new Error(`Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`)
+            throw new Error(
+              `Erreur mise à jour tirelire: ${updateError instanceof Error ? updateError.message : String(updateError)}`,
+            )
           }
 
-          console.log(`   ✅ Tirelire: ${piggyBankAmount}€ + ${newDifference}€ = ${newPiggyBankAmount}€`)
+          console.log(
+            `   ✅ Tirelire: ${piggyBankAmount}€ + ${newDifference}€ = ${newPiggyBankAmount}€`,
+          )
 
           operations.push({
             step: '2.4.1',
@@ -563,15 +611,18 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             details: {
               excedent_amount: newDifference,
               old_piggy_bank: piggyBankAmount,
-              new_piggy_bank: newPiggyBankAmount
-            }
+              new_piggy_bank: newPiggyBankAmount,
+            },
           })
 
           piggyBankAmount = newPiggyBankAmount
         }
 
         // ÉTAPE 2.4.2: Renflouer budgets déficitaires si possible
-        if (budgetsWithDeficit.length > 0 && budgetsWithSavings.some(b => b.cumulated_savings > 0)) {
+        if (
+          budgetsWithDeficit.length > 0 &&
+          budgetsWithSavings.some((b) => b.cumulated_savings > 0)
+        ) {
           console.log(``)
           console.log(`🔄 ÉTAPE 2.4.2: Renflouage des budgets déficitaires`)
           console.log(`   Budgets déficitaires: ${budgetsWithDeficit.length}`)
@@ -582,34 +633,43 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             console.log(`   💰 Renflouage "${budget.name}": ${remainingDeficit}€ de déficit`)
 
             // 2.4.2.1: Tirelire préservée pour l'étape 2
-            console.log(`      ℹ️ Tirelire (${piggyBankAmount}€) préservée - sera disponible à l'étape 2`)
+            console.log(
+              `      ℹ️ Tirelire (${piggyBankAmount}€) préservée - sera disponible à l'étape 2`,
+            )
 
             // 2.4.2.2: Utiliser les économies proportionnellement
             if (remainingDeficit > 0) {
-              const totalSavingsAvailable = budgetsWithSavings.reduce((s, b) => s + b.cumulated_savings, 0)
+              const totalSavingsAvailable = budgetsWithSavings.reduce(
+                (s, b) => s + b.cumulated_savings,
+                0,
+              )
 
               if (totalSavingsAvailable > 0) {
-                console.log(`      ℹ️ Déficit restant: ${remainingDeficit}€, économies disponibles: ${totalSavingsAvailable}€`)
+                console.log(
+                  `      ℹ️ Déficit restant: ${remainingDeficit}€, économies disponibles: ${totalSavingsAvailable}€`,
+                )
 
                 for (const savingsBudget of budgetsWithSavings) {
                   if (savingsBudget.cumulated_savings > 0 && remainingDeficit > 0) {
                     const proportion = savingsBudget.cumulated_savings / totalSavingsAvailable
                     const amountFromSavings = Math.min(
                       proportion * remainingDeficit,
-                      savingsBudget.cumulated_savings
+                      savingsBudget.cumulated_savings,
                     )
 
                     // Créer un TRANSFERT depuis les économies vers le budget déficitaire
                     const { error: transferError } = await supabaseServer
                       .from('budget_transfers')
-                      .insert([{
-                        [ownerField]: contextId,
-                        from_budget_id: savingsBudget.id,  // source = budget avec économies
-                        to_budget_id: budget.id,
-                        transfer_amount: amountFromSavings,
-                        transfer_reason: `Renflouage déficit depuis économies cumulées (récap)`,
-                        transfer_date: new Date().toISOString().split('T')[0]
-                      }])
+                      .insert([
+                        {
+                          [ownerField]: contextId,
+                          from_budget_id: savingsBudget.id, // source = budget avec économies
+                          to_budget_id: budget.id,
+                          transfer_amount: amountFromSavings,
+                          transfer_reason: `Renflouage déficit depuis économies cumulées (récap)`,
+                          transfer_date: new Date().toISOString().split('T')[0],
+                        },
+                      ])
 
                     if (!transferError) {
                       const newSavings = savingsBudget.cumulated_savings - amountFromSavings
@@ -618,13 +678,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                         .from('estimated_budgets')
                         .update({
                           cumulated_savings: newSavings,
-                          updated_at: new Date().toISOString()
+                          updated_at: new Date().toISOString(),
                         })
                         .eq('id', savingsBudget.id)
 
                       if (!updateError) {
-                        console.log(`         ✅ Économies "${savingsBudget.name}": ${amountFromSavings.toFixed(2)}€ → Budget "${budget.name}"`)
-                        console.log(`            Économies: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€`)
+                        console.log(
+                          `         ✅ Économies "${savingsBudget.name}": ${amountFromSavings.toFixed(2)}€ → Budget "${budget.name}"`,
+                        )
+                        console.log(
+                          `            Économies: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€`,
+                        )
 
                         operations.push({
                           step: '2.4.2.2',
@@ -636,15 +700,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                             to_budget_name: budget.name,
                             amount: amountFromSavings,
                             old_savings: savingsBudget.cumulated_savings,
-                            new_savings: newSavings
-                          }
+                            new_savings: newSavings,
+                          },
                         })
 
                         savingsBudget.cumulated_savings = newSavings
                         remainingDeficit -= amountFromSavings
                       }
                     } else {
-                      console.error(`         ❌ Erreur création transfert économies: ${transferError.message}`)
+                      console.error(
+                        `         ❌ Erreur création transfert économies: ${transferError.message}`,
+                      )
                     }
                   }
                 }
@@ -652,7 +718,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             }
 
             if (remainingDeficit > ROUNDING_TOLERANCE) {
-              console.log(`      ⚠️ Déficit résiduel de ${remainingDeficit.toFixed(2)}€ pour "${budget.name}" (ressources épuisées)`)
+              console.log(
+                `      ⚠️ Déficit résiduel de ${remainingDeficit.toFixed(2)}€ pour "${budget.name}" (ressources épuisées)`,
+              )
             }
 
             console.log(``)
@@ -678,7 +746,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       console.log(`💰 RAV INITIAL: ${ravActuel}€`)
       console.log(`💰 RAV FINAL: ${finalFinancialData.remainingToLive}€`)
       console.log(`💰 RAV BUDGÉTAIRE: ${ravBudgetaire}€`)
-      console.log(`📊 DIFFÉRENCE FINALE: ${(finalFinancialData.remainingToLive - ravBudgetaire).toFixed(2)}€`)
+      console.log(
+        `📊 DIFFÉRENCE FINALE: ${(finalFinancialData.remainingToLive - ravBudgetaire).toFixed(2)}€`,
+      )
       console.log(`🐷 TIRELIRE FINALE: ${piggyBankAmount}€`)
       console.log(`⚠️ GAP RÉSIDUEL: ${gapACombler.toFixed(2)}€`)
       console.log(`📊 OPÉRATIONS EFFECTUÉES: ${operations.length}`)
@@ -696,15 +766,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         is_fully_balanced: gapACombler <= ROUNDING_TOLERANCE,
         piggy_bank_final: piggyBankAmount,
         operations_performed: operations,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       })
     }
-
   } catch (error) {
     console.error('❌ [Process Step1] Erreur lors du rééquilibrage:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })

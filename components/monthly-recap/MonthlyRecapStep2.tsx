@@ -69,7 +69,7 @@ export default function MonthlyRecapStep2({
   context,
   onNext,
   onTransfer,
-  onAutoBalance
+  onAutoBalance,
 }: MonthlyRecapStep2Props) {
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -83,8 +83,18 @@ export default function MonthlyRecapStep2({
   const [validationError, setValidationError] = useState<string>('')
 
   const monthNames = [
-    'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-    'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'
+    'Janvier',
+    'Février',
+    'Mars',
+    'Avril',
+    'Mai',
+    'Juin',
+    'Juillet',
+    'Août',
+    'Septembre',
+    'Octobre',
+    'Novembre',
+    'Décembre',
   ]
 
   /**
@@ -95,7 +105,7 @@ export default function MonthlyRecapStep2({
       setIsLoading(true)
       setError(null)
 
-      console.log('🔄 [Step2] Récupération des données live depuis l\'API step2-data')
+      console.log("🔄 [Step2] Récupération des données live depuis l'API step2-data")
 
       const response = await fetch(`/api/monthly-recap/step2-data?context=${context}`)
       const data = await response.json()
@@ -118,7 +128,9 @@ export default function MonthlyRecapStep2({
       console.log(`   - Déficit budgets: ${data.deficit_budgets || 0}€`)
       console.log(`   - Déficit autres: ${data.deficit_autres || 0}€`)
       if (data.detail_autres) {
-        console.log(`   → Dépenses exceptionnelles: ${data.detail_autres.depenses_exceptionnelles?.total || 0}€`)
+        console.log(
+          `   → Dépenses exceptionnelles: ${data.detail_autres.depenses_exceptionnelles?.total || 0}€`,
+        )
         console.log(`   → Écart revenus: ${data.detail_autres.ecart_revenus || 0}€`)
         console.log(`   → Autres non identifiés: ${data.detail_autres.autres_non_identifies || 0}€`)
       }
@@ -126,7 +138,6 @@ export default function MonthlyRecapStep2({
       console.log(``)
 
       setStep2Data(data)
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       console.error('❌ [Step2] Erreur lors de la récupération des données:', err)
@@ -144,13 +155,23 @@ export default function MonthlyRecapStep2({
 
   // Calculer les variables dérivées seulement si on a des données
   const currentMonthName = step2Data ? monthNames[step2Data.month - 1] : ''
-  const budgetsWithSurplus = step2Data ? step2Data.budget_stats.filter(budget => budget.surplus > 0) : []
-  const budgetsWithDeficit = step2Data ? step2Data.budget_stats.filter(budget => budget.deficit > 0) : []
+  const budgetsWithSurplus = step2Data
+    ? step2Data.budget_stats.filter((budget) => budget.surplus > 0)
+    : []
+  const budgetsWithDeficit = step2Data
+    ? step2Data.budget_stats.filter((budget) => budget.deficit > 0)
+    : []
 
   // Recalculer les totaux à partir des budget_stats actuels (peut avoir changé après équilibrage)
-  const currentTotalSavings = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) : 0
-  const currentTotalSurplus = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0) : 0
-  const currentTotalDeficit = step2Data ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0) : 0
+  const currentTotalSavings = step2Data
+    ? step2Data.budget_stats.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0)
+    : 0
+  const currentTotalSurplus = step2Data
+    ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
+    : 0
+  const currentTotalDeficit = step2Data
+    ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
+    : 0
 
   // Reset modal state when step2Data changes (after successful transfers)
   useEffect(() => {
@@ -158,7 +179,9 @@ export default function MonthlyRecapStep2({
       console.log('🎯 [Component] Données dans MonthlyRecapStep2:', {
         totalSurplus: currentTotalSurplus,
         totalDeficit: currentTotalDeficit,
-        budgets: step2Data.budget_stats.map(b => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`)
+        budgets: step2Data.budget_stats.map(
+          (b) => `${b.name}: ${b.spent_amount}€/${b.estimated_amount}€`,
+        ),
       })
 
       // Reset modal state when data changes to prevent stale states
@@ -175,14 +198,15 @@ export default function MonthlyRecapStep2({
   const getTransferDestinationOptions = (): DropdownOption[] => {
     if (!step2Data) return []
     return step2Data.budget_stats
-      .filter(budget => budget.id !== selectedFromBudget?.id)
-      .map(budget => ({
+      .filter((budget) => budget.id !== selectedFromBudget?.id)
+      .map((budget) => ({
         id: budget.id,
         name: budget.name,
         type: 'expense' as const,
         spentAmount: budget.spent_amount,
         estimatedAmount: budget.estimated_amount,
-        economyAmount: budget.surplus > 0 ? budget.surplus : budget.deficit > 0 ? -budget.deficit : 0
+        economyAmount:
+          budget.surplus > 0 ? budget.surplus : budget.deficit > 0 ? -budget.deficit : 0,
       }))
   }
 
@@ -190,14 +214,14 @@ export default function MonthlyRecapStep2({
   const getRecoverySourceOptions = (): DropdownOption[] => {
     if (!step2Data) return []
     return step2Data.budget_stats
-      .filter(budget => budget.id !== selectedFromBudget?.id && budget.surplus > 0)
-      .map(budget => ({
+      .filter((budget) => budget.id !== selectedFromBudget?.id && budget.surplus > 0)
+      .map((budget) => ({
         id: budget.id,
         name: budget.name,
         type: 'expense' as const,
         spentAmount: budget.spent_amount,
         estimatedAmount: budget.estimated_amount,
-        economyAmount: budget.surplus
+        economyAmount: budget.surplus,
       }))
   }
 
@@ -239,7 +263,7 @@ export default function MonthlyRecapStep2({
       // Rafraîchir les données après équilibrage automatique
       await fetchStep2Data()
     } catch (error) {
-      console.error('❌ [Step2] Erreur lors de l\'équilibrage automatique:', error)
+      console.error("❌ [Step2] Erreur lors de l'équilibrage automatique:", error)
     } finally {
       setIsProcessing(false)
     }
@@ -267,7 +291,9 @@ export default function MonthlyRecapStep2({
       // Mode transfert: vérifier que le montant ne dépasse pas le surplus disponible
       const availableSurplus = selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount
       if (amount > availableSurplus) {
-        alert(`Le montant ne peut pas dépasser ${formatCurrency(availableSurplus)} de surplus disponible`)
+        alert(
+          `Le montant ne peut pas dépasser ${formatCurrency(availableSurplus)} de surplus disponible`,
+        )
         return
       }
     } else {
@@ -282,15 +308,26 @@ export default function MonthlyRecapStep2({
     // Appeler notre fonction locale qui gère tout
     if (selectedFromBudget.surplus > 0) {
       // Mode transfert: de selectedFromBudget vers selectedToBudget
-      console.log('🔄 [Frontend] Transfer:', selectedFromBudget.id, '→', selectedToBudget, `${amount}€`)
+      console.log(
+        '🔄 [Frontend] Transfer:',
+        selectedFromBudget.id,
+        '→',
+        selectedToBudget,
+        `${amount}€`,
+      )
       await handleTransfer(selectedFromBudget.id, selectedToBudget, amount)
     } else {
       // Mode récupération: de selectedToBudget vers selectedFromBudget
-      console.log('🔄 [Frontend] Recovery:', selectedToBudget, '→', selectedFromBudget.id, `${amount}€`)
+      console.log(
+        '🔄 [Frontend] Recovery:',
+        selectedToBudget,
+        '→',
+        selectedFromBudget.id,
+        `${amount}€`,
+      )
       await handleTransfer(selectedToBudget, selectedFromBudget.id, amount)
     }
   }
-
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
@@ -312,7 +349,7 @@ export default function MonthlyRecapStep2({
         return `Le montant ne peut pas dépasser ${formatCurrency(currentDeficit)} de déficit à combler`
       }
       if (selectedToBudget && step2Data) {
-        const sourceBudget = step2Data.budget_stats.find(b => b.id === selectedToBudget)
+        const sourceBudget = step2Data.budget_stats.find((b) => b.id === selectedToBudget)
         if (sourceBudget && numAmount > sourceBudget.surplus) {
           return `Le budget source n'a que ${formatCurrency(sourceBudget.surplus)} de surplus disponible`
         }
@@ -336,15 +373,11 @@ export default function MonthlyRecapStep2({
   // État de chargement
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Récupération des données
-          </h2>
-          <p className="text-gray-600">
-            Calcul de vos budgets...
-          </p>
+          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <h2 className="mb-2 text-xl font-semibold text-gray-900">Récupération des données</h2>
+          <p className="text-gray-600">Calcul de vos budgets...</p>
         </div>
       </div>
     )
@@ -353,15 +386,25 @@ export default function MonthlyRecapStep2({
   // État d'erreur
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
-          <div className="text-red-600 mb-4">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
+          <div className="mb-4 text-red-600">
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+              />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-4 text-gray-600">{error}</p>
           <Button
             onClick={fetchStep2Data}
             className="w-full bg-red-600 text-white hover:bg-red-700"
@@ -379,31 +422,33 @@ export default function MonthlyRecapStep2({
   }
 
   return (
-    <div className="h-[100dvh] bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
+    <div className="flex h-[100dvh] flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 p-4">
+      <div className="border-b border-gray-200 bg-white p-4 shadow-sm">
         <div className="text-center">
-          <h1 className="text-xl font-bold text-gray-900">Récapitulatif {currentMonthName} {step2Data.year}</h1>
-          <p className="text-sm text-gray-600 mt-1">Étape 2 sur 2 - Gestion des économies</p>
+          <h1 className="text-xl font-bold text-gray-900">
+            Récapitulatif {currentMonthName} {step2Data.year}
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">Étape 2 sur 2 - Gestion des économies</p>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 p-4 space-y-6 overflow-y-auto min-h-0">
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
         {/* Bouton de répartition automatique */}
         {budgetsWithSurplus.length > 0 && budgetsWithDeficit.length > 0 && (
-          <Card className="p-4 bg-orange-50 border border-orange-200">
+          <Card className="border border-orange-200 bg-orange-50 p-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-medium text-orange-900">Répartition automatique</h3>
-                <p className="text-sm text-orange-700 mt-1">
+                <p className="mt-1 text-sm text-orange-700">
                   Répartir les excédents dans les budgets déficitaires de manière équilibrée
                 </p>
               </div>
               <Button
                 onClick={handleAutoBalance}
                 disabled={isProcessing || isLoading}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
+                className="bg-orange-500 text-white hover:bg-orange-600"
               >
                 {isProcessing ? 'Traitement...' : 'Auto-répartition'}
               </Button>
@@ -411,38 +456,36 @@ export default function MonthlyRecapStep2({
           </Card>
         )}
 
-         {/* Résumé des totaux */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Card className="p-3 bg-purple-50 border border-purple-200">
+        {/* Résumé des totaux */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card className="border border-purple-200 bg-purple-50 p-3">
             <div className="text-center">
-              <h4 className="font-medium text-purple-900 text-sm">Économies</h4>
-              <p className="text-lg font-bold text-purple-600 mt-1">
+              <h4 className="text-sm font-medium text-purple-900">Économies</h4>
+              <p className="mt-1 text-lg font-bold text-purple-600">
                 {formatCurrency(currentTotalSavings)}
               </p>
-              <p className="text-xs text-purple-700 mt-1">Cumulées</p>
+              <p className="mt-1 text-xs text-purple-700">Cumulées</p>
             </div>
           </Card>
 
-          <Card className="p-3 bg-green-50 border border-green-200">
+          <Card className="border border-green-200 bg-green-50 p-3">
             <div className="text-center">
-              <h4 className="font-medium text-green-900 text-sm">Surplus</h4>
-              <p className="text-lg font-bold text-green-600 mt-1">
+              <h4 className="text-sm font-medium text-green-900">Surplus</h4>
+              <p className="mt-1 text-lg font-bold text-green-600">
                 {formatCurrency(currentTotalSurplus)}
               </p>
-              <p className="text-xs text-green-700 mt-1">
-                {budgetsWithSurplus.length} budget(s)
-              </p>
+              <p className="mt-1 text-xs text-green-700">{budgetsWithSurplus.length} budget(s)</p>
             </div>
           </Card>
 
-          <Card className="p-3 bg-red-50 border border-red-200">
+          <Card className="border border-red-200 bg-red-50 p-3">
             <div className="text-center">
-              <h4 className="font-medium text-red-900 text-sm">Déficit Global</h4>
-              <p className="text-lg font-bold text-red-600 mt-1">
+              <h4 className="text-sm font-medium text-red-900">Déficit Global</h4>
+              <p className="mt-1 text-lg font-bold text-red-600">
                 {formatCurrency(step2Data.deficit_global || 0)}
               </p>
               {(step2Data.deficit_global || 0) > 0 && (
-                <div className="text-xs text-red-700 mt-1 space-y-0.5">
+                <div className="mt-1 space-y-0.5 text-xs text-red-700">
                   <p>Budgets: {formatCurrency(step2Data.deficit_budgets || 0)}</p>
                   {(step2Data.deficit_autres || 0) > 0 && (
                     <p>Autres: {formatCurrency(step2Data.deficit_autres || 0)}</p>
@@ -454,39 +497,39 @@ export default function MonthlyRecapStep2({
 
           {/* Tirelire (Revenus exceptionnels) */}
           {step2Data.piggy_bank > 0 && (
-            <Card className="p-3 bg-yellow-50 border border-yellow-200">
+            <Card className="border border-yellow-200 bg-yellow-50 p-3">
               <div className="text-center">
-                <h4 className="font-medium text-yellow-900 text-sm">Tirelire 🐷</h4>
-                <p className="text-lg font-bold text-yellow-600 mt-1">
+                <h4 className="text-sm font-medium text-yellow-900">Tirelire 🐷</h4>
+                <p className="mt-1 text-lg font-bold text-yellow-600">
                   {formatCurrency(step2Data.piggy_bank)}
                 </p>
-                <p className="text-xs text-yellow-700 mt-1">Revenus exceptionnels</p>
+                <p className="mt-1 text-xs text-yellow-700">Revenus exceptionnels</p>
               </div>
             </Card>
           )}
         </div>
 
         {/* Liste des budgets */}
-        <Card className="p-4 bg-white">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Détail par budget</h3>
+        <Card className="bg-white p-4">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900">Détail par budget</h3>
 
           <div className="space-y-3">
             {step2Data.budget_stats.map((budget) => (
               <div
                 key={budget.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between rounded-lg bg-gray-50 p-3"
               >
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900">{budget.name}</h4>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="mt-1 text-sm text-gray-600">
                     <div>Budgété: {formatCurrency(budget.estimated_amount)}</div>
                     <div>Dépensé: {formatCurrency(budget.spent_amount)}</div>
                   </div>
-                  <div className={`text-sm font-medium mt-1 ${getBudgetStatusColor(budget)}`}>
+                  <div className={`mt-1 text-sm font-medium ${getBudgetStatusColor(budget)}`}>
                     {getBudgetStatusText(budget)}
                   </div>
                   {budget.cumulated_savings > 0 && (
-                    <div className="text-sm text-purple-600 mt-1">
+                    <div className="mt-1 text-sm text-purple-600">
                       +{formatCurrency(budget.cumulated_savings)} d&apos;économies
                     </div>
                   )}
@@ -500,8 +543,18 @@ export default function MonthlyRecapStep2({
                     size="sm"
                     className="ml-3"
                   >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    <svg
+                      className="mr-1 h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
                     </svg>
                     Transférer
                   </Button>
@@ -515,8 +568,18 @@ export default function MonthlyRecapStep2({
                     size="sm"
                     className="ml-3"
                   >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7h16m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    <svg
+                      className="mr-1 h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M4 7h16m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                      />
                     </svg>
                     Récupérer
                   </Button>
@@ -526,7 +589,7 @@ export default function MonthlyRecapStep2({
           </div>
 
           {step2Data.budget_stats.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="py-8 text-center text-gray-500">
               <p>Aucun budget estimé configuré</p>
             </div>
           )}
@@ -534,26 +597,26 @@ export default function MonthlyRecapStep2({
 
         {/* Détail des déficits "Autres" (si présents) */}
         {(step2Data.deficit_autres || 0) > 0 && step2Data.detail_autres && (
-          <Card className="p-4 bg-orange-50 border border-orange-200">
-            <h3 className="text-lg font-semibold text-orange-900 mb-4">
+          <Card className="border border-orange-200 bg-orange-50 p-4">
+            <h3 className="mb-4 text-lg font-semibold text-orange-900">
               Détail des déficits hors budgets
             </h3>
-            <p className="text-sm text-orange-700 mb-4">
+            <p className="mb-4 text-sm text-orange-700">
               Total: {formatCurrency(step2Data.deficit_autres)}
             </p>
 
             <div className="space-y-3">
               {/* Dépenses exceptionnelles */}
               {step2Data.detail_autres.depenses_exceptionnelles.total > 0 && (
-                <div className="p-3 bg-white rounded-lg border border-orange-200">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="rounded-lg border border-orange-200 bg-white p-3">
+                  <div className="mb-2 flex items-center justify-between">
                     <h4 className="font-medium text-orange-800">Dépenses exceptionnelles</h4>
                     <span className="text-sm font-bold text-orange-600">
                       {formatCurrency(step2Data.detail_autres.depenses_exceptionnelles.total)}
                     </span>
                   </div>
                   {step2Data.detail_autres.depenses_exceptionnelles.items.length > 0 && (
-                    <ul className="text-sm text-gray-600 space-y-1 mt-2">
+                    <ul className="mt-2 space-y-1 text-sm text-gray-600">
                       {step2Data.detail_autres.depenses_exceptionnelles.items.map((item) => (
                         <li key={item.id} className="flex justify-between">
                           <span>{item.description || 'Dépense sans budget'}</span>
@@ -567,14 +630,14 @@ export default function MonthlyRecapStep2({
 
               {/* Écart de revenus */}
               {step2Data.detail_autres.ecart_revenus > 0 && (
-                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                <div className="rounded-lg border border-orange-200 bg-white p-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium text-orange-800">Écart de revenus</h4>
                     <span className="text-sm font-bold text-orange-600">
                       {formatCurrency(step2Data.detail_autres.ecart_revenus)}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="mt-1 text-xs text-gray-500">
                     Revenus réels inférieurs aux revenus estimés
                   </p>
                 </div>
@@ -582,14 +645,14 @@ export default function MonthlyRecapStep2({
 
               {/* Autres non identifiés */}
               {step2Data.detail_autres.autres_non_identifies > 0 && (
-                <div className="p-3 bg-white rounded-lg border border-orange-200">
+                <div className="rounded-lg border border-orange-200 bg-white p-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium text-orange-800">Autres écarts</h4>
                     <span className="text-sm font-bold text-orange-600">
                       {formatCurrency(step2Data.detail_autres.autres_non_identifies)}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="mt-1 text-xs text-gray-500">
                     Écarts divers (arrondis, ajustements...)
                   </p>
                 </div>
@@ -597,15 +660,12 @@ export default function MonthlyRecapStep2({
             </div>
           </Card>
         )}
-
       </div>
 
       {/* Footer avec navigation */}
-      <div className="bg-white border-t border-gray-200 p-4">
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-gray-500">
-            Étape 2 sur 2
-          </div>
+      <div className="border-t border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-500">Étape 2 sur 2</div>
           <Button
             onClick={async () => {
               setIsSubmitting(true)
@@ -618,17 +678,35 @@ export default function MonthlyRecapStep2({
               }
             }}
             disabled={isLoading || isSubmitting}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 disabled:opacity-50"
+            className="bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
-                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                <svg
+                  className="h-4 w-4 animate-spin"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  ></path>
                 </svg>
                 Finalisation...
               </span>
-            ) : 'Terminer le récapitulatif'}
+            ) : (
+              'Terminer le récapitulatif'
+            )}
           </Button>
         </div>
       </div>
@@ -638,7 +716,9 @@ export default function MonthlyRecapStep2({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {(selectedFromBudget?.surplus ?? 0) > 0 ? 'Transférer des économies' : 'Récupérer des fonds'}
+              {(selectedFromBudget?.surplus ?? 0) > 0
+                ? 'Transférer des économies'
+                : 'Récupérer des fonds'}
             </DialogTitle>
           </DialogHeader>
 
@@ -647,16 +727,16 @@ export default function MonthlyRecapStep2({
               {selectedFromBudget.surplus > 0 ? (
                 // Mode transfert (budget avec surplus)
                 <>
-                  <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="rounded-lg bg-green-50 p-3">
                     <h4 className="font-medium text-green-900">Budget source</h4>
                     <p className="text-sm text-green-700">{selectedFromBudget.name}</p>
-                    <p className="text-sm text-green-600 font-medium">
+                    <p className="text-sm font-medium text-green-600">
                       {formatCurrency(selectedFromBudget.surplus)} disponibles
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
                       Budget de destination
                     </label>
                     <CustomDropdown
@@ -669,7 +749,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
                       Montant à transférer
                     </label>
                     <input
@@ -683,26 +763,29 @@ export default function MonthlyRecapStep2({
                         }
                       }}
                       placeholder="0.00"
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Maximum: {formatCurrency(selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount)}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Maximum:{' '}
+                      {formatCurrency(
+                        selectedFromBudget.estimated_amount - selectedFromBudget.spent_amount,
+                      )}
                     </p>
                   </div>
                 </>
               ) : (
                 // Mode récupération (budget avec déficit)
                 <>
-                  <div className="p-3 bg-red-50 rounded-lg">
+                  <div className="rounded-lg bg-red-50 p-3">
                     <h4 className="font-medium text-red-900">Budget en déficit</h4>
                     <p className="text-sm text-red-700">{selectedFromBudget.name}</p>
-                    <p className="text-sm text-red-600 font-medium">
+                    <p className="text-sm font-medium text-red-600">
                       {formatCurrency(selectedFromBudget.deficit)} de déficit
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
                       Budget source (avec surplus)
                     </label>
                     <CustomDropdown
@@ -715,7 +798,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
                       Montant à récupérer
                     </label>
                     <input
@@ -729,10 +812,13 @@ export default function MonthlyRecapStep2({
                         }
                       }}
                       placeholder="0.00"
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      className="w-full rounded-md border border-gray-300 p-2 focus:ring-2 focus:ring-blue-500"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Maximum: {formatCurrency(selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount)}
+                    <p className="mt-1 text-xs text-gray-500">
+                      Maximum:{' '}
+                      {formatCurrency(
+                        selectedFromBudget.spent_amount - selectedFromBudget.estimated_amount,
+                      )}
                     </p>
                   </div>
                 </>
@@ -740,8 +826,10 @@ export default function MonthlyRecapStep2({
 
               {/* Message d'erreur de validation */}
               {(computedValidationError || validationError) && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600 font-medium">⚠️ {computedValidationError || validationError}</p>
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-600">
+                    ⚠️ {computedValidationError || validationError}
+                  </p>
                 </div>
               )}
 
@@ -755,17 +843,28 @@ export default function MonthlyRecapStep2({
                 </Button>
                 <Button
                   onClick={handleTransferSubmit}
-                  disabled={!selectedToBudget || !transferAmount || isProcessing || !!(computedValidationError || validationError)}
+                  disabled={
+                    !selectedToBudget ||
+                    !transferAmount ||
+                    isProcessing ||
+                    !!(computedValidationError || validationError)
+                  }
                   className={`text-white ${
-                    !selectedToBudget || !transferAmount || isProcessing || !!(computedValidationError || validationError)
-                      ? 'bg-gray-400 cursor-not-allowed'
+                    !selectedToBudget ||
+                    !transferAmount ||
+                    isProcessing ||
+                    !!(computedValidationError || validationError)
+                      ? 'cursor-not-allowed bg-gray-400'
                       : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {isProcessing ?
-                    (selectedFromBudget.surplus > 0 ? 'Transfert...' : 'Récupération...') :
-                    (selectedFromBudget.surplus > 0 ? 'Confirmer' : 'Récupérer')
-                  }
+                  {isProcessing
+                    ? selectedFromBudget.surplus > 0
+                      ? 'Transfert...'
+                      : 'Récupération...'
+                    : selectedFromBudget.surplus > 0
+                      ? 'Confirmer'
+                      : 'Récupérer'}
                 </Button>
               </div>
             </div>

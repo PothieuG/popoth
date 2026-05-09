@@ -22,7 +22,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -36,8 +36,8 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -57,7 +57,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la vérification du récap existant:', recapCheckError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification du récap existant' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -66,7 +66,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.log(`📊 [Resume API] Aucun récap existant trouvé pour ${context}:${contextId}`)
       return NextResponse.json({
         exists: false,
-        message: 'Aucun récapitulatif en cours pour ce mois'
+        message: 'Aucun récapitulatif en cours pour ce mois',
       })
     }
 
@@ -76,11 +76,13 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       return NextResponse.json({
         exists: false,
         completed: true,
-        message: 'Récapitulatif déjà complété pour ce mois'
+        message: 'Récapitulatif déjà complété pour ce mois',
       })
     }
 
-    console.log(`📊 [Resume API] Récap en cours trouvé pour ${context}:${contextId} à l'étape ${existingRecap.current_step}`)
+    console.log(
+      `📊 [Resume API] Récap en cours trouvé pour ${context}:${contextId} à l'étape ${existingRecap.current_step}`,
+    )
 
     // Récupérer les données financières actuelles
     let financialData: Awaited<ReturnType<typeof getProfileFinancialData>>
@@ -100,7 +102,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -114,7 +116,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -128,7 +130,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ [Resume] Erreur lors de la récupération des transferts:', transfersError)
     }
 
-    const transfers = transfersError ? [] : (existingTransfers || [])
+    const transfers = transfersError ? [] : existingTransfers || []
     console.log(`🔍 [Resume] ${transfers.length} transferts existants trouvés`)
 
     // Calculer les économies/déficits des budgets pour ce mois (avec transferts)
@@ -146,12 +148,12 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
         // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
         const outgoingTransfers = transfers
-          .filter(transfer => transfer.from_budget_id === budget.id)
+          .filter((transfer) => transfer.from_budget_id === budget.id)
           .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
         const incomingTransfers = transfers
-          .filter(transfer => transfer.to_budget_id === budget.id)
+          .filter((transfer) => transfer.to_budget_id === budget.id)
           .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         transferAdjustment = outgoingTransfers - incomingTransfers
@@ -172,7 +174,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
           difference, // Positif = économie, Négatif = déficit
           surplus: Math.max(0, difference), // Économies (budget - dépenses)
           deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
-          cumulated_savings: budget.cumulated_savings || 0 // Économies cumulées existantes
+          cumulated_savings: budget.cumulated_savings || 0, // Économies cumulées existantes
         }
 
         budgetStats.push(budgetStat)
@@ -205,14 +207,10 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       month: currentMonth,
       year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`,
-      recap_id: existingRecap.id
+      recap_id: existingRecap.id,
     })
-
   } catch (error) {
     console.error('❌ Erreur lors de la récupération du récap mensuel:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

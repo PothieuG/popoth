@@ -29,13 +29,15 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     // Build the query
     let groupsQuery = supabase
       .from('groups')
-      .select(`
+      .select(
+        `
         id,
         name,
         monthly_budget_estimate,
         created_at,
         creator_id
-      `)
+      `,
+      )
       .order('created_at', { ascending: false })
       .limit(limit)
 
@@ -48,10 +50,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
     if (groupsError) {
       console.error('Error searching groups:', groupsError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la recherche de groupes' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Erreur lors de la recherche de groupes' }, { status: 500 })
     }
 
     const userGroupId = profile.group_id
@@ -81,21 +80,18 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
           is_member: userGroupId === group.id,
           creator_name: creatorProfile
             ? `${creatorProfile.first_name} ${creatorProfile.last_name}`
-            : 'Utilisateur inconnu'
+            : 'Utilisateur inconnu',
         }
-      })
+      }),
     )
 
     return NextResponse.json({
       groups: searchableGroups,
       total: searchableGroups.length,
-      query: query || null
+      query: query || null,
     })
   } catch (error) {
     console.error('Error in GET /api/groups/search:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

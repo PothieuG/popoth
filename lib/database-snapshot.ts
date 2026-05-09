@@ -20,7 +20,7 @@ export async function createFullDatabaseSnapshot(
   contextId: string,
   context: 'profile' | 'group',
   snapshotMonth: number,
-  snapshotYear: number
+  snapshotYear: number,
 ): Promise<{ snapshotId: string | null; error: string | null }> {
   const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
 
@@ -44,38 +44,14 @@ export async function createFullDatabaseSnapshot(
       context === 'profile'
         ? supabaseServer.from('profiles').select('*').eq('id', contextId)
         : supabaseServer.from('profiles').select('*').eq('group_id', contextId),
-      supabaseServer
-        .from('estimated_incomes')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('estimated_budgets')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('real_income_entries')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('real_expenses')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('bank_balances')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('piggy_bank')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('budget_transfers')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('monthly_recaps')
-        .select('*')
-        .eq(ownerField, contextId),
+      supabaseServer.from('estimated_incomes').select('*').eq(ownerField, contextId),
+      supabaseServer.from('estimated_budgets').select('*').eq(ownerField, contextId),
+      supabaseServer.from('real_income_entries').select('*').eq(ownerField, contextId),
+      supabaseServer.from('real_expenses').select('*').eq(ownerField, contextId),
+      supabaseServer.from('bank_balances').select('*').eq(ownerField, contextId),
+      supabaseServer.from('piggy_bank').select('*').eq(ownerField, contextId),
+      supabaseServer.from('budget_transfers').select('*').eq(ownerField, contextId),
+      supabaseServer.from('monthly_recaps').select('*').eq(ownerField, contextId),
       supabaseServer
         .from('remaining_to_live_snapshots')
         .select('*')
@@ -126,10 +102,12 @@ export async function createFullDatabaseSnapshot(
       budget_transfers: budgetTransfers.data?.length ?? 0,
       monthly_recaps: monthlyRecaps.data?.length ?? 0,
       remaining_to_live_snapshots: remainingToLiveSnapshots.data?.length ?? 0,
-      ...(context === 'group' ? {
-        groups: groupData.data ? 1 : 0,
-        group_contributions: groupContributions.data?.length ?? 0,
-      } : {}),
+      ...(context === 'group'
+        ? {
+            groups: groupData.data ? 1 : 0,
+            group_contributions: groupContributions.data?.length ?? 0,
+          }
+        : {}),
     }
 
     // Construire le JSONB complet
@@ -186,10 +164,7 @@ export async function createFullDatabaseSnapshot(
       return { snapshotId: null, error: insertError.message }
     }
 
-    const totalRecords = Object.values(tableCounts).reduce(
-      (sum, count) => sum + count,
-      0
-    )
+    const totalRecords = Object.values(tableCounts).reduce((sum, count) => sum + count, 0)
 
     console.log(`📸 [Snapshot] Snapshot complet créé avec succès`)
     console.log(`📸 [Snapshot] ID: ${inserted.id}`)

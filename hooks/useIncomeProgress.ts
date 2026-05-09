@@ -41,7 +41,9 @@ interface UseIncomeProgressReturn {
  * - = 100% : bleu (valeur exacte)
  * - > 100% : vert (au-dessus)
  */
-const getIncomeColorClass = (percentage: number): { colorClass: string; textColorClass: string } => {
+const getIncomeColorClass = (
+  percentage: number,
+): { colorClass: string; textColorClass: string } => {
   if (percentage >= 90 && percentage < 100) {
     return { colorClass: 'bg-yellow-100', textColorClass: 'text-yellow-800' }
   } else if (percentage < 90) {
@@ -62,7 +64,7 @@ const getIncomeColorClass = (percentage: number): { colorClass: string; textColo
  */
 export function useIncomeProgress(
   incomes: EstimatedIncome[],
-  context?: 'profile' | 'group'
+  context?: 'profile' | 'group',
 ): UseIncomeProgressReturn {
   const [incomeProgresses, setIncomeProgresses] = useState<IncomeProgress[]>([])
   const [loading, setLoading] = useState(false)
@@ -73,7 +75,7 @@ export function useIncomeProgress(
     incomes: realIncomes,
     loading: incomesLoading,
     error: incomesError,
-    refreshIncomes
+    refreshIncomes,
   } = useRealIncomes(context)
 
   /**
@@ -81,21 +83,23 @@ export function useIncomeProgress(
    */
   const calculateIncomeProgresses = useCallback(
     (incomes: EstimatedIncome[], realIncomes: RealIncome[]): IncomeProgress[] => {
-      return incomes.map(income => {
+      return incomes.map((income) => {
         // Trouver tous les revenus réels liés à ce revenu estimé
         const relatedIncomes = realIncomes.filter(
-          realIncome => realIncome.estimated_income_id === income.id
+          (realIncome) => realIncome.estimated_income_id === income.id,
         )
 
         // Calculer le montant total reçu pour ce revenu
         const receivedAmount = relatedIncomes.reduce(
-          (sum, realIncome) => sum + realIncome.amount, 0
+          (sum, realIncome) => sum + realIncome.amount,
+          0,
         )
 
         // Calculer le pourcentage de récupération
-        const percentage = income.estimated_amount > 0
-          ? Math.round((receivedAmount / income.estimated_amount) * 100 * 100) / 100 // 2 décimales
-          : 0
+        const percentage =
+          income.estimated_amount > 0
+            ? Math.round((receivedAmount / income.estimated_amount) * 100 * 100) / 100 // 2 décimales
+            : 0
 
         // Déterminer les classes de couleur
         const { colorClass, textColorClass } = getIncomeColorClass(percentage)
@@ -107,11 +111,11 @@ export function useIncomeProgress(
           receivedAmount,
           percentage,
           colorClass,
-          textColorClass
+          textColorClass,
         }
       })
     },
-    []
+    [],
   )
 
   // Calculer les progressions - toujours recalculer en temps réel
@@ -139,15 +143,18 @@ export function useIncomeProgress(
   /**
    * Récupère la progression d'un revenu spécifique par son ID
    */
-  const getIncomeProgress = useCallback((incomeId: string): IncomeProgress | undefined => {
-    return incomeProgresses.find(progress => progress.incomeId === incomeId)
-  }, [incomeProgresses])
+  const getIncomeProgress = useCallback(
+    (incomeId: string): IncomeProgress | undefined => {
+      return incomeProgresses.find((progress) => progress.incomeId === incomeId)
+    },
+    [incomeProgresses],
+  )
 
   return {
     incomeProgresses,
     loading,
     error,
     refreshProgress,
-    getIncomeProgress
+    getIncomeProgress,
   }
 }

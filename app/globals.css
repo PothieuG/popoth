@@ -63,7 +63,8 @@
   * {
     @apply border-border;
   }
-  html, body {
+  html,
+  body {
     height: 100%;
     height: 100dvh;
     overflow: hidden;

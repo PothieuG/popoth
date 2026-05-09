@@ -47,12 +47,12 @@ export async function calculateMonthlyBudgetStats(
   contextId: string,
   context: 'profile' | 'group',
   month?: number,
-  year?: number
+  year?: number,
 ): Promise<MonthlyBudgetStats[]> {
   try {
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
     const currentDate = new Date()
-    const targetMonth = month || (currentDate.getMonth() + 1)
+    const targetMonth = month || currentDate.getMonth() + 1
     const targetYear = year || currentDate.getFullYear()
 
     // Récupérer tous les budgets estimés
@@ -72,7 +72,10 @@ export async function calculateMonthlyBudgetStats(
       .select('amount, estimated_budget_id, expense_date')
       .eq(ownerField, contextId)
       .gte('expense_date', `${targetYear}-${targetMonth.toString().padStart(2, '0')}-01`)
-      .lt('expense_date', `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`)
+      .lt(
+        'expense_date',
+        `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`,
+      )
 
     if (expensesError) {
       console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
@@ -86,7 +89,7 @@ export async function calculateMonthlyBudgetStats(
     for (const budget of budgets) {
       // Calculer le montant dépensé pour ce budget ce mois
       const spentAmount = monthlyExpenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
+        .filter((expense) => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + parseFloat(expense.amount.toString()), 0)
 
       const estimatedAmount = parseFloat(budget.estimated_amount.toString())
@@ -100,16 +103,21 @@ export async function calculateMonthlyBudgetStats(
         difference,
         surplus: Math.max(0, difference),
         deficit: Math.max(0, -difference),
-        monthly_surplus: budget.monthly_surplus ? parseFloat(budget.monthly_surplus.toString()) : undefined,
-        monthly_deficit: budget.monthly_deficit ? parseFloat(budget.monthly_deficit.toString()) : undefined
+        monthly_surplus: budget.monthly_surplus
+          ? parseFloat(budget.monthly_surplus.toString())
+          : undefined,
+        monthly_deficit: budget.monthly_deficit
+          ? parseFloat(budget.monthly_deficit.toString())
+          : undefined,
       }
 
       budgetStats.push(budgetStat)
     }
 
-    console.log(`📊 [Monthly Budget Stats] Calculé pour ${context}:${contextId} - ${budgetStats.length} budgets`)
+    console.log(
+      `📊 [Monthly Budget Stats] Calculé pour ${context}:${contextId} - ${budgetStats.length} budgets`,
+    )
     return budgetStats
-
   } catch (error) {
     console.error('❌ Erreur lors du calcul des statistiques mensuelles:', error)
     return []
@@ -122,7 +130,7 @@ export async function calculateMonthlyBudgetStats(
 export async function updateBudgetMonthlySurplusDeficit(
   budgetId: string,
   surplus: number,
-  deficit: number
+  deficit: number,
 ): Promise<boolean> {
   try {
     const { error } = await supabaseServer
@@ -131,7 +139,7 @@ export async function updateBudgetMonthlySurplusDeficit(
         monthly_surplus: Math.max(0, surplus),
         monthly_deficit: Math.max(0, deficit),
         last_monthly_update: new Date().toISOString().split('T')[0], // Format YYYY-MM-DD
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq('id', budgetId)
 
@@ -142,7 +150,6 @@ export async function updateBudgetMonthlySurplusDeficit(
 
     console.log(`✅ Budget ${budgetId} mis à jour: surplus=${surplus}€, deficit=${deficit}€`)
     return true
-
   } catch (error) {
     console.error('❌ Erreur lors de la mise à jour mensuelle du budget:', error)
     return false
@@ -155,18 +162,20 @@ export async function updateBudgetMonthlySurplusDeficit(
 export async function updateAllBudgetsMonthlySurplusDeficit(
   contextId: string,
   context: 'profile' | 'group',
-  budgetStats: MonthlyBudgetStats[]
+  budgetStats: MonthlyBudgetStats[],
 ): Promise<{ success: number; errors: number }> {
   let successCount = 0
   let errorCount = 0
 
-  console.log(`🔄 [Update All Budgets] Début pour ${context}:${contextId} - ${budgetStats.length} budgets`)
+  console.log(
+    `🔄 [Update All Budgets] Début pour ${context}:${contextId} - ${budgetStats.length} budgets`,
+  )
 
   for (const budgetStat of budgetStats) {
     const success = await updateBudgetMonthlySurplusDeficit(
       budgetStat.id,
       budgetStat.surplus,
-      budgetStat.deficit
+      budgetStat.deficit,
     )
 
     if (success) {
@@ -187,11 +196,11 @@ export async function hasMonthlyRecapBeenCompleted(
   contextId: string,
   context: 'profile' | 'group',
   month?: number,
-  year?: number
+  year?: number,
 ): Promise<boolean> {
   try {
     const currentDate = new Date()
-    const targetMonth = month || (currentDate.getMonth() + 1)
+    const targetMonth = month || currentDate.getMonth() + 1
     const targetYear = year || currentDate.getFullYear()
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
 
@@ -203,12 +212,12 @@ export async function hasMonthlyRecapBeenCompleted(
       .eq('recap_year', targetYear)
       .single()
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows found
       console.error('❌ Erreur lors de la vérification du récap mensuel:', error)
     }
 
     return !!recap
-
   } catch (error) {
     console.error('❌ Erreur lors de la vérification du récap mensuel:', error)
     return false
@@ -222,15 +231,20 @@ export async function getMonthlyRecapSummary(
   contextId: string,
   context: 'profile' | 'group',
   month?: number,
-  year?: number
+  year?: number,
 ): Promise<MonthlyRecapSummary | null> {
   try {
     const currentDate = new Date()
-    const targetMonth = month || (currentDate.getMonth() + 1)
+    const targetMonth = month || currentDate.getMonth() + 1
     const targetYear = year || currentDate.getFullYear()
 
     // Calculer les statistiques des budgets
-    const budgetStats = await calculateMonthlyBudgetStats(contextId, context, targetMonth, targetYear)
+    const budgetStats = await calculateMonthlyBudgetStats(
+      contextId,
+      context,
+      targetMonth,
+      targetYear,
+    )
 
     // Calculer les totaux
     const totalSurplus = budgetStats.reduce((sum, budget) => sum + budget.surplus, 0)
@@ -246,9 +260,11 @@ export async function getMonthlyRecapSummary(
       .select('estimated_amount')
       .eq(ownerField, contextId)
 
-    const estimatedIncomesTotal = estimatedIncomes?.reduce(
-      (sum, income) => sum + parseFloat(income.estimated_amount.toString()), 0
-    ) || 0
+    const estimatedIncomesTotal =
+      estimatedIncomes?.reduce(
+        (sum, income) => sum + parseFloat(income.estimated_amount.toString()),
+        0,
+      ) || 0
 
     // Total des revenus réels du mois
     const { data: realIncomes } = await supabaseServer
@@ -256,11 +272,13 @@ export async function getMonthlyRecapSummary(
       .select('amount')
       .eq(ownerField, contextId)
       .gte('entry_date', `${targetYear}-${targetMonth.toString().padStart(2, '0')}-01`)
-      .lt('entry_date', `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`)
+      .lt(
+        'entry_date',
+        `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`,
+      )
 
-    const realIncomesTotal = realIncomes?.reduce(
-      (sum, income) => sum + parseFloat(income.amount.toString()), 0
-    ) || 0
+    const realIncomesTotal =
+      realIncomes?.reduce((sum, income) => sum + parseFloat(income.amount.toString()), 0) || 0
 
     // Total des dépenses réelles du mois
     const { data: realExpenses } = await supabaseServer
@@ -268,14 +286,17 @@ export async function getMonthlyRecapSummary(
       .select('amount')
       .eq(ownerField, contextId)
       .gte('expense_date', `${targetYear}-${targetMonth.toString().padStart(2, '0')}-01`)
-      .lt('expense_date', `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`)
+      .lt(
+        'expense_date',
+        `${targetMonth === 12 ? targetYear + 1 : targetYear}-${targetMonth === 12 ? '01' : (targetMonth + 1).toString().padStart(2, '0')}-01`,
+      )
 
-    const realExpensesTotal = realExpenses?.reduce(
-      (sum, expense) => sum + parseFloat(expense.amount.toString()), 0
-    ) || 0
+    const realExpensesTotal =
+      realExpenses?.reduce((sum, expense) => sum + parseFloat(expense.amount.toString()), 0) || 0
 
     // Calculer le reste à vivre avec la logique complète (JAMAIS de simplification)
-    const { getProfileFinancialData, getGroupFinancialData } = await import('./financial-calculations')
+    const { getProfileFinancialData, getGroupFinancialData } =
+      await import('./financial-calculations')
     type FinancialData = Awaited<ReturnType<typeof getProfileFinancialData>>
     let financialData: FinancialData
     if (context === 'profile') {
@@ -297,14 +318,15 @@ export async function getMonthlyRecapSummary(
       general_ratio: generalRatio,
       estimated_incomes_total: estimatedIncomesTotal,
       real_incomes_total: realIncomesTotal,
-      real_expenses_total: realExpensesTotal
+      real_expenses_total: realExpensesTotal,
     }
 
     console.log(`📊 [Monthly Recap Summary] Généré pour ${context}:${contextId}`)
-    console.log(`📊 [Monthly Recap Summary] Surplus: ${totalSurplus}€, Déficit: ${totalDeficit}€, Ratio: ${generalRatio}€`)
+    console.log(
+      `📊 [Monthly Recap Summary] Surplus: ${totalSurplus}€, Déficit: ${totalDeficit}€, Ratio: ${generalRatio}€`,
+    )
 
     return summary
-
   } catch (error) {
     console.error('❌ Erreur lors de la génération du résumé mensuel:', error)
     return null
@@ -316,7 +338,7 @@ export async function getMonthlyRecapSummary(
  */
 export async function resetEstimatedIncomes(
   contextId: string,
-  context: 'profile' | 'group'
+  context: 'profile' | 'group',
 ): Promise<boolean> {
   try {
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -325,18 +347,20 @@ export async function resetEstimatedIncomes(
       .from('estimated_incomes')
       .update({
         estimated_amount: 0,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq(ownerField, contextId)
 
     if (error) {
-      console.error(`❌ Erreur lors du reset des revenus estimés pour ${context}:${contextId}:`, error)
+      console.error(
+        `❌ Erreur lors du reset des revenus estimés pour ${context}:${contextId}:`,
+        error,
+      )
       return false
     }
 
     console.log(`✅ [Reset Incomes] Revenus estimés remis à 0 pour ${context}:${contextId}`)
     return true
-
   } catch (error) {
     console.error('❌ Erreur lors du reset des revenus estimés:', error)
     return false
@@ -348,7 +372,7 @@ export async function resetEstimatedIncomes(
  */
 export async function markBudgetsAsUpdated(
   contextId: string,
-  context: 'profile' | 'group'
+  context: 'profile' | 'group',
 ): Promise<boolean> {
   try {
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -358,18 +382,22 @@ export async function markBudgetsAsUpdated(
       .from('estimated_budgets')
       .update({
         last_monthly_update: today,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq(ownerField, contextId)
 
     if (error) {
-      console.error(`❌ Erreur lors de la mise à jour des budgets pour ${context}:${contextId}:`, error)
+      console.error(
+        `❌ Erreur lors de la mise à jour des budgets pour ${context}:${contextId}:`,
+        error,
+      )
       return false
     }
 
-    console.log(`✅ [Mark Budgets Updated] Budgets marqués comme mis à jour pour ${context}:${contextId}`)
+    console.log(
+      `✅ [Mark Budgets Updated] Budgets marqués comme mis à jour pour ${context}:${contextId}`,
+    )
     return true
-
   } catch (error) {
     console.error('❌ Erreur lors de la mise à jour des budgets:', error)
     return false

@@ -25,7 +25,7 @@ export default function MotDePasseOubliePage() {
     e.preventDefault()
     setError('')
     setSuccess(false)
-    
+
     // Email validation
     if (!email) {
       setError('Veuillez entrer votre adresse email')
@@ -38,11 +38,11 @@ export default function MotDePasseOubliePage() {
     }
 
     setLoading(true)
-    
+
     try {
       // Send password reset email with Supabase
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}/reset-password`,
       })
 
       if (resetError) {
@@ -50,7 +50,7 @@ export default function MotDePasseOubliePage() {
         if (resetError.message.includes('rate limit')) {
           setError('Trop de demandes. Veuillez patienter avant de réessayer.')
         } else {
-          setError('Erreur lors de l\'envoi de l\'email. Veuillez réessayer.')
+          setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
         }
         console.error('Password reset error:', resetError)
         return
@@ -59,9 +59,8 @@ export default function MotDePasseOubliePage() {
       // Success - show confirmation message
       // Note: Supabase always succeeds for security reasons, even if email doesn't exist
       setSuccess(true)
-      
     } catch (error) {
-      setError('Erreur lors de l\'envoi de l\'email. Veuillez réessayer.')
+      setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
       console.error('Password reset error:', error)
     } finally {
       setLoading(false)
@@ -77,36 +76,43 @@ export default function MotDePasseOubliePage() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-8">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="space-y-3 text-center">
+            <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
               Email envoyé !
             </h1>
-            <p className="text-lg text-gray-600">
-              Vérifiez votre boîte de réception
-            </p>
+            <p className="text-lg text-gray-600">Vérifiez votre boîte de réception</p>
           </div>
 
           {/* Success Message */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-            <div className="text-center space-y-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
+            <div className="space-y-6 text-center">
               {/* Success Icon */}
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <svg
+                  className="h-8 w-8 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
                 </svg>
               </div>
 
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Demande traitée
-                </h2>
+                <h2 className="text-xl font-semibold text-gray-900">Demande traitée</h2>
                 <p className="text-gray-600">
-                  Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un lien de réinitialisation.
+                  Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un
+                  lien de réinitialisation.
                 </p>
-                <div className="text-sm text-gray-500 space-y-2">
+                <div className="space-y-2 text-sm text-gray-500">
                   <p>• Vérifiez votre boîte de réception et votre dossier spam</p>
                   <p>• Le lien expire après 1 heure</p>
                   <p>• Si vous ne recevez rien, vérifiez que l&apos;adresse est correcte</p>
@@ -116,7 +122,7 @@ export default function MotDePasseOubliePage() {
               {/* Back to Login Button */}
               <Button
                 onClick={handleBackToLogin}
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Retour à la connexion
               </Button>
@@ -128,11 +134,11 @@ export default function MotDePasseOubliePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="space-y-3 text-center">
+          <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Mot de passe oublié
           </h1>
           <p className="text-lg text-gray-600">
@@ -141,7 +147,7 @@ export default function MotDePasseOubliePage() {
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
@@ -156,23 +162,25 @@ export default function MotDePasseOubliePage() {
                 placeholder="votre@email.com"
                 disabled={loading}
                 autoComplete="email"
-                className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
+                className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
 
             {/* Error Display */}
             {error && (
-              <div className="rounded-lg bg-red-50 p-4 border-l-4 border-red-500">
+              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">
-                      {error}
-                    </p>
+                    <p className="font-medium text-red-800">{error}</p>
                   </div>
                 </div>
               </div>
@@ -181,7 +189,7 @@ export default function MotDePasseOubliePage() {
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+              className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               disabled={loading}
             >
               {loading ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
@@ -190,9 +198,9 @@ export default function MotDePasseOubliePage() {
 
           {/* Back to Login Link */}
           <div className="mt-8 text-center">
-            <button 
+            <button
               onClick={handleBackToLogin}
-              className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-800"
             >
               Retour à la connexion
             </button>

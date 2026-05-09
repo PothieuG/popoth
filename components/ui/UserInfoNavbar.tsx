@@ -14,11 +14,7 @@ interface UserInfoNavbarProps {
  */
 export default function UserInfoNavbar({ profile, userContribution }: UserInfoNavbarProps) {
   if (!profile) {
-    return (
-      <div className="text-sm text-gray-500">
-        Chargement...
-      </div>
-    )
+    return <div className="text-sm text-gray-500">Chargement...</div>
   }
 
   // Format contribution amount for display
@@ -27,7 +23,7 @@ export default function UserInfoNavbar({ profile, userContribution }: UserInfoNa
       style: 'currency',
       currency: 'EUR',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(amount)
   }
 
@@ -46,31 +42,29 @@ export default function UserInfoNavbar({ profile, userContribution }: UserInfoNa
       <div className="text-sm font-medium text-gray-900">
         Bonjour <span className="text-orange-600">{profile.first_name}</span> !
       </div>
-      
+
       {/* Second line: Group contribution */}
-      <div className="flex items-center space-x-1 mt-0.5">
+      <div className="mt-0.5 flex items-center space-x-1">
         {profile.group_name && userContribution ? (
           <>
-            <div className="text-xs text-gray-600 truncate">
+            <div className="truncate text-xs text-gray-600">
               Contribution au groupe {profile.group_name} :
             </div>
-            <div className="text-xs font-semibold text-purple-600 whitespace-nowrap">
+            <div className="whitespace-nowrap text-xs font-semibold text-purple-600">
               {formatContribution(userContribution.contribution_amount)}
             </div>
             {getContributionPercentage() && (
-              <div className="text-xs text-gray-500 whitespace-nowrap">
+              <div className="whitespace-nowrap text-xs text-gray-500">
                 ({getContributionPercentage()}%)
               </div>
             )}
           </>
         ) : profile.group_name ? (
-          <div className="text-xs text-gray-500 truncate">
+          <div className="truncate text-xs text-gray-500">
             Groupe {profile.group_name} • Contribution en cours de calcul
           </div>
         ) : (
-          <div className="text-xs text-gray-500">
-            Créez un groupe pour partager vos finances
-          </div>
+          <div className="text-xs text-gray-500">Créez un groupe pour partager vos finances</div>
         )}
       </div>
     </div>

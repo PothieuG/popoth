@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
 
     console.log(`📅 [Monthly Recap Status TEST] Context: ${context}, User: ${testUserId}`)
     console.log(`📅 [Monthly Recap Status TEST] Date: ${currentDay}/${currentMonth}/${currentYear}`)
-    console.log(`📅 [Monthly Recap Status TEST] Required: ${required} (First of month: ${isFirstOfMonth}, Has existing: ${hasExistingRecap})`)
+    console.log(
+      `📅 [Monthly Recap Status TEST] Required: ${required} (First of month: ${isFirstOfMonth}, Has existing: ${hasExistingRecap})`,
+    )
 
     return NextResponse.json({
       required,
@@ -46,14 +48,16 @@ export async function GET(request: NextRequest) {
       contextId: testUserId,
       isFirstOfMonth,
       test_mode: true,
-      message: 'API de test - Tables de base de données pas encore créées'
+      message: 'API de test - Tables de base de données pas encore créées',
     })
-
   } catch (error) {
     console.error('❌ Erreur lors de la vérification du statut du récap mensuel (TEST):', error)
     return NextResponse.json(
-      { error: 'Erreur interne du serveur', details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      {
+        error: 'Erreur interne du serveur',
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
     )
   }
 }

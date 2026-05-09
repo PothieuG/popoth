@@ -14,11 +14,7 @@ interface GroupInfoNavbarProps {
  */
 export default function GroupInfoNavbar({ profile, members }: GroupInfoNavbarProps) {
   if (!profile || !profile.group_id) {
-    return (
-      <div className="text-sm text-gray-500">
-        Chargement...
-      </div>
-    )
+    return <div className="text-sm text-gray-500">Chargement...</div>
   }
 
   // Format members list for display (first names only)
@@ -28,7 +24,7 @@ export default function GroupInfoNavbar({ profile, members }: GroupInfoNavbarPro
     }
 
     // Get first names of all members
-    const firstNames = members.map(member => member.first_name)
+    const firstNames = members.map((member) => member.first_name)
 
     if (firstNames.length <= 2) {
       return firstNames.join(', ')
@@ -48,13 +44,9 @@ export default function GroupInfoNavbar({ profile, members }: GroupInfoNavbarPro
       </div>
 
       {/* Second line: Members list */}
-      <div className="flex items-center space-x-1 mt-0.5">
-        <div className="text-xs text-gray-600">
-          Membres :
-        </div>
-        <div className="text-xs text-purple-600 font-medium truncate">
-          {formatMembersList()}
-        </div>
+      <div className="mt-0.5 flex items-center space-x-1">
+        <div className="text-xs text-gray-600">Membres :</div>
+        <div className="truncate text-xs font-medium text-purple-600">{formatMembersList()}</div>
       </div>
     </div>
   )

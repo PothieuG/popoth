@@ -8,7 +8,13 @@ import { supabase } from '@/lib/supabase-client'
 
 export default function NouveauMotDePassePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>}>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+        </div>
+      }
+    >
       <NouveauMotDePasseContent />
     </Suspense>
   )
@@ -22,7 +28,7 @@ function NouveauMotDePasseContent() {
   const [loading, setLoading] = useState(false)
   const [validatingToken, setValidatingToken] = useState(true)
   const [isValidToken, setIsValidToken] = useState(false)
-  
+
   const router = useRouter()
 
   /**
@@ -33,8 +39,11 @@ function NouveauMotDePasseContent() {
     const validateToken = async () => {
       try {
         // Check if user has a valid session (from email link)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-        
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
         if (sessionError) {
           console.error('Session validation error:', sessionError)
           setError('Lien de réinitialisation invalide ou expiré')
@@ -43,7 +52,9 @@ function NouveauMotDePasseContent() {
         }
 
         if (!session) {
-          setError('Lien de réinitialisation invalide ou expiré. Veuillez demander un nouveau lien.')
+          setError(
+            'Lien de réinitialisation invalide ou expiré. Veuillez demander un nouveau lien.',
+          )
           setValidatingToken(false)
           return
         }
@@ -51,7 +62,6 @@ function NouveauMotDePasseContent() {
         // Token is valid
         setIsValidToken(true)
         setValidatingToken(false)
-        
       } catch (error) {
         console.error('Token validation error:', error)
         setError('Erreur lors de la validation du lien. Veuillez réessayer.')
@@ -69,7 +79,7 @@ function NouveauMotDePasseContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
+
     // Password validation
     if (!password || !confirmPassword) {
       setError('Veuillez remplir tous les champs')
@@ -87,19 +97,21 @@ function NouveauMotDePasseContent() {
     }
 
     setLoading(true)
-    
+
     try {
       // Update user password with Supabase
       const { error: updateError } = await supabase.auth.updateUser({
-        password: password
+        password: password,
       })
 
       if (updateError) {
         // Handle specific update errors - prevent error from bubbling up
         if (updateError.message.includes('session_not_found')) {
           setError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
-        } else if (updateError.message.includes('New password should be different from the old password')) {
-          setError('Le nouveau mot de passe doit être différent de l\'ancien mot de passe.')
+        } else if (
+          updateError.message.includes('New password should be different from the old password')
+        ) {
+          setError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
         } else if (updateError.message.includes('password')) {
           setError('Le mot de passe ne respecte pas les critères de sécurité')
         } else {
@@ -111,12 +123,11 @@ function NouveauMotDePasseContent() {
 
       // Success - show confirmation message
       setSuccess(true)
-      
     } catch (error: unknown) {
       // Handle specific catch errors as well
       const message = error instanceof Error ? error.message : ''
       if (message.includes('New password should be different from the old password')) {
-        setError('Le nouveau mot de passe doit être différent de l\'ancien mot de passe.')
+        setError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
       } else if (message.includes('session_not_found')) {
         setError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
       } else if (message.includes('password')) {
@@ -146,14 +157,14 @@ function NouveauMotDePasseContent() {
   // Loading state while validating token
   if (validatingToken) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-8">
-          <div className="text-center space-y-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="space-y-3 text-center">
+            <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
               Validation en cours...
             </h1>
             <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
             </div>
           </div>
         </div>
@@ -164,22 +175,32 @@ function NouveauMotDePasseContent() {
   // Invalid token state
   if (!isValidToken) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-8">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+          <div className="space-y-3 text-center">
+            <h1 className="bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
               Lien invalide
             </h1>
           </div>
 
           {/* Error Message */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-            <div className="text-center space-y-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
+            <div className="space-y-6 text-center">
               {/* Error Icon */}
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
+                <svg
+                  className="h-8 w-8 text-red-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  ></path>
                 </svg>
               </div>
 
@@ -187,15 +208,13 @@ function NouveauMotDePasseContent() {
                 <h2 className="text-xl font-semibold text-gray-900">
                   Lien de réinitialisation invalide
                 </h2>
-                <p className="text-gray-600">
-                  {error}
-                </p>
+                <p className="text-gray-600">{error}</p>
               </div>
 
               {/* Request New Link Button */}
               <Button
                 onClick={handleRequestNewLink}
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Demander un nouveau lien
               </Button>
@@ -209,22 +228,32 @@ function NouveauMotDePasseContent() {
   // Success state
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-8">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+          <div className="space-y-3 text-center">
+            <h1 className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
               Mot de passe mis à jour !
             </h1>
           </div>
 
           {/* Success Message */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-            <div className="text-center space-y-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
+            <div className="space-y-6 text-center">
               {/* Success Icon */}
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <svg
+                  className="h-8 w-8 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
                 </svg>
               </div>
 
@@ -240,7 +269,7 @@ function NouveauMotDePasseContent() {
               {/* Go to Login Button */}
               <Button
                 onClick={handleGoToLogin}
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Se connecter
               </Button>
@@ -253,20 +282,18 @@ function NouveauMotDePasseContent() {
 
   // Main form state
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="space-y-3 text-center">
+          <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Nouveau mot de passe
           </h1>
-          <p className="text-lg text-gray-600">
-            Choisissez un nouveau mot de passe sécurisé
-          </p>
+          <p className="text-lg text-gray-600">Choisissez un nouveau mot de passe sécurisé</p>
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Password Field */}
             <div className="space-y-2">
@@ -281,13 +308,16 @@ function NouveauMotDePasseContent() {
                 placeholder="Votre nouveau mot de passe"
                 disabled={loading}
                 autoComplete="new-password"
-                className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
+                className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
 
             {/* Confirm Password Field */}
             <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-semibold text-gray-700"
+              >
                 Confirmer le mot de passe
               </label>
               <Input
@@ -298,15 +328,15 @@ function NouveauMotDePasseContent() {
                 placeholder="Confirmez votre nouveau mot de passe"
                 disabled={loading}
                 autoComplete="new-password"
-                className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
+                className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
 
             {/* Password Requirements */}
-            <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+            <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4">
               <div className="text-sm text-blue-800">
-                <p className="font-medium mb-2">Critères du mot de passe :</p>
-                <ul className="list-disc list-inside space-y-1">
+                <p className="mb-2 font-medium">Critères du mot de passe :</p>
+                <ul className="list-inside list-disc space-y-1">
                   <li>Au moins 6 caractères</li>
                   <li>Évitez les mots de passe trop simples</li>
                 </ul>
@@ -315,17 +345,19 @@ function NouveauMotDePasseContent() {
 
             {/* Error Display */}
             {error && (
-              <div className="rounded-lg bg-red-50 p-4 border-l-4 border-red-500">
+              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">
-                      {error}
-                    </p>
+                    <p className="font-medium text-red-800">{error}</p>
                   </div>
                 </div>
               </div>
@@ -334,7 +366,7 @@ function NouveauMotDePasseContent() {
             {/* Update Button */}
             <Button
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+              className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               disabled={loading}
             >
               {loading ? 'Mise à jour en cours...' : 'Mettre à jour le mot de passe'}

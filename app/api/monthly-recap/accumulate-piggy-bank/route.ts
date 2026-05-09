@@ -30,16 +30,13 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     // Validation du montant
     if (typeof amount !== 'number' || amount < 0) {
-      return NextResponse.json(
-        { error: 'Montant invalide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
     }
 
     // Déterminer le contexte (profile ou group)
@@ -47,10 +44,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     const contextId = context === 'profile' ? userId : profile.group_id
 
     if (!contextId) {
-      return NextResponse.json(
-        { error: `${context} introuvable` },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: `${context} introuvable` }, { status: 404 })
     }
 
     console.log(`🐷 [Accumulate Piggy Bank] Démarrage pour ${context}:${contextId}`)
@@ -64,7 +58,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
         message: 'Aucun surplus à ajouter à la tirelire',
         old_amount: 0,
         added_amount: 0,
-        new_amount: 0
+        new_amount: 0,
       })
     }
 
@@ -76,10 +70,13 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       .maybeSingle()
 
     if (fetchError) {
-      console.error('❌ [Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:', fetchError)
+      console.error(
+        '❌ [Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:',
+        fetchError,
+      )
       return NextResponse.json(
         { error: 'Erreur lors de la récupération de la tirelire' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -88,33 +85,32 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
 
     if (piggyBankData) {
       try {
-        const filter = ownerField === 'profile_id'
-          ? { profile_id: contextId }
-          : { group_id: contextId }
+        const filter =
+          ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
         newAmount = await updatePiggyBank(filter, amount)
       } catch (error) {
         console.error('❌ [Accumulate Piggy Bank] Erreur lors de la mise à jour:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
-      console.log(`✅ [Accumulate Piggy Bank] Tirelire mise à jour: ${oldAmount}€ + ${amount}€ = ${newAmount}€`)
+      console.log(
+        `✅ [Accumulate Piggy Bank] Tirelire mise à jour: ${oldAmount}€ + ${amount}€ = ${newAmount}€`,
+      )
     } else {
       // Créer une nouvelle entrée (RPC ne crée pas la ligne)
-      const { error: insertError } = await supabaseServer
-        .from('piggy_bank')
-        .insert({
-          [ownerField]: contextId,
-          amount: newAmount
-        })
+      const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
+        [ownerField]: contextId,
+        amount: newAmount,
+      })
 
       if (insertError) {
         console.error('❌ [Accumulate Piggy Bank] Erreur lors de la création:', insertError)
         return NextResponse.json(
           { error: 'Erreur lors de la création de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -126,14 +122,10 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       message: `${amount}€ ajoutés à la tirelire`,
       old_amount: oldAmount,
       added_amount: amount,
-      new_amount: newAmount
+      new_amount: newAmount,
     })
-
   } catch (error) {
     console.error('❌ [Accumulate Piggy Bank] Erreur:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

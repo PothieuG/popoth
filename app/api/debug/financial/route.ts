@@ -66,15 +66,18 @@ export async function GET(request: NextRequest) {
     console.log('💳 Dépenses réelles:', realExpenses)
 
     // 6. Calculs étape par étape
-    const totalEstimatedIncome = estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
-    const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
+    const totalEstimatedIncome =
+      estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
+    const totalEstimatedBudgets =
+      estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
     const totalRealExpenses = realExpenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
     // Dépenses exceptionnelles (non liées à un budget)
-    const exceptionalExpenses = realExpenses
-      ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
-      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+    const exceptionalExpenses =
+      realExpenses
+        ?.filter((expense) => expense.is_exceptional || !expense.estimated_budget_id)
+        ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
     // Économies par budget
     let totalSavings = 0
@@ -82,7 +85,7 @@ export async function GET(request: NextRequest) {
     if (estimatedBudgets && realExpenses) {
       for (const budget of estimatedBudgets) {
         const spentOnBudget = realExpenses
-          .filter(expense => expense.estimated_budget_id === budget.id)
+          .filter((expense) => expense.estimated_budget_id === budget.id)
           .reduce((sum, expense) => sum + expense.amount, 0)
 
         const budgetSavings = calculateBudgetSavings(budget.estimated_amount, spentOnBudget, false) // 0 en temps réel
@@ -92,14 +95,15 @@ export async function GET(request: NextRequest) {
           budgetName: budget.name,
           estimated: budget.estimated_amount,
           spent: spentOnBudget,
-          savings: budgetSavings
+          savings: budgetSavings,
         })
       }
     }
 
     // Calcul final selon battleplan
     const availableBalance = totalRealIncome - totalRealExpenses
-    const remainingToLive = totalEstimatedIncome - totalEstimatedBudgets - exceptionalExpenses + totalSavings
+    const remainingToLive =
+      totalEstimatedIncome - totalEstimatedBudgets - exceptionalExpenses + totalSavings
 
     // 7. Obtenir le calcul officiel via la fonction
     const officialData = await getProfileFinancialData(userId)
@@ -121,7 +125,7 @@ export async function GET(request: NextRequest) {
         estimatedIncomes,
         estimatedBudgets,
         realIncomes,
-        realExpenses
+        realExpenses,
       },
       calculations: {
         totalEstimatedIncome,
@@ -130,17 +134,16 @@ export async function GET(request: NextRequest) {
         totalRealExpenses,
         exceptionalExpenses,
         totalSavings,
-        budgetSavingsDetail
+        budgetSavingsDetail,
       },
       manualCalculation: {
         availableBalance,
         remainingToLive,
-        formula: `${totalEstimatedIncome} - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}`
+        formula: `${totalEstimatedIncome} - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}`,
       },
       officialCalculation: officialData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
-
   } catch (error) {
     console.error('❌ Erreur dans DEBUG financier:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

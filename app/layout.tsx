@@ -35,18 +35,15 @@ export const viewport: Viewport = {
  * Root layout component that wraps the entire application
  * Provides global authentication context and font configuration
  */
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="h-full overflow-hidden">
-      <body className={`${roboto.variable} font-roboto h-full overflow-hidden`} suppressHydrationWarning={true}>
+      <body
+        className={`${roboto.variable} h-full overflow-hidden font-roboto`}
+        suppressHydrationWarning={true}
+      >
         <ServiceWorkerRegistration />
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   )

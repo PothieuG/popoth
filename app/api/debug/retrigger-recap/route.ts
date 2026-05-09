@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Erreur suppression recap:', deleteError)
       return NextResponse.json(
         { error: `Erreur suppression: ${deleteError.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -88,16 +88,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: recapsDeleted > 0
-        ? `Monthly recap de ${currentMonth}/${currentYear} supprimé - Actualisez la page`
-        : `Aucun recap trouvé pour ${currentMonth}/${currentYear} - Monthly recap déjà prêt`,
+      message:
+        recapsDeleted > 0
+          ? `Monthly recap de ${currentMonth}/${currentYear} supprimé - Actualisez la page`
+          : `Aucun recap trouvé pour ${currentMonth}/${currentYear} - Monthly recap déjà prêt`,
       details: {
         context,
         contextId,
         month: currentMonth,
         year: currentYear,
         recaps_deleted: recapsDeleted,
-        snapshots_deactivated: !snapshotError
+        snapshots_deactivated: !snapshotError,
       },
       data_preserved: [
         'estimated_budgets',
@@ -105,15 +106,14 @@ export async function POST(request: NextRequest) {
         'real_expenses',
         'real_income_entries',
         'piggy_bank',
-        'cumulated_savings'
-      ]
+        'cumulated_savings',
+      ],
     })
-
   } catch (error) {
     console.error('❌ [RETRIGGER] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

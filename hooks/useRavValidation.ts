@@ -28,7 +28,8 @@ export interface RavValidationResult {
  * - Revenu / montant invalide : pas de blocage.
  */
 export function useRavValidation(input: UseRavValidationInput): RavValidationResult {
-  const { transactionType, isExceptional, amount, remainingToLive, budgetId, budgetProgress } = input
+  const { transactionType, isExceptional, amount, remainingToLive, budgetId, budgetProgress } =
+    input
 
   return useMemo<RavValidationResult>(() => {
     if (transactionType !== 'expense' || remainingToLive == null || amount <= 0) {

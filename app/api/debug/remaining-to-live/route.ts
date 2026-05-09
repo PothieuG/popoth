@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
-import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
+import {
+  getProfileFinancialData,
+  getGroupFinancialData,
+  type FinancialData,
+} from '@/lib/financial-calculations'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -17,10 +21,7 @@ export async function GET(request: NextRequest) {
     // Validation de la session
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
 
     const url = new URL(request.url)
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -44,10 +45,7 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Profil utilisateur non trouvé' }, { status: 404 })
     }
 
     // Déterminer l'ID du contexte
@@ -57,8 +55,8 @@ export async function GET(request: NextRequest) {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -111,9 +109,9 @@ export async function GET(request: NextRequest) {
       .single()
 
     // 3. Analyser les revenus
-    const incomeAnalysis = (estimatedIncomes || []).map(estimatedIncome => {
+    const incomeAnalysis = (estimatedIncomes || []).map((estimatedIncome) => {
       const linkedRealIncomes = (realIncomes || []).filter(
-        real => real.estimated_income_id === estimatedIncome.id
+        (real) => real.estimated_income_id === estimatedIncome.id,
       )
       const totalRealAmount = linkedRealIncomes.reduce((sum, real) => sum + real.amount, 0)
 
@@ -123,15 +121,16 @@ export async function GET(request: NextRequest) {
         estimated_amount: estimatedIncome.estimated_amount,
         real_amount: totalRealAmount,
         is_used: totalRealAmount > 0,
-        contribution_to_rav: totalRealAmount > 0 ? totalRealAmount : estimatedIncome.estimated_amount,
-        real_incomes: linkedRealIncomes
+        contribution_to_rav:
+          totalRealAmount > 0 ? totalRealAmount : estimatedIncome.estimated_amount,
+        real_incomes: linkedRealIncomes,
       }
     })
 
     // 4. Analyser les budgets
-    const budgetAnalysis = (estimatedBudgets || []).map(budget => {
+    const budgetAnalysis = (estimatedBudgets || []).map((budget) => {
       const linkedExpenses = (realExpenses || []).filter(
-        expense => expense.estimated_budget_id === budget.id
+        (expense) => expense.estimated_budget_id === budget.id,
       )
       const totalSpent = linkedExpenses.reduce((sum, expense) => sum + expense.amount, 0)
       const surplus = Math.max(0, budget.estimated_amount - totalSpent)
@@ -143,26 +142,41 @@ export async function GET(request: NextRequest) {
         spent_amount: totalSpent,
         surplus: surplus,
         cumulated_savings: budget.cumulated_savings || 0,
-        expenses: linkedExpenses
+        expenses: linkedExpenses,
       }
     })
 
     // 5. Dépenses exceptionnelles
-    const exceptionalExpenses = (realExpenses || []).filter(expense =>
-      expense.is_exceptional && !expense.estimated_budget_id
+    const exceptionalExpenses = (realExpenses || []).filter(
+      (expense) => expense.is_exceptional && !expense.estimated_budget_id,
     )
-    const totalExceptionalExpenses = exceptionalExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+    const totalExceptionalExpenses = exceptionalExpenses.reduce(
+      (sum, expense) => sum + expense.amount,
+      0,
+    )
 
     // 6. Revenus exceptionnels
-    const exceptionalIncomes = (realIncomes || []).filter(income =>
-      income.is_exceptional && !income.estimated_income_id
+    const exceptionalIncomes = (realIncomes || []).filter(
+      (income) => income.is_exceptional && !income.estimated_income_id,
     )
-    const totalExceptionalIncomes = exceptionalIncomes.reduce((sum, income) => sum + income.amount, 0)
+    const totalExceptionalIncomes = exceptionalIncomes.reduce(
+      (sum, income) => sum + income.amount,
+      0,
+    )
 
     // 7. Calculs des totaux
-    const totalEstimatedIncomes = incomeAnalysis.reduce((sum, income) => sum + income.estimated_amount, 0)
-    const totalIncomeContribution = incomeAnalysis.reduce((sum, income) => sum + income.contribution_to_rav, 0)
-    const totalEstimatedBudgets = budgetAnalysis.reduce((sum, budget) => sum + budget.estimated_amount, 0)
+    const totalEstimatedIncomes = incomeAnalysis.reduce(
+      (sum, income) => sum + income.estimated_amount,
+      0,
+    )
+    const totalIncomeContribution = incomeAnalysis.reduce(
+      (sum, income) => sum + income.contribution_to_rav,
+      0,
+    )
+    const totalEstimatedBudgets = budgetAnalysis.reduce(
+      (sum, budget) => sum + budget.estimated_amount,
+      0,
+    )
     const totalSavings = budgetAnalysis.reduce((sum, budget) => sum + budget.cumulated_savings, 0)
 
     // 8. Calcul manuel du reste à vivre pour vérification (NOUVELLE FORMULE SANS ÉCONOMIES)
@@ -172,7 +186,11 @@ export async function GET(request: NextRequest) {
       estimated_budgets: -totalEstimatedBudgets,
       exceptional_expenses: -totalExceptionalExpenses,
       cumulated_savings_EXCLUDED: totalSavings, // ⚠️ PLUS utilisé dans le calcul
-      manual_total: totalIncomeContribution + totalExceptionalIncomes - totalEstimatedBudgets - totalExceptionalExpenses
+      manual_total:
+        totalIncomeContribution +
+        totalExceptionalIncomes -
+        totalEstimatedBudgets -
+        totalExceptionalExpenses,
     }
 
     // 9. Contributions de groupe (si applicable)
@@ -209,26 +227,27 @@ export async function GET(request: NextRequest) {
         exceptional_expenses: totalExceptionalExpenses,
         exceptional_incomes: totalExceptionalIncomes,
         cumulated_savings: totalSavings,
-        bank_balance: bankBalance?.balance || 0
+        bank_balance: bankBalance?.balance || 0,
       },
 
       // Vérification manuelle
       manual_calculation: manualRAVCalculation,
-      calculation_matches: Math.abs(manualRAVCalculation.manual_total - financialData.remainingToLive) < 0.01,
+      calculation_matches:
+        Math.abs(manualRAVCalculation.manual_total - financialData.remainingToLive) < 0.01,
 
       // Formule appliquée (NOUVELLE VERSION SANS ÉCONOMIES)
-      formula: context === 'profile'
-        ? "RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles"
-        : "RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles",
+      formula:
+        context === 'profile'
+          ? 'RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles'
+          : 'RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles',
 
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
-
   } catch (error) {
     console.error('❌ [RAV Debug] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

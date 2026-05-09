@@ -33,14 +33,14 @@ export default function EditTransactionModal({
   transaction,
   transactionType,
   context,
-  onTransactionUpdated
+  onTransactionUpdated,
 }: EditTransactionModalProps) {
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: '',
     budgetId: '',
-    incomeId: ''
+    incomeId: '',
   })
   const [isExceptional, setIsExceptional] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -59,19 +59,19 @@ export default function EditTransactionModal({
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   const calculateRealSpentAmount = (budgetId: string): number => {
     return realExpenses
-      .filter(expense => expense.estimated_budget_id === budgetId)
+      .filter((expense) => expense.estimated_budget_id === budgetId)
       .reduce((sum, expense) => sum + expense.amount, 0)
   }
 
   // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
   const calculateRealReceivedAmount = (incomeId: string): number => {
     return realIncomes
-      .filter(income => income.estimated_income_id === incomeId)
+      .filter((income) => income.estimated_income_id === incomeId)
       .reduce((sum, income) => sum + income.amount, 0)
   }
 
   // Préparer les options pour les dropdowns - TOUJOURS utiliser les calculs en temps réel
-  const budgetOptions: DropdownOption[] = budgets.map(budget => {
+  const budgetOptions: DropdownOption[] = budgets.map((budget) => {
     const realSpentAmount = calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
@@ -79,11 +79,11 @@ export default function EditTransactionModal({
       type: 'expense' as const,
       spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.cumulated_savings || 0
+      economyAmount: budget.cumulated_savings || 0,
     }
   })
 
-  const incomeOptions: DropdownOption[] = incomes.map(income => {
+  const incomeOptions: DropdownOption[] = incomes.map((income) => {
     const realReceivedAmount = calculateRealReceivedAmount(income.id)
     const bonusAmount = realReceivedAmount - income.estimated_amount
     return {
@@ -92,7 +92,7 @@ export default function EditTransactionModal({
       type: 'income' as const,
       receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
       estimatedAmount: income.estimated_amount,
-      bonusAmount: bonusAmount // 🔥 Calcul en temps réel du bonus
+      bonusAmount: bonusAmount, // 🔥 Calcul en temps réel du bonus
     }
   })
 
@@ -105,20 +105,21 @@ export default function EditTransactionModal({
   useEffect(() => {
     if (isOpen && transaction) {
       // Get the date field based on transaction type
-      const dateField = transactionType === 'expense'
-        ? (transaction as RealExpense).expense_date
-        : (transaction as RealIncome).entry_date
+      const dateField =
+        transactionType === 'expense'
+          ? (transaction as RealExpense).expense_date
+          : (transaction as RealIncome).entry_date
 
       setFormData({
         description: transaction.description || '',
         amount: transaction.amount.toString(),
         date: dateField,
-        budgetId: transactionType === 'expense'
-          ? (transaction as RealExpense).estimated_budget_id || ''
-          : '',
-        incomeId: transactionType === 'income'
-          ? (transaction as RealIncome).estimated_income_id || ''
-          : ''
+        budgetId:
+          transactionType === 'expense'
+            ? (transaction as RealExpense).estimated_budget_id || ''
+            : '',
+        incomeId:
+          transactionType === 'income' ? (transaction as RealIncome).estimated_income_id || '' : '',
       })
       setIsExceptional(transaction.is_exceptional || false)
       setError(null)
@@ -168,7 +169,7 @@ export default function EditTransactionModal({
           description: formData.description.trim(),
           amount,
           expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId
+          estimated_budget_id: isExceptional ? undefined : formData.budgetId,
         })
       } else {
         success = await updateIncome({
@@ -176,7 +177,7 @@ export default function EditTransactionModal({
           description: formData.description.trim(),
           amount,
           entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId
+          estimated_income_id: isExceptional ? undefined : formData.incomeId,
         })
       }
 
@@ -213,9 +214,9 @@ export default function EditTransactionModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[80vh] flex flex-col">
+      <div className="relative mx-4 flex max-h-[80vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-6">
           <h2 className="text-xl font-semibold text-gray-900">
             Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
           </h2>
@@ -226,14 +227,19 @@ export default function EditTransactionModal({
             disabled={isSubmitting}
             className="p-2"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </Button>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
+        <form onSubmit={handleSubmit} className="flex-1 space-y-6 overflow-y-auto p-6">
           {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
           {isOriginallyExceptional && (
             <div className="flex flex-col items-center space-y-3">
@@ -243,16 +249,16 @@ export default function EditTransactionModal({
                   id="exceptional"
                   checked={isExceptional}
                   disabled={true} // Always readonly for originally exceptional
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded opacity-50 cursor-not-allowed"
+                  className="h-4 w-4 cursor-not-allowed rounded border-gray-300 bg-gray-100 text-blue-600 opacity-50"
                 />
                 <Label
                   htmlFor="exceptional"
-                  className="text-sm text-gray-700 font-medium cursor-not-allowed opacity-50"
+                  className="cursor-not-allowed text-sm font-medium text-gray-700 opacity-50"
                 >
                   {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
                 </Label>
               </div>
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-center text-xs text-gray-500">
                 Transaction originalement exceptionnelle (non modifiable)
               </p>
             </div>
@@ -263,16 +269,22 @@ export default function EditTransactionModal({
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-900">
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                <span className="text-gray-500 text-xs ml-2">(non modifiable)</span>
+                <span className="ml-2 text-xs text-gray-500">(non modifiable)</span>
               </Label>
               <CustomDropdown
                 options={transactionType === 'expense' ? budgetOptions : incomeOptions}
                 value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value
-                }))}
-                placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
+                onChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value,
+                  }))
+                }
+                placeholder={
+                  transactionType === 'expense'
+                    ? 'Sélectionner un budget'
+                    : 'Sélectionner un revenu estimé'
+                }
                 required={!isExceptional}
                 disabled={true} // En modification, le budget/revenu associé est readonly
               />
@@ -288,8 +300,10 @@ export default function EditTransactionModal({
               id="description"
               type="text"
               value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder={transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'}
+              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+              placeholder={
+                transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
+              }
               required
               className="w-full"
             />
@@ -308,7 +322,7 @@ export default function EditTransactionModal({
               onChange={(e) => {
                 const v = e.target.value
                 if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                  setFormData(prev => ({ ...prev, amount: v.replace(',', '.') }))
+                  setFormData((prev) => ({ ...prev, amount: v.replace(',', '.') }))
                 }
               }}
               placeholder="0.00"
@@ -327,32 +341,45 @@ export default function EditTransactionModal({
                 id="date"
                 type="date"
                 value={formData.date}
-                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
                 required
                 className="w-full pl-10"
               />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <svg
+                  className="h-4 w-4 text-gray-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
                 </svg>
               </div>
             </div>
           </div>
 
-
           {/* Expense Breakdown Preview - only for budgeted expenses */}
-          {transactionType === 'expense' && previewAmount > 0 && !isExceptional && formData.budgetId && transaction && (
-            <ExpenseBreakdownPreview
-              amount={previewAmount}
-              budgetId={formData.budgetId}
-              context={context}
-              expenseId={transaction.id}
-            />
-          )}
+          {transactionType === 'expense' &&
+            previewAmount > 0 &&
+            !isExceptional &&
+            formData.budgetId &&
+            transaction && (
+              <ExpenseBreakdownPreview
+                amount={previewAmount}
+                budgetId={formData.budgetId}
+                context={context}
+                expenseId={transaction.id}
+              />
+            )}
 
           {/* Error Display */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-700">{error}</p>
             </div>
           )}
@@ -375,12 +402,12 @@ export default function EditTransactionModal({
                 'flex-1',
                 transactionType === 'expense'
                   ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-green-600 hover:bg-green-700'
+                  : 'bg-green-600 hover:bg-green-700',
               )}
             >
               {isSubmitting ? (
                 <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   <span>Modification...</span>
                 </div>
               ) : (

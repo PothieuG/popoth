@@ -33,7 +33,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
     // Retrieve RAV from database
     const remainingToLive = await getRavFromDatabase(
       context === 'profile' ? contextId : null,
-      context === 'group' ? contextId : null
+      context === 'group' ? contextId : null,
     )
 
     console.log(`✅ [GET /api/finance/rav] RAV retrieved: ${remainingToLive}€`)
@@ -41,17 +41,16 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
     return NextResponse.json({
       remainingToLive,
       context,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
-
   } catch (error) {
     console.error('❌ Error in GET /api/finance/rav:', error)
     return NextResponse.json(
       {
         error: 'Erreur lors de la récupération du RAV',
-        remainingToLive: 0
+        remainingToLive: 0,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })

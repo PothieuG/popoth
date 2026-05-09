@@ -53,38 +53,40 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   /**
    * Actions principales
    */
-  const transferBetweenBudgets = useCallback(async (transferData: TransferData) => {
-    try {
-      setError(null)
-      console.log('🔄 [Hook] Démarrage du transfert:', transferData)
+  const transferBetweenBudgets = useCallback(
+    async (transferData: TransferData) => {
+      try {
+        setError(null)
+        console.log('🔄 [Hook] Démarrage du transfert:', transferData)
 
-      const response = await fetch('/api/monthly-recap/transfer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          context,
-          ...transferData
+        const response = await fetch('/api/monthly-recap/transfer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            context,
+            ...transferData,
+          }),
         })
-      })
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors du transfert')
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors du transfert')
+        }
+
+        console.log('✅ [Hook] Transfert réussi côté serveur')
+        return data
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+        setError(errorMessage)
+        console.error('❌ Erreur lors du transfert entre budgets:', err)
+        return null
       }
-
-      console.log('✅ [Hook] Transfert réussi côté serveur')
-      return data
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      console.error('❌ Erreur lors du transfert entre budgets:', err)
-      return null
-    }
-  }, [context])
+    },
+    [context],
+  )
 
   const autoBalanceBudgets = useCallback(async () => {
     try {
@@ -94,9 +96,9 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       const response = await fetch('/api/monthly-recap/auto-balance', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ context })
+        body: JSON.stringify({ context }),
       })
 
       const data = await response.json()
@@ -107,7 +109,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
 
       console.log('✅ [Hook] Répartition automatique réussie côté serveur')
       return data
-
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
@@ -119,44 +120,46 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   /**
    * Finalise le récapitulatif mensuel
    */
-  const completeRecap = useCallback(async (remainingToLiveChoice: RemainingToLiveChoice) => {
-    try {
-      setError(null)
+  const completeRecap = useCallback(
+    async (remainingToLiveChoice: RemainingToLiveChoice) => {
+      try {
+        setError(null)
 
-      // Generate a unique session_id for this completion
-      const session_id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        // Generate a unique session_id for this completion
+        const session_id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-      const requestData = {
-        context,
-        session_id,
-        remaining_to_live_choice: remainingToLiveChoice
+        const requestData = {
+          context,
+          session_id,
+          remaining_to_live_choice: remainingToLiveChoice,
+        }
+
+        console.log("🔍 [useMonthlyRecap] Données envoyées à l'API complete:", requestData)
+
+        const response = await fetch('/api/monthly-recap/complete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de la finalisation')
+        }
+
+        return data
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
+        setError(errorMessage)
+        console.error('❌ Erreur lors de la finalisation du récap:', err)
+        return null
       }
-
-      console.log('🔍 [useMonthlyRecap] Données envoyées à l\'API complete:', requestData)
-
-      const response = await fetch('/api/monthly-recap/complete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la finalisation')
-      }
-
-      return data
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      console.error('❌ Erreur lors de la finalisation du récap:', err)
-      return null
-    }
-  }, [context])
+    },
+    [context],
+  )
 
   /**
    * Réinitialiser l'état
@@ -165,13 +168,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     setCurrentStep(1)
     setError(null)
   }, [])
-
-
-
-
-
-
-
 
   return {
     // État
@@ -194,6 +190,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     // État dérivé
     canGoNext: currentStep < 3,
     canGoPrevious: currentStep > 1,
-    isLastStep: currentStep === 3
+    isLastStep: currentStep === 3,
   }
 }

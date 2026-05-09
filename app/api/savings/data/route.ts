@@ -13,10 +13,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
     if (!context || (context !== 'profile' && context !== 'group')) {
-      return NextResponse.json(
-        { error: 'Contexte invalide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Contexte invalide' }, { status: 400 })
     }
 
     console.log(``)
@@ -27,9 +24,10 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     console.log(`💰 User ID: ${profile.id}`)
 
     // Determine context filter
-    const contextFilter = context === 'group' && profile.group_id
-      ? { group_id: profile.group_id }
-      : { profile_id: profile.id }
+    const contextFilter =
+      context === 'group' && profile.group_id
+        ? { group_id: profile.group_id }
+        : { profile_id: profile.id }
 
     console.log(`💰 Filtre appliqué:`, contextFilter)
 
@@ -44,14 +42,14 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur récupération budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Calculate totals from budgets
     const budgetsSavings = budgets?.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) || 0
-    const budgetsWithSavings = budgets?.filter(b => (b.cumulated_savings || 0) > 0) || []
-    const budgetsWithoutSavings = budgets?.filter(b => (b.cumulated_savings || 0) === 0) || []
+    const budgetsWithSavings = budgets?.filter((b) => (b.cumulated_savings || 0) > 0) || []
+    const budgetsWithoutSavings = budgets?.filter((b) => (b.cumulated_savings || 0) === 0) || []
 
     // Get piggy bank amount using the same context filter
     const { data: piggyBankData, error: piggyBankError } = await supabaseServer
@@ -91,15 +89,14 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
         budgets_without_savings: budgetsWithoutSavings.length,
         budgets_savings: budgetsSavings,
         piggy_bank: piggyBankAmount,
-        total_savings: totalSavings
-      }
+        total_savings: totalSavings,
+      },
     })
-
   } catch (error) {
     console.error('❌ Erreur dans GET /api/savings/data:', error)
     return NextResponse.json(
       { error: 'Erreur serveur lors de la récupération des données' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })

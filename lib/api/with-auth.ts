@@ -99,14 +99,14 @@ export type RouteContext<TParams = Record<string, string>> = {
  * })
  */
 export function withAuth(
-  handler: (request: NextRequest, ctx: AuthedContext) => Promise<NextResponse>
+  handler: (request: NextRequest, ctx: AuthedContext) => Promise<NextResponse>,
 ): (request: NextRequest) => Promise<NextResponse>
 export function withAuth<TParams>(
   handler: (
     request: NextRequest,
     ctx: AuthedContext,
-    routeContext: RouteContext<TParams>
-  ) => Promise<NextResponse>
+    routeContext: RouteContext<TParams>,
+  ) => Promise<NextResponse>,
 ): (request: NextRequest, routeContext: RouteContext<TParams>) => Promise<NextResponse>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- impl signature behind overloads; required-vs-optional routeContext can't be reconciled in a single typed signature, so the impl is opaque to callers (overloads above enforce the call-site types)
 export function withAuth(handler: any): any {
@@ -157,14 +157,14 @@ export function withAuth(handler: any): any {
  * )
  */
 export function withAuthAndProfile(
-  handler: (request: NextRequest, ctx: AuthedProfileContext) => Promise<NextResponse>
+  handler: (request: NextRequest, ctx: AuthedProfileContext) => Promise<NextResponse>,
 ): (request: NextRequest) => Promise<NextResponse>
 export function withAuthAndProfile<TParams>(
   handler: (
     request: NextRequest,
     ctx: AuthedProfileContext,
-    routeContext: RouteContext<TParams>
-  ) => Promise<NextResponse>
+    routeContext: RouteContext<TParams>,
+  ) => Promise<NextResponse>,
 ): (request: NextRequest, routeContext: RouteContext<TParams>) => Promise<NextResponse>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- impl signature behind overloads; required-vs-optional routeContext can't be reconciled in a single typed signature, so the impl is opaque to callers (overloads above enforce the call-site types)
 export function withAuthAndProfile(handler: any): any {

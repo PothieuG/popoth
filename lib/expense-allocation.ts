@@ -33,7 +33,7 @@ interface ExpenseWithBreakdown {
 export function calculateBreakdown(
   amount: number,
   piggyBankAvailable: number,
-  savingsAvailable: number
+  savingsAvailable: number,
 ): AllocationBreakdown {
   let remaining = amount
   let fromPiggyBank = 0
@@ -65,7 +65,7 @@ export function calculateBreakdown(
  */
 export async function reverseAllocation(
   oldExpense: ExpenseWithBreakdown,
-  contextFilter: ContextFilter
+  contextFilter: ContextFilter,
 ): Promise<void> {
   const piggyToRestore = oldExpense.amount_from_piggy_bank || 0
   const savingsToRestore = oldExpense.amount_from_budget_savings || 0
@@ -98,7 +98,7 @@ export async function reverseAllocation(
 export async function applyAllocation(
   amount: number,
   budgetId: string,
-  contextFilter: ContextFilter
+  contextFilter: ContextFilter,
 ): Promise<ApplyAllocationResult> {
   // Lire la tirelire actuelle
   const { data: piggyData } = await supabaseServer
@@ -129,9 +129,10 @@ export async function applyAllocation(
     .eq('estimated_budget_id', budgetId)
     .match(contextFilter)
 
-  const budgetSpentBefore = expenses?.reduce((sum, e) => {
-    return sum + (e.amount_from_budget || 0)
-  }, 0) || 0
+  const budgetSpentBefore =
+    expenses?.reduce((sum, e) => {
+      return sum + (e.amount_from_budget || 0)
+    }, 0) || 0
 
   // Calculer le breakdown
   const breakdown = calculateBreakdown(amount, piggyBankBefore, savingsBefore)
@@ -167,6 +168,6 @@ export async function applyAllocation(
     savingsBefore,
     savingsAfter,
     budgetSpentBefore,
-    budgetSpentAfter
+    budgetSpentAfter,
   }
 }

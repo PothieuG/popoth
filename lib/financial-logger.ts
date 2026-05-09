@@ -47,25 +47,25 @@ export class FinancialLogger {
       level: context.level || 'info',
       component: context.component || 'unknown',
       operation: context.operation || 'unknown',
-      ...context
+      ...context,
     }
   }
 
   /**
    * Log operation start
    */
-  static startOperation(context: Omit<LogContext, 'level' | 'timestamp'>): { 
-    operationId: string, 
-    startTime: number,
+  static startOperation(context: Omit<LogContext, 'level' | 'timestamp'>): {
+    operationId: string
+    startTime: number
     log: (additionalContext?: Partial<LogContext>) => void
   } {
     const operationId = this.generateOperationId()
     const startTime = Date.now()
-    
+
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
-      operationId
+      operationId,
     })
 
     console.log(`🚀 ${context.operation} - Start`, logEntry)
@@ -79,12 +79,12 @@ export class FinancialLogger {
           ...additionalContext,
           level: additionalContext.level || 'info',
           operationId,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         })
-        
+
         const emoji = this.getEmojiForLevel(entry.level || 'info')
         console.log(`${emoji} ${entry.operation}`, entry)
-      }
+      },
     }
   }
 
@@ -95,7 +95,7 @@ export class FinancialLogger {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
-      ...additionalData
+      ...additionalData,
     })
 
     console.log(`✅ ${context.operation} - Success`, logEntry)
@@ -108,7 +108,7 @@ export class FinancialLogger {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'warn',
-      validation: validationDetails
+      validation: validationDetails,
     })
 
     console.log(`🚫 ${context.operation} - Validation Error`, logEntry)
@@ -126,8 +126,8 @@ export class FinancialLogger {
         message: dbError.message,
         code: dbError.code,
         details: dbError.details,
-        hint: dbError.hint
-      }
+        hint: dbError.hint,
+      },
     })
 
     console.error(`🗄️ ${context.operation} - Database Error`, logEntry)
@@ -139,7 +139,7 @@ export class FinancialLogger {
   static authError(context: LogContext): void {
     const logEntry = this.createLogEntry({
       ...context,
-      level: 'warn'
+      level: 'warn',
     })
 
     console.log(`🔒 ${context.operation} - Auth Error`, logEntry)
@@ -156,8 +156,8 @@ export class FinancialLogger {
       error: {
         message: errLike.message,
         stack: errLike.stack,
-        name: errLike.name
-      }
+        name: errLike.name,
+      },
     })
 
     console.error(`❌ ${context.operation} - Error`, logEntry)
@@ -170,7 +170,7 @@ export class FinancialLogger {
     if (context.duration && context.duration > threshold) {
       const logEntry = this.createLogEntry({
         ...context,
-        level: 'warn'
+        level: 'warn',
       })
 
       console.warn(`🐌 ${context.operation} - Slow Operation`, logEntry)
@@ -184,7 +184,7 @@ export class FinancialLogger {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
-      calculation: calculationData
+      calculation: calculationData,
     })
 
     console.log(`🧮 ${context.operation} - Financial Calculation`, logEntry)
@@ -197,7 +197,7 @@ export class FinancialLogger {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
-      access: accessDetails
+      access: accessDetails,
     })
 
     console.log(`👁️ ${context.operation} - Data Access`, logEntry)
@@ -210,7 +210,7 @@ export class FinancialLogger {
     const logEntry = this.createLogEntry({
       ...context,
       level: 'info',
-      modification: modificationDetails
+      modification: modificationDetails,
     })
 
     console.log(`📝 ${context.operation} - Data Modification`, logEntry)
@@ -222,7 +222,7 @@ export class FinancialLogger {
       info: 'ℹ️',
       warn: '⚠️',
       error: '❌',
-      critical: '🚨'
+      critical: '🚨',
     }
     return emojis[level] || 'ℹ️'
   }
@@ -234,32 +234,35 @@ export class FinancialLogger {
 export function withFinancialLogging<T extends unknown[], R>(
   component: string,
   operation: string,
-  handler: (...args: T) => Promise<R>
+  handler: (...args: T) => Promise<R>,
 ) {
   return async (...args: T): Promise<R> => {
     const { operationId, startTime, log } = FinancialLogger.startOperation({
       component,
-      operation
+      operation,
     })
 
     try {
       const result = await handler(...args)
-      
+
       log({
         level: 'info',
         duration: Date.now() - startTime,
-        status: 'success'
+        status: 'success',
       })
 
       return result
     } catch (error) {
-      FinancialLogger.error({
-        component,
-        operation,
-        operationId,
-        duration: Date.now() - startTime
-      }, error)
-      
+      FinancialLogger.error(
+        {
+          component,
+          operation,
+          operationId,
+          duration: Date.now() - startTime,
+        },
+        error,
+      )
+
       throw error
     }
   }
@@ -271,7 +274,7 @@ export function withFinancialLogging<T extends unknown[], R>(
 export function createLoggedResponse(
   context: LogContext,
   data: unknown,
-  status: number = 200
+  status: number = 200,
 ): Response {
   if (status >= 400) {
     FinancialLogger.error(context, { httpStatus: status, responseData: data })

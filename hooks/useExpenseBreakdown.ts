@@ -32,7 +32,7 @@ interface UseExpenseBreakdownProps {
 export function useExpenseBreakdown({
   amount,
   budgetId,
-  context = 'profile'
+  context = 'profile',
 }: UseExpenseBreakdownProps): ExpenseBreakdown | null {
   const { financialData } = useFinancialData(context)
   const { budgets } = useBudgets(context)
@@ -47,7 +47,7 @@ export function useExpenseBreakdown({
     const piggyBankBefore = financialData.piggyBank || 0
 
     // Get budget info
-    const budget = budgets.find(b => b.id === budgetId)
+    const budget = budgets.find((b) => b.id === budgetId)
     if (!budget) {
       return null
     }
@@ -57,7 +57,7 @@ export function useExpenseBreakdown({
 
     // Calculate current spent amount
     const budgetSpentBefore = expenses
-      .filter(e => e.estimated_budget_id === budgetId)
+      .filter((e) => e.estimated_budget_id === budgetId)
       .reduce((sum, e) => sum + e.amount, 0)
 
     // Calculate breakdown
@@ -94,7 +94,7 @@ export function useExpenseBreakdown({
       savings_after: savingsBefore - fromBudgetSavings,
       budget_spent_before: budgetSpentBefore,
       budget_spent_after: budgetSpentBefore + fromBudget,
-      budget_estimated: budgetEstimated
+      budget_estimated: budgetEstimated,
     }
   }, [amount, budgetId, financialData, budgets, expenses])
 

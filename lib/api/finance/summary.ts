@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getProfileFinancialData, getGroupFinancialData, getRavFromDatabase, type FinancialData } from '@/lib/financial-calculations'
+import {
+  getProfileFinancialData,
+  getGroupFinancialData,
+  getRavFromDatabase,
+  type FinancialData,
+} from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
@@ -33,7 +38,13 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       contextId = userId
     }
 
-    console.log('🎯 Contexte déterminé:', { forceContext, context, contextId, hasGroup: !!profile.group_id, shouldRecalculate })
+    console.log('🎯 Contexte déterminé:', {
+      forceContext,
+      context,
+      contextId,
+      hasGroup: !!profile.group_id,
+      shouldRecalculate,
+    })
 
     let financialData: FinancialData
 
@@ -55,7 +66,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       // Get the persisted RAV from database
       const persistedRav = await getRavFromDatabase(
         context === 'profile' ? contextId : null,
-        context === 'group' ? contextId : null
+        context === 'group' ? contextId : null,
       )
 
       console.log(`📖 [DASHBOARD] RAV retrieved from DB: ${persistedRav}€`)
@@ -98,26 +109,28 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
     return NextResponse.json({
       data: financialData,
       context,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     })
-
   } catch (error) {
     console.error('❌ Erreur dans GET /api/finance/summary:', error)
 
     // En cas d'erreur, retourner des données par défaut pour éviter de casser l'UI
-    return NextResponse.json({
-      data: {
-        availableBalance: 0,
-        remainingToLive: 0,
-        totalSavings: 0,
-        totalEstimatedIncome: 0,
-        totalEstimatedBudgets: 0,
-        totalRealIncome: 0,
-        totalRealExpenses: 0
+    return NextResponse.json(
+      {
+        data: {
+          availableBalance: 0,
+          remainingToLive: 0,
+          totalSavings: 0,
+          totalEstimatedIncome: 0,
+          totalEstimatedBudgets: 0,
+          totalRealIncome: 0,
+          totalRealExpenses: 0,
+        },
+        context: 'profile',
+        timestamp: Date.now(),
+        error: 'Données par défaut - erreur de calcul',
       },
-      context: 'profile',
-      timestamp: Date.now(),
-      error: 'Données par défaut - erreur de calcul'
-    }, { status: 200 }) // 200 pour éviter de casser l'UI
+      { status: 200 },
+    ) // 200 pour éviter de casser l'UI
   }
 })

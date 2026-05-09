@@ -47,10 +47,12 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     let query = supabaseServer
       .from('real_expenses')
-      .select(`
+      .select(
+        `
         *,
         estimated_budget:estimated_budgets(name)
-      `)
+      `,
+      )
       .order('expense_date', { ascending: false })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -89,7 +91,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Error fetching real expenses:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -128,14 +130,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       real_expenses: data || [],
       total: count || 0,
       limit,
-      offset
+      offset,
     })
   } catch (error) {
     console.error('Error in GET /api/finance/expenses/real:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -145,34 +144,22 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body: CreateRealExpenseRequest = await request.json()
-    const { 
-      amount, 
-      description, 
-      expense_date, 
-      estimated_budget_id,
-      is_for_group = false 
-    } = body
+    const { amount, description, expense_date, estimated_budget_id, is_for_group = false } = body
 
     // Validation
     if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant doit être un nombre positif' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
     }
 
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'La description est requise' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
     }
 
     const insertData: RealExpenseInsert = {
       amount,
       description: description.trim(),
       expense_date: expense_date || new Date().toISOString().split('T')[0],
-      is_exceptional: !estimated_budget_id
+      is_exceptional: !estimated_budget_id,
     }
 
     if (estimated_budget_id) {
@@ -184,10 +171,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (verifyError || !estimatedBudget) {
-        return NextResponse.json(
-          { error: 'Budget estimé introuvable' },
-          { status: 404 }
-        )
+        return NextResponse.json({ error: 'Budget estimé introuvable' }, { status: 404 })
       }
 
       // Check ownership
@@ -201,14 +185,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         if (!profile?.group_id || estimatedBudget.group_id !== profile.group_id) {
           return NextResponse.json(
             { error: 'Budget estimé non autorisé pour ce groupe' },
-            { status: 403 }
+            { status: 403 },
           )
         }
       } else {
         if (estimatedBudget.profile_id !== userId) {
           return NextResponse.json(
             { error: 'Budget estimé non autorisé pour cet utilisateur' },
-            { status: 403 }
+            { status: 403 },
           )
         }
       }
@@ -227,7 +211,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       if (!profile?.group_id) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des dépenses de groupe' },
-          { status: 400 }
+          { status: 400 },
         )
       }
 
@@ -240,17 +224,19 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const { data, error } = await supabaseServer
       .from('real_expenses')
       .insert(insertData)
-      .select(`
+      .select(
+        `
         *,
         estimated_budget:estimated_budgets(name)
-      `)
+      `,
+      )
       .single()
 
     if (error) {
       console.error('Error creating real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la dépense' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -259,7 +245,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: is_for_group ? undefined : userId,
         groupId: is_for_group ? (insertData.group_id ?? undefined) : undefined,
-        reason: 'exceptional_expense_created'
+        reason: 'exceptional_expense_created',
       })
 
       if (snapshotSuccess) {
@@ -271,14 +257,11 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     return NextResponse.json({
       real_expense: data,
-      message: 'Dépense créée avec succès'
+      message: 'Dépense créée avec succès',
     })
   } catch (error) {
     console.error('Error in POST /api/finance/expenses/real:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -291,30 +274,21 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const { id, amount, description, expense_date, estimated_budget_id } = body
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID de la dépense requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID de la dépense requis' }, { status: 400 })
     }
 
     const updates: RealExpenseUpdate = {}
 
     if (amount !== undefined) {
       if (amount <= 0) {
-        return NextResponse.json(
-          { error: 'Le montant doit être positif' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
       }
       updates.amount = amount
     }
 
     if (description !== undefined) {
       if (!description || description.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'La description ne peut pas être vide' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'La description ne peut pas être vide' }, { status: 400 })
       }
       updates.description = description.trim()
     }
@@ -329,10 +303,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'Aucune donnée à mettre à jour' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Si le montant change, recalculer l'allocation (tirelire -> economies -> budget)
@@ -340,18 +311,18 @@ export const PUT = withAuth(async (request: NextRequest) => {
       // Recuperer l'ancienne depense avec ses champs de breakdown
       const { data: oldExpense, error: fetchError } = await supabaseServer
         .from('real_expenses')
-        .select('amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, profile_id, group_id, is_exceptional')
+        .select(
+          'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, profile_id, group_id, is_exceptional',
+        )
         .eq('id', id)
         .single()
 
       if (fetchError || !oldExpense) {
-        return NextResponse.json(
-          { error: 'Dépense introuvable' },
-          { status: 404 }
-        )
+        return NextResponse.json({ error: 'Dépense introuvable' }, { status: 404 })
       }
 
-      const budgetId = estimated_budget_id !== undefined ? estimated_budget_id : oldExpense.estimated_budget_id
+      const budgetId =
+        estimated_budget_id !== undefined ? estimated_budget_id : oldExpense.estimated_budget_id
 
       // Reallocation uniquement pour les depenses budgetees
       if (budgetId && !oldExpense.is_exceptional) {
@@ -377,17 +348,19 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .from('real_expenses')
       .update(updates)
       .eq('id', id)
-      .select(`
+      .select(
+        `
         *,
         estimated_budget:estimated_budgets(name)
-      `)
+      `,
+      )
       .single()
 
     if (error) {
       console.error('Error updating real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour de la dépense' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -395,7 +368,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: data.profile_id || undefined,
       groupId: data.group_id || undefined,
-      reason: data.is_exceptional ? 'exceptional_expense_updated' : 'budgeted_expense_updated'
+      reason: data.is_exceptional ? 'exceptional_expense_updated' : 'budgeted_expense_updated',
     })
 
     if (snapshotSuccess) {
@@ -404,14 +377,11 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
     return NextResponse.json({
       real_expense: data,
-      message: 'Dépense mise à jour avec succès'
+      message: 'Dépense mise à jour avec succès',
     })
   } catch (error) {
     console.error('Error in PUT /api/finance/expenses/real:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -424,30 +394,26 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const id = url.searchParams.get('id')
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID de la dépense requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID de la dépense requis' }, { status: 400 })
     }
 
     // Recuperer les informations completes de la depense avant suppression
     const { data: expenseToDelete } = await supabaseServer
       .from('real_expenses')
-      .select('profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+      .select(
+        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+      )
       .eq('id', id)
       .single()
 
     // Delete the real expense
-    const { error } = await supabaseServer
-      .from('real_expenses')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabaseServer.from('real_expenses').delete().eq('id', id)
 
     if (error) {
       console.error('Error deleting real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression de la dépense' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -462,7 +428,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
           await reverseAllocation(expenseToDelete, contextFilter)
           console.log('📊 Allocation reversee apres suppression depense budgetee')
         } catch (err) {
-          console.error('⚠️ Erreur lors du reversement de l\'allocation:', err)
+          console.error("⚠️ Erreur lors du reversement de l'allocation:", err)
         }
       }
 
@@ -470,7 +436,9 @@ export const DELETE = withAuth(async (request: NextRequest) => {
       const snapshotSuccess = await saveRemainingToLiveSnapshot({
         profileId: expenseToDelete.profile_id || undefined,
         groupId: expenseToDelete.group_id || undefined,
-        reason: expenseToDelete.is_exceptional ? 'exceptional_expense_deleted' : 'budgeted_expense_deleted'
+        reason: expenseToDelete.is_exceptional
+          ? 'exceptional_expense_deleted'
+          : 'budgeted_expense_deleted',
       })
 
       if (snapshotSuccess) {
@@ -479,13 +447,10 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     }
 
     return NextResponse.json({
-      message: 'Dépense supprimée avec succès'
+      message: 'Dépense supprimée avec succès',
     })
   } catch (error) {
     console.error('Error in DELETE /api/finance/expenses/real:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

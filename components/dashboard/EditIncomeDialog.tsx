@@ -25,7 +25,7 @@ export default function EditIncomeDialog({
   onClose,
   onSave,
   income,
-  currentIncomesTotal
+  currentIncomesTotal,
 }: EditIncomeDialogProps) {
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
@@ -47,8 +47,8 @@ export default function EditIncomeDialog({
     if (!name && !amount) return ''
     const nameError = !name.trim() ? 'Le nom du revenu est requis' : ''
     const amountNum = parseFloat(amount)
-    const amountError = !amount || isNaN(amountNum) || amountNum <= 0
-      ? 'Le montant doit être supérieur à 0€' : ''
+    const amountError =
+      !amount || isNaN(amountNum) || amountNum <= 0 ? 'Le montant doit être supérieur à 0€' : ''
     return nameError || amountError
   }, [name, amount])
 
@@ -60,7 +60,7 @@ export default function EditIncomeDialog({
     setIsLoading(true)
     const success = await onSave({
       name: name.trim(),
-      estimatedAmount: parseFloat(amount)
+      estimatedAmount: parseFloat(amount),
     })
 
     if (success) {
@@ -75,22 +75,32 @@ export default function EditIncomeDialog({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
           {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200">
+          <div className="border-b border-gray-200 px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+                  <svg
+                    className="h-4 w-4 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -100,20 +110,30 @@ export default function EditIncomeDialog({
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
               >
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-4 w-4 text-gray-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 p-6">
             {/* Nom du revenu */}
             <div>
-              <label htmlFor="income-name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">
                 Nom du revenu <span className="text-red-500">*</span>
               </label>
               <input
@@ -122,14 +142,17 @@ export default function EditIncomeDialog({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Salaire, Freelance, Loyer..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 disabled={isLoading}
               />
             </div>
 
             {/* Montant */}
             <div>
-              <label htmlFor="income-amount" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="income-amount"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
                 Montant mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -145,18 +168,18 @@ export default function EditIncomeDialog({
                     }
                   }}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                   disabled={isLoading}
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 text-sm">€</span>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <span className="text-sm text-gray-500">€</span>
                 </div>
               </div>
             </div>
 
             {/* Aperçu financier */}
-            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="text-sm space-y-1">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+              <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Autres revenus:</span>
                   <span className="font-medium text-gray-900">
@@ -173,7 +196,11 @@ export default function EditIncomeDialog({
                 <div className="flex justify-between font-bold">
                   <span>Total des revenus:</span>
                   <span className="text-green-700">
-                    {formatAmount(currentIncomesTotal - (income?.estimated_amount || 0) + (parseFloat(amount) || 0))}
+                    {formatAmount(
+                      currentIncomesTotal -
+                        (income?.estimated_amount || 0) +
+                        (parseFloat(amount) || 0),
+                    )}
                   </span>
                 </div>
               </div>
@@ -181,8 +208,8 @@ export default function EditIncomeDialog({
 
             {/* Message d'erreur */}
             {validationError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-800 text-sm font-medium">{validationError}</p>
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">{validationError}</p>
               </div>
             )}
 
@@ -192,17 +219,17 @@ export default function EditIncomeDialog({
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !!validationError || !name.trim() || !amount}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                 ) : (
                   'Sauvegarder'
                 )}

@@ -1,7 +1,15 @@
 'use client'
 
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { signInWithPassword, signUp, signOut, getCurrentUser, refreshSession, isAuthenticated, type AuthUser } from '@/lib/auth'
+import {
+  signInWithPassword,
+  signUp,
+  signOut,
+  getCurrentUser,
+  refreshSession,
+  isAuthenticated,
+  type AuthUser,
+} from '@/lib/auth'
 import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
 
 interface AuthUserValue {
@@ -143,8 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setLoading(true)
 
-      const hasSession = typeof document !== 'undefined' &&
-        document.cookie.includes('session=')
+      const hasSession = typeof document !== 'undefined' && document.cookie.includes('session=')
 
       if (!hasSession) {
         setUser(null)
@@ -167,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (err) {
       if (err instanceof Error && !err.message.includes('401')) {
         console.error('Auth initialization error:', err)
-        setError('Erreur d\'initialisation de l\'authentification')
+        setError("Erreur d'initialisation de l'authentification")
       }
       setUser(null)
       stopTokenRefresh()
@@ -177,30 +184,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [stopTokenRefresh, stopAuthCheck, startTokenRefresh, startAuthCheck])
 
-  const login = useCallback(async (email: string, password: string) => {
-    try {
-      setLoading(true)
-      setError(null)
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        setLoading(true)
+        setError(null)
 
-      const result = await signInWithPassword(email, password)
+        const result = await signInWithPassword(email, password)
 
-      if (result.success && result.user) {
-        setUser(result.user)
-        startTokenRefresh()
-        startAuthCheck()
-        return { success: true }
-      } else {
-        setError(result.error || 'Erreur de connexion')
-        return { success: false, error: result.error }
+        if (result.success && result.user) {
+          setUser(result.user)
+          startTokenRefresh()
+          startAuthCheck()
+          return { success: true }
+        } else {
+          setError(result.error || 'Erreur de connexion')
+          return { success: false, error: result.error }
+        }
+      } catch {
+        const errorMessage = 'Erreur de connexion. Veuillez réessayer.'
+        setError(errorMessage)
+        return { success: false, error: errorMessage }
+      } finally {
+        setLoading(false)
       }
-    } catch {
-      const errorMessage = 'Erreur de connexion. Veuillez réessayer.'
-      setError(errorMessage)
-      return { success: false, error: errorMessage }
-    } finally {
-      setLoading(false)
-    }
-  }, [startTokenRefresh, startAuthCheck])
+    },
+    [startTokenRefresh, startAuthCheck],
+  )
 
   const register = useCallback(async (email: string, password: string) => {
     try {
@@ -274,9 +284,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return (
     <AuthUserContext.Provider value={userValue}>
-      <AuthActionsContext.Provider value={actionsValue}>
-        {children}
-      </AuthActionsContext.Provider>
+      <AuthActionsContext.Provider value={actionsValue}>{children}</AuthActionsContext.Provider>
     </AuthUserContext.Provider>
   )
 }

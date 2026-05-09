@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,10 +26,10 @@ interface FirstTimeProfileDialogProps {
  * Dialog affichée lors de la première connexion pour collecter les informations du profil
  * Permet à l'utilisateur d'entrer son prénom et son nom de famille
  */
-export default function FirstTimeProfileDialog({ 
-  isOpen, 
-  onSubmit, 
-  onError 
+export default function FirstTimeProfileDialog({
+  isOpen,
+  onSubmit,
+  onError,
 }: FirstTimeProfileDialogProps) {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -59,50 +65,53 @@ export default function FirstTimeProfileDialog({
   /**
    * Gère la soumission du formulaire
    */
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      return
-    }
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
 
-    setIsSubmitting(true)
-    setErrors({})
-
-    try {
-      const success = await onSubmit(firstName.trim(), lastName.trim())
-      
-      if (!success) {
-        setErrors({ general: 'Erreur lors de la création du profil' })
-        onError?.('Erreur lors de la création du profil')
+      if (!validateForm()) {
+        return
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
-      setErrors({ general: errorMessage })
-      onError?.(errorMessage)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }, [validateForm, onSubmit, firstName, lastName, onError])
+
+      setIsSubmitting(true)
+      setErrors({})
+
+      try {
+        const success = await onSubmit(firstName.trim(), lastName.trim())
+
+        if (!success) {
+          setErrors({ general: 'Erreur lors de la création du profil' })
+          onError?.('Erreur lors de la création du profil')
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
+        setErrors({ general: errorMessage })
+        onError?.(errorMessage)
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [validateForm, onSubmit, firstName, lastName, onError],
+  )
 
   // Memoized CSS classes to prevent forced reflows
-  const firstNameInputClasses = useMemo(() => 
-    errors.firstName ? 'border-red-500 focus:ring-red-500' : '', 
-    [errors.firstName]
+  const firstNameInputClasses = useMemo(
+    () => (errors.firstName ? 'border-red-500 focus:ring-red-500' : ''),
+    [errors.firstName],
   )
-  
-  const lastNameInputClasses = useMemo(() => 
-    errors.lastName ? 'border-red-500 focus:ring-red-500' : '', 
-    [errors.lastName]
+
+  const lastNameInputClasses = useMemo(
+    () => (errors.lastName ? 'border-red-500 focus:ring-red-500' : ''),
+    [errors.lastName],
   )
 
   return (
     <Dialog open={isOpen} modal={true}>
-      <DialogContent 
-        className="sm:max-w-md mx-4" 
-        aria-describedby="profile-dialog-description" 
+      <DialogContent
+        className="mx-4 sm:max-w-md"
+        aria-describedby="profile-dialog-description"
         hideCloseButton={true}
-        onInteractOutside={(e) => e.preventDefault()} 
+        onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
@@ -111,7 +120,8 @@ export default function FirstTimeProfileDialog({
             Bienvenue !
           </DialogTitle>
           <DialogDescription id="profile-dialog-description" className="text-gray-600">
-            Pour terminer la configuration de votre compte, veuillez entrer votre prénom et votre nom.
+            Pour terminer la configuration de votre compte, veuillez entrer votre prénom et votre
+            nom.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,9 +140,7 @@ export default function FirstTimeProfileDialog({
               disabled={isSubmitting}
               className={firstNameInputClasses}
             />
-            {errors.firstName && (
-              <p className="text-sm text-red-600">{errors.firstName}</p>
-            )}
+            {errors.firstName && <p className="text-sm text-red-600">{errors.firstName}</p>}
           </div>
 
           {/* Nom */}
@@ -149,14 +157,12 @@ export default function FirstTimeProfileDialog({
               disabled={isSubmitting}
               className={lastNameInputClasses}
             />
-            {errors.lastName && (
-              <p className="text-sm text-red-600">{errors.lastName}</p>
-            )}
+            {errors.lastName && <p className="text-sm text-red-600">{errors.lastName}</p>}
           </div>
 
           {/* Erreur générale */}
           {errors.general && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-700">{errors.general}</p>
             </div>
           )}
@@ -166,7 +172,7 @@ export default function FirstTimeProfileDialog({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 sm:w-auto"
             >
               {isSubmitting ? (
                 <>
@@ -180,9 +186,7 @@ export default function FirstTimeProfileDialog({
           </div>
         </form>
 
-        <p className="text-xs text-gray-500 mt-4">
-          * Champs obligatoires
-        </p>
+        <p className="mt-4 text-xs text-gray-500">* Champs obligatoires</p>
       </DialogContent>
     </Dialog>
   )

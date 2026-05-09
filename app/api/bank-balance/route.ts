@@ -23,7 +23,10 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (!profile?.group_id) {
-        return NextResponse.json({ error: 'Utilisateur ne fait pas partie d\'un groupe' }, { status: 400 })
+        return NextResponse.json(
+          { error: "Utilisateur ne fait pas partie d'un groupe" },
+          { status: 400 },
+        )
       }
 
       // Récupérer le solde du groupe
@@ -47,20 +50,23 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Erreur Supabase dans bank-balance:', error)
 
       // Si la table n'existe pas, retourner 0 sans erreur
-      if (error.code === '42P01' || error.message?.includes('relation "bank_balances" does not exist')) {
-        console.log('Table bank_balances n\'existe pas encore, retour de 0')
+      if (
+        error.code === '42P01' ||
+        error.message?.includes('relation "bank_balances" does not exist')
+      ) {
+        console.log("Table bank_balances n'existe pas encore, retour de 0")
         return NextResponse.json({ balance: 0 })
       }
 
       // Si aucun enregistrement trouvé (PGRST116), retourner 0
       if (error.code === 'PGRST116') {
-        console.log('Aucun solde trouvé pour l\'utilisateur, retour de 0')
+        console.log("Aucun solde trouvé pour l'utilisateur, retour de 0")
         return NextResponse.json({ balance: 0 })
       }
 
       return NextResponse.json(
         { error: `Erreur base de données: ${error.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -73,7 +79,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     console.error('Erreur dans GET /api/bank-balance:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })
@@ -92,10 +98,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     if (typeof balance !== 'number' || isNaN(balance)) {
       console.error('Solde invalide:', balance)
-      return NextResponse.json(
-        { error: 'Le solde doit être un nombre valide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le solde doit être un nombre valide' }, { status: 400 })
     }
 
     // Construire la requête selon le contexte
@@ -111,7 +114,10 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (!profile?.group_id) {
-        return NextResponse.json({ error: 'Utilisateur ne fait pas partie d\'un groupe' }, { status: 400 })
+        return NextResponse.json(
+          { error: "Utilisateur ne fait pas partie d'un groupe" },
+          { status: 400 },
+        )
       }
       const groupId = profile.group_id
       checkQuery = supabaseServer
@@ -140,16 +146,19 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Erreur lors de la vérification du solde existant:', checkError)
       return NextResponse.json(
         { error: `Erreur vérification: ${checkError.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Si la table n'existe pas, retourner une erreur explicite
-    if (checkError?.code === '42P01' || checkError?.message?.includes('relation "bank_balances" does not exist')) {
-      console.error('Table bank_balances n\'existe pas')
+    if (
+      checkError?.code === '42P01' ||
+      checkError?.message?.includes('relation "bank_balances" does not exist')
+    ) {
+      console.error("Table bank_balances n'existe pas")
       return NextResponse.json(
         { error: 'Table bank_balances non créée. Veuillez créer la table dans Supabase.' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -166,7 +175,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
       result = { data, error }
     } else {
-      console.log('Création d\'un nouveau solde pour contexte:', context)
+      console.log("Création d'un nouveau solde pour contexte:", context)
       // Créer un nouveau solde
       const { data, error } = await supabaseServer
         .from('bank_balances')
@@ -181,20 +190,20 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Erreur lors de la mise à jour du solde bancaire:', result.error)
       return NextResponse.json(
         { error: `Erreur mise à jour: ${result.error.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     console.log('Solde bancaire mis à jour avec succès:', result.data?.balance)
     return NextResponse.json({
       balance: result.data?.balance,
-      message: 'Solde bancaire mis à jour avec succès'
+      message: 'Solde bancaire mis à jour avec succès',
     })
   } catch (error) {
     console.error('Erreur dans POST /api/bank-balance:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })

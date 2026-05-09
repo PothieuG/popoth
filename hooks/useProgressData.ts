@@ -51,12 +51,12 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
       const [expenseResponse, incomeResponse] = await Promise.all([
         fetch(`/api/finance/expenses/progress${contextParam}`, {
           method: 'GET',
-          credentials: 'include'
+          credentials: 'include',
         }),
         fetch(`/api/finance/income/progress${contextParam}`, {
           method: 'GET',
-          credentials: 'include'
-        })
+          credentials: 'include',
+        }),
       ])
 
       if (!expenseResponse.ok || !incomeResponse.ok) {
@@ -65,7 +65,7 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
 
       const [expenseData, incomeData] = await Promise.all([
         expenseResponse.json(),
-        incomeResponse.json()
+        incomeResponse.json(),
       ])
 
       // Transformer les données en maps pour un accès rapide
@@ -81,7 +81,6 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
 
       setExpenseProgress(expenseMap)
       setIncomeProgress(incomeMap)
-
     } catch (err) {
       console.error('❌ Erreur dans useProgressData:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -112,7 +111,9 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
       fetchProgressData()
     })
 
-    return () => { unregister() }
+    return () => {
+      unregister()
+    }
   }, [fetchProgressData])
 
   return {
@@ -120,6 +121,6 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
     incomeProgress,
     loading,
     error,
-    refreshProgressData
+    refreshProgressData,
   }
 }

@@ -69,7 +69,7 @@ function loadMigrationCorpus() {
 function isVersioned(name, corpus) {
   const re = new RegExp(
     `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(?:public\\.)?${escapeRegex(name)}\\b`,
-    'i'
+    'i',
   )
   return re.test(corpus)
 }
@@ -88,7 +88,7 @@ async function main() {
 
   const { files, corpus } = loadMigrationCorpus()
   console.error(
-    `Scanned ${files.length} migration files for ${protocolNames.length} public.* function(s) in pg_proc.`
+    `Scanned ${files.length} migration files for ${protocolNames.length} public.* function(s) in pg_proc.`,
   )
 
   const report = protocolNames.map((name) => ({
@@ -104,7 +104,7 @@ async function main() {
   process.stdout.write('-'.repeat(header.length) + '\n')
   for (const r of report) {
     process.stdout.write(
-      `${r.name.padEnd(nameWidth)}  ${String(r.in_pg_proc).padEnd(10)}  ${r.in_migrations}\n`
+      `${r.name.padEnd(nameWidth)}  ${String(r.in_pg_proc).padEnd(10)}  ${r.in_migrations}\n`,
     )
   }
 
@@ -117,7 +117,7 @@ async function main() {
   }
 
   console.error(
-    `\nMISSING_FROM_MIGRATIONS: ${missing.length} function(s) exist in prod but have no CREATE FUNCTION in supabase/migrations/:`
+    `\nMISSING_FROM_MIGRATIONS: ${missing.length} function(s) exist in prod but have no CREATE FUNCTION in supabase/migrations/:`,
   )
   for (const name of missing) console.error(`  - ${name}`)
   console.error('')

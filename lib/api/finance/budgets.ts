@@ -26,11 +26,19 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     // Validation des données
     console.log('🔍 Validation - name:', name, 'type:', typeof name)
-    console.log('🔍 Validation - estimatedAmount:', estimatedAmount, 'type:', typeof estimatedAmount)
+    console.log(
+      '🔍 Validation - estimatedAmount:',
+      estimatedAmount,
+      'type:',
+      typeof estimatedAmount,
+    )
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       console.log('❌ Validation échouée: nom invalide')
-      return NextResponse.json({ error: 'Le nom du budget est requis (minimum 2 caractères)' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Le nom du budget est requis (minimum 2 caractères)' },
+        { status: 400 },
+      )
     }
 
     if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
@@ -44,7 +52,10 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     // Vérifier le contexte et l'appartenance à un groupe
     if (context === 'group' && !profile.group_id) {
-      return NextResponse.json({ error: 'Vous devez faire partie d\'un groupe pour créer un budget de groupe' }, { status: 400 })
+      return NextResponse.json(
+        { error: "Vous devez faire partie d'un groupe pour créer un budget de groupe" },
+        { status: 400 },
+      )
     }
 
     // Préparer les données du budget selon le contexte
@@ -55,7 +66,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
         estimated_amount: estimatedAmount,
         is_monthly_recurring: true,
         group_id: profile.group_id,
-        profile_id: null
+        profile_id: null,
       }
     } else {
       budgetData = {
@@ -63,7 +74,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
         estimated_amount: estimatedAmount,
         is_monthly_recurring: true,
         profile_id: userId,
-        group_id: null
+        group_id: null,
       }
     }
 
@@ -87,7 +98,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: context === 'group' ? undefined : userId,
       groupId: context === 'group' ? (profile.group_id ?? undefined) : undefined,
-      reason: 'budget_created'
+      reason: 'budget_created',
     })
 
     if (snapshotSuccess) {
@@ -97,7 +108,6 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     return NextResponse.json({ budget }, { status: 201 })
-
   } catch (error) {
     console.error('Erreur dans POST /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
@@ -122,11 +132,19 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     // Validation des données
     console.log('🔍 Validation - name:', name, 'type:', typeof name)
-    console.log('🔍 Validation - estimatedAmount:', estimatedAmount, 'type:', typeof estimatedAmount)
+    console.log(
+      '🔍 Validation - estimatedAmount:',
+      estimatedAmount,
+      'type:',
+      typeof estimatedAmount,
+    )
 
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
       console.log('❌ Validation échouée: nom invalide')
-      return NextResponse.json({ error: 'Le nom du budget est requis (minimum 2 caractères)' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Le nom du budget est requis (minimum 2 caractères)' },
+        { status: 400 },
+      )
     }
 
     if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
@@ -142,7 +160,7 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     const updateData = {
       name: name.trim(),
       estimated_amount: estimatedAmount,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     }
 
     console.log('💾 Données budget à mettre à jour:', updateData)
@@ -156,14 +174,19 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     // Vérifier l'existence et les permissions
     const { data: existingBudget } = await supabase
       .from('estimated_budgets')
-      .select('id, profile_id, group_id, name, estimated_amount, is_monthly_recurring, created_at, updated_at')
+      .select(
+        'id, profile_id, group_id, name, estimated_amount, is_monthly_recurring, created_at, updated_at',
+      )
       .eq('id', budgetId)
       .or(ownershipCondition)
       .single()
 
     if (!existingBudget) {
       console.log('❌ Budget non trouvé ou accès non autorisé')
-      return NextResponse.json({ error: 'Budget non trouvé ou accès non autorisé' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Budget non trouvé ou accès non autorisé' },
+        { status: 404 },
+      )
     }
 
     // Mettre à jour le budget
@@ -176,7 +199,10 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     if (error) {
       console.error('❌ Erreur lors de la mise à jour du budget:', error)
-      return NextResponse.json({ error: 'Erreur lors de la mise à jour du budget' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Erreur lors de la mise à jour du budget' },
+        { status: 500 },
+      )
     }
 
     console.log('✅ Budget mis à jour avec succès:', budget)
@@ -185,7 +211,7 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: existingBudget.profile_id || undefined,
       groupId: existingBudget.group_id || undefined,
-      reason: 'budget_updated'
+      reason: 'budget_updated',
     })
 
     if (snapshotSuccess) {
@@ -195,7 +221,6 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     }
 
     return NextResponse.json({ budget })
-
   } catch (error) {
     console.error('Erreur dans PUT /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
@@ -229,14 +254,14 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
 
     if (!existingBudget) {
       console.log('❌ Budget non trouvé ou accès non autorisé pour suppression')
-      return NextResponse.json({ error: 'Budget non trouvé ou accès non autorisé' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Budget non trouvé ou accès non autorisé' },
+        { status: 404 },
+      )
     }
 
     // Supprimer le budget
-    const { error } = await supabase
-      .from('estimated_budgets')
-      .delete()
-      .eq('id', budgetId)
+    const { error } = await supabase.from('estimated_budgets').delete().eq('id', budgetId)
 
     if (error) {
       console.error('Erreur lors de la suppression du budget:', error)
@@ -247,7 +272,7 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: existingBudget.profile_id || undefined,
       groupId: existingBudget.group_id || undefined,
-      reason: 'budget_deleted'
+      reason: 'budget_deleted',
     })
 
     if (snapshotSuccess) {
@@ -257,7 +282,6 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
     }
 
     return NextResponse.json({ message: 'Budget supprimé avec succès' })
-
   } catch (error) {
     console.error('Erreur dans DELETE /api/finance/budgets:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

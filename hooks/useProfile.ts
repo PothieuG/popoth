@@ -22,7 +22,7 @@ export function useProfile() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
-      
+
       abortControllerRef.current = new AbortController()
       setIsLoading(true)
       setError(null)
@@ -30,7 +30,7 @@ export function useProfile() {
       const response = await fetch('/api/profile', {
         method: 'GET',
         credentials: 'include',
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       })
 
       const data = await response.json()
@@ -41,7 +41,7 @@ export function useProfile() {
           console.error('Erreur API profil:', {
             status: response.status,
             statusText: response.statusText,
-            data
+            data,
           })
         }
 
@@ -49,9 +49,11 @@ export function useProfile() {
         if (response.status === 401) {
           throw new Error('Session expirée. Veuillez vous reconnecter.')
         } else if (response.status === 500 && data.error?.includes('bigint')) {
-          throw new Error('Erreur de configuration de la base de données. Veuillez contacter le support.')
+          throw new Error(
+            'Erreur de configuration de la base de données. Veuillez contacter le support.',
+          )
         }
-        
+
         throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`)
       }
 
@@ -61,10 +63,10 @@ export function useProfile() {
       if (err instanceof Error && err.name === 'AbortError') {
         return
       }
-      
+
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      
+
       // Log uniquement en développement
       if (process.env.NODE_ENV === 'development') {
         console.error('Erreur lors de la récupération du profil:', err)
@@ -85,10 +87,10 @@ export function useProfile() {
       const response = await fetch('/api/profile', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(profileData)
+        body: JSON.stringify(profileData),
       })
 
       const data = await response.json()
@@ -109,40 +111,43 @@ export function useProfile() {
   /**
    * Met à jour le profil de l'utilisateur connecté
    */
-  const updateProfile = useCallback(async (updates: Partial<CreateProfileRequest>): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateProfile = useCallback(
+    async (updates: Partial<CreateProfileRequest>): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(updates)
-      })
+        const response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(updates),
+        })
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la mise à jour du profil')
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de la mise à jour du profil')
+        }
+
+        setProfile(data.profile)
+        // Rafraîchir les données financières (le salaire impacte le RAV)
+        triggerFinancialRefresh()
+        return true
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        console.error('Erreur lors de la mise à jour du profil:', err)
+        return false
       }
-
-      setProfile(data.profile)
-      // Rafraîchir les données financières (le salaire impacte le RAV)
-      triggerFinancialRefresh()
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      console.error('Erreur lors de la mise à jour du profil:', err)
-      return false
-    }
-  }, [])
+    },
+    [],
+  )
 
   // Récupérer le profil au montage du composant
   useEffect(() => {
     fetchProfile()
-    
+
     // Cleanup: abort any pending request on unmount
     return () => {
       if (abortControllerRef.current) {
@@ -161,6 +166,6 @@ export function useProfile() {
     updateProfile,
     // Helpers
     hasProfile: profile !== null,
-    fullName: profile ? `${profile.first_name} ${profile.last_name}` : null
+    fullName: profile ? `${profile.first_name} ${profile.last_name}` : null,
   }
 }

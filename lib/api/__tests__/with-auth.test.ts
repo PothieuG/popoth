@@ -37,7 +37,9 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
-      throw new Error('withAuth tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
+      throw new Error(
+        'withAuth tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
+      )
     }
     admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -253,7 +255,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
           const { id } = await routeContext.params
           capturedId = id
           return NextResponse.json({ uid, id })
-        }
+        },
       )
       const token = await createSessionToken(userId, userEmail)
       const routeContext = { params: Promise.resolve({ id: 'member-xyz-789' }) }
@@ -281,18 +283,14 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
       const wrapped = withAuth(async (_req, { userId: uid }) => {
         return NextResponse.json({ uid })
       })
-      const tokens = await Promise.all(
-        parallelUsers.map(u => createSessionToken(u.id, u.email))
-      )
-      const responses = await Promise.all(
-        tokens.map(t => wrapped(buildRequest(t)))
-      )
+      const tokens = await Promise.all(parallelUsers.map((u) => createSessionToken(u.id, u.email)))
+      const responses = await Promise.all(tokens.map((t) => wrapped(buildRequest(t))))
       const responseUids = await Promise.all(
-        responses.map(async r => (await r.json()).uid as string)
+        responses.map(async (r) => (await r.json()).uid as string),
       )
       // Each response must report the matching userId in order — closure
       // isolation between concurrent invocations.
-      expect(responseUids).toEqual(parallelUsers.map(u => u.id))
+      expect(responseUids).toEqual(parallelUsers.map((u) => u.id))
     })
   })
 })

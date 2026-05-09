@@ -36,17 +36,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     const expenseId = searchParams.get('expense_id') // Optionnel: pour le mode edition
 
     if (!amount || amount <= 0) {
-      return NextResponse.json(
-        { error: 'Montant invalide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
     }
 
     if (!budgetId) {
-      return NextResponse.json(
-        { error: 'Budget ID requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Budget ID requis' }, { status: 400 })
     }
 
     // Determine context filter
@@ -61,10 +55,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (!profile?.group_id) {
-        return NextResponse.json(
-          { error: 'Groupe non trouvé' },
-          { status: 404 }
-        )
+        return NextResponse.json({ error: 'Groupe non trouvé' }, { status: 404 })
       }
       contextFilter = { group_id: profile.group_id }
     } else {
@@ -81,7 +72,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     let piggyBankBefore = piggyBankData?.amount || 0
 
     // En mode edition: restaurer virtuellement l'allocation de la depense existante
-    let existingExpense: { amount_from_piggy_bank: number, amount_from_budget_savings: number, amount_from_budget: number } | null = null
+    let existingExpense: {
+      amount_from_piggy_bank: number
+      amount_from_budget_savings: number
+      amount_from_budget: number
+    } | null = null
     if (expenseId) {
       const { data: expData } = await supabaseServer
         .from('real_expenses')
@@ -93,7 +88,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         existingExpense = {
           amount_from_piggy_bank: expData.amount_from_piggy_bank || 0,
           amount_from_budget_savings: expData.amount_from_budget_savings || 0,
-          amount_from_budget: expData.amount_from_budget || 0
+          amount_from_budget: expData.amount_from_budget || 0,
         }
         // Simuler le reverse: rendre les montants aux pools
         piggyBankBefore += existingExpense.amount_from_piggy_bank
@@ -109,10 +104,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (budgetError || !budgetData) {
-      return NextResponse.json(
-        { error: 'Budget non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget non trouvé' }, { status: 404 })
     }
 
     let savingsBefore = budgetData.cumulated_savings || 0
@@ -129,13 +121,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .eq('estimated_budget_id', budgetId)
       .match(contextFilter)
 
-    let budgetSpentBefore = expenses?.reduce((sum, e) => {
-      // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-      const amountFromBudget = e.amount_from_budget !== null && e.amount_from_budget !== undefined
-        ? e.amount_from_budget
-        : e.amount
-      return sum + amountFromBudget
-    }, 0) || 0
+    let budgetSpentBefore =
+      expenses?.reduce((sum, e) => {
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        const amountFromBudget =
+          e.amount_from_budget !== null && e.amount_from_budget !== undefined
+            ? e.amount_from_budget
+            : e.amount
+        return sum + amountFromBudget
+      }, 0) || 0
 
     // En mode edition: exclure le budget depense par la depense existante
     if (existingExpense) {
@@ -177,16 +171,12 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budget_spent_before: budgetSpentBefore,
       budget_spent_after: budgetSpentBefore + fromBudget,
       budget_estimated: budgetData.estimated_amount,
-      budget_name: budgetData.name
+      budget_name: budgetData.name,
     }
 
     return NextResponse.json({ breakdown })
-
   } catch (error) {
     console.error('❌ Error in GET /api/finance/expenses/preview-breakdown:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

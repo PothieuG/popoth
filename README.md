@@ -30,14 +30,14 @@ Popoth aide un foyer ou un groupe à piloter mensuellement ses budgets : revenus
 
 ## Stack
 
-| Couche | Technos |
-|---|---|
-| Framework | **Next.js 16.2.6** (App Router, webpack en dev / Turbopack en build) |
-| UI | **React 19.1.1**, **Tailwind 3**, **shadcn/ui** (variant new-york) |
-| Langage | **TypeScript 5** strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`) |
-| Backend | API routes Next.js + **Supabase** (PostgreSQL + Auth) (`@supabase/supabase-js@^2.57.4`) |
-| Auth | JWT custom (`jose`) — pas Supabase Auth direct |
-| Tests | **Vitest 4.1.5** (env `node`) |
+| Couche          | Technos                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Framework       | **Next.js 16.2.6** (App Router, webpack en dev / Turbopack en build)                                                       |
+| UI              | **React 19.1.1**, **Tailwind 3**, **shadcn/ui** (variant new-york)                                                         |
+| Langage         | **TypeScript 5** strict (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`)                                               |
+| Backend         | API routes Next.js + **Supabase** (PostgreSQL + Auth) (`@supabase/supabase-js@^2.57.4`)                                    |
+| Auth            | JWT custom (`jose`) — pas Supabase Auth direct                                                                             |
+| Tests           | **Vitest 4.1.5** (env `node`)                                                                                              |
 | Package manager | **pnpm 9.15.5** (verrouillé via `packageManager` + `engines.pnpm >=9.0.0`), Node ≥ 20.10.0 (`.nvmrc` pinné `20` LTS major) |
 
 `eslint-config-next 15.0.0` reste sur la version Next 15 — incompatible avec Next 16, ne pas upgrader avant le Sprint 1.
@@ -51,6 +51,7 @@ Popoth aide un foyer ou un groupe à piloter mensuellement ses budgets : revenus
 - Un projet [Supabase](https://supabase.com/) (URL + clés service_role et anon)
 
 Optionnel pour les opérations DB hors-app :
+
 - Un [access token Supabase](https://supabase.com/dashboard/account/tokens) (`sbp_…`) pour scripts en API Management.
 - Un mot de passe DB (Project Settings > Database > Reset password) pour `pnpm supabase ...`.
 
@@ -98,32 +99,32 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 
 ## Commandes
 
-| Commande | Effet |
-|---|---|
-| `pnpm dev` | Serveur dev Next.js (webpack, HMR) |
-| `pnpm build` | Build production (Turbopack) |
-| `pnpm start` | Serveur production (après `build`) |
-| `pnpm typecheck` | `tsc --noEmit` strict (BLOQUANT en CI) |
-| `pnpm lint` | ESLint avec `--fix` |
-| `pnpm lint:fix` | Alias de `pnpm lint` (conformité template canonique) |
-| `pnpm lint:check` | ESLint sans modification — **BLOQUANT** depuis Sprint Lint-Baseline-Cleanup, exit 0 attendu (toute nouvelle violation sort la PR rouge via `code-checks.yml`) |
-| `pnpm run ci` | Chaîne code-side : `typecheck` + `lint:check` + `test:run` + `build`. Exit 0 attendu. À invoquer via `pnpm run ci` (le bareword `pnpm ci` invoque le verb npm non implémenté par pnpm). |
-| `pnpm test` | Vitest watch |
-| `pnpm test:run` | Vitest single run (CI) |
-| `pnpm db:types` | Régénère [lib/database.types.ts](./lib/database.types.ts) depuis le schéma prod |
-| `pnpm db:diff` | Wrapper `supabase db diff` — pas dans le workflow réel, à préférer `pnpm db:check-drift` (le repo n'utilise pas Docker) |
-| `pnpm db:reset` | Wrapper `supabase db reset` — **nécessite Docker local** (pas dans le workflow réel) |
-| `pnpm db:check-drift` | Compare prod ↔ baseline `20260101000000_remote_schema.sql` |
-| `pnpm db:check-rpcs` | Vérifie via `pg_proc` que les 4 RPC C3 existent en prod |
-| `pnpm db:check-functions` | Vérifie via `pg_proc` que les 4 fonctions trigger custom existent (Sprint Audit-Triggers / A3) |
-| `pnpm db:check-types-fresh` | Vérifie que [`lib/database.types.ts`](./lib/database.types.ts) correspond à ce que `supabase gen types --project-id <ref>` produirait à l'instant T contre prod. Exit 0 = synchro, 1 = stale + diff sur stdout, 2 = fatal (Sprint Hygiene-CI / E2) |
-| `pnpm db:audit-functions` | **Audit générique** : liste TOUTES les `public.*` fonctions de `pg_proc` et vérifie chaque présence dans `supabase/migrations/` (Sprint Audit-Functions-v2 / B1) |
-| `pnpm db:audit-objects` | **Audit générique étendu** : 5 catégories `pg_catalog` (functions, composite types, enums, domains, operators). À lancer après toute migration ajoutant un `CREATE TYPE` / `CREATE DOMAIN` / `CREATE OPERATOR` (Sprint Cleanup-Legacy / C2) |
-| `pnpm verify` | **Meta-script sanity sweep** : enchaîne `typecheck` + `test:run` + les 6 `db:*` checks avec fail-fast (`&&`). Une commande à la place de huit après chaque sprint. ~36s en local (Sprint DX-Verify / G1) |
-| `pnpm supabase ...` | CLI Supabase (lié au projet distant) |
-| `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management |
-| `node scripts/apply-sql.mjs <file.sql>` | Applique un .sql (write OU SELECT lecture seule) |
-| `node scripts/apply-sql.mjs scripts/dump-functions.sql` | Dump pg_get_functiondef pour les fonctions PL/pgSQL captured (audit ad-hoc) |
+| Commande                                                | Effet                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                              | Serveur dev Next.js (webpack, HMR)                                                                                                                                                                                                                 |
+| `pnpm build`                                            | Build production (Turbopack)                                                                                                                                                                                                                       |
+| `pnpm start`                                            | Serveur production (après `build`)                                                                                                                                                                                                                 |
+| `pnpm typecheck`                                        | `tsc --noEmit` strict (BLOQUANT en CI)                                                                                                                                                                                                             |
+| `pnpm lint`                                             | ESLint avec `--fix`                                                                                                                                                                                                                                |
+| `pnpm lint:fix`                                         | Alias de `pnpm lint` (conformité template canonique)                                                                                                                                                                                               |
+| `pnpm lint:check`                                       | ESLint sans modification — **BLOQUANT** depuis Sprint Lint-Baseline-Cleanup, exit 0 attendu (toute nouvelle violation sort la PR rouge via `code-checks.yml`)                                                                                      |
+| `pnpm run ci`                                           | Chaîne code-side : `typecheck` + `lint:check` + `test:run` + `build`. Exit 0 attendu. À invoquer via `pnpm run ci` (le bareword `pnpm ci` invoque le verb npm non implémenté par pnpm).                                                            |
+| `pnpm test`                                             | Vitest watch                                                                                                                                                                                                                                       |
+| `pnpm test:run`                                         | Vitest single run (CI)                                                                                                                                                                                                                             |
+| `pnpm db:types`                                         | Régénère [lib/database.types.ts](./lib/database.types.ts) depuis le schéma prod                                                                                                                                                                    |
+| `pnpm db:diff`                                          | Wrapper `supabase db diff` — pas dans le workflow réel, à préférer `pnpm db:check-drift` (le repo n'utilise pas Docker)                                                                                                                            |
+| `pnpm db:reset`                                         | Wrapper `supabase db reset` — **nécessite Docker local** (pas dans le workflow réel)                                                                                                                                                               |
+| `pnpm db:check-drift`                                   | Compare prod ↔ baseline `20260101000000_remote_schema.sql`                                                                                                                                                                                         |
+| `pnpm db:check-rpcs`                                    | Vérifie via `pg_proc` que les 4 RPC C3 existent en prod                                                                                                                                                                                            |
+| `pnpm db:check-functions`                               | Vérifie via `pg_proc` que les 4 fonctions trigger custom existent (Sprint Audit-Triggers / A3)                                                                                                                                                     |
+| `pnpm db:check-types-fresh`                             | Vérifie que [`lib/database.types.ts`](./lib/database.types.ts) correspond à ce que `supabase gen types --project-id <ref>` produirait à l'instant T contre prod. Exit 0 = synchro, 1 = stale + diff sur stdout, 2 = fatal (Sprint Hygiene-CI / E2) |
+| `pnpm db:audit-functions`                               | **Audit générique** : liste TOUTES les `public.*` fonctions de `pg_proc` et vérifie chaque présence dans `supabase/migrations/` (Sprint Audit-Functions-v2 / B1)                                                                                   |
+| `pnpm db:audit-objects`                                 | **Audit générique étendu** : 5 catégories `pg_catalog` (functions, composite types, enums, domains, operators). À lancer après toute migration ajoutant un `CREATE TYPE` / `CREATE DOMAIN` / `CREATE OPERATOR` (Sprint Cleanup-Legacy / C2)        |
+| `pnpm verify`                                           | **Meta-script sanity sweep** : enchaîne `typecheck` + `test:run` + les 6 `db:*` checks avec fail-fast (`&&`). Une commande à la place de huit après chaque sprint. ~36s en local (Sprint DX-Verify / G1)                                           |
+| `pnpm supabase ...`                                     | CLI Supabase (lié au projet distant)                                                                                                                                                                                                               |
+| `node scripts/export-schema.mjs <out.sql>`              | Snapshot du schéma prod via API Management                                                                                                                                                                                                         |
+| `node scripts/apply-sql.mjs <file.sql>`                 | Applique un .sql (write OU SELECT lecture seule)                                                                                                                                                                                                   |
+| `node scripts/apply-sql.mjs scripts/dump-functions.sql` | Dump pg_get_functiondef pour les fonctions PL/pgSQL captured (audit ad-hoc)                                                                                                                                                                        |
 
 **Tests gated** (la suite skip sans la variable, donc CI standard reste rapide) :
 
@@ -222,6 +223,7 @@ flowchart LR
 ```
 
 **Points-clés** :
+
 - Deux clients Supabase coexistent. Le **server** (`supabase-server.ts`) bypass RLS, utilisé par toutes les routes API. Le **browser** (`supabase-client.ts`) est soumis à RLS et utilisé uniquement par les hooks. Les failles RLS s'exploitent via le browser, pas le server.
 - Les **écritures sur les invariants financiers** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) **doivent passer par les helpers `lib/finance/*`** qui appellent les 4 RPC atomiques `SECURITY DEFINER`. Pas de SELECT-then-UPDATE direct.
 - L'**auth** est un JWT custom signé via `jose`, vérifié par `validateSessionToken(request)` dans chaque route API. Pas Supabase Auth direct côté serveur.
@@ -262,6 +264,7 @@ erDiagram
 ```
 
 **Conventions DB** :
+
 - Toutes les tables sont dans le schéma `public`.
 - Pattern d'ownership : chaque ligne porte soit `profile_id` (perso), soit `group_id` (partagé), **jamais les deux** — enforce par CHECK `*_owner_exclusive_check`.
 - IDs : `uuid PRIMARY KEY DEFAULT gen_random_uuid()`.
@@ -271,16 +274,16 @@ erDiagram
 
 ## Tests & qualité
 
-| Outil | Rôle |
-|---|---|
-| `pnpm typecheck` | TypeScript strict — bloquant |
-| `pnpm lint:check` | ESLint — bloquant depuis Sprint Lint-Baseline-Cleanup (exit 0 attendu) |
-| `pnpm test:run` | Vitest unit — toujours vert |
-| `pnpm test:run` (gated) | Tests d'intégration contre Supabase prod, voir Configuration |
-| `pnpm db:check-drift` | Compare prod ↔ baseline SQL — exit 1 si drift |
-| `pnpm db:check-rpcs` | Vérifie les 4 RPC C3 dans `pg_proc` |
-| `pnpm db:check-types-fresh` | Vérifie que `lib/database.types.ts` est à jour vs prod (Sprint Hygiene-CI / E2) |
-| `pnpm verify` | **Sanity sweep** : `typecheck` + `test:run` + 6 `db:*` checks fail-fast en une commande (Sprint DX-Verify / G1) |
+| Outil                       | Rôle                                                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `pnpm typecheck`            | TypeScript strict — bloquant                                                                                    |
+| `pnpm lint:check`           | ESLint — bloquant depuis Sprint Lint-Baseline-Cleanup (exit 0 attendu)                                          |
+| `pnpm test:run`             | Vitest unit — toujours vert                                                                                     |
+| `pnpm test:run` (gated)     | Tests d'intégration contre Supabase prod, voir Configuration                                                    |
+| `pnpm db:check-drift`       | Compare prod ↔ baseline SQL — exit 1 si drift                                                                   |
+| `pnpm db:check-rpcs`        | Vérifie les 4 RPC C3 dans `pg_proc`                                                                             |
+| `pnpm db:check-types-fresh` | Vérifie que `lib/database.types.ts` est à jour vs prod (Sprint Hygiene-CI / E2)                                 |
+| `pnpm verify`               | **Sanity sweep** : `typecheck` + `test:run` + 6 `db:*` checks fail-fast en une commande (Sprint DX-Verify / G1) |
 
 **Pas de mocks DB** dans les tests d'intégration (interdiction explicite — cf. CLAUDE.md §8). Les fixtures créent un `auth.users` réel via `admin.auth.admin.createUser` et nettoient en cascade dans `afterAll`.
 
@@ -316,7 +319,7 @@ L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-
 - ✅ **Sprint Refactor-Architecture-v2** (livré 2026-05-08) : 4 commits code + closeout (`0b1e44b` → `96a39d7`). **Volet A** (cleanup) — 13 thin-wrappers deprecated supprimés (`/api/finances/**`, `/api/financial/**`, `/api/budgets`, `/api/incomes`, 101 LOC) + helper `lib/api/with-deprecation.ts` supprimé (12 LOC, plus aucun consumer). **B.1** GET sur `/api/finance/budgets` supprimé — 0 consumer applicatif, lecture passe par `/api/finance/budgets/estimated` ; POST/PUT/DELETE conservés (consommés par `useBudgets.ts`). **B.2** `/api/finance/dashboard` supprimé entièrement — 0 consumer, 457 LOC dead code, type `FinancialDashboardData` jamais importé externally. B.3 (duplication dashboard.ts/summary.ts) résolu en side-effect. **Volet C** skipped (pas de plan de rename pour `/api/savings/**`, `/api/groups/**`, `/api/profile`). Doc [`docs/api/README.md`](./docs/api/README.md) mise à jour ; build expose 12 paths sous `/api/finance/` (était 13 avec dashboard). Aucun changement DB.
 - ✅ **Sprint Refactor-Architecture-v3** (livré 2026-05-08) : 5 commits code + closeout (`644f1b3` → `1e669cb`). Extraction du boilerplate auth + profile dans les 12 modules `lib/api/finance/*.ts` via [`lib/api/with-auth.ts`](./lib/api/with-auth.ts) — 2 helpers `withAuth` (auth seule) + `withAuthAndProfile` (auth + profile). **Phase 1 audit a invalidé l'hypothèse uniforme du prompt source** : split 4 always-fetch (budgets, incomes, rav, summary) vs 8 conditional-fetch + drift messages d'erreur (`'Non autorisé'` 5× / `'Non authentifié'` 6× / aucun `'Session invalide'` malgré CLAUDE.md §6). Décisions arbitrées : 2 helpers, harmonisation sur `'Session invalide'`, scope finance-only. **Wrapper sans try/catch outer** (préserve les `console.error` route-aware + le fallback 200-with-default-data de `summary.ts`). 28 handlers refactorés, **0 callsite restant de `validateSessionToken` dans `lib/api/finance/`**, **0 occurrence de `'Non autorisé'`/`'Non authentifié'`**. LOC delta net : **−219 LOC** (helper +71, refactor −290). Volet C reporté Sprint v4.
 - ✅ **Sprint Refactor-Architecture-v4** (livré 2026-05-08) : 7 commits code + closeout (`b16cca3` → `b30beeb`). Volet C — extension du wrapper aux **21 routes hors finance** (profile, savings, bank-balance, groups, monthly-recap hors `process-step1`). **Phase 1 a surfacé 6 patterns distincts de profile-fetch** (vs 2 dans v3 finance) ; user a arbitré : (a) extension du select default à `id, group_id, first_name, last_name` (8 routes utilisaient ces colonnes pour `user_name`), (b) profile GET reste sur `withAuth` + manual `select('*')` pour préserver le 200-on-no-profile fallback, (c) extension du wrapper avec un generic optionnel `routeContext` pour les routes dynamiques (groups/[id], groups/[id]/members) plutôt que dupliquer en `withAuthDynamic`, (d) skip debug routes. **42 callsites migrés sur 21 routes**. Découpage : helper extension / savings + bank-balance / profile / groups static / groups dynamic / monthly-recap simple (9 routes) / monthly-recap stateful (4 routes). Edge cases vérifiés sans regression : globals dans `complete`, dispatch v1/v2 dans `recover`, 200-fallback dans `profile GET`, conditional fetch dans `bank-balance`, joined query split en 2 calls dans `groups/[id]/members DELETE`. **Architecture v4 : 33 modules sur le wrapper** (12 finance + 21 Volet C). LOC delta net : **~−811 LOC** (refactor −819, helper +8). Voir [`prompts/prompt-03-architecture-v5.md`](./prompts/prompt-03-architecture-v5.md) pour le suivi (test coverage du wrapper + JSDoc + refinement signature dynamic-route).
-- ✅ **Sprint Refactor-Architecture-v5** (livré 2026-05-09) : 4 commits sur `cleanup` (`186d526` overloads+JSDoc / `7bd7575` process-step1 wrap / `290b921` tests / `77bf3ef` closeout). Hardening du wrapper auth canonique installé en v3+v4. **3 gaps fermés + 1 leftover v4** : (1) [`lib/api/with-auth.ts`](./lib/api/with-auth.ts) — 2 overloads par helper (static-route sans routeContext, dynamic-route avec generic `<TParams>` non-optionnel) + JSDoc complète (description, @param, @returns, @example x3) + drop des 5 `routeContext!` dans `app/api/groups/[id]/**`. **Trade-off** : impl signature opaque (`any`) annotée avec eslint-disable + raison — required-vs-optional `routeContext` ne se réconcilient pas dans une signature typée unique, mais les overloads enforce les types au call site. (2) [`app/api/monthly-recap/process-step1/route.ts`](./app/api/monthly-recap/process-step1/route.ts) — auth header (38 lignes) wrap par `withAuthAndProfile` ; le >700 LOC métier body reste verbatim pour I5. **Negative invariant établi** : `rg "validateSessionToken" app/api/` ne match plus que les 6 debug routes (auth/* utilise sa propre logique session). (3) [`lib/api/__tests__/with-auth.test.ts`](./lib/api/__tests__/with-auth.test.ts) (298 LOC) — **12 cas gated `SUPABASE_API_TESTS=1`** couvrant withAuth (6 : valid session, no cookie, invalid JWT, expired payload via custom `expiresAt` past + JWT signature still valid, static-route overload, dynamic-route overload), withAuthAndProfile (4 : valid + complete shape regression-guard, no cookie, no profile → 404, dynamic + profile), isolation (2 : wrapper does NOT catch handler errors, parallel invocations don't cross userId contexts). Pattern dynamic-import-in-beforeAll + cleanup cascade calé sur `api-regressions.test.ts`. **Architecture finale v5 : 34 modules sur le wrapper** (33 v4 + process-step1 auth header). LOC delta net : **+349 LOC** — premier sprint avec delta positif depuis 4 sprints (coverage > refactor).
+- ✅ **Sprint Refactor-Architecture-v5** (livré 2026-05-09) : 4 commits sur `cleanup` (`186d526` overloads+JSDoc / `7bd7575` process-step1 wrap / `290b921` tests / `77bf3ef` closeout). Hardening du wrapper auth canonique installé en v3+v4. **3 gaps fermés + 1 leftover v4** : (1) [`lib/api/with-auth.ts`](./lib/api/with-auth.ts) — 2 overloads par helper (static-route sans routeContext, dynamic-route avec generic `<TParams>` non-optionnel) + JSDoc complète (description, @param, @returns, @example x3) + drop des 5 `routeContext!` dans `app/api/groups/[id]/**`. **Trade-off** : impl signature opaque (`any`) annotée avec eslint-disable + raison — required-vs-optional `routeContext` ne se réconcilient pas dans une signature typée unique, mais les overloads enforce les types au call site. (2) [`app/api/monthly-recap/process-step1/route.ts`](./app/api/monthly-recap/process-step1/route.ts) — auth header (38 lignes) wrap par `withAuthAndProfile` ; le >700 LOC métier body reste verbatim pour I5. **Negative invariant établi** : `rg "validateSessionToken" app/api/` ne match plus que les 6 debug routes (auth/\* utilise sa propre logique session). (3) [`lib/api/__tests__/with-auth.test.ts`](./lib/api/__tests__/with-auth.test.ts) (298 LOC) — **12 cas gated `SUPABASE_API_TESTS=1`** couvrant withAuth (6 : valid session, no cookie, invalid JWT, expired payload via custom `expiresAt` past + JWT signature still valid, static-route overload, dynamic-route overload), withAuthAndProfile (4 : valid + complete shape regression-guard, no cookie, no profile → 404, dynamic + profile), isolation (2 : wrapper does NOT catch handler errors, parallel invocations don't cross userId contexts). Pattern dynamic-import-in-beforeAll + cleanup cascade calé sur `api-regressions.test.ts`. **Architecture finale v5 : 34 modules sur le wrapper** (33 v4 + process-step1 auth header). LOC delta net : **+349 LOC** — premier sprint avec delta positif depuis 4 sprints (coverage > refactor).
 
 L'historique des sprints sécurité est consigné dans [`CLAUDE.md`](./CLAUDE.md) §7.
 

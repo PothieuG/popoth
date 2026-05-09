@@ -27,7 +27,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
 
     // Si c'est une action tirelire, déléguer à la fonction appropriée
-    if (action && ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)) {
+    if (
+      action &&
+      ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)
+    ) {
       return handlePiggyBankAction(profile, context, action, amount)
     }
 
@@ -38,23 +41,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     // Sinon, c'est un transfert entre budgets
     if (!context || !from_budget_id || !to_budget_id || !amount) {
-      return NextResponse.json(
-        { error: 'Paramètres manquants' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 })
     }
 
     if (amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant doit être positif' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
     }
 
     if (from_budget_id === to_budget_id) {
       return NextResponse.json(
         { error: 'Les budgets source et destination doivent être différents' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -69,9 +66,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     console.log(`💸💸💸 ========================================================`)
 
     // Determine context filter
-    const contextFilter = context === 'group' && profile.group_id
-      ? { group_id: profile.group_id }
-      : { profile_id: profile.id }
+    const contextFilter =
+      context === 'group' && profile.group_id
+        ? { group_id: profile.group_id }
+        : { profile_id: profile.id }
 
     // 1. Get FROM budget with current savings
     const { data: fromBudget, error: fromError } = await supabaseServer
@@ -83,10 +81,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     if (fromError || !fromBudget) {
       console.error('❌ Budget source non trouvé:', fromError)
-      return NextResponse.json(
-        { error: 'Budget source non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget source non trouvé' }, { status: 404 })
     }
 
     // 2. Get TO budget
@@ -99,10 +94,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     if (toError || !toBudget) {
       console.error('❌ Budget destination non trouvé:', toError)
-      return NextResponse.json(
-        { error: 'Budget destination non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget destination non trouvé' }, { status: 404 })
     }
 
     // 3. Validate that source budget has enough savings
@@ -111,15 +103,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       return NextResponse.json(
         {
           error: `Le budget ${fromBudget.name} n'a que ${currentSavings}€ d'économies disponibles`,
-          available: currentSavings
+          available: currentSavings,
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     console.log(`✅ Validation OK:`)
     console.log(`   - Budget source: ${fromBudget.name} - ${currentSavings}€ disponibles`)
-    console.log(`   - Budget destination: ${toBudget.name} - ${toBudget.cumulated_savings || 0}€ actuels`)
+    console.log(
+      `   - Budget destination: ${toBudget.name} - ${toBudget.cumulated_savings || 0}€ actuels`,
+    )
 
     // 4. Update FROM budget (subtract savings) — atomique via RPC
     let newFromSavings: number
@@ -129,7 +123,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur mise à jour budget source:', updateFromError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget source' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -148,7 +142,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget destination' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -166,22 +160,18 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         budget_id: from_budget_id,
         budget_name: fromBudget.name,
         old_savings: currentSavings,
-        new_savings: newFromSavings
+        new_savings: newFromSavings,
       },
       to: {
         budget_id: to_budget_id,
         budget_name: toBudget.name,
         old_savings: toBudget.cumulated_savings || 0,
-        new_savings: newToSavings
-      }
+        new_savings: newToSavings,
+      },
     })
-
   } catch (error) {
     console.error('❌ Erreur dans POST /api/savings/transfer:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur lors du transfert' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur lors du transfert' }, { status: 500 })
   }
 })
 
@@ -192,13 +182,10 @@ async function handlePiggyBankAction(
   profile: AuthedProfile,
   context: string,
   action: string,
-  amount: number
+  amount: number,
 ) {
   if (typeof amount !== 'number' || isNaN(amount)) {
-    return NextResponse.json(
-      { error: 'Montant invalide' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
   }
 
   console.log(``)
@@ -211,13 +198,15 @@ async function handlePiggyBankAction(
   console.log(`🐷 User ID: ${profile.id}`)
 
   // Determine context filter
-  const contextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id, profile_id: null }
-    : { profile_id: profile.id, group_id: null }
+  const contextFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id, profile_id: null }
+      : { profile_id: profile.id, group_id: null }
 
-  const matchFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
+  const matchFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id }
+      : { profile_id: profile.id }
 
   console.log(`🐷 Filtre appliqué:`, matchFilter)
 
@@ -232,7 +221,7 @@ async function handlePiggyBankAction(
     console.error('❌ Erreur récupération tirelire:', getPiggyError)
     return NextResponse.json(
       { error: 'Erreur lors de la récupération de la tirelire' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 
@@ -252,10 +241,7 @@ async function handlePiggyBankAction(
       newAmount = Math.max(0, currentAmount - Math.max(0, amount))
       break
     default:
-      return NextResponse.json(
-        { error: `Action inconnue: ${action}` },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: `Action inconnue: ${action}` }, { status: 400 })
   }
 
   console.log(`🐷 Nouveau montant tirelire: ${newAmount}€`)
@@ -269,24 +255,22 @@ async function handlePiggyBankAction(
       console.error('❌ Erreur mise à jour tirelire:', updateError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour de la tirelire' },
-        { status: 500 }
+        { status: 500 },
       )
     }
   } else {
     // Insert new
-    const { error: insertError } = await supabaseServer
-      .from('piggy_bank')
-      .insert({
-        ...contextFilter,
-        amount: newAmount,
-        last_updated: new Date().toISOString()
-      })
+    const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
+      ...contextFilter,
+      amount: newAmount,
+      last_updated: new Date().toISOString(),
+    })
 
     if (insertError) {
       console.error('❌ Erreur création tirelire:', insertError)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la tirelire' },
-        { status: 500 }
+        { status: 500 },
       )
     }
   }
@@ -301,7 +285,7 @@ async function handlePiggyBankAction(
     previous_amount: currentAmount,
     new_amount: newAmount,
     difference: newAmount - currentAmount,
-    context
+    context,
   })
 }
 
@@ -313,18 +297,16 @@ async function handleBudgetToPiggyBank(
   profile: AuthedProfile,
   context: string,
   fromBudgetId: string,
-  amount: number
+  amount: number,
 ) {
   if (!fromBudgetId || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
-    return NextResponse.json(
-      { error: 'Paramètres manquants ou invalides' },
-      { status: 400 }
-    )
+    return NextResponse.json({ error: 'Paramètres manquants ou invalides' }, { status: 400 })
   }
 
-  const contextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
+  const contextFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id }
+      : { profile_id: profile.id }
 
   // 1. Get source budget
   const { data: fromBudget, error: fromError } = await supabaseServer
@@ -342,7 +324,7 @@ async function handleBudgetToPiggyBank(
   if (amount > currentSavings) {
     return NextResponse.json(
       { error: `Le budget ${fromBudget.name} n'a que ${currentSavings}€ d'économies disponibles` },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
@@ -356,13 +338,15 @@ async function handleBudgetToPiggyBank(
   }
 
   // 3. Add to piggy bank (upsert)
-  const piggyContextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id, profile_id: null }
-    : { profile_id: profile.id, group_id: null }
+  const piggyContextFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id, profile_id: null }
+      : { profile_id: profile.id, group_id: null }
 
-  const piggyMatchFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
+  const piggyMatchFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id }
+      : { profile_id: profile.id }
 
   const { data: currentPiggyBank } = await supabaseServer
     .from('piggy_bank')
@@ -379,19 +363,27 @@ async function handleBudgetToPiggyBank(
     } catch (updateError) {
       console.error('❌ Erreur mise à jour tirelire:', updateError)
       // Rollback budget
-      try { await updateBudgetCumulatedSavings(fromBudgetId, amount) }
-      catch (rollbackErr) { console.error('❌ Rollback budget impossible:', rollbackErr) }
+      try {
+        await updateBudgetCumulatedSavings(fromBudgetId, amount)
+      } catch (rollbackErr) {
+        console.error('❌ Rollback budget impossible:', rollbackErr)
+      }
       return NextResponse.json({ error: 'Erreur mise à jour tirelire' }, { status: 500 })
     }
   } else {
-    const { error: insertError } = await supabaseServer
-      .from('piggy_bank')
-      .insert({ ...piggyContextFilter, amount: newPiggyAmount, last_updated: new Date().toISOString() })
+    const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
+      ...piggyContextFilter,
+      amount: newPiggyAmount,
+      last_updated: new Date().toISOString(),
+    })
 
     if (insertError) {
       // Rollback budget
-      try { await updateBudgetCumulatedSavings(fromBudgetId, amount) }
-      catch (rollbackErr) { console.error('❌ Rollback budget impossible:', rollbackErr) }
+      try {
+        await updateBudgetCumulatedSavings(fromBudgetId, amount)
+      } catch (rollbackErr) {
+        console.error('❌ Rollback budget impossible:', rollbackErr)
+      }
       return NextResponse.json({ error: 'Erreur création tirelire' }, { status: 500 })
     }
   }
@@ -399,7 +391,11 @@ async function handleBudgetToPiggyBank(
   return NextResponse.json({
     success: true,
     action: 'budget_to_piggy_bank',
-    from_budget: { name: fromBudget.name, old_savings: currentSavings, new_savings: newBudgetSavings },
-    piggy_bank: { old_amount: currentPiggyAmount, new_amount: newPiggyAmount }
+    from_budget: {
+      name: fromBudget.name,
+      old_savings: currentSavings,
+      new_savings: newBudgetSavings,
+    },
+    piggy_bank: { old_amount: currentPiggyAmount, new_amount: newPiggyAmount },
   })
 }

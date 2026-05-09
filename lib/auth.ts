@@ -28,24 +28,23 @@ export async function signInWithPassword(email: string, password: string): Promi
       body: JSON.stringify({
         action: 'login',
         email,
-        password
-      })
+        password,
+      }),
     })
 
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
         success: true,
         user: {
           id: result.user.id,
           email: result.user.email,
-        }
+        },
       }
     }
 
     return { success: false, error: result.error || 'Erreur de connexion' }
-    
   } catch (error) {
     console.error('Sign in error:', error)
     return { success: false, error: 'Erreur de connexion. Veuillez réessayer.' }
@@ -60,7 +59,7 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
     })
 
     if (error) {
@@ -69,7 +68,10 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
       } else if (error.message.includes('Password should be at least')) {
         return { success: false, error: 'Le mot de passe doit contenir au moins 6 caractères' }
       } else {
-        return { success: false, error: 'Erreur lors de la création du compte. Veuillez réessayer.' }
+        return {
+          success: false,
+          error: 'Erreur lors de la création du compte. Veuillez réessayer.',
+        }
       }
     }
 
@@ -79,13 +81,12 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
         user: {
           id: data.user.id,
           email: data.user.email!,
-          email_confirmed_at: data.user.email_confirmed_at
-        }
+          email_confirmed_at: data.user.email_confirmed_at,
+        },
       }
     }
 
     return { success: false, error: 'Erreur de création de compte inattendue' }
-    
   } catch (error) {
     console.error('Sign up error:', error)
     return { success: false, error: 'Erreur de création de compte. Veuillez réessayer.' }
@@ -105,18 +106,17 @@ export async function signOut(): Promise<void> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'logout'
-      })
+        action: 'logout',
+      }),
     })
-    
+
     // Also clear client-side cookie as fallback
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
     }
-    
   } catch (error) {
     console.error('Sign out error:', error)
-    
+
     // Even if API fails, clear client-side cookie
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
@@ -136,24 +136,23 @@ export async function refreshSession(): Promise<AuthResponse> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'refresh'
-      })
+        action: 'refresh',
+      }),
     })
 
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
         success: true,
         user: {
           id: result.user.id,
           email: result.user.email,
-        }
+        },
       }
     }
 
     return { success: false, error: result.error || 'Erreur de rafraîchissement' }
-    
   } catch (error) {
     console.error('Refresh session error:', error)
     return { success: false, error: 'Erreur lors du rafraîchissement de la session' }
@@ -170,7 +169,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     if (!hasSessionCookie()) {
       return null
     }
-    
+
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
@@ -180,16 +179,15 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
 
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
         id: result.user.id,
-        email: result.user.email
+        email: result.user.email,
       }
     }
-    
+
     return null
-    
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
@@ -209,7 +207,7 @@ export async function isAuthenticated(): Promise<boolean> {
     if (!hasSessionCookie()) {
       return false
     }
-    
+
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
@@ -220,7 +218,6 @@ export async function isAuthenticated(): Promise<boolean> {
 
     const result = await response.json()
     return result.success && result.authenticated
-    
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
@@ -237,19 +234,18 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function resetPassword(email: string): Promise<AuthResponse> {
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
+      redirectTo: `${window.location.origin}/reset-password`,
     })
 
     if (error) {
       console.error('Password reset error:', error)
-      return { success: false, error: 'Erreur lors de l\'envoi de l\'email de réinitialisation' }
+      return { success: false, error: "Erreur lors de l'envoi de l'email de réinitialisation" }
     }
 
     return { success: true }
-    
   } catch (error) {
     console.error('Reset password error:', error)
-    return { success: false, error: 'Erreur lors de l\'envoi de l\'email de réinitialisation' }
+    return { success: false, error: "Erreur lors de l'envoi de l'email de réinitialisation" }
   }
 }
 
@@ -260,18 +256,17 @@ export async function resetPassword(email: string): Promise<AuthResponse> {
 export async function updatePassword(newPassword: string): Promise<AuthResponse> {
   try {
     const { error } = await supabase.auth.updateUser({
-      password: newPassword
+      password: newPassword,
     })
 
     if (error) {
       if (error.message.includes('same as the old password')) {
-        return { success: false, error: 'Le nouveau mot de passe doit être différent de l\'ancien' }
+        return { success: false, error: "Le nouveau mot de passe doit être différent de l'ancien" }
       }
       return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
     }
 
     return { success: true }
-    
   } catch (error) {
     console.error('Update password error:', error)
     return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }

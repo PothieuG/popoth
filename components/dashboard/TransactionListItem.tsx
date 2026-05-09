@@ -32,7 +32,7 @@ export default function TransactionListItem({
   onDelete,
   context = 'profile',
   userProfile = null,
-  className
+  className,
 }: TransactionListItemProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -44,7 +44,7 @@ export default function TransactionListItem({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -56,7 +56,7 @@ export default function TransactionListItem({
       day: 'numeric',
       month: 'short',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -110,99 +110,108 @@ export default function TransactionListItem({
     {
       label: 'Modifier',
       icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+          />
         </svg>
       ),
-      onClick: () => onEdit(transaction)
+      onClick: () => onEdit(transaction),
     },
     {
       label: 'Supprimer',
       icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+          />
         </svg>
       ),
       onClick: () => setIsDeleteModalOpen(true),
-      variant: 'danger' as const
-    }
+      variant: 'danger' as const,
+    },
   ]
 
   return (
     <>
-      <div className={cn(
-        'p-4 bg-white rounded-lg border border-gray-200 shadow-md transition-all duration-200',
-        'hover:shadow-lg hover:border-gray-300',
-        className
-      )}>
+      <div
+        className={cn(
+          'rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-200',
+          'hover:border-gray-300 hover:shadow-lg',
+          className,
+        )}
+      >
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
-          <div className="flex items-center space-x-3 flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center space-x-3">
             {/* Avatar for group transactions */}
             {context === 'group' && (
               <div className="flex-shrink-0">
-                <UserAvatar
-                  profile={userProfile}
-                  size="sm"
-                />
+                <UserAvatar profile={userProfile} size="sm" />
               </div>
             )}
 
             {/* 3-line layout */}
-            <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="min-w-0 flex-1 space-y-0.5">
               {/* Line 1: Amount - Description with breakdown badges */}
               <div className="flex items-baseline space-x-2">
-                <span className={cn(
-                  'text-lg font-bold',
-                  type === 'expense' ? 'text-red-600' : 'text-green-600'
-                )}>
-                  {type === 'expense' ? '-' : '+'}{formatAmount(transaction.amount)}
+                <span
+                  className={cn(
+                    'text-lg font-bold',
+                    type === 'expense' ? 'text-red-600' : 'text-green-600',
+                  )}
+                >
+                  {type === 'expense' ? '-' : '+'}
+                  {formatAmount(transaction.amount)}
                 </span>
 
                 {/* Breakdown badges for expenses with smart allocation */}
-                {type === 'expense' && (transaction as RealExpense).amount_from_piggy_bank !== undefined && (
-                  <div className="flex items-center gap-1">
-                    {(transaction as RealExpense).amount_from_piggy_bank! > 0 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">
-                        🪙 {formatAmount((transaction as RealExpense).amount_from_piggy_bank!)}
-                      </span>
-                    )}
-                    {(transaction as RealExpense).amount_from_budget_savings! > 0 && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-700">
-                        💰 {formatAmount((transaction as RealExpense).amount_from_budget_savings!)}
-                      </span>
-                    )}
-                  </div>
-                )}
+                {type === 'expense' &&
+                  (transaction as RealExpense).amount_from_piggy_bank !== undefined && (
+                    <div className="flex items-center gap-1">
+                      {(transaction as RealExpense).amount_from_piggy_bank! > 0 && (
+                        <span className="inline-flex items-center rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700">
+                          🪙 {formatAmount((transaction as RealExpense).amount_from_piggy_bank!)}
+                        </span>
+                      )}
+                      {(transaction as RealExpense).amount_from_budget_savings! > 0 && (
+                        <span className="inline-flex items-center rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
+                          💰{' '}
+                          {formatAmount((transaction as RealExpense).amount_from_budget_savings!)}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                <span className="text-sm font-bold text-gray-900 truncate flex-1">
+                <span className="flex-1 truncate text-sm font-bold text-gray-900">
                   - {transaction.description}
                 </span>
               </div>
 
               {/* Line 2: Category name with color */}
-              <p className={cn(
-                'text-sm font-medium truncate',
-                getCategoryTextColor()
-              )}>
+              <p className={cn('truncate text-sm font-medium', getCategoryTextColor())}>
                 {getCategoryName()}
               </p>
 
               {/* Line 3: Date with time (very small) */}
-              <p className="text-xs text-gray-500">
-                {formatDateWithTime(transaction.created_at)}
-              </p>
+              <p className="text-xs text-gray-500">{formatDateWithTime(transaction.created_at)}</p>
             </div>
           </div>
 
           {/* Actions dropdown - Bigger and centered */}
-          <div className="flex-shrink-0 ml-2 flex items-center min-h-full">
+          <div className="ml-2 flex min-h-full flex-shrink-0 items-center">
             <DropdownMenu
               items={getDropdownItems()}
               buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"
               buttonContent={
-                <svg className="w-6 h-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                <svg className="h-6 w-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
                 </svg>
               }
             />

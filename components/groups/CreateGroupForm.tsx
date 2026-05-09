@@ -25,13 +25,13 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
    */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validation
     if (!name.trim()) {
       setError('Le nom du groupe est requis')
       return
     }
-    
+
     const budgetNumber = parseFloat(budget)
     if (!budget || isNaN(budgetNumber) || budgetNumber <= 0) {
       setError('Veuillez entrer un budget valide (nombre positif)')
@@ -56,9 +56,9 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
   }
 
   return (
-    <Card className="p-4 bg-blue-50 border-blue-200">
+    <Card className="border-blue-200 bg-blue-50 p-4">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Group Name */}
           <div className="space-y-2">
             <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
@@ -103,19 +103,14 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
 
         {/* Error Message */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="rounded-md border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-600">{error}</p>
           </div>
         )}
 
         {/* Action Buttons */}
         <div className="flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Annuler
           </Button>
           <Button
@@ -129,7 +124,8 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
 
         {/* Helper Text */}
         <div className="text-xs text-gray-500">
-          * Champs obligatoires. Le budget est utilisé pour les statistiques et peut être modifié plus tard.
+          * Champs obligatoires. Le budget est utilisé pour les statistiques et peut être modifié
+          plus tard.
         </div>
       </form>
     </Card>

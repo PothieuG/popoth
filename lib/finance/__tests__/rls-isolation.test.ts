@@ -7,8 +7,7 @@ const RLS_TESTS_ENABLED = process.env.SUPABASE_RLS_TESTS === '1'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
@@ -25,31 +24,34 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
   const passwordA = `rls-A-${randomUUID()}`
   const passwordB = `rls-B-${randomUUID()}`
 
-  async function buildClientForUser(email: string, password: string): Promise<SupabaseClient<Database>> {
+  async function buildClientForUser(
+    email: string,
+    password: string,
+  ): Promise<SupabaseClient<Database>> {
     const tmp = createClient<Database>(SUPABASE_URL!, ANON_KEY!)
     const { data, error } = await tmp.auth.signInWithPassword({ email, password })
     if (error || !data.session) throw error ?? new Error('signInWithPassword returned no session')
     return createClient<Database>(SUPABASE_URL!, ANON_KEY!, {
       global: {
-        headers: { Authorization: `Bearer ${data.session.access_token}` }
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
       },
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
     })
   }
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
       throw new Error(
-        'RLS tests require NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, and SUPABASE_SERVICE_ROLE_KEY'
+        'RLS tests require NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, and SUPABASE_SERVICE_ROLE_KEY',
       )
     }
     admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false }
+      auth: { autoRefreshToken: false, persistSession: false },
     })
 
     const created = await Promise.all([
       admin.auth.admin.createUser({ email: emailA, password: passwordA, email_confirm: true }),
-      admin.auth.admin.createUser({ email: emailB, password: passwordB, email_confirm: true })
+      admin.auth.admin.createUser({ email: emailB, password: passwordB, email_confirm: true }),
     ])
     if (created[0].error || !created[0].data.user) throw created[0].error
     if (created[1].error || !created[1].data.user) throw created[1].error
@@ -78,15 +80,13 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
     // profiles must exist before piggy_bank / group_contributions inserts
     // because both tables FK on profiles(id). We upsert here in case a
     // Supabase trigger has already created stub rows.
-    const { error: profilesError } = await admin
-      .from('profiles')
-      .upsert(
-        [
-          { id: userAId, first_name: 'RLS', last_name: 'A', group_id: groupAId },
-          { id: userBId, first_name: 'RLS', last_name: 'B', group_id: null },
-        ],
-        { onConflict: 'id' }
-      )
+    const { error: profilesError } = await admin.from('profiles').upsert(
+      [
+        { id: userAId, first_name: 'RLS', last_name: 'A', group_id: groupAId },
+        { id: userBId, first_name: 'RLS', last_name: 'B', group_id: null },
+      ],
+      { onConflict: 'id' },
+    )
     if (profilesError) throw profilesError
 
     const { error: seedError } = await admin
@@ -98,18 +98,16 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
     // contributions row when userA's profile bound to groupAId. The unique
     // constraint group_contributions_unique_profile_group enforces one row
     // per (profile_id, group_id).
-    const { error: contribError } = await admin
-      .from('group_contributions')
-      .upsert(
-        {
-          profile_id: userAId,
-          group_id: groupAId,
-          salary: 1000,
-          contribution_amount: 100,
-          contribution_percentage: 10,
-        },
-        { onConflict: 'profile_id,group_id' }
-      )
+    const { error: contribError } = await admin.from('group_contributions').upsert(
+      {
+        profile_id: userAId,
+        group_id: groupAId,
+        salary: 1000,
+        contribution_amount: 100,
+        contribution_percentage: 10,
+      },
+      { onConflict: 'profile_id,group_id' },
+    )
     if (contribError) throw contribError
   })
 
@@ -209,7 +207,7 @@ describe.skipIf(!RLS_TESTS_ENABLED)('RLS isolation (Sprint DB D1-D3)', () => {
     // (RLS hides it, returning a permission denied error or empty rows)
     // or postgres returns a 42501 / "new row violates row-level security"
     // error. Both prove the snapshot path is service-role-only.
-    const rejected = (error !== null) || ((data ?? []).length === 0)
+    const rejected = error !== null || (data ?? []).length === 0
     expect(rejected).toBe(true)
 
     // Verify the row really did not land — service role count for the

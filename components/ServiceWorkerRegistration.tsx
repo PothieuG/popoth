@@ -57,27 +57,37 @@ export function ServiceWorkerRegistration() {
   if (!showBanner) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 duration-300">
-      <div className="max-w-md mx-auto bg-white rounded-xl shadow-lg border border-indigo-100 p-4 flex items-center gap-3">
-        <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">P</span>
+    <div className="animate-in slide-in-from-bottom-4 fixed bottom-4 left-4 right-4 z-50 duration-300">
+      <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-indigo-100 bg-white p-4 shadow-lg">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+          <span className="text-lg font-bold text-white">P</span>
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900">Installer Popoth App</p>
           <p className="text-xs text-gray-500">Acc\u00e9dez rapidement depuis votre bureau</p>
         </div>
         <button
           onClick={handleInstall}
-          className="flex-shrink-0 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all"
+          className="flex-shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-3 py-1.5 text-sm font-medium text-white transition-all hover:from-blue-700 hover:to-purple-700"
         >
           Installer
         </button>
         <button
           onClick={handleDismiss}
-          className="flex-shrink-0 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+          className="flex-shrink-0 p-1 text-gray-400 transition-colors hover:text-gray-600"
           aria-label="Fermer"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>

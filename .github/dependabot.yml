@@ -11,8 +11,8 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      time: "08:00"
-      timezone: "Europe/Paris"
+      time: '08:00'
+      timezone: 'Europe/Paris'
     open-pull-requests-limit: 5
     target-branch: cleanup
     commit-message:
@@ -24,58 +24,58 @@ updates:
     groups:
       radix-ui:
         patterns:
-          - "@radix-ui/*"
+          - '@radix-ui/*'
       supabase:
         patterns:
-          - "@supabase/*"
-          - "supabase"
+          - '@supabase/*'
+          - 'supabase'
       eslint:
         patterns:
-          - "eslint*"
-          - "@eslint/*"
+          - 'eslint*'
+          - '@eslint/*'
       test-stack:
         patterns:
-          - "vitest"
-          - "@vitest/*"
+          - 'vitest'
+          - '@vitest/*'
       # react and react-dom must move in lockstep — version mismatch (e.g.
       # react 19.2 + react-dom 19.1) is a runtime crash, not a typecheck
       # error, so the PR-time gate misses it. Group both packages plus
       # their @types siblings so a single PR carries the whole stack.
       react-stack:
         patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react"
-          - "@types/react-dom"
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
     ignore:
       # tailwindcss v4 — major rewrite (CSS-first config, @import syntax,
       # @tailwindcss/postcss plugin separation). Reverted 2026-05-07
       # (Sprint DX-Verify follow-up). Defer to dedicated Sprint Tailwind-v4
       # with `npx @tailwindcss/upgrade` + full visual UI audit.
-      - dependency-name: "tailwindcss"
+      - dependency-name: 'tailwindcss'
         update-types:
-          - "version-update:semver-major"
+          - 'version-update:semver-major'
       # @supabase/supabase-js >=2.105 — introduced RejectExcessProperties
       # strict typing that breaks 5 typechecks in app/api/monthly-recap/*
       # (legacy code with [x: string]: any index signatures). Reverted
       # 2026-05-07. Defer to dedicated Sprint Supabase-Strict-Types
       # (couplé chantier I5 — extraction logique métier process-step1).
-      - dependency-name: "@supabase/supabase-js"
+      - dependency-name: '@supabase/supabase-js'
         versions:
-          - ">=2.105.0"
+          - '>=2.105.0'
       # eslint-config-next 16+ — pinned to 15.0.0 (CLAUDE.md §2). v16
       # requires ESLint 9 + flat config migration (Sprint 1 territory).
-      - dependency-name: "eslint-config-next"
+      - dependency-name: 'eslint-config-next'
         versions:
-          - ">=16.0.0"
+          - '>=16.0.0'
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
-      time: "08:00"
-      timezone: "Europe/Paris"
+      time: '08:00'
+      timezone: 'Europe/Paris'
     open-pull-requests-limit: 5
     target-branch: cleanup
     commit-message:

@@ -55,7 +55,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Get group's estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
+        .select(
+          '*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update',
+        )
         .eq('group_id', profile.group_id)
         .order('created_at', { ascending: false })
 
@@ -65,10 +67,12 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Get user's personal estimated budgets
       const result = await supabaseServer
         .from('estimated_budgets')
-        .select('*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update')
+        .select(
+          '*, carryover_spent_amount, carryover_applied_date, cumulated_savings, last_savings_update',
+        )
         .eq('profile_id', userId)
         .order('created_at', { ascending: false })
-      
+
       data = result.data
       error = result.error
     }
@@ -77,49 +81,50 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Error fetching estimated budgets:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets estimés' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Calculate spent amount this month for each budget
-    const budgetsWithSpending = await Promise.all((data || []).map(async (budget: EstimatedBudgetRow) => {
-      const currentDate = new Date()
-      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-      const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+    const budgetsWithSpending = await Promise.all(
+      (data || []).map(async (budget: EstimatedBudgetRow) => {
+        const currentDate = new Date()
+        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+        const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
 
-      const { data: expenses } = await supabaseServer
-        .from('real_expenses')
-        .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
-        .eq('estimated_budget_id', budget.id)
-        .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
-        .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
+        const { data: expenses } = await supabaseServer
+          .from('real_expenses')
+          .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+          .eq('estimated_budget_id', budget.id)
+          .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
+          .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-      const actualSpent = expenses?.reduce((sum, expense) => {
-        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-          ? parseFloat(expense.amount_from_budget.toString())
-          : parseFloat(expense.amount.toString())
-        return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-      }, 0) || 0
+        const actualSpent =
+          expenses?.reduce((sum, expense) => {
+            // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+            const amountFromBudget =
+              expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+                ? parseFloat(expense.amount_from_budget.toString())
+                : parseFloat(expense.amount.toString())
+            return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+          }, 0) || 0
 
-      // Inclure le carryover (déficit reporté du mois précédent) dans le montant dépensé
-      // Cela affiche le déficit dans l'écran budget sans créer de dépense visible
-      const carryover = parseFloat((budget.carryover_spent_amount || 0).toString())
-      const spentThisMonth = (isNaN(carryover) ? 0 : carryover) + actualSpent
+        // Inclure le carryover (déficit reporté du mois précédent) dans le montant dépensé
+        // Cela affiche le déficit dans l'écran budget sans créer de dépense visible
+        const carryover = parseFloat((budget.carryover_spent_amount || 0).toString())
+        const spentThisMonth = (isNaN(carryover) ? 0 : carryover) + actualSpent
 
-      return {
-        ...budget,
-        spent_this_month: spentThisMonth
-      }
-    }))
+        return {
+          ...budget,
+          spent_this_month: spentThisMonth,
+        }
+      }),
+    )
 
     return NextResponse.json({ estimated_budgets: budgetsWithSpending })
   } catch (error) {
     console.error('Error in GET /api/finance/budgets/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -133,16 +138,13 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Le nom du budget est requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le nom du budget est requis' }, { status: 400 })
     }
 
     if (!estimated_amount || typeof estimated_amount !== 'number' || estimated_amount <= 0) {
       return NextResponse.json(
         { error: 'Le montant estimé doit être un nombre positif' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -164,7 +166,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       if (!profile?.group_id) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des budgets de groupe' },
-          { status: 400 }
+          { status: 400 },
         )
       }
 
@@ -184,20 +186,17 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Error creating estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création du budget estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       estimated_budget: { ...data, spent_this_month: 0 },
-      message: 'Budget estimé créé avec succès'
+      message: 'Budget estimé créé avec succès',
     })
   } catch (error) {
     console.error('Error in POST /api/finance/budgets/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -210,30 +209,21 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const { id, name, estimated_amount, is_monthly_recurring } = body
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID du budget estimé requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID du budget estimé requis' }, { status: 400 })
     }
 
     const updates: EstimatedBudgetUpdate = {}
-    
+
     if (name !== undefined) {
       if (!name || name.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'Le nom ne peut pas être vide' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
       }
       updates.name = name.trim()
     }
 
     if (estimated_amount !== undefined) {
       if (estimated_amount <= 0) {
-        return NextResponse.json(
-          { error: 'Le montant estimé doit être positif' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le montant estimé doit être positif' }, { status: 400 })
       }
       updates.estimated_amount = estimated_amount
       // current_savings calculated dynamically in application, not stored
@@ -244,10 +234,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'Aucune donnée à mettre à jour' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the estimated budget
@@ -262,7 +249,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       console.error('Error updating estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -278,23 +265,22 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
       .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
-    const spentThisMonth = expenses?.reduce((sum, expense) => {
-      const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-        ? parseFloat(expense.amount_from_budget.toString())
-        : parseFloat(expense.amount.toString())
-      return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-    }, 0) || 0
+    const spentThisMonth =
+      expenses?.reduce((sum, expense) => {
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? parseFloat(expense.amount_from_budget.toString())
+            : parseFloat(expense.amount.toString())
+        return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+      }, 0) || 0
 
     return NextResponse.json({
       estimated_budget: { ...data, spent_this_month: spentThisMonth },
-      message: 'Budget estimé mis à jour avec succès'
+      message: 'Budget estimé mis à jour avec succès',
     })
   } catch (error) {
     console.error('Error in PUT /api/finance/budgets/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -307,34 +293,25 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const id = url.searchParams.get('id')
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID du budget estimé requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID du budget estimé requis' }, { status: 400 })
     }
 
     // Delete the estimated budget (this will set estimated_budget_id to null in related expenses)
-    const { error } = await supabaseServer
-      .from('estimated_budgets')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabaseServer.from('estimated_budgets').delete().eq('id', id)
 
     if (error) {
       console.error('Error deleting estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du budget estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
-      message: 'Budget estimé supprimé avec succès'
+      message: 'Budget estimé supprimé avec succès',
     })
   } catch (error) {
     console.error('Error in DELETE /api/finance/budgets/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

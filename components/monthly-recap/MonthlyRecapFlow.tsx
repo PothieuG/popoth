@@ -14,10 +14,7 @@ interface MonthlyRecapFlowProps {
  * Composant principal pour le flux de récapitulatif mensuel
  * VERSION SIMPLIFIÉE SANS CACHE - Chaque étape gère ses propres données live
  */
-export default function MonthlyRecapFlow({
-  context,
-  onComplete
-}: MonthlyRecapFlowProps) {
+export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFlowProps) {
   const router = useRouter()
   const {
     error,
@@ -25,25 +22,34 @@ export default function MonthlyRecapFlow({
     transferBetweenBudgets,
     autoBalanceBudgets,
     completeRecap,
-    goToNextStep
+    goToNextStep,
   } = useMonthlyRecap(context)
-
 
   // Gestion des erreurs globales du hook (très rare car chaque étape gère ses erreurs)
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full text-center">
-          <div className="text-red-600 mb-4">
-            <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
+          <div className="mb-4 text-red-600">
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+              />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Erreur</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-4 text-gray-600">{error}</p>
           <button
             onClick={() => router.push('/dashboard')}
-            className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+            className="w-full rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700"
           >
             Retour au tableau de bord
           </button>
@@ -57,7 +63,7 @@ export default function MonthlyRecapFlow({
     return await transferBetweenBudgets({
       from_budget_id: fromBudgetId,
       to_budget_id: toBudgetId,
-      amount
+      amount,
     })
   }
 
@@ -81,9 +87,9 @@ export default function MonthlyRecapFlow({
       const processResponse = await fetch('/api/monthly-recap/process-step1', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ context })
+        body: JSON.stringify({ context }),
       })
 
       console.log('🟢🟢🟢 [DEBUG FLOW] Fetch terminé, status:', processResponse.status)
@@ -101,7 +107,9 @@ export default function MonthlyRecapFlow({
 
         // Si cas déficit et pas complètement équilibré
         if (processData.case === 'deficit' && !processData.is_fully_balanced) {
-          console.warn(`⚠️ [Frontend] Équilibrage partiel - Gap résiduel: ${processData.gap_residuel}€`)
+          console.warn(
+            `⚠️ [Frontend] Équilibrage partiel - Gap résiduel: ${processData.gap_residuel}€`,
+          )
           // Optionnel: Afficher un toast/alert à l'utilisateur
           // alert(`Attention: Un gap de ${processData.gap_residuel}€ subsiste. Réduisez vos budgets ou augmentez vos revenus.`)
         }
@@ -109,9 +117,11 @@ export default function MonthlyRecapFlow({
         // Log détaillé des opérations pour debug
         console.log(``)
         console.log(`📋 Détail des opérations:`)
-        processData.operations_performed.forEach((op: { step: string; type: string; details: unknown }, index: number) => {
-          console.log(`   ${index + 1}. [${op.step}] ${op.type}:`, op.details)
-        })
+        processData.operations_performed.forEach(
+          (op: { step: string; type: string; details: unknown }, index: number) => {
+            console.log(`   ${index + 1}. [${op.step}] ${op.type}:`, op.details)
+          },
+        )
         console.log(``)
 
         // Navigation vers Step 2
@@ -130,7 +140,7 @@ export default function MonthlyRecapFlow({
         // goToNextStep()
       }
     } catch (error) {
-      console.error('❌ [Frontend] Erreur lors de la validation de l\'étape 1:', error)
+      console.error("❌ [Frontend] Erreur lors de la validation de l'étape 1:", error)
 
       // Afficher l'erreur à l'utilisateur
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -154,7 +164,7 @@ export default function MonthlyRecapFlow({
       // Complete the recap with carry forward action
       const result = await completeRecap({
         action: 'carry_forward',
-        final_amount: 0 // Will be calculated by the backend
+        final_amount: 0, // Will be calculated by the backend
       })
 
       if (result?.success) {
@@ -191,12 +201,7 @@ export default function MonthlyRecapFlow({
   // Rendu des étapes
   switch (currentStep) {
     case 1:
-      return (
-        <MonthlyRecapStep1
-          context={context}
-          onNext={handleStep1Next}
-        />
-      )
+      return <MonthlyRecapStep1 context={context} onNext={handleStep1Next} />
 
     case 2:
       return (

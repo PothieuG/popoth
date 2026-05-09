@@ -36,7 +36,7 @@ export function useExpenseProgress(context?: 'profile' | 'group'): UseExpensePro
 
       const response = await fetch(url, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -52,7 +52,6 @@ export function useExpenseProgress(context?: 'profile' | 'group'): UseExpensePro
       })
 
       setExpenseProgress(progressMap)
-
     } catch (err) {
       console.error('❌ Erreur dans useExpenseProgress:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -74,6 +73,6 @@ export function useExpenseProgress(context?: 'profile' | 'group'): UseExpensePro
     expenseProgress,
     loading,
     error,
-    refreshExpenseProgress
+    refreshExpenseProgress,
   }
 }

@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('OTP verification error:', error)
-      
+
       // Handle specific verification errors
       if (error.message.includes('expired')) {
         return NextResponse.redirect(new URL('/auth/auth-code-error?error=expired', request.url))
@@ -61,7 +61,6 @@ export async function GET(request: NextRequest) {
       const redirectUrl = next.startsWith('/') ? next : `/${next}`
       return NextResponse.redirect(new URL(redirectUrl, request.url))
     }
-
   } catch (error) {
     console.error('Unexpected error during OTP verification:', error)
     return NextResponse.redirect(new URL('/auth/auth-code-error?error=server', request.url))

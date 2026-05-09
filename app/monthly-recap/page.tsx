@@ -6,9 +6,9 @@ import MonthlyRecapFlow from '@/components/monthly-recap/MonthlyRecapFlow'
 
 function MonthlyRecapLoadingFallback() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
         <p className="text-gray-600">Chargement du récapitulatif mensuel...</p>
       </div>
     </div>
@@ -70,9 +70,10 @@ function MonthlyRecapPageContent() {
     console.log('✅ [MonthlyRecapPage] Récapitulatif terminé avec succès')
 
     // Afficher un message de confirmation
-    const confirmMessage = context === 'profile'
-      ? 'Récapitulatif personnel terminé ! Redirection vers votre dashboard...'
-      : 'Récapitulatif de groupe terminé ! Redirection vers le dashboard de groupe...'
+    const confirmMessage =
+      context === 'profile'
+        ? 'Récapitulatif personnel terminé ! Redirection vers votre dashboard...'
+        : 'Récapitulatif de groupe terminé ! Redirection vers le dashboard de groupe...'
 
     // Vous pouvez ajouter ici une notification toast si vous en avez un système
     console.log(confirmMessage)
@@ -105,9 +106,9 @@ function MonthlyRecapPageContent() {
 
   if (isChecking) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <p className="text-gray-600">Vérification du récapitulatif mensuel...</p>
         </div>
       </div>
@@ -123,16 +124,13 @@ function MonthlyRecapPageContent() {
       </div>
 
       {/* Composant principal du flux de récap */}
-      <MonthlyRecapFlow
-        context={context}
-        onComplete={handleRecapComplete}
-      />
+      <MonthlyRecapFlow context={context} onComplete={handleRecapComplete} />
 
       {/* Message d'information discret */}
       <div className="sr-only">
         <p>
-          Ce récapitulatif mensuel est obligatoire et doit être complété
-          avant de pouvoir accéder aux autres fonctionnalités de l&apos;application.
+          Ce récapitulatif mensuel est obligatoire et doit être complété avant de pouvoir accéder
+          aux autres fonctionnalités de l&apos;application.
         </p>
       </div>
     </div>

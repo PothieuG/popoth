@@ -34,12 +34,12 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
   const logContext = {
     component: '/api/finance/income/estimated',
     operation: 'fetch_estimated_incomes',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
 
   console.log('📖 Fetching estimated incomes', {
     ...logContext,
-    level: 'info'
+    level: 'info',
   })
 
   try {
@@ -50,7 +50,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       ...logContext,
       level: 'debug',
       userId,
-      forGroup: forGroup
+      forGroup: forGroup,
     })
 
     let data, error
@@ -92,7 +92,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Error fetching estimated incomes:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des revenus estimés' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -102,7 +102,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       userId,
       forGroup: forGroup,
       count: data?.length || 0,
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
     })
 
     return NextResponse.json({ estimated_incomes: data || [] })
@@ -113,14 +113,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       error: {
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        name: error instanceof Error ? error.name : 'UnknownError'
+        name: error instanceof Error ? error.name : 'UnknownError',
       },
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
     })
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -134,23 +131,20 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Le nom du revenu est requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le nom du revenu est requis' }, { status: 400 })
     }
 
     if (!estimated_amount || typeof estimated_amount !== 'number' || estimated_amount <= 0) {
       return NextResponse.json(
         { error: 'Le montant estimé doit être un nombre positif' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     const insertData: EstimatedIncomeInsert = {
       name: name.trim(),
       estimated_amount,
-      is_monthly_recurring
+      is_monthly_recurring,
     }
 
     if (is_for_group) {
@@ -164,7 +158,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       if (!profile?.group_id) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des revenus de groupe' },
-          { status: 400 }
+          { status: 400 },
         )
       }
 
@@ -184,20 +178,17 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       console.error('Error creating estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création du revenu estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       estimated_income: data,
-      message: 'Revenu estimé créé avec succès'
+      message: 'Revenu estimé créé avec succès',
     })
   } catch (error) {
     console.error('Error in POST /api/finance/income/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -210,30 +201,21 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const { id, name, estimated_amount, is_monthly_recurring } = body
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID du revenu estimé requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID du revenu estimé requis' }, { status: 400 })
     }
 
     const updates: EstimatedIncomeUpdate = {}
 
     if (name !== undefined) {
       if (!name || name.trim().length === 0) {
-        return NextResponse.json(
-          { error: 'Le nom ne peut pas être vide' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
       }
       updates.name = name.trim()
     }
 
     if (estimated_amount !== undefined) {
       if (estimated_amount <= 0) {
-        return NextResponse.json(
-          { error: 'Le montant estimé doit être positif' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'Le montant estimé doit être positif' }, { status: 400 })
       }
       updates.estimated_amount = estimated_amount
     }
@@ -243,10 +225,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     }
 
     if (Object.keys(updates).length === 0) {
-      return NextResponse.json(
-        { error: 'Aucune donnée à mettre à jour' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the estimated income
@@ -261,20 +240,17 @@ export const PUT = withAuth(async (request: NextRequest) => {
       console.error('Error updating estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du revenu estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       estimated_income: data,
-      message: 'Revenu estimé mis à jour avec succès'
+      message: 'Revenu estimé mis à jour avec succès',
     })
   } catch (error) {
     console.error('Error in PUT /api/finance/income/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -287,34 +263,25 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const id = url.searchParams.get('id')
 
     if (!id) {
-      return NextResponse.json(
-        { error: 'ID du revenu estimé requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'ID du revenu estimé requis' }, { status: 400 })
     }
 
     // Delete the estimated income
-    const { error } = await supabaseServer
-      .from('estimated_incomes')
-      .delete()
-      .eq('id', id)
+    const { error } = await supabaseServer.from('estimated_incomes').delete().eq('id', id)
 
     if (error) {
       console.error('Error deleting estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du revenu estimé' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
-      message: 'Revenu estimé supprimé avec succès'
+      message: 'Revenu estimé supprimé avec succès',
     })
   } catch (error) {
     console.error('Error in DELETE /api/finance/income/estimated:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

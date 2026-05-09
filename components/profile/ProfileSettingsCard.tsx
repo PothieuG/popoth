@@ -8,7 +8,11 @@ import { Label } from '@/components/ui/label'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
-import { calculateUserContribution, formatCurrency, formatPercentage } from '@/lib/contribution-calculator'
+import {
+  calculateUserContribution,
+  formatCurrency,
+  formatPercentage,
+} from '@/lib/contribution-calculator'
 import AvatarUpload from '@/components/ui/AvatarUpload'
 
 interface ProfileSettingsCardProps {
@@ -22,7 +26,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   const { profile, isLoading, updateProfile, hasProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
   const { contributions, fetchContributions } = useGroupContributions()
-  
+
   // Form state
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -70,23 +74,23 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
     // Get other group members' salaries (excluding current user)
     const otherMembers = contributions
-      .filter(contrib => contrib.profile_id !== profile?.id)
-      .map(contrib => ({
+      .filter((contrib) => contrib.profile_id !== profile?.id)
+      .map((contrib) => ({
         id: contrib.profile_id,
-        salary: contrib.salary
+        salary: contrib.salary,
       }))
 
     // Calculate what the contribution would be
     const calculation = calculateUserContribution(
       salaryNum,
       currentGroup.monthly_budget_estimate,
-      otherMembers
+      otherMembers,
     )
 
     if (!calculation.isValid && calculation.errorMessage && calculation.suggestions) {
       setContributionWarning({
         message: calculation.errorMessage,
-        suggestions: calculation.suggestions
+        suggestions: calculation.suggestions,
       })
     }
   }
@@ -134,7 +138,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   const handleAvatarUpdate = async (avatarUrl: string | null) => {
     try {
       const updates = {
-        avatar_url: avatarUrl
+        avatar_url: avatarUrl,
       }
 
       const success = await updateProfile(updates)
@@ -167,7 +171,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       const updates = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        salary: salary.trim() ? parseFloat(salary) : 0
+        salary: salary.trim() ? parseFloat(salary) : 0,
       }
 
       const success = await updateProfile(updates)
@@ -217,7 +221,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       style: 'currency',
       currency: 'EUR',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(amount)
   }
 
@@ -225,10 +229,10 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
     return (
       <Card className={`p-6 ${className}`}>
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded mb-4"></div>
+          <div className="mb-4 h-6 rounded bg-gray-200"></div>
           <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
+            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
           </div>
         </div>
       </Card>
@@ -237,7 +241,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
   return (
     <Card className={`p-6 ${className}`}>
-      <div className="flex justify-between items-center mb-4">
+      <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Mon profil</h2>
         {!isEditing && (
           <Button
@@ -253,7 +257,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
       {/* Success Message */}
       {successMessage && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+        <div className="mb-4 rounded border border-green-400 bg-green-100 p-3 text-green-700">
           {successMessage}
         </div>
       )}
@@ -261,7 +265,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       <div className="space-y-6">
         {/* Avatar Upload Section */}
         <div className="border-b border-gray-200 pb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">Photo de profil</h3>
+          <h3 className="mb-4 text-sm font-medium text-gray-700">Photo de profil</h3>
           <AvatarUpload
             profile={profile}
             onAvatarUpdate={handleAvatarUpdate}
@@ -285,9 +289,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
                 placeholder="Votre prénom"
                 className={errors.firstName ? 'border-red-300 focus:border-red-500' : ''}
               />
-              {errors.firstName && (
-                <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
-              )}
+              {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
             </div>
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile?.first_name || 'Non défini'}</p>
@@ -309,9 +311,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
                 placeholder="Votre nom"
                 className={errors.lastName ? 'border-red-300 focus:border-red-500' : ''}
               />
-              {errors.lastName && (
-                <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
-              )}
+              {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
             </div>
           ) : (
             <p className="mt-1 text-sm text-gray-900">{profile?.last_name || 'Non défini'}</p>
@@ -337,28 +337,36 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
                   placeholder="Ex: 2500"
                   className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
                 />
-                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 transform text-sm text-gray-500">
                   €
                 </span>
               </div>
-              {errors.salary && (
-                <p className="mt-1 text-sm text-red-600">{errors.salary}</p>
-              )}
-              
+              {errors.salary && <p className="mt-1 text-sm text-red-600">{errors.salary}</p>}
+
               {/* Contribution Warning */}
               {contributionWarning && !errors.salary && (
-                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3">
                   <div className="flex items-start">
-                    <svg className="w-5 h-5 text-red-400 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0 text-red-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-red-800 mb-2">
+                      <p className="mb-2 text-sm font-medium text-red-800">
                         {contributionWarning.message}
                       </p>
                       <div className="text-xs text-red-700">
-                        <p className="font-medium mb-1">Solutions possibles :</p>
-                        <ul className="list-disc list-inside space-y-1">
+                        <p className="mb-1 font-medium">Solutions possibles :</p>
+                        <ul className="list-inside list-disc space-y-1">
                           {contributionWarning.suggestions.map((suggestion, index) => (
                             <li key={index}>{suggestion}</li>
                           ))}
@@ -370,47 +378,56 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
               )}
 
               <p className="mt-1 text-xs text-gray-500">
-                <span className="text-red-500">*</span> Requis pour calculer votre contribution au budget du groupe
+                <span className="text-red-500">*</span> Requis pour calculer votre contribution au
+                budget du groupe
               </p>
             </div>
           ) : (
             <div className="mt-1 space-y-2">
               <p className="text-sm text-gray-900">
-                {profile?.salary && profile.salary > 0 
-                  ? formatSalary(profile.salary) 
-                  : <span className="text-red-600">Non défini (requis)</span>
-                }
+                {profile?.salary && profile.salary > 0 ? (
+                  formatSalary(profile.salary)
+                ) : (
+                  <span className="text-red-600">Non défini (requis)</span>
+                )}
               </p>
-              
+
               {/* Display contribution if user has a group and salary */}
               {hasGroup && currentGroup && profile?.salary && profile.salary > 0 && (
-                <div className="bg-blue-50 p-2 rounded-md">
-                  <p className="text-xs text-blue-700 font-medium mb-1">Votre contribution au groupe :</p>
+                <div className="rounded-md bg-blue-50 p-2">
+                  <p className="mb-1 text-xs font-medium text-blue-700">
+                    Votre contribution au groupe :
+                  </p>
                   {(() => {
                     const otherMembers = contributions
-                      .filter(contrib => contrib.profile_id !== profile?.id)
-                      .map(contrib => ({ id: contrib.profile_id, salary: contrib.salary }))
-                    
+                      .filter((contrib) => contrib.profile_id !== profile?.id)
+                      .map((contrib) => ({ id: contrib.profile_id, salary: contrib.salary }))
+
                     const calculation = calculateUserContribution(
                       profile.salary,
                       currentGroup.monthly_budget_estimate,
-                      otherMembers
+                      otherMembers,
                     )
-                    
+
                     return (
-                      <div className="flex justify-between items-center">
+                      <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-blue-800">
                           {formatCurrency(calculation.userContribution)}
                         </span>
                         <span className="text-xs text-blue-600">
-                          ({formatPercentage(calculation.userPercentage)} de votre salaire, {formatPercentage((calculation.userContribution / currentGroup.monthly_budget_estimate) * 100)} du budget)
+                          ({formatPercentage(calculation.userPercentage)} de votre salaire,{' '}
+                          {formatPercentage(
+                            (calculation.userContribution / currentGroup.monthly_budget_estimate) *
+                              100,
+                          )}{' '}
+                          du budget)
                         </span>
                       </div>
                     )
                   })()}
                 </div>
               )}
-              
+
               {profile?.salary && profile.salary > 0 && (
                 <p className="text-xs text-gray-500">
                   <span className="text-red-500">*</span> Utilisé pour le calcul des contributions
@@ -422,19 +439,15 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
         {/* Action Buttons */}
         {isEditing && (
-          <div className="flex space-x-3 pt-4 border-t border-gray-200">
+          <div className="flex space-x-3 border-t border-gray-200 pt-4">
             <Button
               onClick={handleSave}
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isSaving}
-            >
+            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
               Annuler
             </Button>
           </div>

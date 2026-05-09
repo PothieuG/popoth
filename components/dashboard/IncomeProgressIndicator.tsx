@@ -22,9 +22,8 @@ interface IncomeProgressIndicatorProps {
  */
 export default function IncomeProgressIndicator({
   progress,
-  className
+  className,
 }: IncomeProgressIndicatorProps) {
-
   /**
    * Formate un montant en euros avec 2 décimales
    */
@@ -32,7 +31,7 @@ export default function IncomeProgressIndicator({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -47,7 +46,7 @@ export default function IncomeProgressIndicator({
       return 'text-gray-500' // Gris pour revenu estimé non encore utilisé
     } else if (receivedAmount >= estimatedAmount) {
       return 'text-green-600' // Vert pour valeur estimée ou supérieure
-    } else if (receivedAmount >= (estimatedAmount * 0.9)) {
+    } else if (receivedAmount >= estimatedAmount * 0.9) {
       return 'text-yellow-600' // Jaune foncé pour dans les 10% de la valeur estimée (90-100%)
     } else {
       return 'text-red-600' // Rouge pour en dessous de 90%
@@ -57,33 +56,30 @@ export default function IncomeProgressIndicator({
   const textColorClass = getIncomeTextColor()
 
   return (
-    <div className={cn('flex flex-col w-full', className)}>
+    <div className={cn('flex w-full flex-col', className)}>
       {/* Montant reçu/total sur toute la largeur */}
-      <div className="text-base font-black leading-tight flex items-center mb-2 w-full">
-        <span className={cn(
-          'font-black mr-1',
-          textColorClass
-        )}>
+      <div className="mb-2 flex w-full items-center text-base font-black leading-tight">
+        <span className={cn('mr-1 font-black', textColorClass)}>
           {formatAmount(progress.receivedAmount).split(' ')[0]}
         </span>
-        <span className="text-gray-600 font-black">
-          {formatAmount(progress.receivedAmount).split(' ')[1]} / {formatAmount(progress.estimatedAmount)}
+        <span className="font-black text-gray-600">
+          {formatAmount(progress.receivedAmount).split(' ')[1]} /{' '}
+          {formatAmount(progress.estimatedAmount)}
         </span>
       </div>
 
       {/* Ligne du bas : pourcentage et nom du revenu */}
-      <div className="flex items-stretch w-full flex-1">
+      <div className="flex w-full flex-1 items-stretch">
         {/* Pourcentage avec code couleur - prend toute la hauteur restante */}
-        <div className={cn(
-          'text-lg font-bold leading-tight flex items-center mr-3',
-          textColorClass
-        )}>
+        <div
+          className={cn('mr-3 flex items-center text-lg font-bold leading-tight', textColorClass)}
+        >
           {Math.round(progress.percentage)}%
         </div>
 
         {/* Nom du revenu - aligné à gauche */}
-        <div className="flex-1 flex flex-col justify-center">
-          <h5 className="font-medium text-gray-900 text-sm text-left">{progress.incomeName}</h5>
+        <div className="flex flex-1 flex-col justify-center">
+          <h5 className="text-left text-sm font-medium text-gray-900">{progress.incomeName}</h5>
         </div>
       </div>
     </div>

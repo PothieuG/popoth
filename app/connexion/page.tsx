@@ -14,7 +14,7 @@ export default function ConnexionPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const { handleLogin, isSubmitting, error, clearError } = useLogin()
-  
+
   // Ensure only guests can access this page
   useRequireGuest()
 
@@ -25,7 +25,7 @@ export default function ConnexionPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
-    
+
     // Field validation
     if (!email || !password) {
       return
@@ -44,20 +44,18 @@ export default function ConnexionPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="space-y-3 text-center">
+          <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Popoth
           </h1>
-          <p className="text-lg text-gray-600">
-            Connectez-vous à votre compte
-          </p>
+          <p className="text-lg text-gray-600">Connectez-vous à votre compte</p>
         </div>
 
         {/* Form */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div className="space-y-2">
@@ -72,7 +70,7 @@ export default function ConnexionPage() {
                 placeholder="votre@email.com"
                 disabled={isSubmitting}
                 autoComplete="email"
-                className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
+                className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
 
@@ -89,23 +87,25 @@ export default function ConnexionPage() {
                 placeholder="Votre mot de passe"
                 disabled={isSubmitting}
                 autoComplete="current-password"
-                className="h-12 border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all rounded-lg text-gray-900"
+                className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
             </div>
 
             {/* Error Display */}
             {error && (
-              <div className="rounded-lg bg-red-50 p-4 border-l-4 border-red-500">
+              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">
-                      {error}
-                    </p>
+                    <p className="font-medium text-red-800">{error}</p>
                   </div>
                 </div>
               </div>
@@ -114,7 +114,7 @@ export default function ConnexionPage() {
             {/* Login Button */}
             <Button
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
+              className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
@@ -124,19 +124,19 @@ export default function ConnexionPage() {
           {/* Additional Links */}
           <div className="mt-8 space-y-4">
             <div className="text-center">
-              <button 
-                onClick={() => window.location.href = '/forgot-password'}
-                className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+              <button
+                onClick={() => (window.location.href = '/forgot-password')}
+                className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-800"
               >
                 Mot de passe oublié ?
               </button>
             </div>
-            
+
             <div className="text-center text-sm text-gray-600">
               Pas encore de compte ?{' '}
-              <button 
-                onClick={() => window.location.href = '/inscription'}
-                className="font-semibold text-purple-600 hover:text-purple-800 transition-colors"
+              <button
+                onClick={() => (window.location.href = '/inscription')}
+                className="font-semibold text-purple-600 transition-colors hover:text-purple-800"
               >
                 Créer un compte
               </button>

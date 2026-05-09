@@ -85,7 +85,9 @@ export async function POST(request: NextRequest) {
       .from('bank_balances')
       .update({ balance: 0, updated_at: new Date().toISOString() })
       .eq('profile_id', userId)
-    results['bank_balances'] = bankBalanceError ? `❌ ${bankBalanceError.message}` : '✅ (remis à 0€)'
+    results['bank_balances'] = bankBalanceError
+      ? `❌ ${bankBalanceError.message}`
+      : '✅ (remis à 0€)'
 
     // Log des résultats
     console.log('📊 [RESET ALL] Résultats:')
@@ -93,22 +95,33 @@ export async function POST(request: NextRequest) {
       console.log(`   ${table}: ${status}`)
     }
 
-    const hasErrors = Object.values(results).some(r => r.startsWith('❌'))
+    const hasErrors = Object.values(results).some((r) => r.startsWith('❌'))
 
     return NextResponse.json({
       success: !hasErrors,
       message: hasErrors ? 'Reset partiellement réussi' : 'Reset complet effectué',
       results,
       preserved: ['profiles', 'groups', 'user_profiles'],
-      deleted: ['budget_transfers', 'real_expenses', 'real_income_entries', 'estimated_budgets', 'estimated_incomes', 'monthly_recaps'],
-      reset: ['piggy_bank → 0€', 'bank_balances → 0€', 'recap_snapshots → inactive', 'remaining_to_live → 0€ (calculé)']
+      deleted: [
+        'budget_transfers',
+        'real_expenses',
+        'real_income_entries',
+        'estimated_budgets',
+        'estimated_incomes',
+        'monthly_recaps',
+      ],
+      reset: [
+        'piggy_bank → 0€',
+        'bank_balances → 0€',
+        'recap_snapshots → inactive',
+        'remaining_to_live → 0€ (calculé)',
+      ],
     })
-
   } catch (error) {
     console.error('❌ [RESET ALL] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

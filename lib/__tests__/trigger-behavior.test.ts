@@ -39,7 +39,7 @@ describe.skipIf(!ENABLED)('trigger behavior (Sprint Audit-Functions-v2 B2)', () 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
       throw new Error(
-        'Trigger behavior tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+        'Trigger behavior tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
       )
     }
 

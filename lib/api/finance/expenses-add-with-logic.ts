@@ -45,27 +45,15 @@ export interface ExpenseBreakdown {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body: AddExpenseWithLogicRequest = await request.json()
-    const {
-      amount,
-      description,
-      expense_date,
-      estimated_budget_id,
-      is_for_group = false
-    } = body
+    const { amount, description, expense_date, estimated_budget_id, is_for_group = false } = body
 
     // Validation
     if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant doit être un nombre positif' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
     }
 
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'La description est requise' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
     }
 
     console.log('')
@@ -91,7 +79,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       if (!profile?.group_id) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des dépenses de groupe' },
-          { status: 400 }
+          { status: 400 },
         )
       }
       group_id = profile.group_id
@@ -108,23 +96,25 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         description: description.trim(),
         expense_date: expense_date || new Date().toISOString().split('T')[0],
         is_exceptional: true,
-        ...contextFilter
+        ...contextFilter,
       }
 
       const { data, error } = await supabaseServer
         .from('real_expenses')
         .insert(insertData)
-        .select(`
+        .select(
+          `
           *,
           estimated_budget:estimated_budgets(name)
-        `)
+        `,
+        )
         .single()
 
       if (error) {
         console.error('❌ Erreur création dépense exceptionnelle:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la création de la dépense' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -132,7 +122,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       await saveRemainingToLiveSnapshot({
         profileId: profile_id,
         groupId: group_id,
-        reason: 'exceptional_expense_created'
+        reason: 'exceptional_expense_created',
       })
 
       console.log('✅ Dépense exceptionnelle créée avec succès')
@@ -142,7 +132,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       return NextResponse.json({
         real_expense: data,
         breakdown: null, // No breakdown for exceptional expenses
-        message: 'Dépense exceptionnelle créée avec succès'
+        message: 'Dépense exceptionnelle créée avec succès',
       })
     }
 
@@ -165,10 +155,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (budgetError || !budgetData) {
-      return NextResponse.json(
-        { error: 'Budget estimé introuvable' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget estimé introuvable' }, { status: 404 })
     }
 
     const savingsBefore = budgetData.cumulated_savings || 0
@@ -181,10 +168,16 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .eq('estimated_budget_id', estimated_budget_id)
       .match(contextFilter)
 
-    const budgetSpentBefore = expenses?.reduce((sum, e) => {
-      // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-      return sum + (e.amount_from_budget !== null && e.amount_from_budget !== undefined ? e.amount_from_budget : e.amount)
-    }, 0) || 0
+    const budgetSpentBefore =
+      expenses?.reduce((sum, e) => {
+        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+        return (
+          sum +
+          (e.amount_from_budget !== null && e.amount_from_budget !== undefined
+            ? e.amount_from_budget
+            : e.amount)
+        )
+      }, 0) || 0
 
     console.log('')
     console.log('📊 ÉTAT AVANT:')
@@ -197,7 +190,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const { fromPiggyBank, fromBudgetSavings, fromBudget } = calculateBreakdown(
       amount,
       piggyBankBefore,
-      savingsBefore
+      savingsBefore,
     )
 
     const piggyBankAfter = piggyBankBefore - fromPiggyBank
@@ -223,7 +216,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         console.error('❌ Erreur mise à jour tirelire:', piggyError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
     }
@@ -236,7 +229,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         console.error('❌ Erreur mise à jour savings:', savingsError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour des économies' },
-          { status: 500 }
+          { status: 500 },
         )
       }
     }
@@ -252,23 +245,25 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       amount_from_piggy_bank: fromPiggyBank,
       amount_from_budget_savings: fromBudgetSavings,
       amount_from_budget: fromBudget,
-      ...contextFilter
+      ...contextFilter,
     }
 
     const { data: expenseData, error: expenseError } = await supabaseServer
       .from('real_expenses')
       .insert(insertData)
-      .select(`
+      .select(
+        `
         *,
         estimated_budget:estimated_budgets(name)
-      `)
+      `,
+      )
       .single()
 
     if (expenseError) {
       console.error('❌ Erreur création dépense:', expenseError)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la dépense' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -282,7 +277,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       savings_before: savingsBefore,
       savings_after: savingsAfter,
       budget_spent_before: budgetSpentBefore,
-      budget_spent_after: budgetSpentAfter
+      budget_spent_after: budgetSpentAfter,
     }
 
     console.log('✅ Dépense créée avec succès')
@@ -292,14 +287,10 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     return NextResponse.json({
       real_expense: expenseData,
       breakdown,
-      message: 'Dépense créée avec succès'
+      message: 'Dépense créée avec succès',
     })
-
   } catch (error) {
     console.error('❌ Error in POST /api/finance/expenses/add-with-logic:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

@@ -14,7 +14,7 @@ import { SESSION_EXPIRATION_SECONDS } from './constants/auth'
 export async function createSession(userId: string, email: string): Promise<void> {
   const sessionToken = await createSessionToken(userId, email)
   const cookieStore = await cookies()
-  
+
   // Set secure HTTP-only cookie
   cookieStore.set('session', sessionToken, {
     httpOnly: true,
@@ -32,7 +32,7 @@ export async function createSession(userId: string, email: string): Promise<void
 export async function updateSession(userId: string, email: string): Promise<void> {
   const sessionToken = await createSessionToken(userId, email)
   const cookieStore = await cookies()
-  
+
   // Update the session cookie
   cookieStore.set('session', sessionToken, {
     httpOnly: true,
@@ -59,9 +59,9 @@ export async function deleteSession(): Promise<void> {
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies()
   const sessionCookie = cookieStore.get('session')?.value
-  
+
   if (!sessionCookie) return null
-  
+
   return decrypt(sessionCookie)
 }
 
@@ -71,9 +71,9 @@ export async function getSession(): Promise<SessionPayload | null> {
  */
 export async function isSessionValid(): Promise<boolean> {
   const session = await getSession()
-  
+
   if (!session) return false
-  
+
   const currentTime = Math.floor(Date.now() / 1000)
   return session.expiresAt > currentTime
 }
@@ -85,9 +85,10 @@ export async function isSessionValid(): Promise<boolean> {
 export async function validateSessionToken(request: Request): Promise<SessionPayload | null> {
   try {
     // Extract session token from cookies
-    const sessionCookie = request.headers.get('cookie')
+    const sessionCookie = request.headers
+      .get('cookie')
       ?.split(';')
-      .find(c => c.trim().startsWith('session='))
+      .find((c) => c.trim().startsWith('session='))
       ?.split('=')[1]
 
     if (!sessionCookie) {
@@ -97,7 +98,7 @@ export async function validateSessionToken(request: Request): Promise<SessionPay
 
     // Decrypt and validate the session token
     const sessionData = await decrypt(sessionCookie)
-    
+
     if (!sessionData) {
       console.log('❌ Token de session invalide')
       return null

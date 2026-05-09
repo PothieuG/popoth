@@ -19,7 +19,7 @@ export default function AvatarUpload({
   profile,
   onAvatarUpdate,
   isUpdating = false,
-  className = ''
+  className = '',
 }: AvatarUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -51,7 +51,7 @@ export default function AvatarUpload({
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('L\'image doit faire moins de 5 MB')
+      alert("L'image doit faire moins de 5 MB")
       return
     }
 
@@ -61,7 +61,7 @@ export default function AvatarUpload({
       await onAvatarUpdate(dataUrl)
     } catch (error) {
       console.error('Error uploading avatar:', error)
-      alert('Erreur lors du téléchargement de l\'image')
+      alert("Erreur lors du téléchargement de l'image")
     } finally {
       setIsProcessing(false)
       // Reset input
@@ -80,7 +80,7 @@ export default function AvatarUpload({
       await onAvatarUpdate(null)
     } catch (error) {
       console.error('Error removing avatar:', error)
-      alert('Erreur lors de la suppression de l\'avatar')
+      alert("Erreur lors de la suppression de l'avatar")
     } finally {
       setIsProcessing(false)
     }
@@ -110,24 +110,22 @@ export default function AvatarUpload({
         {/* Loading indicator */}
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
           </div>
         )}
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-col space-y-2 w-full max-w-xs">
+      <div className="flex w-full max-w-xs flex-col space-y-2">
         {/* Upload Button */}
         <button
           onClick={handleUploadClick}
           disabled={isLoading}
-          className={`
-            px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-            ${isLoading
-              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+            isLoading
+              ? 'cursor-not-allowed bg-gray-300 text-gray-500'
               : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
-            }
-          `}
+          } `}
         >
           {hasCustomAvatar ? 'Changer la photo' : 'Ajouter une photo'}
         </button>
@@ -137,13 +135,11 @@ export default function AvatarUpload({
           <button
             onClick={handleRemoveAvatar}
             disabled={isLoading}
-            className={`
-              px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
-              ${isLoading
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 ${
+              isLoading
+                ? 'cursor-not-allowed bg-gray-300 text-gray-500'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'
-              }
-            `}
+            } `}
           >
             Supprimer la photo
           </button>
@@ -160,11 +156,10 @@ export default function AvatarUpload({
       />
 
       {/* Help text */}
-      <p className="text-xs text-gray-500 text-center max-w-xs">
+      <p className="max-w-xs text-center text-xs text-gray-500">
         {hasCustomAvatar
           ? 'Vous pouvez changer ou supprimer votre photo de profil'
-          : 'Ajoutez une photo personnelle ou gardez vos initiales'
-        }
+          : 'Ajoutez une photo personnelle ou gardez vos initiales'}
       </p>
     </div>
   )

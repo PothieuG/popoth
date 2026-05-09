@@ -46,7 +46,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
 
       const response = await fetch(url, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -69,7 +69,9 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
       console.log(`   - Solde disponible: ${apiResponse.data.availableBalance}€`)
       console.log(`   - Revenus estimés: ${apiResponse.data.totalEstimatedIncome}€`)
       console.log(`   - Revenus réels: ${apiResponse.data.totalRealIncome}€`)
-      console.log(`   - Budgets estimés: ${apiResponse.data.totalEstimatedBudgets || apiResponse.data.totalEstimatedBudget}€`)
+      console.log(
+        `   - Budgets estimés: ${apiResponse.data.totalEstimatedBudgets || apiResponse.data.totalEstimatedBudget}€`,
+      )
       console.log(`   - Dépenses réelles: ${apiResponse.data.totalRealExpenses}€`)
       console.log(`   - Total économies: ${apiResponse.data.totalSavings}€`)
       console.log(`🏠🏠🏠 ========================================================`)
@@ -82,13 +84,12 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
       if (apiResponse.error) {
         setError(apiResponse.error)
       }
-
     } catch (err) {
       console.error('❌ Erreur dans useFinancialData:', err)
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
 
       // En cas d'erreur, définir des données par défaut seulement une fois
-      setFinancialData(prevData => {
+      setFinancialData((prevData) => {
         if (!prevData) {
           return {
             availableBalance: 0,
@@ -97,7 +98,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
             totalEstimatedIncome: 0,
             totalEstimatedBudgets: 0,
             totalRealIncome: 0,
-            totalRealExpenses: 0
+            totalRealExpenses: 0,
           }
         }
         return prevData
@@ -127,7 +128,9 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
       fetchFinancialData()
     }
     const unregister = registerFinancialRefreshCallback(refreshHandler)
-    return () => { unregister() }
+    return () => {
+      unregister()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-only registration; the closure captures the latest fetchFinancialData via re-render
   }, [])
 
@@ -136,7 +139,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     loading,
     error,
     context,
-    refreshFinancialData
+    refreshFinancialData,
   }
 }
 
@@ -153,8 +156,12 @@ export function registerFinancialRefreshCallback(callback: () => void) {
 }
 
 export function triggerFinancialRefresh() {
-  console.log('🔄 [FinancialData] Triggering global financial refresh for', financialRefreshCallbacks.size, 'registered callbacks')
-  financialRefreshCallbacks.forEach(callback => {
+  console.log(
+    '🔄 [FinancialData] Triggering global financial refresh for',
+    financialRefreshCallbacks.size,
+    'registered callbacks',
+  )
+  financialRefreshCallbacks.forEach((callback) => {
     try {
       callback()
     } catch (error) {

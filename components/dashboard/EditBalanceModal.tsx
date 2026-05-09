@@ -21,7 +21,7 @@ export default function EditBalanceModal({
   isOpen,
   currentBalance,
   onSubmit,
-  onCancel
+  onCancel,
 }: EditBalanceModalProps) {
   const [balance, setBalance] = useState(currentBalance.toString())
   const [isLoading, setIsLoading] = useState(false)
@@ -61,15 +61,26 @@ export default function EditBalanceModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Explication */}
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
             <div className="flex items-start space-x-2">
-              <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="mt-0.5 h-4 w-4 flex-shrink-0 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
-              <div className="text-xs text-blue-800 leading-tight">
-                <p className="font-medium mb-1">À quoi sert cette modification ?</p>
+              <div className="text-xs leading-tight text-blue-800">
+                <p className="mb-1 font-medium">À quoi sert cette modification ?</p>
                 <p className="mb-1">
-                  Cette édition permet de <strong>corriger</strong> ou <strong>créer un solde initial</strong> lors de la première utilisation.
+                  Cette édition permet de <strong>corriger</strong> ou{' '}
+                  <strong>créer un solde initial</strong> lors de la première utilisation.
                 </p>
                 <p className="text-blue-700">
                   ⚠️ Ce montant doit refléter votre solde bancaire réel.
@@ -83,7 +94,7 @@ export default function EditBalanceModal({
             <Label htmlFor="balance" className="text-sm font-medium text-gray-700">
               Nouveau solde disponible
             </Label>
-            <div className="mt-1 relative">
+            <div className="relative mt-1">
               <Input
                 id="balance"
                 type="text"
@@ -100,8 +111,8 @@ export default function EditBalanceModal({
                 disabled={isLoading}
                 required
               />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <span className="text-gray-500 text-sm">€</span>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <span className="text-sm text-gray-500">€</span>
               </div>
             </div>
           </div>
@@ -117,14 +128,10 @@ export default function EditBalanceModal({
             >
               Annuler
             </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="flex-1" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   Sauvegarde...
                 </>
               ) : (

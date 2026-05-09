@@ -39,7 +39,7 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
       throw new Error(
-        'API regression tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+        'API regression tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
       )
     }
 
@@ -88,7 +88,7 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
         amount,
         description: `polish income ${idx}`,
         entry_date: todayIso,
-      }))
+      })),
     )
     if (incomesErr) throw incomesErr
 
@@ -99,7 +99,7 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
         amount,
         description: `polish expense ${idx}`,
         expense_date: todayIso,
-      }))
+      })),
     )
     if (expensesErr) throw expensesErr
   }, 30_000)
@@ -191,10 +191,14 @@ describe.skipIf(!ENABLED)('recover route — bank_balance/piggy_bank boolean sem
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
-      throw new Error('recover regression tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY')
+      throw new Error(
+        'recover regression tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
+      )
     }
     if (!process.env.JWT_SECRET_KEY) {
-      throw new Error('recover regression tests require JWT_SECRET_KEY (lib/session.ts signs the cookie)')
+      throw new Error(
+        'recover regression tests require JWT_SECRET_KEY (lib/session.ts signs the cookie)',
+      )
     }
 
     admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
@@ -316,8 +320,12 @@ describe.skipIf(!ENABLED)('recover route — bank_balance/piggy_bank boolean sem
     const v1: SnapshotPayloadV1 = {
       snapshot_version: 1,
       context: 'profile',
-      estimated_incomes: buildEstimatedIncomes(testUserId) as SnapshotPayloadV1['estimated_incomes'],
-      estimated_budgets: buildEstimatedBudgets(testUserId) as SnapshotPayloadV1['estimated_budgets'],
+      estimated_incomes: buildEstimatedIncomes(
+        testUserId,
+      ) as SnapshotPayloadV1['estimated_incomes'],
+      estimated_budgets: buildEstimatedBudgets(
+        testUserId,
+      ) as SnapshotPayloadV1['estimated_budgets'],
       real_income_entries: [],
       real_expenses: [],
       bank_balance: 1234,
@@ -342,8 +350,12 @@ describe.skipIf(!ENABLED)('recover route — bank_balance/piggy_bank boolean sem
       context: 'profile',
       created_at: new Date().toISOString(),
       profiles: [],
-      estimated_incomes: buildEstimatedIncomes(testUserId) as SnapshotPayloadV2['estimated_incomes'],
-      estimated_budgets: buildEstimatedBudgets(testUserId) as SnapshotPayloadV2['estimated_budgets'],
+      estimated_incomes: buildEstimatedIncomes(
+        testUserId,
+      ) as SnapshotPayloadV2['estimated_incomes'],
+      estimated_budgets: buildEstimatedBudgets(
+        testUserId,
+      ) as SnapshotPayloadV2['estimated_budgets'],
       real_income_entries: [],
       real_expenses: [],
       bank_balances: [],
@@ -373,13 +385,29 @@ describe.skipIf(!ENABLED)('recover route — bank_balance/piggy_bank boolean sem
       context: 'profile',
       created_at: new Date().toISOString(),
       profiles: [],
-      estimated_incomes: buildEstimatedIncomes(testUserId) as SnapshotPayloadV2['estimated_incomes'],
-      estimated_budgets: buildEstimatedBudgets(testUserId) as SnapshotPayloadV2['estimated_budgets'],
+      estimated_incomes: buildEstimatedIncomes(
+        testUserId,
+      ) as SnapshotPayloadV2['estimated_incomes'],
+      estimated_budgets: buildEstimatedBudgets(
+        testUserId,
+      ) as SnapshotPayloadV2['estimated_budgets'],
       real_income_entries: [],
       real_expenses: [],
-      bank_balances: [{ profile_id: testUserId, group_id: null, balance: 555 } as unknown as SnapshotPayloadV2['bank_balances'][number]],
+      bank_balances: [
+        {
+          profile_id: testUserId,
+          group_id: null,
+          balance: 555,
+        } as unknown as SnapshotPayloadV2['bank_balances'][number],
+      ],
       bank_balance: 555,
-      piggy_bank: [{ profile_id: testUserId, group_id: null, amount: 42 } as unknown as SnapshotPayloadV2['piggy_bank'][number]],
+      piggy_bank: [
+        {
+          profile_id: testUserId,
+          group_id: null,
+          amount: 42,
+        } as unknown as SnapshotPayloadV2['piggy_bank'][number],
+      ],
       remaining_to_live_snapshots: [],
       budget_transfers: [],
       monthly_recaps: [],

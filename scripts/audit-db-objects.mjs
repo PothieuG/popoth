@@ -93,7 +93,7 @@ const CATEGORIES = [
     regex: (name) =>
       new RegExp(
         `CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+(?:public\\.)?${escapeRegex(name)}\\b`,
-        'i'
+        'i',
       ),
   },
   {
@@ -107,8 +107,7 @@ const CATEGORIES = [
         AND ${COMPOSITE_TYPE_FILTER}
       ORDER BY t.typname
     `,
-    regex: (name) =>
-      new RegExp(`CREATE\\s+TYPE\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
+    regex: (name) => new RegExp(`CREATE\\s+TYPE\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
   },
   {
     label: 'enum',
@@ -121,10 +120,7 @@ const CATEGORIES = [
       ORDER BY t.typname
     `,
     regex: (name) =>
-      new RegExp(
-        `CREATE\\s+TYPE\\s+(?:public\\.)?${escapeRegex(name)}\\s+AS\\s+ENUM`,
-        'i'
-      ),
+      new RegExp(`CREATE\\s+TYPE\\s+(?:public\\.)?${escapeRegex(name)}\\s+AS\\s+ENUM`, 'i'),
   },
   {
     label: 'domain',
@@ -136,8 +132,7 @@ const CATEGORIES = [
         AND t.typtype = 'd'
       ORDER BY t.typname
     `,
-    regex: (name) =>
-      new RegExp(`CREATE\\s+DOMAIN\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
+    regex: (name) => new RegExp(`CREATE\\s+DOMAIN\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
   },
   {
     label: 'operator',
@@ -148,8 +143,7 @@ const CATEGORIES = [
       WHERE n.nspname = 'public'
       ORDER BY o.oprname
     `,
-    regex: (name) =>
-      new RegExp(`CREATE\\s+OPERATOR\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
+    regex: (name) => new RegExp(`CREATE\\s+OPERATOR\\s+(?:public\\.)?${escapeRegex(name)}\\b`, 'i'),
   },
 ]
 
@@ -174,7 +168,7 @@ async function main() {
   process.stdout.write('-'.repeat(headerCols.length) + '\n')
   for (const r of results) {
     process.stdout.write(
-      `${r.label.padEnd(labelWidth)}  ${String(r.names.length).padEnd(13)}  ${String(r.versioned.length).padEnd(13)}  ${r.missing.length}\n`
+      `${r.label.padEnd(labelWidth)}  ${String(r.names.length).padEnd(13)}  ${String(r.versioned.length).padEnd(13)}  ${r.missing.length}\n`,
     )
   }
   process.stdout.write('\n')
@@ -194,18 +188,22 @@ async function main() {
   const allMissing = results.flatMap((r) => r.missing.map((n) => `${r.label}: ${n}`))
 
   if (allMissing.length === 0) {
-    console.error('OK: every public.* object across 5 categories is versioned in supabase/migrations/.')
+    console.error(
+      'OK: every public.* object across 5 categories is versioned in supabase/migrations/.',
+    )
     process.exitCode = 0
     return
   }
 
   console.error(
-    `MISSING_FROM_MIGRATIONS: ${allMissing.length} object(s) exist in prod with no CREATE statement in supabase/migrations/:`
+    `MISSING_FROM_MIGRATIONS: ${allMissing.length} object(s) exist in prod with no CREATE statement in supabase/migrations/:`,
   )
   for (const entry of allMissing) console.error(`  - ${entry}`)
   console.error('')
   console.error('To capture retroactively (Sprint Audit-Triggers / A2 pattern, see CLAUDE.md §8):')
-  console.error('  1. Dump the object definition (pg_get_functiondef / pg_dump --schema-only / etc.)')
+  console.error(
+    '  1. Dump the object definition (pg_get_functiondef / pg_dump --schema-only / etc.)',
+  )
   console.error('  2. Paste verbatim into a new <TS>_capture_<name>.sql migration.')
   console.error('  3. node scripts/apply-sql.mjs <migration> (idempotent if possible).')
   console.error('  4. pnpm supabase migration repair --status applied <TS>')

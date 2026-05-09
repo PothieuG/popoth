@@ -19,18 +19,25 @@ import type { GroupData } from '@/app/api/groups/route'
  */
 export default function SettingsPage() {
   const { logoutAndRedirect } = useLogoutAndRedirect()
-  const { currentGroup, hasGroup, isLoading: groupsLoading, createGroup, deleteGroup, leaveGroup } = useGroups()
-  const { 
-    searchResults, 
-    isLoading: searchLoading, 
-    searchGroups, 
+  const {
+    currentGroup,
+    hasGroup,
+    isLoading: groupsLoading,
+    createGroup,
+    deleteGroup,
+    leaveGroup,
+  } = useGroups()
+  const {
+    searchResults,
+    isLoading: searchLoading,
+    searchGroups,
     loadAllGroups,
     updateGroupMembership,
     hasSearched,
-    clearSearch
+    clearSearch,
   } = useGroupSearch()
   const { joinGroup } = useGroups()
-  
+
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
@@ -76,7 +83,7 @@ export default function SettingsPage() {
    */
   const handleLeaveGroup = async (): Promise<boolean> => {
     if (!currentGroup) return false
-    
+
     setIsOperationLoading(true)
     try {
       const success = await leaveGroup(currentGroup.id)
@@ -128,10 +135,12 @@ export default function SettingsPage() {
   const handleBrowseGroups = async () => {
     if (hasGroup) {
       // User already has a group, show message
-      alert('Vous êtes déjà membre d\'un groupe. Quittez d\'abord votre groupe actuel pour en rejoindre un autre.')
+      alert(
+        "Vous êtes déjà membre d'un groupe. Quittez d'abord votre groupe actuel pour en rejoindre un autre.",
+      )
       return
     }
-    
+
     setSearchQuery('')
     await loadAllGroups()
     setShowSearch(true)
@@ -142,8 +151,8 @@ export default function SettingsPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
         {/* Header */}
-        <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
-          <div className="flex justify-between items-center p-4">
+        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between p-4">
             <div className="flex items-center space-x-3">
               <Button
                 variant="ghost"
@@ -151,8 +160,13 @@ export default function SettingsPage() {
                 onClick={() => window.history.back()}
                 className="p-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15 19l-7-7 7-7"
+                  />
                 </svg>
               </Button>
               <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
@@ -169,10 +183,10 @@ export default function SettingsPage() {
         </div>
 
         {/* Loading Content */}
-        <main className="flex-1 flex items-center justify-center p-4">
+        <main className="flex flex-1 items-center justify-center p-4">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 mb-2">Chargement de vos groupes...</p>
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
+            <p className="mb-2 text-gray-600">Chargement de vos groupes...</p>
             <p className="text-sm text-gray-500">Veuillez patienter</p>
           </div>
         </main>
@@ -181,19 +195,19 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 relative">
+    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
-        <div className="flex justify-between items-center p-4">
+      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center space-x-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => window.history.back()}
-              className="p-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="p-2">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </Button>
             <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
@@ -210,10 +224,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <main className="p-4 space-y-6">
+      <main className="space-y-6 p-4">
         {/* My Group Section */}
         <Card className="p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">Mon groupe</h2>
             {!hasGroup && (
               <Button
@@ -238,26 +252,33 @@ export default function SettingsPage() {
           {/* Current Group Display */}
           {hasGroup && currentGroup ? (
             <Card className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="space-y-2 flex-1">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 space-y-2">
                   <div className="flex items-center space-x-2">
                     <h3 className="font-medium text-gray-900">{currentGroup.name}</h3>
                     {currentGroup.is_creator && (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
                         Créateur
                       </span>
                     )}
                   </div>
-                  
+
                   <div className="space-y-1 text-sm text-gray-500">
                     <p>
-                      Budget estimé : <span className="font-medium">{currentGroup.monthly_budget_estimate.toFixed(2)} €/mois</span>
+                      Budget estimé :{' '}
+                      <span className="font-medium">
+                        {currentGroup.monthly_budget_estimate.toFixed(2)} €/mois
+                      </span>
                     </p>
                     <p>
-                      Membres : <span className="font-medium">{currentGroup.member_count || 1}</span>
+                      Membres :{' '}
+                      <span className="font-medium">{currentGroup.member_count || 1}</span>
                     </p>
                     <p className="text-xs">
-                      Créé le {currentGroup.created_at ? new Date(currentGroup.created_at).toLocaleDateString('fr-FR') : '—'}
+                      Créé le{' '}
+                      {currentGroup.created_at
+                        ? new Date(currentGroup.created_at).toLocaleDateString('fr-FR')
+                        : '—'}
                     </p>
                   </div>
                 </div>
@@ -281,7 +302,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={openDeleteModal}
                       disabled={isOperationLoading}
-                      className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 disabled:opacity-50"
+                      className="w-full border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
                     >
                       Supprimer
                     </Button>
@@ -291,7 +312,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={handleLeaveGroup}
                       disabled={isOperationLoading}
-                      className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 disabled:opacity-50"
+                      className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50 disabled:opacity-50"
                     >
                       {isOperationLoading ? 'Chargement...' : 'Quitter'}
                     </Button>
@@ -301,10 +322,15 @@ export default function SettingsPage() {
 
               {/* Additional Info for Creators */}
               {currentGroup.is_creator && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex justify-between items-center text-xs text-gray-500">
+                <div className="mt-3 border-t border-gray-200 pt-3">
+                  <div className="flex items-center justify-between text-xs text-gray-500">
                     <span>Vous êtes le créateur de ce groupe</span>
-                    <span>Dernière mise à jour : {currentGroup.updated_at ? new Date(currentGroup.updated_at).toLocaleDateString('fr-FR') : '—'}</span>
+                    <span>
+                      Dernière mise à jour :{' '}
+                      {currentGroup.updated_at
+                        ? new Date(currentGroup.updated_at).toLocaleDateString('fr-FR')
+                        : '—'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -313,14 +339,25 @@ export default function SettingsPage() {
             !showCreateForm && (
               <Card className="p-8 text-center">
                 <div className="space-y-2">
-                  <div className="w-16 h-16 mx-auto bg-gray-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                    <svg
+                      className="h-8 w-8 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
                     </svg>
                   </div>
                   <h3 className="text-lg font-medium text-gray-900">Aucun groupe</h3>
                   <p className="text-gray-500">
-                    Vous n&apos;appartenez à aucun groupe. Créez-en un ou rejoignez un groupe existant.
+                    Vous n&apos;appartenez à aucun groupe. Créez-en un ou rejoignez un groupe
+                    existant.
                   </p>
                 </div>
               </Card>
@@ -331,10 +368,10 @@ export default function SettingsPage() {
         {/* Join Group Section - Only show if user has no group */}
         {!hasGroup && (
           <Card className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Rejoindre un groupe</h2>
-            
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Rejoindre un groupe</h2>
+
             {/* Search Interface */}
-            <div className="space-y-4 mb-6">
+            <div className="mb-6 space-y-4">
               <div className="flex space-x-2">
                 <div className="flex-1">
                   <Label htmlFor="groupSearch" className="sr-only">
@@ -354,7 +391,7 @@ export default function SettingsPage() {
                     className="w-full"
                   />
                 </div>
-                <Button 
+                <Button
                   onClick={handleSearch}
                   disabled={searchLoading}
                   className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
@@ -362,13 +399,9 @@ export default function SettingsPage() {
                   {searchLoading ? 'Recherche...' : 'Rechercher'}
                 </Button>
               </div>
-              
+
               <div className="flex justify-center">
-                <Button 
-                  variant="outline" 
-                  onClick={handleBrowseGroups}
-                  disabled={searchLoading}
-                >
+                <Button variant="outline" onClick={handleBrowseGroups} disabled={searchLoading}>
                   Voir tous les groupes disponibles
                 </Button>
               </div>
@@ -377,18 +410,22 @@ export default function SettingsPage() {
             {/* Search Results */}
             {showSearch && (
               <>
-                <div className="flex justify-between items-center mb-4">
+                <div className="mb-4 flex items-center justify-between">
                   <h3 className="font-medium text-gray-900">
                     {hasSearched ? 'Résultats de recherche' : 'Groupes disponibles'}
                   </h3>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setShowSearch(false)
-                    clearSearch()
-                  }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowSearch(false)
+                      clearSearch()
+                    }}
+                  >
                     Masquer
                   </Button>
                 </div>
-                
+
                 <GroupSearchList
                   groups={searchResults}
                   isLoading={searchLoading}
@@ -401,11 +438,21 @@ export default function SettingsPage() {
 
         {/* Info message for users who already have a group */}
         {hasGroup && (
-          <Card className="p-6 bg-blue-50 border-blue-200">
+          <Card className="border-blue-200 bg-blue-50 p-6">
             <div className="flex items-center space-x-3">
               <div className="flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="h-6 w-6 text-blue-500"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
               </div>
               <div>
@@ -413,7 +460,8 @@ export default function SettingsPage() {
                   Vous appartenez déjà à un groupe
                 </h3>
                 <p className="mt-1 text-sm text-blue-700">
-                  Pour rejoindre un autre groupe, vous devez d&apos;abord quitter votre groupe actuel.
+                  Pour rejoindre un autre groupe, vous devez d&apos;abord quitter votre groupe
+                  actuel.
                 </p>
               </div>
             </div>
@@ -442,11 +490,11 @@ export default function SettingsPage() {
 
       {/* Loading Overlay for Group Operations */}
       {isOperationLoading && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 shadow-xl text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-700 font-medium">Opération en cours...</p>
-            <p className="text-sm text-gray-500 mt-1">Veuillez patienter</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="rounded-lg bg-white p-6 text-center shadow-xl">
+            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
+            <p className="font-medium text-gray-700">Opération en cours...</p>
+            <p className="mt-1 text-sm text-gray-500">Veuillez patienter</p>
           </div>
         </div>
       )}

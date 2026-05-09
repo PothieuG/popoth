@@ -16,9 +16,7 @@ export function useAuth() {
   const [sessionExpiring, setSessionExpiring] = useState(false)
 
   const redirectToLogin = (returnPath?: string) => {
-    const loginUrl = returnPath
-      ? `/connexion?from=${encodeURIComponent(returnPath)}`
-      : '/connexion'
+    const loginUrl = returnPath ? `/connexion?from=${encodeURIComponent(returnPath)}` : '/connexion'
     router.push(loginUrl)
   }
 

@@ -2,7 +2,9 @@
 
 import dynamic from 'next/dynamic'
 
-const SavingsDistributionDrawer = dynamic(() => import('./SavingsDistributionDrawer'), { ssr: false })
+const SavingsDistributionDrawer = dynamic(() => import('./SavingsDistributionDrawer'), {
+  ssr: false,
+})
 
 interface SavingsDrawerProps {
   isOpen: boolean
@@ -19,7 +21,7 @@ export default function SavingsDrawer({
   isOpen,
   onClose,
   context = 'profile',
-  onSavingsChange
+  onSavingsChange,
 }: SavingsDrawerProps) {
   return (
     <SavingsDistributionDrawer

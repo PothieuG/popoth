@@ -16,7 +16,7 @@ export function useBankBalance(context?: 'profile' | 'group') {
   const [state, setState] = useState<BankBalanceState>({
     balance: 0,
     loading: true,
-    error: null
+    error: null,
   })
 
   /**
@@ -24,7 +24,7 @@ export function useBankBalance(context?: 'profile' | 'group') {
    */
   const fetchBankBalance = async () => {
     try {
-      setState(prev => ({ ...prev, loading: true, error: null }))
+      setState((prev) => ({ ...prev, loading: true, error: null }))
 
       const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
       const response = await fetch(url)
@@ -34,11 +34,14 @@ export function useBankBalance(context?: 'profile' | 'group') {
         console.error('Erreur API bank-balance:', response.status, errorText)
 
         // Si la table n'existe pas, on initialise le solde à 0 sans erreur
-        if (response.status === 500 && errorText.includes('relation "bank_balances" does not exist')) {
-          setState(prev => ({
+        if (
+          response.status === 500 &&
+          errorText.includes('relation "bank_balances" does not exist')
+        ) {
+          setState((prev) => ({
             ...prev,
             balance: 0,
-            loading: false
+            loading: false,
           }))
           return
         }
@@ -47,18 +50,18 @@ export function useBankBalance(context?: 'profile' | 'group') {
       }
 
       const data = await response.json()
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         balance: data.balance,
-        loading: false
+        loading: false,
       }))
     } catch (error) {
       console.error('Erreur lors de la récupération du solde bancaire:', error)
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         balance: 0, // Valeur par défaut en cas d'erreur
         loading: false,
-        error: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
       }))
     }
   }
@@ -68,15 +71,15 @@ export function useBankBalance(context?: 'profile' | 'group') {
    */
   const updateBankBalance = async (newBalance: number): Promise<boolean> => {
     try {
-      setState(prev => ({ ...prev, loading: true, error: null }))
+      setState((prev) => ({ ...prev, loading: true, error: null }))
 
       const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ balance: newBalance })
+        body: JSON.stringify({ balance: newBalance }),
       })
 
       const data = await response.json()
@@ -85,19 +88,19 @@ export function useBankBalance(context?: 'profile' | 'group') {
         throw new Error(data.error || 'Erreur lors de la mise à jour du solde')
       }
 
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         balance: data.balance,
-        loading: false
+        loading: false,
       }))
 
       return true
     } catch (error) {
       console.error('Erreur lors de la mise à jour du solde bancaire:', error)
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         loading: false,
-        error: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
       }))
       return false
     }
@@ -121,6 +124,6 @@ export function useBankBalance(context?: 'profile' | 'group') {
     loading: state.loading,
     error: state.error,
     updateBankBalance,
-    refreshBankBalance
+    refreshBankBalance,
   }
 }

@@ -4,7 +4,14 @@ import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
 
 // Define protected and public routes
 const protectedRoutes = ['/dashboard', '/profile', '/settings', '/group-dashboard']
-const authRoutes = ['/connexion', '/inscription', '/forgot-password', '/reset-password', '/auth/confirm', '/auth/auth-code-error']
+const authRoutes = [
+  '/connexion',
+  '/inscription',
+  '/forgot-password',
+  '/reset-password',
+  '/auth/confirm',
+  '/auth/auth-code-error',
+]
 const specialRoutes = ['/monthly-recap'] // Routes spéciales qui ont leur propre logique
 
 /**
@@ -15,12 +22,12 @@ const specialRoutes = ['/monthly-recap'] // Routes spéciales qui ont leur propr
 export default async function middleware(req: NextRequest) {
   // Get the current path
   const path = req.nextUrl.pathname
-  
+
   // Check if the current route is protected, auth-related, or special
-  const isProtectedRoute = protectedRoutes.some(route => path.startsWith(route))
-  const isAuthRoute = authRoutes.some(route => path.startsWith(route))
-  const isSpecialRoute = specialRoutes.some(route => path.startsWith(route))
-  
+  const isProtectedRoute = protectedRoutes.some((route) => path.startsWith(route))
+  const isAuthRoute = authRoutes.some((route) => path.startsWith(route))
+  const isSpecialRoute = specialRoutes.some((route) => path.startsWith(route))
+
   // Skip middleware for static files and Next.js internals
   if (path.startsWith('/_next') || path.startsWith('/api') || path.includes('.')) {
     return NextResponse.next()
@@ -29,14 +36,14 @@ export default async function middleware(req: NextRequest) {
   try {
     // Get the session cookie from the request
     const sessionCookie = req.cookies.get('session')?.value
-    
+
     // Decrypt the session to verify token validity
     const session = await decrypt(sessionCookie)
-    
+
     // Check token expiration for ALL app routes (not just protected ones)
     if (session?.userId) {
       const currentTime = Math.floor(Date.now() / 1000)
-      
+
       // Check if token is expired (compare with session.expiresAt)
       if (session.expiresAt <= currentTime) {
         const response = NextResponse.redirect(new URL('/connexion', req.url))
@@ -45,7 +52,7 @@ export default async function middleware(req: NextRequest) {
         return response
       }
     }
-    
+
     // Redirect to login if trying to access protected route without valid session
     if ((isProtectedRoute || isSpecialRoute) && !session?.userId) {
       const loginUrl = new URL('/connexion', req.url)
@@ -82,22 +89,23 @@ export default async function middleware(req: NextRequest) {
     }
 
     return NextResponse.next()
-    
   } catch (error) {
     console.error('Middleware authentication error:', error)
-    
+
     // If there's an error decrypting the session on a protected route, redirect to login
     if (isProtectedRoute) {
       const response = NextResponse.redirect(new URL('/connexion', req.url))
       response.cookies.delete('session')
       return response
     }
-    
+
     return NextResponse.next()
   }
 }
 
 // Configure which routes the middleware should run on
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$).*)',
+  ],
 }

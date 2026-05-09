@@ -56,7 +56,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   const [expenses, setExpenses] = useState<RealExpense[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   /**
    * Calculate total amount of all expenses
    */
@@ -78,7 +78,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
 
       const response = await fetch(`/api/finance/expenses/real?${params.toString()}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -101,88 +101,94 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
    * Add a new expense with smart allocation logic
    * Uses piggy bank → savings → budget priority
    */
-  const addExpense = useCallback(async (expenseData: CreateRealExpenseRequest): Promise<boolean> => {
-    try {
-      setError(null)
+  const addExpense = useCallback(
+    async (expenseData: CreateRealExpenseRequest): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const requestBody = {
-        ...expenseData,
-        is_for_group: context === 'group'
+        const requestBody = {
+          ...expenseData,
+          is_for_group: context === 'group',
+        }
+
+        // Use the new smart allocation endpoint
+        const response = await fetch('/api/finance/expenses/add-with-logic', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('Error adding expense:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+
+        // Only add to state if a real expense was created (fromBudget > 0)
+        if (data.real_expense) {
+          setExpenses((prev) => [data.real_expense, ...prev])
+        }
+
+        // Refresh financial dashboard
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error('Error in addExpense:', err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      // Use the new smart allocation endpoint
-      const response = await fetch('/api/finance/expenses/add-with-logic', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Error adding expense:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      // Only add to state if a real expense was created (fromBudget > 0)
-      if (data.real_expense) {
-        setExpenses(prev => [data.real_expense, ...prev])
-      }
-
-      // Refresh financial dashboard
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in addExpense:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [context])
+    },
+    [context],
+  )
 
   /**
    * Update an existing expense
    */
-  const updateExpense = useCallback(async (expenseData: UpdateRealExpenseRequest): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateExpense = useCallback(
+    async (expenseData: UpdateRealExpenseRequest): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const response = await fetch(`/api/finance/expenses/real?id=${expenseData.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(expenseData)
-      })
+        const response = await fetch(`/api/finance/expenses/real?id=${expenseData.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(expenseData),
+        })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('Error updating expense:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('Error updating expense:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+
+        // Update the expense in the list
+        setExpenses((prev) =>
+          prev.map((expense) => (expense.id === expenseData.id ? data.real_expense : expense)),
+        )
+
+        // Refresh financial data
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error('Error in updateExpense:', err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      const data = await response.json()
-
-      // Update the expense in the list
-      setExpenses(prev => prev.map(expense =>
-        expense.id === expenseData.id ? data.real_expense : expense
-      ))
-
-      // Refresh financial data
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in updateExpense:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
+    },
+    [],
+  )
 
   /**
    * Delete an expense
@@ -194,16 +200,20 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
 
       const response = await fetch(`/api/finance/expenses/real?id=${expenseId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ [useRealExpenses] API Error deleting expense:', response.status, errorData)
+        console.error(
+          '❌ [useRealExpenses] API Error deleting expense:',
+          response.status,
+          errorData,
+        )
         throw new Error(errorData?.error || 'Erreur lors de la suppression de la dépense')
       }
 
-      setExpenses(prev => prev.filter(expense => expense.id !== expenseId))
+      setExpenses((prev) => prev.filter((expense) => expense.id !== expenseId))
       console.log('✅ [useRealExpenses] Expense removed from local state')
 
       // Refresh financial data
@@ -239,6 +249,6 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     addExpense,
     updateExpense,
     deleteExpense,
-    refreshExpenses
+    refreshExpenses,
   }
 }

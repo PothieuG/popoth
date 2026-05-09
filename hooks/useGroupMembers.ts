@@ -31,7 +31,7 @@ export function useGroupMembers() {
 
       const response = await fetch(`/api/groups/${groupId}/members`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -68,6 +68,6 @@ export function useGroupMembers() {
     clearMembers,
     // Helpers
     memberCount: members.length,
-    hasMembers: members.length > 0
+    hasMembers: members.length > 0,
   }
 }

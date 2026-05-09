@@ -22,7 +22,7 @@ export function useGroups() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
-      
+
       abortControllerRef.current = new AbortController()
       setIsLoading(true)
       setError(null)
@@ -30,7 +30,7 @@ export function useGroups() {
       const response = await fetch('/api/groups', {
         method: 'GET',
         credentials: 'include',
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
       })
 
       const data = await response.json()
@@ -41,7 +41,7 @@ export function useGroups() {
           console.error('Groups API error:', {
             status: response.status,
             statusText: response.statusText,
-            data
+            data,
           })
         }
 
@@ -49,7 +49,7 @@ export function useGroups() {
         if (response.status === 401) {
           throw new Error('Session expirée. Veuillez vous reconnecter.')
         }
-        
+
         throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`)
       }
 
@@ -59,10 +59,10 @@ export function useGroups() {
       if (err instanceof Error && err.name === 'AbortError') {
         return
       }
-      
+
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      
+
       // Log only in development
       if (process.env.NODE_ENV === 'development') {
         console.error('Error fetching groups:', err)
@@ -83,10 +83,10 @@ export function useGroups() {
       const response = await fetch('/api/groups', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(groupData)
+        body: JSON.stringify(groupData),
       })
 
       const data = await response.json()
@@ -96,7 +96,7 @@ export function useGroups() {
       }
 
       // Add the new group to the list
-      setGroups(prev => [...prev, data.group])
+      setGroups((prev) => [...prev, data.group])
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -108,38 +108,39 @@ export function useGroups() {
   /**
    * Updates an existing group
    */
-  const updateGroup = useCallback(async (groupId: string, updates: UpdateGroupRequest): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateGroup = useCallback(
+    async (groupId: string, updates: UpdateGroupRequest): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const response = await fetch(`/api/groups/${groupId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(updates)
-      })
+        const response = await fetch(`/api/groups/${groupId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(updates),
+        })
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la mise à jour du groupe')
-      }
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de la mise à jour du groupe')
+        }
 
-      // Update the group in the list
-      setGroups(prev => 
-        prev.map(group => 
-          group.id === groupId ? { ...group, ...data.group } : group
+        // Update the group in the list
+        setGroups((prev) =>
+          prev.map((group) => (group.id === groupId ? { ...group, ...data.group } : group)),
         )
-      )
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      console.error('Error updating group:', err)
-      return false
-    }
-  }, [])
+        return true
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        console.error('Error updating group:', err)
+        return false
+      }
+    },
+    [],
+  )
 
   /**
    * Deletes a group (only by creator)
@@ -150,7 +151,7 @@ export function useGroups() {
 
       const response = await fetch(`/api/groups/${groupId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -160,7 +161,7 @@ export function useGroups() {
       }
 
       // Remove the group from the list
-      setGroups(prev => prev.filter(group => group.id !== groupId))
+      setGroups((prev) => prev.filter((group) => group.id !== groupId))
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -172,30 +173,33 @@ export function useGroups() {
   /**
    * Joins a group
    */
-  const joinGroup = useCallback(async (groupId: string): Promise<boolean> => {
-    try {
-      setError(null)
+  const joinGroup = useCallback(
+    async (groupId: string): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const response = await fetch(`/api/groups/${groupId}/members`, {
-        method: 'POST',
-        credentials: 'include'
-      })
+        const response = await fetch(`/api/groups/${groupId}/members`, {
+          method: 'POST',
+          credentials: 'include',
+        })
 
-      const data = await response.json()
+        const data = await response.json()
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de l\'adhésion au groupe')
+        if (!response.ok) {
+          throw new Error(data.error || "Erreur lors de l'adhésion au groupe")
+        }
+
+        // Refresh groups to get updated membership info
+        await fetchGroups()
+        return true
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        console.error('Error joining group:', err)
+        return false
       }
-
-      // Refresh groups to get updated membership info
-      await fetchGroups()
-      return true
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      console.error('Error joining group:', err)
-      return false
-    }
-  }, [fetchGroups])
+    },
+    [fetchGroups],
+  )
 
   /**
    * Leaves a group
@@ -206,7 +210,7 @@ export function useGroups() {
 
       const response = await fetch(`/api/groups/${groupId}/members`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -216,7 +220,7 @@ export function useGroups() {
       }
 
       // Remove the group from the list
-      setGroups(prev => prev.filter(group => group.id !== groupId))
+      setGroups((prev) => prev.filter((group) => group.id !== groupId))
       return true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -228,7 +232,7 @@ export function useGroups() {
   // Fetch groups on component mount
   useEffect(() => {
     fetchGroups()
-    
+
     // Cleanup: abort any pending request on unmount
     return () => {
       if (abortControllerRef.current) {
@@ -251,6 +255,6 @@ export function useGroups() {
     // Helpers
     hasGroup: groups.length > 0,
     currentGroup: groups.length > 0 ? groups[0] : null,
-    isCreator: groups.length > 0 ? (groups[0]?.is_creator ?? false) : false
+    isCreator: groups.length > 0 ? (groups[0]?.is_creator ?? false) : false,
   }
 }

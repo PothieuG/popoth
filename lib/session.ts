@@ -31,12 +31,12 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
  */
 export async function decrypt(session: string | undefined = ''): Promise<SessionPayload | null> {
   if (!session) return null
-  
+
   try {
     const { payload } = await jwtVerify(session, key, {
       algorithms: ['HS256'],
     })
-    
+
     return payload as unknown as SessionPayload
   } catch (error) {
     console.error('Failed to decrypt session:', error)
@@ -51,13 +51,13 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
 export async function createSessionToken(userId: string, email: string): Promise<string> {
   const currentTime = Math.floor(Date.now() / 1000)
   const expiresAt = currentTime + SESSION_EXPIRATION_SECONDS
-  
+
   const sessionPayload: SessionPayload = {
     userId,
     email,
     createdAt: currentTime,
     expiresAt,
   }
-  
+
   return await encrypt(sessionPayload)
 }

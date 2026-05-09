@@ -39,9 +39,7 @@ if (!TOKEN) {
 // Supabase project refs are 20 lowercase letters. Validate before splicing
 // into a shell command (shell:true on Windows requires a string command).
 if (!/^[a-z]{20}$/.test(PROJECT_REF)) {
-  console.error(
-    `ERROR: SUPABASE_PROJECT_REF must be 20 lowercase letters, got: ${PROJECT_REF}`
-  )
+  console.error(`ERROR: SUPABASE_PROJECT_REF must be 20 lowercase letters, got: ${PROJECT_REF}`)
   process.exit(2)
 }
 
@@ -71,7 +69,9 @@ function unifiedDiff(expected, actual) {
       added++
     }
   }
-  out.push(`\nSummary: ${removed} line(s) only in committed file, ${added} line(s) only in live regen.`)
+  out.push(
+    `\nSummary: ${removed} line(s) only in committed file, ${added} line(s) only in live regen.`,
+  )
   return out.join('\n')
 }
 
@@ -88,15 +88,13 @@ function genFreshTypes() {
       encoding: 'utf8',
       env: process.env,
       maxBuffer: 16 * 1024 * 1024,
-    }
+    },
   )
   if (result.error) {
     throw new Error(`spawn failed: ${result.error.message}`)
   }
   if (result.status !== 0) {
-    throw new Error(
-      `supabase gen types exited with ${result.status}\n${result.stderr ?? ''}`
-    )
+    throw new Error(`supabase gen types exited with ${result.status}\n${result.stderr ?? ''}`)
   }
   return result.stdout
 }
@@ -126,7 +124,9 @@ function main() {
     return
   }
 
-  console.error('STALE: lib/database.types.ts differs from what `supabase gen types --project-id` produces now.')
+  console.error(
+    'STALE: lib/database.types.ts differs from what `supabase gen types --project-id` produces now.',
+  )
   console.error('To resolve: run `pnpm db:types` and commit the regenerated file.')
   console.error('')
   process.stdout.write(unifiedDiff(committed, live) + '\n')

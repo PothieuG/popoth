@@ -24,8 +24,15 @@ interface UseBudgetsReturn {
   budgets: EstimatedBudget[]
   loading: boolean
   error: string | null
-  addBudget: (budgetData: { name: string; estimatedAmount: number; isGroupBudget?: boolean }) => Promise<boolean>
-  updateBudget: (budgetId: string, budgetData: { name: string; estimatedAmount: number }) => Promise<boolean>
+  addBudget: (budgetData: {
+    name: string
+    estimatedAmount: number
+    isGroupBudget?: boolean
+  }) => Promise<boolean>
+  updateBudget: (
+    budgetId: string,
+    budgetData: { name: string; estimatedAmount: number },
+  ) => Promise<boolean>
   deleteBudget: (budgetId: string) => Promise<boolean>
   refreshBudgets: () => Promise<void>
   totalBudgets: number
@@ -53,10 +60,12 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       setLoading(true)
       setError(null)
 
-      const url = context ? `/api/finance/budgets/estimated?group=${context === 'group'}` : '/api/finance/budgets/estimated'
+      const url = context
+        ? `/api/finance/budgets/estimated?group=${context === 'group'}`
+        : '/api/finance/budgets/estimated'
       const response = await fetch(url, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -78,91 +87,100 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   /**
    * Ajoute un nouveau budget
    */
-  const addBudget = useCallback(async (budgetData: { name: string; estimatedAmount: number; isGroupBudget?: boolean }): Promise<boolean> => {
-    try {
-      setError(null)
+  const addBudget = useCallback(
+    async (budgetData: {
+      name: string
+      estimatedAmount: number
+      isGroupBudget?: boolean
+    }): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const requestBody = {
-        name: budgetData.name,
-        estimatedAmount: budgetData.estimatedAmount
+        const requestBody = {
+          name: budgetData.name,
+          estimatedAmount: budgetData.estimatedAmount,
+        }
+
+        const url = context ? `/api/finance/budgets?context=${context}` : `/api/finance/budgets`
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('❌ Erreur API budget:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        setBudgets((prev) => [data.budget, ...prev])
+
+        // Rafraîchir les données financières
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error("Erreur lors de l'ajout du budget:", err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      const url = context ? `/api/finance/budgets?context=${context}` : `/api/finance/budgets`
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      })
-
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API budget:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-      setBudgets(prev => [data.budget, ...prev])
-
-      // Rafraîchir les données financières
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Erreur lors de l\'ajout du budget:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [context])
+    },
+    [context],
+  )
 
   /**
    * Met à jour un budget existant
    */
-  const updateBudget = useCallback(async (budgetId: string, budgetData: { name: string; estimatedAmount: number }): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateBudget = useCallback(
+    async (
+      budgetId: string,
+      budgetData: { name: string; estimatedAmount: number },
+    ): Promise<boolean> => {
+      try {
+        setError(null)
 
-      const requestBody = {
-        name: budgetData.name,
-        estimatedAmount: budgetData.estimatedAmount
+        const requestBody = {
+          name: budgetData.name,
+          estimatedAmount: budgetData.estimatedAmount,
+        }
+
+        const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(requestBody),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null)
+          console.error('❌ Erreur API budget:', response.status, errorData)
+          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+        }
+
+        const data = await response.json()
+
+        // Met à jour le budget dans la liste
+        setBudgets((prev) => prev.map((budget) => (budget.id === budgetId ? data.budget : budget)))
+
+        // Rafraîchir les données financières
+        triggerFinancialRefresh()
+
+        return true
+      } catch (err) {
+        console.error('Erreur lors de la mise à jour du budget:', err)
+        setError(err instanceof Error ? err.message : 'Erreur inconnue')
+        return false
       }
-
-      const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      })
-
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API budget:', response.status, errorData)
-        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      // Met à jour le budget dans la liste
-      setBudgets(prev => prev.map(budget =>
-        budget.id === budgetId ? data.budget : budget
-      ))
-
-      // Rafraîchir les données financières
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Erreur lors de la mise à jour du budget:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
+    },
+    [],
+  )
 
   /**
    * Supprime un budget
@@ -173,14 +191,14 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
 
       const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
         throw new Error('Erreur lors de la suppression du budget')
       }
 
-      setBudgets(prev => prev.filter(budget => budget.id !== budgetId))
+      setBudgets((prev) => prev.filter((budget) => budget.id !== budgetId))
 
       // Rafraîchir les données financières
       triggerFinancialRefresh()
@@ -210,7 +228,9 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     const unregister = registerFinancialRefreshCallback(() => {
       fetchBudgets()
     })
-    return () => { unregister() }
+    return () => {
+      unregister()
+    }
   }, [fetchBudgets])
 
   return {
@@ -221,6 +241,6 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     updateBudget,
     deleteBudget,
     refreshBudgets,
-    totalBudgets
+    totalBudgets,
   }
 }

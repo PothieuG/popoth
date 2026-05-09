@@ -12,7 +12,10 @@ export interface RecapStatus {
 }
 
 export class RecapStatusError extends Error {
-  constructor(public code: 'PROFILE_NOT_FOUND' | 'NO_GROUP', message: string) {
+  constructor(
+    public code: 'PROFILE_NOT_FOUND' | 'NO_GROUP',
+    message: string,
+  ) {
     super(message)
     this.name = 'RecapStatusError'
   }

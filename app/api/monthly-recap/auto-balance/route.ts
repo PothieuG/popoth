@@ -84,14 +84,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
-        { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-        { status: 400 }
+        { error: "Utilisateur ne fait partie d'aucun groupe" },
+        { status: 400 },
       )
     }
 
@@ -108,15 +108,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (budgetsError || !budgets) {
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     if (budgets.length === 0) {
-      return NextResponse.json(
-        { error: 'Aucun budget trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Aucun budget trouvé' }, { status: 404 })
     }
 
     // Récupérer les dépenses réelles
@@ -129,7 +126,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (expensesError) {
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -142,24 +139,24 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (transfersError) {
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des transferts' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Calculer les surplus/déficits en temps réel pour chaque budget
-    const budgetsWithStats = budgets.map(budget => {
+    const budgetsWithStats = budgets.map((budget) => {
       // Calculer le montant dépensé
       const spentAmount = (expenses || [])
-        .filter(e => e.estimated_budget_id === budget.id)
+        .filter((e) => e.estimated_budget_id === budget.id)
         .reduce((sum, e) => sum + e.amount, 0)
 
       // Calculer les ajustements dus aux transferts
       const transfersFrom = (existingTransfers || [])
-        .filter(t => t.from_budget_id === budget.id)
+        .filter((t) => t.from_budget_id === budget.id)
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       const transfersTo = (existingTransfers || [])
-        .filter(t => t.to_budget_id === budget.id)
+        .filter((t) => t.to_budget_id === budget.id)
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       const adjustedSpentAmount = spentAmount + transfersFrom - transfersTo
@@ -172,7 +169,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         spent_amount: adjustedSpentAmount,
         cumulated_savings: budget.cumulated_savings || 0,
         monthly_surplus: Math.max(0, difference),
-        monthly_deficit: Math.max(0, -difference)
+        monthly_deficit: Math.max(0, -difference),
       }
     })
 
@@ -187,13 +184,16 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (piggyBankData && !piggyBankError) {
       piggyBank = piggyBankData.amount || 0
     } else if (piggyBankError) {
-      console.error('⚠️ [Auto Balance] Erreur lors de la récupération de la tirelire:', piggyBankError)
+      console.error(
+        '⚠️ [Auto Balance] Erreur lors de la récupération de la tirelire:',
+        piggyBankError,
+      )
     }
 
     // Séparer les budgets par catégorie
-    const budgetsWithSavings = budgetsWithStats.filter(b => b.cumulated_savings > 0)
-    const budgetsWithSurplus = budgetsWithStats.filter(b => b.monthly_surplus > 0)
-    const budgetsWithDeficit = budgetsWithStats.filter(b => b.monthly_deficit > 0)
+    const budgetsWithSavings = budgetsWithStats.filter((b) => b.cumulated_savings > 0)
+    const budgetsWithSurplus = budgetsWithStats.filter((b) => b.monthly_surplus > 0)
+    const budgetsWithDeficit = budgetsWithStats.filter((b) => b.monthly_deficit > 0)
 
     console.log(`⚖️ [Auto Balance] Démarrage pour ${context}:${contextId}`)
     console.log(`⚖️ [Auto Balance] Tirelire disponible: ${piggyBank}€`)
@@ -202,21 +202,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     console.log(`⚖️ [Auto Balance] Budgets avec déficit: ${budgetsWithDeficit.length}`)
 
     if (budgetsWithDeficit.length === 0) {
-      return NextResponse.json(
-        {
-          message: 'Aucun budget déficitaire à compenser',
-          transfers: []
-        }
-      )
+      return NextResponse.json({
+        message: 'Aucun budget déficitaire à compenser',
+        transfers: [],
+      })
     }
 
     if (piggyBank === 0 && budgetsWithSavings.length === 0 && budgetsWithSurplus.length === 0) {
-      return NextResponse.json(
-        {
-          message: 'Aucune tirelire, économie ou surplus disponible pour la répartition',
-          transfers: []
-        }
-      )
+      return NextResponse.json({
+        message: 'Aucune tirelire, économie ou surplus disponible pour la répartition',
+        transfers: [],
+      })
     }
 
     // Calculer les totaux
@@ -242,7 +238,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       source: 'piggy_bank' | 'savings' | 'surplus'
     }> = []
 
-    const savingsUpdates: Array<{ budget_id: string; old_savings: number; new_savings: number }> = []
+    const savingsUpdates: Array<{ budget_id: string; old_savings: number; new_savings: number }> =
+      []
     let totalPiggyBankUsed = 0
     let totalSavingsUsed = 0
     let totalSurplusUsed = 0
@@ -250,7 +247,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     // PHASE 0: Utiliser la TIRELIRE en PRIORITÉ ABSOLUE
     if (piggyBank > 0 && remainingDeficitToCover > 0) {
-      console.log(`⚖️ [Auto Balance] === PHASE 0: Utilisation de la TIRELIRE (PRIORITÉ ABSOLUE) ===`)
+      console.log(
+        `⚖️ [Auto Balance] === PHASE 0: Utilisation de la TIRELIRE (PRIORITÉ ABSOLUE) ===`,
+      )
       console.log(`⚖️ [Auto Balance] Tirelire disponible: ${piggyBank}€`)
       console.log(`⚖️ [Auto Balance] Déficit total à couvrir: ${totalDeficit}€`)
 
@@ -269,39 +268,52 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             to_budget_id: deficitBudget.id,
             to_budget_name: deficitBudget.name,
             amount: contributionAmount,
-            source: 'piggy_bank'
+            source: 'piggy_bank',
           })
 
           totalPiggyBankUsed += contributionAmount
 
-          console.log(`  🐷 Tirelire (${(deficitProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`)
+          console.log(
+            `  🐷 Tirelire (${(deficitProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
+          )
         }
       }
 
-      console.log(`⚖️ [Auto Balance] Total tirelire utilisée: ${totalPiggyBankUsed.toFixed(2)}€ sur ${piggyBank}€ disponible`)
+      console.log(
+        `⚖️ [Auto Balance] Total tirelire utilisée: ${totalPiggyBankUsed.toFixed(2)}€ sur ${piggyBank}€ disponible`,
+      )
 
       remainingDeficitToCover = Math.max(0, totalDeficit - totalPiggyBankUsed)
-      console.log(`⚖️ [Auto Balance] Déficit restant après Phase 0: ${remainingDeficitToCover.toFixed(2)}€`)
+      console.log(
+        `⚖️ [Auto Balance] Déficit restant après Phase 0: ${remainingDeficitToCover.toFixed(2)}€`,
+      )
     }
 
     // PHASE 1: Utiliser TOUTES les économies disponibles de manière proportionnelle et équitable (si déficit restant)
     if (totalSavings > 0 && remainingDeficitToCover > 0) {
       console.log(`⚖️ [Auto Balance] === PHASE 1: Utilisation de TOUTES les économies cumulées ===`)
       console.log(`⚖️ [Auto Balance] Économies totales disponibles: ${totalSavings}€`)
-      console.log(`⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`)
+      console.log(
+        `⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`,
+      )
 
       // Calculer les déficits restants après Phase 0
-      const remainingDeficitsPhase1 = budgetsWithDeficit.map(b => {
-        const coveredFromPiggyBank = transfers
-          .filter(t => t.to_budget_id === b.id && t.source === 'piggy_bank')
-          .reduce((sum, t) => sum + t.amount, 0)
-        return {
-          ...b,
-          remaining_deficit: Math.max(0, b.monthly_deficit - coveredFromPiggyBank)
-        }
-      }).filter(b => b.remaining_deficit > 0)
+      const remainingDeficitsPhase1 = budgetsWithDeficit
+        .map((b) => {
+          const coveredFromPiggyBank = transfers
+            .filter((t) => t.to_budget_id === b.id && t.source === 'piggy_bank')
+            .reduce((sum, t) => sum + t.amount, 0)
+          return {
+            ...b,
+            remaining_deficit: Math.max(0, b.monthly_deficit - coveredFromPiggyBank),
+          }
+        })
+        .filter((b) => b.remaining_deficit > 0)
 
-      const totalRemainingDeficitPhase1 = remainingDeficitsPhase1.reduce((sum, b) => sum + b.remaining_deficit, 0)
+      const totalRemainingDeficitPhase1 = remainingDeficitsPhase1.reduce(
+        (sum, b) => sum + b.remaining_deficit,
+        0,
+      )
 
       // Répartition proportionnelle : chaque transfert est calculé selon :
       // Transfert(A→C) = Économies_A × (Déficit_Restant_C / Total_Déficits_Restants)
@@ -309,9 +321,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       // Pour chaque budget en déficit restant, calculer combien il doit recevoir
       for (const deficitBudget of remainingDeficitsPhase1) {
         const deficitProportion = deficitBudget.remaining_deficit / totalRemainingDeficitPhase1
-        const amountNeededForThisDeficit = Math.min(deficitBudget.remaining_deficit, totalSavings * deficitProportion)
+        const amountNeededForThisDeficit = Math.min(
+          deficitBudget.remaining_deficit,
+          totalSavings * deficitProportion,
+        )
 
-        console.log(`⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`)
+        console.log(
+          `⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`,
+        )
 
         // Chaque budget avec savings contribue proportionnellement à ce déficit
         for (const savingsBudget of budgetsWithSavings) {
@@ -324,7 +341,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           const savingsProportion = savingsBudget.cumulated_savings / totalSavings
 
           // Contribution = Part des économies de ce budget × Montant nécessaire pour ce déficit
-          const contributionAmount = Math.round(amountNeededForThisDeficit * savingsProportion * 100) / 100
+          const contributionAmount =
+            Math.round(amountNeededForThisDeficit * savingsProportion * 100) / 100
 
           if (contributionAmount > 0) {
             transfers.push({
@@ -333,12 +351,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               to_budget_id: deficitBudget.id,
               to_budget_name: deficitBudget.name,
               amount: contributionAmount,
-              source: 'savings'
+              source: 'savings',
             })
 
             totalSavingsUsed += contributionAmount
 
-            console.log(`  💎 ${savingsBudget.name} (${(savingsProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`)
+            console.log(
+              `  💎 ${savingsBudget.name} (${(savingsProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
+            )
           }
         }
       }
@@ -346,7 +366,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       // Mettre à jour les économies de chaque budget source
       for (const savingsBudget of budgetsWithSavings) {
         const totalUsedFromThisBudget = transfers
-          .filter(t => t.from_budget_id === savingsBudget.id && t.source === 'savings')
+          .filter((t) => t.from_budget_id === savingsBudget.id && t.source === 'savings')
           .reduce((sum, t) => sum + t.amount, 0)
 
         // Ensure we never go negative due to rounding errors
@@ -355,39 +375,57 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         savingsUpdates.push({
           budget_id: savingsBudget.id,
           old_savings: savingsBudget.cumulated_savings,
-          new_savings: newSavings
+          new_savings: newSavings,
         })
 
-        console.log(`  💎 ${savingsBudget.name}: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€ (utilisé: ${totalUsedFromThisBudget.toFixed(2)}€)`)
+        console.log(
+          `  💎 ${savingsBudget.name}: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€ (utilisé: ${totalUsedFromThisBudget.toFixed(2)}€)`,
+        )
       }
 
-      console.log(`⚖️ [Auto Balance] Total économies utilisées: ${totalSavingsUsed.toFixed(2)}€ sur ${totalSavings}€ disponibles`)
+      console.log(
+        `⚖️ [Auto Balance] Total économies utilisées: ${totalSavingsUsed.toFixed(2)}€ sur ${totalSavings}€ disponibles`,
+      )
 
       remainingDeficitToCover = Math.max(0, totalDeficit - totalSavingsUsed)
-      console.log(`⚖️ [Auto Balance] Déficit restant après Phase 1: ${remainingDeficitToCover.toFixed(2)}€`)
+      console.log(
+        `⚖️ [Auto Balance] Déficit restant après Phase 1: ${remainingDeficitToCover.toFixed(2)}€`,
+      )
     }
 
     // PHASE 2: Utiliser les surplus SEULEMENT si déficit restant après Phase 0 et Phase 1
     if (totalSurplus > 0 && remainingDeficitToCover > 0) {
-      console.log(`⚖️ [Auto Balance] === PHASE 2: Utilisation des surplus mensuels (déficit restant détecté) ===`)
+      console.log(
+        `⚖️ [Auto Balance] === PHASE 2: Utilisation des surplus mensuels (déficit restant détecté) ===`,
+      )
       console.log(`⚖️ [Auto Balance] Surplus totaux disponibles: ${totalSurplus}€`)
-      console.log(`⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`)
+      console.log(
+        `⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`,
+      )
 
       // Calculer les déficits restants après Phase 0 et Phase 1
-      const remainingDeficits = budgetsWithDeficit.map(b => {
-        const coveredFromPiggyBank = transfers
-          .filter(t => t.to_budget_id === b.id && t.source === 'piggy_bank')
-          .reduce((sum, t) => sum + t.amount, 0)
-        const coveredFromSavings = transfers
-          .filter(t => t.to_budget_id === b.id && t.source === 'savings')
-          .reduce((sum, t) => sum + t.amount, 0)
-        return {
-          ...b,
-          remaining_deficit: Math.max(0, b.monthly_deficit - coveredFromPiggyBank - coveredFromSavings)
-        }
-      }).filter(b => b.remaining_deficit > 0)
+      const remainingDeficits = budgetsWithDeficit
+        .map((b) => {
+          const coveredFromPiggyBank = transfers
+            .filter((t) => t.to_budget_id === b.id && t.source === 'piggy_bank')
+            .reduce((sum, t) => sum + t.amount, 0)
+          const coveredFromSavings = transfers
+            .filter((t) => t.to_budget_id === b.id && t.source === 'savings')
+            .reduce((sum, t) => sum + t.amount, 0)
+          return {
+            ...b,
+            remaining_deficit: Math.max(
+              0,
+              b.monthly_deficit - coveredFromPiggyBank - coveredFromSavings,
+            ),
+          }
+        })
+        .filter((b) => b.remaining_deficit > 0)
 
-      const totalRemainingDeficit = remainingDeficits.reduce((sum, b) => sum + b.remaining_deficit, 0)
+      const totalRemainingDeficit = remainingDeficits.reduce(
+        (sum, b) => sum + b.remaining_deficit,
+        0,
+      )
 
       if (remainingDeficits.length === 0) {
         console.log(`⚖️ [Auto Balance] ✅ Aucun déficit restant, Phase 2 non nécessaire`)
@@ -400,22 +438,30 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         // Pour chaque budget en déficit restant, calculer combien il doit recevoir
         for (const deficitBudget of remainingDeficits) {
           const deficitProportion = deficitBudget.remaining_deficit / totalRemainingDeficit
-          const amountNeededForThisDeficit = Math.min(deficitBudget.remaining_deficit, totalSurplus * deficitProportion)
+          const amountNeededForThisDeficit = Math.min(
+            deficitBudget.remaining_deficit,
+            totalSurplus * deficitProportion,
+          )
 
-          console.log(`⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`)
+          console.log(
+            `⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`,
+          )
 
           // Chaque budget avec surplus contribue proportionnellement à ce déficit
           for (const surplusBudget of budgetsWithSurplus) {
             // IMPORTANT: Un budget ne peut pas se transférer à lui-même
             if (surplusBudget.id === deficitBudget.id) {
-              console.log(`  📊 ${surplusBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`)
+              console.log(
+                `  📊 ${surplusBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`,
+              )
               continue
             }
 
             const surplusProportion = surplusBudget.monthly_surplus / totalSurplus
 
             // Contribution = Part du surplus de ce budget × Montant nécessaire pour ce déficit
-            const contributionAmount = Math.round(amountNeededForThisDeficit * surplusProportion * 100) / 100
+            const contributionAmount =
+              Math.round(amountNeededForThisDeficit * surplusProportion * 100) / 100
 
             if (contributionAmount > 0) {
               transfers.push({
@@ -424,12 +470,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
                 to_budget_id: deficitBudget.id,
                 to_budget_name: deficitBudget.name,
                 amount: contributionAmount,
-                source: 'surplus'
+                source: 'surplus',
               })
 
               totalSurplusUsed += contributionAmount
 
-              console.log(`  📊 ${surplusBudget.name} (${(surplusProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`)
+              console.log(
+                `  📊 ${surplusBudget.name} (${(surplusProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
+              )
             }
           }
         }
@@ -437,16 +485,16 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         console.log(`⚖️ [Auto Balance] Total surplus utilisés: ${totalSurplusUsed.toFixed(2)}€`)
       }
     } else if (remainingDeficitToCover === 0) {
-      console.log(`⚖️ [Auto Balance] ✅ Tous les déficits ont été couverts par la tirelire et les économies, Phase 2 NON déclenchée`)
+      console.log(
+        `⚖️ [Auto Balance] ✅ Tous les déficits ont été couverts par la tirelire et les économies, Phase 2 NON déclenchée`,
+      )
     }
 
     if (transfers.length === 0) {
-      return NextResponse.json(
-        {
-          message: 'Aucun transfert nécessaire ou possible',
-          transfers: []
-        }
-      )
+      return NextResponse.json({
+        message: 'Aucun transfert nécessaire ou possible',
+        transfers: [],
+      })
     }
 
     // Exécuter tous les transferts planifiés et les mises à jour
@@ -461,7 +509,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     for (const update of savingsUpdates) {
       const safeNewSavings = Math.max(0, Math.round(update.new_savings * 100) / 100)
       const delta = safeNewSavings - update.old_savings
-      console.log(`💎 Mise à jour économies: ${update.old_savings}€ → ${safeNewSavings}€ (delta=${delta}€)`)
+      console.log(
+        `💎 Mise à jour économies: ${update.old_savings}€ → ${safeNewSavings}€ (delta=${delta}€)`,
+      )
 
       try {
         await updateBudgetCumulatedSavings(update.budget_id, delta)
@@ -476,9 +526,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             error: 'Erreur lors de la mise à jour des économies',
             details: updateError instanceof Error ? updateError.message : 'Erreur inconnue',
             budget_id: update.budget_id,
-            attempted_value: safeNewSavings
+            attempted_value: safeNewSavings,
           },
-          { status: 500 }
+          { status: 500 },
         )
       }
     }
@@ -490,25 +540,29 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     // 2. Créer des budget_transfers avec from_budget_id = null pour représenter la tirelire
     //    Cela permet aux budgets déficitaires de voir leur transfersTo augmenter
     //    et donc de réduire leur déficit ajusté
-    const transfersFromPiggyBank = transfers.filter(t => t.from_budget_id === null)
+    const transfersFromPiggyBank = transfers.filter((t) => t.from_budget_id === null)
 
     if (transfersFromPiggyBank.length > 0 && totalPiggyBankUsed > 0) {
-      console.log(`⚖️ [Auto Balance] Traitement de ${transfersFromPiggyBank.length} transferts depuis la tirelire (${totalPiggyBankUsed}€)`)
+      console.log(
+        `⚖️ [Auto Balance] Traitement de ${transfersFromPiggyBank.length} transferts depuis la tirelire (${totalPiggyBankUsed}€)`,
+      )
 
       // 1. Déduire le montant utilisé de la tirelire (atomique via RPC)
       const newPiggyBankAmount = Math.max(0, piggyBank - totalPiggyBankUsed)
       const piggyDelta = newPiggyBankAmount - piggyBank
 
       try {
-        const filter = ownerField === 'profile_id'
-          ? { profile_id: contextId }
-          : { group_id: contextId }
+        const filter =
+          ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
         await updatePiggyBank(filter, piggyDelta)
       } catch (updateError) {
-        console.error('❌ [Auto Balance] Erreur lors de la mise à jour de la tirelire:', updateError)
+        console.error(
+          '❌ [Auto Balance] Erreur lors de la mise à jour de la tirelire:',
+          updateError,
+        )
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -517,13 +571,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       // 2. Créer des budget_transfers pour chaque budget qui reçoit de l'argent de la tirelire
       // IMPORTANT: from_budget_id = null représente la tirelire
       // Ces transferts seront comptés dans transfersTo pour réduire le déficit
-      const piggyBankTransfers = transfersFromPiggyBank.map(transfer => ({
+      const piggyBankTransfers = transfersFromPiggyBank.map((transfer) => ({
         [ownerField]: contextId,
         from_budget_id: null, // null = tirelire (revenus exceptionnels)
         to_budget_id: transfer.to_budget_id,
         transfer_amount: transfer.amount,
         transfer_reason: `Tirelire → ${transfer.to_budget_name} (auto-balance récap)`,
-        transfer_date: new Date().toISOString().split('T')[0]
+        transfer_date: new Date().toISOString().split('T')[0],
       }))
 
       const { error: transferError } = await supabaseServer
@@ -531,10 +585,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(piggyBankTransfers)
 
       if (transferError) {
-        console.error('❌ [Auto Balance] Erreur lors de la création des transferts depuis tirelire:', transferError)
+        console.error(
+          '❌ [Auto Balance] Erreur lors de la création des transferts depuis tirelire:',
+          transferError,
+        )
         return NextResponse.json(
-          { error: 'Erreur lors de l\'application de la tirelire' },
-          { status: 500 }
+          { error: "Erreur lors de l'application de la tirelire" },
+          { status: 500 },
         )
       }
 
@@ -542,20 +599,23 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     }
 
     // 2b. Insérer les transferts entre budgets dans budget_transfers
-    const transfersWithBudget = transfers.filter(t => t.from_budget_id !== null)
+    const transfersWithBudget = transfers.filter((t) => t.from_budget_id !== null)
 
     if (transfersWithBudget.length > 0) {
-      console.log(`⚖️ [Auto Balance] Enregistrement de ${transfersWithBudget.length} transferts entre budgets`)
+      console.log(
+        `⚖️ [Auto Balance] Enregistrement de ${transfersWithBudget.length} transferts entre budgets`,
+      )
 
-      const transferInserts = transfersWithBudget.map(transfer => ({
+      const transferInserts = transfersWithBudget.map((transfer) => ({
         [ownerField]: contextId,
         from_budget_id: transfer.from_budget_id,
         to_budget_id: transfer.to_budget_id,
         transfer_amount: transfer.amount,
-        transfer_reason: transfer.source === 'savings'
-          ? 'Auto-balance via monthly recap (économies cumulées)'
-          : 'Auto-balance via monthly recap (surplus mensuel)',
-        transfer_date: new Date().toISOString().split('T')[0]
+        transfer_reason:
+          transfer.source === 'savings'
+            ? 'Auto-balance via monthly recap (économies cumulées)'
+            : 'Auto-balance via monthly recap (surplus mensuel)',
+        transfer_date: new Date().toISOString().split('T')[0],
       }))
 
       const { error: insertError } = await supabaseServer
@@ -563,17 +623,17 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(transferInserts)
 
       if (insertError) {
-        console.error('❌ Erreur lors de l\'enregistrement des transferts:', insertError)
+        console.error("❌ Erreur lors de l'enregistrement des transferts:", insertError)
         console.error('❌ Nombre de transferts tentés:', transferInserts.length)
         console.error('❌ Détails des transferts:', JSON.stringify(transferInserts, null, 2))
-        console.error('❌ Détails de l\'erreur Supabase:', JSON.stringify(insertError, null, 2))
+        console.error("❌ Détails de l'erreur Supabase:", JSON.stringify(insertError, null, 2))
         return NextResponse.json(
           {
-            error: 'Erreur lors de l\'enregistrement des transferts',
+            error: "Erreur lors de l'enregistrement des transferts",
             details: insertError.message || 'Erreur inconnue',
-            transfers_attempted: transferInserts.length
+            transfers_attempted: transferInserts.length,
           },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
@@ -588,7 +648,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const remainingSurplus = Math.max(0, totalSurplus - totalSurplusUsed)
     const remainingPiggyBank = Math.max(0, piggyBank - totalPiggyBankUsed)
 
-    console.log(`✅ [Auto Balance] Répartition automatique terminée: ${totalTransferred}€ répartis en ${transfers.length} transferts`)
+    console.log(
+      `✅ [Auto Balance] Répartition automatique terminée: ${totalTransferred}€ répartis en ${transfers.length} transferts`,
+    )
     console.log(`✅ [Auto Balance]   - Tirelire utilisée: ${totalPiggyBankUsed}€`)
     console.log(`✅ [Auto Balance]   - Économies utilisées: ${totalSavingsUsed}€`)
     console.log(`✅ [Auto Balance]   - Surplus utilisés: ${totalSurplusUsed}€`)
@@ -615,14 +677,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       remaining_piggy_bank: remainingPiggyBank,
       remaining_savings: remainingSavings,
       remaining_surplus: remainingSurplus,
-      remaining_deficit: remainingDeficit
+      remaining_deficit: remainingDeficit,
     })
-
   } catch (error) {
     console.error('❌ Erreur lors de la répartition automatique:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

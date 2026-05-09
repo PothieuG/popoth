@@ -75,23 +75,28 @@ export async function GET(request: NextRequest) {
     console.log('👥 Contributions membres:', contributions)
 
     // 7. Calculs étape par étape
-    const totalEstimatedIncome = estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
-    const totalEstimatedBudgets = estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
+    const totalEstimatedIncome =
+      estimatedIncomes?.reduce((sum, income) => sum + income.estimated_amount, 0) || 0
+    const totalEstimatedBudgets =
+      estimatedBudgets?.reduce((sum, budget) => sum + budget.estimated_amount, 0) || 0
     const totalRealIncome = realIncomes?.reduce((sum, income) => sum + income.amount, 0) || 0
     const totalRealExpenses = realExpenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0
-    const profileContributions = contributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
+    const profileContributions =
+      contributions?.reduce((sum, contrib) => sum + contrib.contribution_amount, 0) || 0
 
     // Dépenses exceptionnelles
-    const exceptionalExpenses = realExpenses
-      ?.filter(expense => expense.is_exceptional || !expense.estimated_budget_id)
-      ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
+    const exceptionalExpenses =
+      realExpenses
+        ?.filter((expense) => expense.is_exceptional || !expense.estimated_budget_id)
+        ?.reduce((sum, expense) => sum + expense.amount, 0) || 0
 
     // Économies par budget (toujours 0 en temps réel)
     const totalSavings = 0
 
     // Calcul final selon battleplan pour GROUPE
     const totalIncomes = totalEstimatedIncome + totalRealIncome + profileContributions
-    const remainingToLive = totalIncomes - totalEstimatedBudgets - exceptionalExpenses + totalSavings
+    const remainingToLive =
+      totalIncomes - totalEstimatedBudgets - exceptionalExpenses + totalSavings
     const availableBalance = totalRealIncome + profileContributions - totalRealExpenses
 
     // 8. Obtenir le calcul officiel via la fonction
@@ -115,7 +120,7 @@ export async function GET(request: NextRequest) {
         estimatedBudgets,
         realIncomes,
         realExpenses,
-        contributions
+        contributions,
       },
       calculations: {
         totalEstimatedIncome,
@@ -125,17 +130,16 @@ export async function GET(request: NextRequest) {
         profileContributions,
         totalIncomes,
         exceptionalExpenses,
-        totalSavings
+        totalSavings,
       },
       manualCalculation: {
         availableBalance,
         remainingToLive,
-        formula: `(${totalEstimatedIncome} + ${totalRealIncome} + ${profileContributions}) - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}`
+        formula: `(${totalEstimatedIncome} + ${totalRealIncome} + ${profileContributions}) - ${totalEstimatedBudgets} - ${exceptionalExpenses} + ${totalSavings} = ${remainingToLive}`,
       },
       officialCalculation: officialData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     })
-
   } catch (error) {
     console.error('❌ Erreur dans DEBUG financier groupe:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })

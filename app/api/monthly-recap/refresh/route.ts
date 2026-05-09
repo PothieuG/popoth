@@ -21,21 +21,18 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (!sessionId) {
-      return NextResponse.json(
-        { error: 'session_id est requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'session_id est requis' }, { status: 400 })
     }
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
-        { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-        { status: 400 }
+        { error: "Utilisateur ne fait partie d'aucun groupe" },
+        { status: 400 },
       )
     }
 
@@ -58,7 +55,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -71,11 +68,13 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
-    console.log(`📊 [Refresh Debug] Utilisation des données temps réel avec ${budgets.length} budgets et ${expenses.length} dépenses`)
+    console.log(
+      `📊 [Refresh Debug] Utilisation des données temps réel avec ${budgets.length} budgets et ${expenses.length} dépenses`,
+    )
 
     // Récupérer les transferts (seule donnée qui change après le début du récap)
     console.log(`🔍 [Refresh Debug] Recherche des transferts avec ${ownerField} = ${contextId}`)
@@ -85,13 +84,18 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (transfersError) {
-      console.error('❌ [Refresh Debug] Erreur lors de la récupération des transferts:', transfersError)
+      console.error(
+        '❌ [Refresh Debug] Erreur lors de la récupération des transferts:',
+        transfersError,
+      )
     }
 
     // Si la récupération des transferts échoue, continuer sans transferts
-    const transfers = transfersError ? [] : (transfersData || [])
+    const transfers = transfersError ? [] : transfersData || []
 
-    console.log(`🔄 [Refresh Debug] ${transfers.length} transferts trouvés pour le contexte ${context}:${contextId}`)
+    console.log(
+      `🔄 [Refresh Debug] ${transfers.length} transferts trouvés pour le contexte ${context}:${contextId}`,
+    )
     if (transfers.length > 0) {
       console.log('📋 [Refresh Debug] Transferts:', transfers)
     }
@@ -102,7 +106,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     for (const budget of budgets) {
       // Calculer le montant dépensé de base pour ce budget (données temps réel)
       const baseSpentAmount = expenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
+        .filter((expense) => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       // Calculer les ajustements de transfert pour ce budget
@@ -110,12 +114,12 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
       // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
       const outgoingTransfers = transfers
-        .filter(transfer => transfer.from_budget_id === budget.id)
+        .filter((transfer) => transfer.from_budget_id === budget.id)
         .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
       // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
       const incomingTransfers = transfers
-        .filter(transfer => transfer.to_budget_id === budget.id)
+        .filter((transfer) => transfer.to_budget_id === budget.id)
         .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
       transferAdjustment = outgoingTransfers - incomingTransfers
@@ -147,7 +151,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
         difference, // Positif = économie, Négatif = déficit
         surplus: Math.max(0, difference), // Économies (budget - dépenses)
         deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
-        cumulated_savings: 0 // Recalculé ailleurs si nécessaire
+        cumulated_savings: 0, // Recalculé ailleurs si nécessaire
       }
 
       budgetStats.push(budgetStat)
@@ -158,14 +162,20 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const totalDeficit = budgetStats.reduce((sum, budget) => sum + budget.deficit, 0)
     const generalRatio = totalSurplus - totalDeficit
 
-    console.log(`📊 [Monthly Recap Refresh] Nouvelles données calculées pour ${context}:${contextId}`)
-    console.log(`📊 [Monthly Recap Refresh] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`)
+    console.log(
+      `📊 [Monthly Recap Refresh] Nouvelles données calculées pour ${context}:${contextId}`,
+    )
+    console.log(
+      `📊 [Monthly Recap Refresh] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`,
+    )
 
     // Recalculer le remaining_to_live en temps réel
     // Pour l'instant, on met 0 car on se concentre sur les transferts
     const currentRemainingToLive = 0
 
-    console.log(`💰 [Refresh Debug] Remaining to live: ${currentRemainingToLive}€ (calculé en temps réel)`)
+    console.log(
+      `💰 [Refresh Debug] Remaining to live: ${currentRemainingToLive}€ (calculé en temps réel)`,
+    )
 
     // Retourner les données rafraîchies avec la même structure que l'initialisation
     return NextResponse.json({
@@ -179,14 +189,10 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       context,
       month: currentMonth,
       year: currentYear,
-      user_name: `${profile.first_name} ${profile.last_name}`
+      user_name: `${profile.first_name} ${profile.last_name}`,
     })
-
   } catch (error) {
     console.error('❌ Erreur lors du rafraîchissement du récap mensuel:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

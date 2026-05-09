@@ -11,7 +11,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
     // Récupérer le contexte depuis les paramètres URL
     const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' || 'profile'
+    const context = (searchParams.get('context') as 'profile' | 'group') || 'profile'
 
     let incomes: { id: string; name: string; estimated_amount: number }[] = []
     let realIncomes: { amount: number; estimated_income_id: string | null }[] = []
@@ -33,7 +33,6 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .not('estimated_income_id', 'is', null)
 
       realIncomes = realIncomesData || []
-
     } else {
       // Récupérer les informations du groupe de l'utilisateur
       const { data: profileData } = await supabaseServer
@@ -44,8 +43,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
       if (!profileData?.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 404 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 404 },
         )
       }
 
@@ -68,9 +67,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     // Calculer la progression pour chaque revenu estimé
-    const progressData = incomes.map(income => {
+    const progressData = incomes.map((income) => {
       const receivedAmount = realIncomes
-        .filter(realIncome => realIncome.estimated_income_id === income.id)
+        .filter((realIncome) => realIncome.estimated_income_id === income.id)
         .reduce((sum, realIncome) => sum + realIncome.amount, 0)
 
       const bonusAmount = receivedAmount - income.estimated_amount
@@ -80,17 +79,13 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         incomeName: income.name,
         receivedAmount,
         estimatedAmount: income.estimated_amount,
-        bonusAmount
+        bonusAmount,
       }
     })
 
     return NextResponse.json(progressData)
-
   } catch (error) {
     console.error('❌ Erreur dans /api/finance/income/progress:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

@@ -12,32 +12,22 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
     const body = await request.json()
-    const {
-      context = 'profile',
-      session_id,
-      current_step
-    } = body
+    const { context = 'profile', session_id, current_step } = body
 
     // Validation des paramètres
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (!session_id) {
-      return NextResponse.json(
-        { error: 'session_id requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'session_id requis' }, { status: 400 })
     }
 
     if (!current_step || current_step < 1 || current_step > 3) {
-      return NextResponse.json(
-        { error: 'current_step doit être entre 1 et 3' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'current_step doit être entre 1 et 3' }, { status: 400 })
     }
 
     // Déterminer le contexte ID
@@ -47,8 +37,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -57,10 +47,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     // Extraire les informations du session_id
     const sessionParts = session_id.split('_')
     if (sessionParts.length < 5) {
-      return NextResponse.json(
-        { error: 'Format de session_id invalide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Format de session_id invalide' }, { status: 400 })
     }
 
     const sessionContext = sessionParts[0]
@@ -72,7 +59,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (sessionContext !== context || sessionContextId !== contextId) {
       return NextResponse.json(
         { error: 'session_id ne correspond pas au contexte actuel' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -92,7 +79,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       console.error('❌ Erreur lors de la vérification du récap existant:', checkError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification du récap existant' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -104,14 +91,16 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .eq('id', existingRecap.id)
 
       if (updateError) {
-        console.error('❌ Erreur lors de la mise à jour de l\'étape:', updateError)
+        console.error("❌ Erreur lors de la mise à jour de l'étape:", updateError)
         return NextResponse.json(
-          { error: 'Erreur lors de la mise à jour de l\'étape' },
-          { status: 500 }
+          { error: "Erreur lors de la mise à jour de l'étape" },
+          { status: 500 },
         )
       }
 
-      console.log(`✅ Étape mise à jour: ${existingRecap.current_step} → ${current_step} pour ${context}:${contextId}`)
+      console.log(
+        `✅ Étape mise à jour: ${existingRecap.current_step} → ${current_step} pour ${context}:${contextId}`,
+      )
     } else {
       // Créer un nouvel enregistrement en cours (pas encore complété)
       const insertData = {
@@ -120,37 +109,33 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         recap_year: sessionYear,
         current_step,
         initial_remaining_to_live: 0, // Sera mis à jour lors de la completion
-        final_remaining_to_live: 0,   // Sera mis à jour lors de la completion
-        completed_at: null             // Pas encore complété
+        final_remaining_to_live: 0, // Sera mis à jour lors de la completion
+        completed_at: null, // Pas encore complété
       }
 
-      const { error: insertError } = await supabaseServer
-        .from('monthly_recaps')
-        .insert(insertData)
+      const { error: insertError } = await supabaseServer.from('monthly_recaps').insert(insertData)
 
       if (insertError) {
         console.error('❌ Erreur lors de la création du récap en cours:', insertError)
         return NextResponse.json(
           { error: 'Erreur lors de la création du récap en cours' },
-          { status: 500 }
+          { status: 500 },
         )
       }
 
-      console.log(`✅ Nouveau récap en cours créé avec étape ${current_step} pour ${context}:${contextId}`)
+      console.log(
+        `✅ Nouveau récap en cours créé avec étape ${current_step} pour ${context}:${contextId}`,
+      )
     }
 
     return NextResponse.json({
       success: true,
       current_step,
-      message: `Étape ${current_step} sauvegardée en base de données`
+      message: `Étape ${current_step} sauvegardée en base de données`,
     })
-
   } catch (error) {
-    console.error('❌ Erreur lors de la mise à jour de l\'étape:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    console.error("❌ Erreur lors de la mise à jour de l'étape:", error)
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -164,15 +149,12 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     if (!session_id) {
-      return NextResponse.json(
-        { error: 'session_id requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'session_id requis' }, { status: 400 })
     }
 
     // Déterminer le contexte ID
@@ -182,8 +164,8 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -192,10 +174,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     // Extraire les informations du session_id
     const sessionParts = session_id.split('_')
     if (sessionParts.length < 5) {
-      return NextResponse.json(
-        { error: 'Format de session_id invalide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Format de session_id invalide' }, { status: 400 })
     }
 
     const sessionContext = sessionParts[0]
@@ -207,7 +186,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (sessionContext !== context || sessionContextId !== contextId) {
       return NextResponse.json(
         { error: 'session_id ne correspond pas au contexte actuel' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -223,10 +202,10 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .maybeSingle()
 
     if (fetchError) {
-      console.error('❌ Erreur lors de la récupération de l\'étape:', fetchError)
+      console.error("❌ Erreur lors de la récupération de l'étape:", fetchError)
       return NextResponse.json(
-        { error: 'Erreur lors de la récupération de l\'étape' },
-        { status: 500 }
+        { error: "Erreur lors de la récupération de l'étape" },
+        { status: 500 },
       )
     }
 
@@ -234,20 +213,18 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const currentStep = recap?.current_step || 1
     const isCompleted = !!recap?.completed_at
 
-    console.log(`🔍 Étape récupérée: ${currentStep} pour ${context}:${contextId} (complété: ${isCompleted})`)
+    console.log(
+      `🔍 Étape récupérée: ${currentStep} pour ${context}:${contextId} (complété: ${isCompleted})`,
+    )
 
     return NextResponse.json({
       success: true,
       current_step: currentStep,
       is_completed: isCompleted,
-      message: `Étape ${currentStep} récupérée depuis la base de données`
+      message: `Étape ${currentStep} récupérée depuis la base de données`,
     })
-
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération de l\'étape:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    console.error("❌ Erreur lors de la récupération de l'étape:", error)
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

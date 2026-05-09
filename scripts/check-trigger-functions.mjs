@@ -72,14 +72,16 @@ async function main() {
 
   if (missing.length === 0) {
     console.error(
-      `OK: all ${EXPECTED_FUNCTIONS.length} captured trigger functions present in prod (public schema).`
+      `OK: all ${EXPECTED_FUNCTIONS.length} captured trigger functions present in prod (public schema).`,
     )
     for (const name of EXPECTED_FUNCTIONS) console.error(`  - ${name}`)
     process.exitCode = 0
     return
   }
 
-  console.error(`DRIFT DETECTED: ${missing.length} trigger function(s) missing in prod public schema.`)
+  console.error(
+    `DRIFT DETECTED: ${missing.length} trigger function(s) missing in prod public schema.`,
+  )
   for (const name of missing) {
     console.error(`  - MISSING: ${name}`)
   }

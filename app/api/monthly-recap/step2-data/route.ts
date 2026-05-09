@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/financial-calculations'
+import {
+  getProfileFinancialData,
+  getGroupFinancialData,
+  type FinancialData,
+} from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**
@@ -37,7 +41,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (!['profile', 'group'].includes(context)) {
       return NextResponse.json(
         { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -48,25 +52,31 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
     }
 
     console.log(`🔍 [DEBUG STEP2] ====================================`)
-    console.log(`🔍 [DEBUG STEP2] ÉTAPE 2 - RÉCUPÉRATION RAV POUR ${context.toUpperCase()}:${contextId}`)
+    console.log(
+      `🔍 [DEBUG STEP2] ÉTAPE 2 - RÉCUPÉRATION RAV POUR ${context.toUpperCase()}:${contextId}`,
+    )
     console.log(`🔍 [DEBUG STEP2] TIMESTAMP: ${new Date().toISOString()}`)
     console.log(`🔍 [DEBUG STEP2] ====================================`)
 
     // 1. Récupérer le reste à vivre actuel
     let financialData: FinancialData
     if (context === 'profile') {
-      console.log(`🔍 [DEBUG STEP2] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`)
+      console.log(
+        `🔍 [DEBUG STEP2] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`,
+      )
       financialData = await getProfileFinancialData(contextId)
     } else {
-      console.log(`🔍 [DEBUG STEP2] Appel getGroupFinancialData pour ${contextId} - ${new Date().toISOString()}`)
+      console.log(
+        `🔍 [DEBUG STEP2] Appel getGroupFinancialData pour ${contextId} - ${new Date().toISOString()}`,
+      )
       financialData = await getGroupFinancialData(contextId)
     }
 
@@ -121,11 +131,19 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .is('estimated_budget_id', null)
 
     if (exceptionalError) {
-      console.warn('⚠️ [Step2 Data] Erreur récupération dépenses exceptionnelles:', exceptionalError)
+      console.warn(
+        '⚠️ [Step2 Data] Erreur récupération dépenses exceptionnelles:',
+        exceptionalError,
+      )
     }
 
-    const totalExceptionalExpenses = (exceptionalExpenses || []).reduce((sum, exp) => sum + exp.amount, 0)
-    console.log(`⚠️ [Step2 Data] ${exceptionalExpenses?.length || 0} dépense(s) exceptionnelle(s) trouvée(s), total: ${totalExceptionalExpenses}€`)
+    const totalExceptionalExpenses = (exceptionalExpenses || []).reduce(
+      (sum, exp) => sum + exp.amount,
+      0,
+    )
+    console.log(
+      `⚠️ [Step2 Data] ${exceptionalExpenses?.length || 0} dépense(s) exceptionnelle(s) trouvée(s), total: ${totalExceptionalExpenses}€`,
+    )
 
     // 3b. Récupérer les transferts de budgets pour ce mois
     const { data: transfers, error: transfersError } = await supabaseServer
@@ -141,10 +159,11 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
     // Calculer le total du surplus/économies/tirelire utilisé pour combler le gap (step1 + auto-balance)
     const surplusUsedToFillGap = (transfers || [])
-      .filter(t =>
-        t.transfer_reason?.includes('Surplus utilisé pour combler gap') ||
-        t.transfer_reason?.includes('Auto-balance via monthly recap') ||
-        t.transfer_reason?.includes('auto-balance récap')
+      .filter(
+        (t) =>
+          t.transfer_reason?.includes('Surplus utilisé pour combler gap') ||
+          t.transfer_reason?.includes('Auto-balance via monthly recap') ||
+          t.transfer_reason?.includes('auto-balance récap'),
       )
       .reduce((sum, t) => sum + t.transfer_amount, 0)
 
@@ -158,21 +177,21 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     for (const budget of budgets) {
       // Calculer le montant dépensé pour ce budget
       const spentAmount = expenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
+        .filter((expense) => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       // Calculer les ajustements dus aux transferts
       // IMPORTANT: Les transferts depuis savings (économies cumulées) ne doivent PAS
       // augmenter le spent_amount du budget source, car les économies sont déjà "mises de côté"
       const transfersFrom = (transfers || [])
-        .filter(t => t.from_budget_id === budget.id)
-        .filter(t => !t.transfer_reason?.includes('économies cumulées')) // Exclure transferts depuis savings
+        .filter((t) => t.from_budget_id === budget.id)
+        .filter((t) => !t.transfer_reason?.includes('économies cumulées')) // Exclure transferts depuis savings
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       // Les transferts TO incluent les transferts depuis d'autres budgets ET depuis la tirelire
       // (from_budget_id = null représente la tirelire)
       const transfersTo = (transfers || [])
-        .filter(t => t.to_budget_id === budget.id)
+        .filter((t) => t.to_budget_id === budget.id)
         .reduce((sum, t) => sum + t.transfer_amount, 0)
 
       // Le spent_amount ajusté prend en compte les transferts
@@ -197,14 +216,16 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
         difference: difference,
         surplus: surplus,
         deficit: deficit,
-        cumulated_savings: budget.cumulated_savings || 0
+        cumulated_savings: budget.cumulated_savings || 0,
       }
 
       budgetStats.push(budgetStat)
       totalSurplus += surplus
       totalDeficit += deficit
 
-      console.log(`📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€, surplus=${surplus}€`)
+      console.log(
+        `📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€, surplus=${surplus}€`,
+      )
     }
 
     // 5. Informations sur le mois actuel
@@ -216,7 +237,8 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     console.log(`📉 [Step2 Data] Total deficit: ${totalDeficit}€`)
 
     // 6. Calculer le reste à vivre budgétaire
-    const budgetaryRemainingToLive = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
+    const budgetaryRemainingToLive =
+      financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
 
     // 7. Récupérer la tirelire depuis la table piggy_bank
     // Note: La tirelire est maintenant accumulée depuis l'étape 1,
@@ -260,28 +282,31 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     console.log(`   - Gap brut: ${gapGlobal}€`)
     console.log(`   - Surplus utilisé: ${surplusUsedToFillGap}€`)
     console.log(`   - Déficit global net: ${deficitGlobal}€`)
-    const deficitBudgets = totalDeficit  // Somme des déficits des budgets individuels
-    const deficitAutres = Math.max(0, deficitGlobal - deficitBudgets)  // La différence = autres sources
+    const deficitBudgets = totalDeficit // Somme des déficits des budgets individuels
+    const deficitAutres = Math.max(0, deficitGlobal - deficitBudgets) // La différence = autres sources
 
     // 9. Calculer le détail des "déficits autres"
     // Composé de: dépenses exceptionnelles + écart de revenus
-    const ecartRevenus = Math.max(0, financialData.totalEstimatedIncome - financialData.totalRealIncome)
+    const ecartRevenus = Math.max(
+      0,
+      financialData.totalEstimatedIncome - financialData.totalRealIncome,
+    )
 
     // Les "autres déficits" peuvent être décomposés en:
     const detailAutres = {
       depenses_exceptionnelles: {
         total: totalExceptionalExpenses,
-        items: (exceptionalExpenses || []).map(exp => ({
+        items: (exceptionalExpenses || []).map((exp) => ({
           id: exp.id,
           amount: exp.amount,
           description: exp.description || 'Dépense exceptionnelle',
-          date: exp.expense_date
-        }))
+          date: exp.expense_date,
+        })),
       },
       ecart_revenus: ecartRevenus,
       // Note: la somme peut ne pas correspondre exactement à deficitAutres
       // car il peut y avoir d'autres facteurs (arrondis, transferts, etc.)
-      autres_non_identifies: Math.max(0, deficitAutres - totalExceptionalExpenses - ecartRevenus)
+      autres_non_identifies: Math.max(0, deficitAutres - totalExceptionalExpenses - ecartRevenus),
     }
 
     console.log(``)
@@ -323,14 +348,13 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       gap_brut: gapGlobal,
       context,
       user_name: `${profile.first_name} ${profile.last_name}`,
-      timestamp: Date.now() // Pour forcer le rafraîchissement
+      timestamp: Date.now(), // Pour forcer le rafraîchissement
     })
-
   } catch (error) {
     console.error('❌ [Step2 Data] Erreur lors de la récupération des données:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 })

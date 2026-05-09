@@ -27,11 +27,7 @@ interface CustomDropdownProps {
 /**
  * Détermine la couleur selon le montant et le type
  */
-const getAmountColor = (
-  spent: number,
-  estimated: number,
-  type: 'expense' | 'income'
-): string => {
+const getAmountColor = (spent: number, estimated: number, type: 'expense' | 'income'): string => {
   if (type === 'expense') {
     const percentage = (spent / estimated) * 100
     if (percentage > 100) return 'text-red-600'
@@ -53,34 +49,48 @@ const getAmountColor = (
 function OptionDisplay({ option }: { option: DropdownOption }) {
   return (
     <div className="space-y-0.5">
-      <div className="font-bold text-black text-sm">
-        {option.name}
-      </div>
+      <div className="text-sm font-bold text-black">{option.name}</div>
       <div className="flex items-center justify-between text-sm">
         <div>
           {option.type === 'expense' && option.spentAmount !== undefined ? (
             <>
-              <span className={getAmountColor(option.spentAmount, option.estimatedAmount || 0, 'expense')}>
+              <span
+                className={getAmountColor(
+                  option.spentAmount,
+                  option.estimatedAmount || 0,
+                  'expense',
+                )}
+              >
                 {option.spentAmount.toFixed(2)}€
               </span>
               <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
             </>
           ) : option.type === 'income' && option.receivedAmount !== undefined ? (
             <>
-              <span className={getAmountColor(option.receivedAmount, option.estimatedAmount || 0, 'income')}>
+              <span
+                className={getAmountColor(
+                  option.receivedAmount,
+                  option.estimatedAmount || 0,
+                  'income',
+                )}
+              >
                 {option.receivedAmount.toFixed(2)}€
               </span>
               <span className="text-gray-500">/{option.estimatedAmount?.toFixed(2)}€</span>
             </>
           ) : null}
         </div>
-        {option.type === 'expense' && option.economyAmount !== undefined && option.economyAmount !== 0 && (
-          <div className={`text-xs ${option.economyAmount < 0 ? 'text-red-600' : 'text-purple-600'}`}>
-            {option.economyAmount >= 0
-              ? `(Économie: ${option.economyAmount.toFixed(2)}€)`
-              : `(Déficit: ${Math.abs(option.economyAmount).toFixed(2)}€)`}
-          </div>
-        )}
+        {option.type === 'expense' &&
+          option.economyAmount !== undefined &&
+          option.economyAmount !== 0 && (
+            <div
+              className={`text-xs ${option.economyAmount < 0 ? 'text-red-600' : 'text-purple-600'}`}
+            >
+              {option.economyAmount >= 0
+                ? `(Économie: ${option.economyAmount.toFixed(2)}€)`
+                : `(Déficit: ${Math.abs(option.economyAmount).toFixed(2)}€)`}
+            </div>
+          )}
       </div>
     </div>
   )
@@ -96,7 +106,7 @@ export default function CustomDropdown({
   placeholder,
   className,
   required = false,
-  disabled = false
+  disabled = false,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -114,7 +124,7 @@ export default function CustomDropdown({
   }, [])
 
   // Trouver l'option sélectionnée
-  const selectedOption = options.find(option => option.id === value)
+  const selectedOption = options.find((option) => option.id === value)
 
   return (
     <div ref={dropdownRef} className={cn('relative', className)}>
@@ -124,25 +134,21 @@ export default function CustomDropdown({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          'w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-left transition-colors',
+          'w-full rounded-lg border border-gray-300 bg-white p-3 pr-10 text-left transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500',
           !selectedOption && 'text-gray-500',
-          disabled && 'opacity-50 cursor-not-allowed bg-gray-50'
+          disabled && 'cursor-not-allowed bg-gray-50 opacity-50',
         )}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >
-        {selectedOption ? (
-          <OptionDisplay option={selectedOption} />
-        ) : (
-          placeholder
-        )}
+        {selectedOption ? <OptionDisplay option={selectedOption} /> : placeholder}
 
         {/* Icône de flèche */}
-        <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
           <svg
             className={cn(
-              'w-4 h-4 text-gray-500 transition-transform duration-200',
-              isOpen && 'transform rotate-180'
+              'h-4 w-4 text-gray-500 transition-transform duration-200',
+              isOpen && 'rotate-180 transform',
             )}
             fill="none"
             stroke="currentColor"
@@ -155,11 +161,9 @@ export default function CustomDropdown({
 
       {/* Menu dropdown */}
       {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-300 bg-white shadow-lg">
           {options.length === 0 ? (
-            <div className="px-3 py-2 text-gray-500 text-sm">
-              Aucune option disponible
-            </div>
+            <div className="px-3 py-2 text-sm text-gray-500">Aucune option disponible</div>
           ) : (
             options.map((option) => (
               <button
@@ -170,8 +174,8 @@ export default function CustomDropdown({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full px-3 py-3 text-left hover:bg-gray-50 focus:bg-gray-50 focus:outline-none border-b border-gray-100 last:border-b-0 transition-colors',
-                  value === option.id && 'bg-blue-50'
+                  'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none',
+                  value === option.id && 'bg-blue-50',
                 )}
               >
                 <OptionDisplay option={option} />

@@ -15,12 +15,12 @@ interface AddBudgetDialogProps {
  * Dialog pour ajouter un nouveau budget avec validation en temps réel
  * Empêche la création si le total des budgets dépasse les revenus estimés
  */
-export default function AddBudgetDialog({ 
-  isOpen, 
-  onClose, 
+export default function AddBudgetDialog({
+  isOpen,
+  onClose,
   onSave,
   currentBudgetsTotal,
-  totalEstimatedIncome 
+  totalEstimatedIncome,
 }: AddBudgetDialogProps) {
   const [budgetName, setBudgetName] = useState('')
   const [budgetAmount, setBudgetAmount] = useState('')
@@ -31,7 +31,7 @@ export default function AddBudgetDialog({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -70,14 +70,13 @@ export default function AddBudgetDialog({
    * Gestion de la sauvegarde
    */
   const handleSave = () => {
-
     if (!isFormValid()) {
       return
     }
 
     const budgetData = {
       name: budgetName.trim(),
-      estimatedAmount: parseFloat(budgetAmount)
+      estimatedAmount: parseFloat(budgetAmount),
     }
 
     onSave(budgetData)
@@ -111,22 +110,32 @@ export default function AddBudgetDialog({
   return (
     <>
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
         onClick={handleClose}
       >
         {/* Dialog */}
-        <div 
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-200 scale-100"
-          onClick={e => e.stopPropagation()}
+        <div
+          className="w-full max-w-md scale-100 transform rounded-2xl bg-white shadow-2xl transition-all duration-200"
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="p-6 border-b border-gray-200">
+          <div className="border-b border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
+                  <svg
+                    className="h-4 w-4 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -136,20 +145,30 @@ export default function AddBudgetDialog({
               </div>
               <button
                 onClick={handleClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
               >
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-4 w-4 text-gray-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
           </div>
 
           {/* Form */}
-          <div className="p-6 space-y-4">
+          <div className="space-y-4 p-6">
             {/* Nom du budget */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Nom du budget <span className="text-red-500">*</span>
               </label>
               <input
@@ -159,16 +178,26 @@ export default function AddBudgetDialog({
                 onKeyPress={handleKeyPress}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
                 className={cn(
-                  "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors",
-                  errors.name 
-                    ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                    : "border-gray-300 focus:ring-orange-500 focus:border-orange-500"
+                  'w-full rounded-xl border px-4 py-3 transition-colors focus:outline-none focus:ring-2',
+                  errors.name
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
                 )}
               />
               {errors.name && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <p className="mt-1 flex items-center text-sm text-red-600">
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   {errors.name}
                 </p>
@@ -177,7 +206,7 @@ export default function AddBudgetDialog({
 
             {/* Montant estimé */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -194,18 +223,30 @@ export default function AddBudgetDialog({
                   onKeyPress={handleKeyPress}
                   placeholder="0.00"
                   className={cn(
-                    "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors pr-12",
-                    errors.amount 
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                      : "border-gray-300 focus:ring-orange-500 focus:border-orange-500"
+                    'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
+                    errors.amount
+                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
                   )}
                 />
-                <span className="absolute right-4 top-3.5 text-gray-500 text-sm font-medium">€</span>
+                <span className="absolute right-4 top-3.5 text-sm font-medium text-gray-500">
+                  €
+                </span>
               </div>
               {errors.amount && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <p className="mt-1 flex items-center text-sm text-red-600">
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   {errors.amount}
                 </p>
@@ -214,38 +255,54 @@ export default function AddBudgetDialog({
 
             {/* Calcul en temps réel */}
             {budgetAmount && parseFloat(budgetAmount) > 0 && (
-              <div className={cn(
-                "p-4 rounded-xl border",
-                willBeNegative 
-                  ? "bg-red-50 border-red-200" 
-                  : "bg-orange-50 border-orange-200"
-              )}>
-                <h4 className={cn(
-                  "font-semibold mb-2",
-                  willBeNegative ? "text-red-900" : "text-orange-900"
-                )}>
+              <div
+                className={cn(
+                  'rounded-xl border p-4',
+                  willBeNegative ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50',
+                )}
+              >
+                <h4
+                  className={cn(
+                    'mb-2 font-semibold',
+                    willBeNegative ? 'text-red-900' : 'text-orange-900',
+                  )}
+                >
                   Calcul de la balance
                 </h4>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Revenus estimés totaux:</span>
-                    <span className="font-medium text-green-700">{formatAmount(totalEstimatedIncome)}</span>
+                    <span className="font-medium text-green-700">
+                      {formatAmount(totalEstimatedIncome)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Budgets actuels:</span>
-                    <span className="font-medium text-orange-700">{formatAmount(currentBudgetsTotal)}</span>
+                    <span className="font-medium text-orange-700">
+                      {formatAmount(currentBudgetsTotal)}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Ce nouveau budget:</span>
-                    <span className="font-medium text-orange-700">{formatAmount(parseFloat(budgetAmount))}</span>
+                    <span className="font-medium text-orange-700">
+                      {formatAmount(parseFloat(budgetAmount))}
+                    </span>
                   </div>
-                  <div className="border-t border-gray-300 pt-1 mt-2">
+                  <div className="mt-2 border-t border-gray-300 pt-1">
                     <div className="flex justify-between font-bold">
-                      <span className={willBeNegative ? "text-red-900" : "text-gray-900"}>Balance résultante:</span>
-                      <span className={cn(
-                        "font-bold",
-                        willBeNegative ? "text-red-700" : resultingBalance > 0 ? "text-green-700" : "text-gray-700"
-                      )}>
+                      <span className={willBeNegative ? 'text-red-900' : 'text-gray-900'}>
+                        Balance résultante:
+                      </span>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          willBeNegative
+                            ? 'text-red-700'
+                            : resultingBalance > 0
+                              ? 'text-green-700'
+                              : 'text-gray-700',
+                        )}
+                      >
                         {formatAmount(resultingBalance)}
                       </span>
                     </div>
@@ -256,15 +313,25 @@ export default function AddBudgetDialog({
 
             {/* Message d'erreur de balance */}
             {errors.balance && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-800 text-sm font-medium flex items-start">
-                  <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                <p className="flex items-start text-sm font-medium text-red-800">
+                  <svg
+                    className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <span>
                     {errors.balance}
                     <br />
-                    <span className="text-red-600 text-xs mt-1 block">
+                    <span className="mt-1 block text-xs text-red-600">
                       Ajustez le montant ou ajoutez des revenus pour équilibrer votre budget.
                     </span>
                   </span>
@@ -274,11 +341,11 @@ export default function AddBudgetDialog({
           </div>
 
           {/* Actions */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
+          <div className="rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
             <div className="flex space-x-3">
               <button
                 onClick={handleClose}
-                className="flex-1 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
               >
                 Annuler
               </button>
@@ -286,10 +353,10 @@ export default function AddBudgetDialog({
                 onClick={handleSave}
                 disabled={!isFormValid()}
                 className={cn(
-                  "flex-1 px-4 py-2 rounded-xl font-medium transition-colors",
+                  'flex-1 rounded-xl px-4 py-2 font-medium transition-colors',
                   isFormValid()
-                    ? "bg-orange-600 text-white hover:bg-orange-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'cursor-not-allowed bg-gray-300 text-gray-500',
                 )}
               >
                 Ajouter le budget

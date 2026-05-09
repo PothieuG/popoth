@@ -57,7 +57,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
       throw new Error(
-        'RPC concurrency tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY'
+        'RPC concurrency tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
       )
     }
 
@@ -130,7 +130,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
   it('100 × updatePiggyBank(+1) converges to start+100', async () => {
     await reset(1000, 0)
     await chunked(
-      Array.from({ length: 100 }, () => () => updatePiggyBank({ profile_id: testUserId }, 1))
+      Array.from({ length: 100 }, () => () => updatePiggyBank({ profile_id: testUserId }, 1)),
     )
     const { data, error } = await admin
       .from('piggy_bank')
@@ -144,7 +144,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
   it('100 × updatePiggyBank(-1) lands exactly at 0; one more decrement throws', async () => {
     await reset(100, 0)
     await chunked(
-      Array.from({ length: 100 }, () => () => updatePiggyBank({ profile_id: testUserId }, -1))
+      Array.from({ length: 100 }, () => () => updatePiggyBank({ profile_id: testUserId }, -1)),
     )
     const { data: zeroData } = await admin
       .from('piggy_bank')
@@ -158,16 +158,17 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     // with "violates check constraint piggy_bank_amount_check". Whichever
     // fires first wins — DB invariant is preserved either way.
     await expect(updatePiggyBank({ profile_id: testUserId }, -1)).rejects.toThrow(
-      /negative|piggy_bank_amount_check/i
+      /negative|piggy_bank_amount_check/i,
     )
   }, 120_000)
 
   it('transferFromPiggyToBudget × 50 preserves piggy+savings invariant', async () => {
     await reset(1000, 0)
     await chunked(
-      Array.from({ length: 50 }, () => () =>
-        transferFromPiggyToBudget({ profile_id: testUserId }, testBudgetId, 1)
-      )
+      Array.from(
+        { length: 50 },
+        () => () => transferFromPiggyToBudget({ profile_id: testUserId }, testBudgetId, 1),
+      ),
     )
     const [piggyRes, budgetRes] = await Promise.all([
       admin.from('piggy_bank').select('amount').eq('profile_id', testUserId).single(),
@@ -197,7 +198,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     // existing CHECK constraint (bank_balances_balance_check). Both preserve
     // the invariant — accept either message.
     await expect(updateBankBalance({ profile_id: testUserId }, -200)).rejects.toThrow(
-      /negative|bank_balances_balance_check/i
+      /negative|bank_balances_balance_check/i,
     )
 
     const { data, error } = await admin
@@ -214,9 +215,10 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     // (worst case: all 50 -1 calls land first → 50, still >= 0).
     await reset(1000, 100)
     await chunked(
-      Array.from({ length: 100 }, (_, i) => () =>
-        updateBudgetCumulatedSavings(testBudgetId, i % 2 === 0 ? 1 : -1)
-      )
+      Array.from(
+        { length: 100 },
+        (_, i) => () => updateBudgetCumulatedSavings(testBudgetId, i % 2 === 0 ? 1 : -1),
+      ),
     )
     const { data } = await admin
       .from('estimated_budgets')

@@ -48,7 +48,9 @@ interface UseBudgetProgressReturn {
  * - 100% : bleu
  * - >100% : rouge
  */
-const getBudgetColorClass = (percentage: number): { colorClass: string; textColorClass: string } => {
+const getBudgetColorClass = (
+  percentage: number,
+): { colorClass: string; textColorClass: string } => {
   if (percentage === 0) {
     return { colorClass: 'bg-gray-100', textColorClass: 'text-gray-900' }
   } else if (percentage > 0 && percentage < 100) {
@@ -69,14 +71,14 @@ const getBudgetColorClass = (percentage: number): { colorClass: string; textColo
  */
 export function useBudgetProgress(
   budgets: EstimatedBudget[],
-  context?: 'profile' | 'group'
+  context?: 'profile' | 'group',
 ): UseBudgetProgressReturn {
   // Hook pour récupérer les dépenses réelles
   const {
     expenses,
     loading: expensesLoading,
     error: expensesError,
-    refreshExpenses
+    refreshExpenses,
   } = useRealExpenses(context)
 
   /**
@@ -84,29 +86,32 @@ export function useBudgetProgress(
    */
   const calculateBudgetProgresses = useCallback(
     (budgets: EstimatedBudget[], expenses: RealExpense[]): BudgetProgress[] => {
-      return budgets.map(budget => {
+      return budgets.map((budget) => {
         // Trouver toutes les dépenses liées à ce budget
         const relatedExpenses = expenses.filter(
-          expense => expense.estimated_budget_id === budget.id
+          (expense) => expense.estimated_budget_id === budget.id,
         )
 
         // Utiliser le montant déjà calculé par l'API (qui inclut le carryover)
         // ou recalculer si pas disponible
         // Ne compter QUE amount_from_budget (pas tirelire ni savings)
-        const spentAmount = budget.spent_this_month !== undefined
-          ? budget.spent_this_month
-          : relatedExpenses.reduce((sum, expense) => {
-              // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-              const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-                ? parseFloat(expense.amount_from_budget.toString())
-                : parseFloat(expense.amount.toString())
-              return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-            }, 0)
+        const spentAmount =
+          budget.spent_this_month !== undefined
+            ? budget.spent_this_month
+            : relatedExpenses.reduce((sum, expense) => {
+                // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+                const amountFromBudget =
+                  expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+                    ? parseFloat(expense.amount_from_budget.toString())
+                    : parseFloat(expense.amount.toString())
+                return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+              }, 0)
 
         // Calculer le pourcentage de consommation
-        const percentage = budget.estimated_amount > 0
-          ? Math.round((spentAmount / budget.estimated_amount) * 100 * 100) / 100 // 2 décimales
-          : 0
+        const percentage =
+          budget.estimated_amount > 0
+            ? Math.round((spentAmount / budget.estimated_amount) * 100 * 100) / 100 // 2 décimales
+            : 0
 
         // Utiliser les économies cumulées du budget
         const savings = budget.cumulated_savings || 0
@@ -122,11 +127,11 @@ export function useBudgetProgress(
           percentage,
           savings,
           colorClass,
-          textColorClass
+          textColorClass,
         }
       })
     },
-    []
+    [],
   )
 
   // Source unique de vérité : calcul memorise a partir de budgets + expenses
@@ -147,15 +152,18 @@ export function useBudgetProgress(
   /**
    * Récupère la progression d'un budget spécifique par son ID
    */
-  const getBudgetProgress = useCallback((budgetId: string): BudgetProgress | undefined => {
-    return budgetProgresses.find(progress => progress.budgetId === budgetId)
-  }, [budgetProgresses])
+  const getBudgetProgress = useCallback(
+    (budgetId: string): BudgetProgress | undefined => {
+      return budgetProgresses.find((progress) => progress.budgetId === budgetId)
+    },
+    [budgetProgresses],
+  )
 
   return {
     budgetProgresses,
     loading: expensesLoading,
     error: expensesError,
     refreshProgress,
-    getBudgetProgress
+    getBudgetProgress,
   }
 }

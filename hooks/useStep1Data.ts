@@ -56,7 +56,7 @@ export function useStep1Data(context: 'profile' | 'group'): UseStep1DataReturn {
       setLoading(true)
       setError(null)
 
-      console.log('🔄 [Step1] Récupération des données live depuis l\'API step1-data')
+      console.log("🔄 [Step1] Récupération des données live depuis l'API step1-data")
 
       const response = await fetch(`/api/monthly-recap/step1-data?context=${context}`)
       const payload = await response.json()

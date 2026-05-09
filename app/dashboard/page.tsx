@@ -19,7 +19,9 @@ import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComp
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 
-const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), { ssr: false })
+const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), {
+  ssr: false,
+})
 
 type EditableTransaction = RealExpense | RealIncome
 
@@ -31,23 +33,31 @@ export default function DashboardPage() {
   const { logoutAndRedirect } = useLogoutAndRedirect()
   const { profile, hasProfile, createProfile, isLoading } = useProfile()
   const { getUserContribution, fetchContributions } = useGroupContributions()
-  const { financialData, loading: financialLoading, error: financialError, context, refreshFinancialData } = useFinancialData()
+  const {
+    financialData,
+    loading: financialLoading,
+    error: financialError,
+    context,
+    refreshFinancialData,
+  } = useFinancialData()
   const { balance: bankBalance, updateBankBalance } = useBankBalance('profile')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<EditableTransaction | null>(null)
-  const [editingTransactionType, setEditingTransactionType] = useState<'expense' | 'income'>('expense')
+  const [editingTransactionType, setEditingTransactionType] = useState<'expense' | 'income'>(
+    'expense',
+  )
 
   /**
    * Gère la création du profil utilisateur
    */
   const handleProfileSubmit = async (firstName: string, lastName: string): Promise<boolean> => {
-    const success = await createProfile({ 
-      first_name: firstName, 
-      last_name: lastName 
+    const success = await createProfile({
+      first_name: firstName,
+      last_name: lastName,
     })
-    
+
     return success
   }
 
@@ -118,7 +128,9 @@ export default function DashboardPage() {
       console.log(``)
       console.log(`📊 AUTRES DONNÉES:`)
       console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
-      console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget || financialData.totalEstimatedBudgets}€`)
+      console.log(
+        `   - Budgets estimés: ${financialData.totalEstimatedBudget || financialData.totalEstimatedBudgets}€`,
+      )
       console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
       console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
       console.log(`📱📱📱 ========================================================`)
@@ -126,12 +138,11 @@ export default function DashboardPage() {
     }
   }, [financialData, financialLoading, profile, context])
 
-
   // Créer un composant de loader centralisé
   const renderCentralLoader = (message: string) => (
-    <div className="flex-1 flex items-center justify-center">
+    <div className="flex flex-1 items-center justify-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
         <p className="text-gray-600">{message}</p>
       </div>
     </div>
@@ -140,8 +151,8 @@ export default function DashboardPage() {
   // Attendre que le profil soit chargé avant de décider quoi afficher
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     )
   }
@@ -164,36 +175,46 @@ export default function DashboardPage() {
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
-      <nav className="sticky top-0 z-40 bg-white shadow-sm border-b border-gray-200">
-        <div className="flex justify-between items-center p-4">
+      <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between p-4">
           <UserInfoNavbar
             profile={profile}
             userContribution={profile?.id ? getUserContribution(profile.id) : null}
           />
-          <UserAvatar
-            profile={profile}
-            onClick={() => setIsMenuOpen(true)}
-            size="md"
-          />
+          <UserAvatar profile={profile} onClick={() => setIsMenuOpen(true)} size="md" />
         </div>
       </nav>
 
       {/* Main Content */}
-      {(isLoading || financialLoading) ? (
-        renderCentralLoader(isLoading ? 'Chargement du profil...' : 'Calcul des données financières...')
+      {isLoading || financialLoading ? (
+        renderCentralLoader(
+          isLoading ? 'Chargement du profil...' : 'Calcul des données financières...',
+        )
       ) : (
-        <main className="flex-1 p-4 flex flex-col overflow-y-auto min-h-0">
-          <div className="flex flex-col space-y-4 flex-1 min-h-0">
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+          <div className="flex min-h-0 flex-1 flex-col space-y-4">
             {/* Financial Indicators */}
             {financialError ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex-shrink-0">
+              <div className="flex-shrink-0 rounded-xl border border-red-200 bg-red-50 p-4">
                 <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+                  <svg
+                    className="h-5 w-5 text-red-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+                    />
                   </svg>
                   <div>
-                    <p className="text-red-800 font-medium">Erreur de calcul des données financières</p>
-                    <p className="text-red-600 text-sm">{financialError}</p>
+                    <p className="font-medium text-red-800">
+                      Erreur de calcul des données financières
+                    </p>
+                    <p className="text-sm text-red-600">{financialError}</p>
                   </div>
                 </div>
               </div>
@@ -210,7 +231,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Transaction Tabs Component - Scrollable */}
-                <div className="flex-1 overflow-hidden min-h-0">
+                <div className="min-h-0 flex-1 overflow-hidden">
                   <TransactionTabsComponent
                     context="profile"
                     userProfile={profile}
@@ -226,33 +247,53 @@ export default function DashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="flex-shrink-0 bg-white border-t border-gray-200">
+      <footer className="flex-shrink-0 border-t border-gray-200 bg-white">
         <div className="grid grid-cols-3">
           {/* Personal Finance Tab - Active state */}
-          <button
-            className="flex flex-col items-center justify-center p-3 bg-orange-50 border-r border-gray-200 transition-colors duration-200"
-          >
-            <svg className="w-5 h-5 mb-1 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          <button className="flex flex-col items-center justify-center border-r border-gray-200 bg-orange-50 p-3 transition-colors duration-200">
+            <svg
+              className="mb-1 h-5 w-5 text-orange-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
             </svg>
-            <span className="text-xs text-orange-600 font-medium">{profile?.first_name || 'Personnel'}</span>
+            <span className="text-xs font-medium text-orange-600">
+              {profile?.first_name || 'Personnel'}
+            </span>
           </button>
 
           {/* Group Finance Tab - Only visible if user belongs to a group */}
           {profile?.group_id ? (
             <button
-              onClick={() => window.location.href = '/group-dashboard'}
-              className="flex flex-col items-center justify-center p-3 border-r border-gray-200 hover:bg-gray-50 transition-colors duration-200 text-gray-600"
+              onClick={() => (window.location.href = '/group-dashboard')}
+              className="flex flex-col items-center justify-center border-r border-gray-200 p-3 text-gray-600 transition-colors duration-200 hover:bg-gray-50"
             >
-              <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              <svg className="mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
               </svg>
               <span className="text-xs">{profile?.group_name || 'Groupe'}</span>
             </button>
           ) : (
-            <div className="flex flex-col items-center justify-center p-3 border-r border-gray-200 text-gray-400">
-              <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <div className="flex flex-col items-center justify-center border-r border-gray-200 p-3 text-gray-400">
+              <svg className="mb-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                />
               </svg>
               <span className="text-xs">Aucun groupe</span>
             </div>
@@ -261,14 +302,24 @@ export default function DashboardPage() {
           {/* Add Transaction Tab - Orange border style */}
           <button
             onClick={() => setIsAddTransactionModalOpen(true)}
-            className="flex flex-col items-center justify-center p-3 border-4 border-orange-500 hover:border-orange-600 transition-colors duration-200"
+            className="flex flex-col items-center justify-center border-4 border-orange-500 p-3 transition-colors duration-200 hover:border-orange-600"
           >
-            <div className="w-6 h-6 mb-1 bg-orange-500 rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+            <div className="mb-1 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500">
+              <svg
+                className="h-4 w-4 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
             </div>
-            <span className="text-xs text-orange-500 font-medium">Ajouter</span>
+            <span className="text-xs font-medium text-orange-500">Ajouter</span>
           </button>
         </div>
       </footer>
@@ -278,18 +329,20 @@ export default function DashboardPage() {
         {/* Overlay */}
         <div
           className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
+            isMenuOpen ? 'visible bg-opacity-50' : 'invisible bg-opacity-0'
           }`}
           onClick={() => setIsMenuOpen(false)}
         />
-        
+
         {/* Menu Panel */}
-        <div className={`fixed inset-y-0 right-0 z-50 w-full bg-white shadow-xl transform transition-all duration-300 ease-in-out ${
-          isMenuOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}>
-          <div className="flex flex-col h-full">
+        <div
+          className={`fixed inset-y-0 right-0 z-50 w-full transform bg-white shadow-xl transition-all duration-300 ease-in-out ${
+            isMenuOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <div className="flex h-full flex-col">
             {/* Menu Header */}
-            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 p-4">
               <h2 className="text-lg font-semibold text-gray-900">Paramètres</h2>
               <Button
                 variant="ghost"
@@ -297,16 +350,21 @@ export default function DashboardPage() {
                 onClick={() => setIsMenuOpen(false)}
                 className="p-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </Button>
             </div>
-            
+
             {/* Menu Content */}
-            <div className="flex-1 p-4 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto p-4">
               {/* Navigation Links */}
-              <div className="space-y-3 mb-6">
+              <div className="mb-6 space-y-3">
                 <Button
                   variant="ghost"
                   onClick={() => {
@@ -315,8 +373,18 @@ export default function DashboardPage() {
                   }}
                   className="w-full justify-start text-left"
                 >
-                  <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  <svg
+                    className="mr-3 h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
                   </svg>
                   Gestion du groupe
                 </Button>
@@ -325,7 +393,7 @@ export default function DashboardPage() {
               {/* Profil utilisateur */}
               {profile && (
                 <div className="space-y-4">
-                  <ProfileSettingsCard className="bg-transparent border-0 shadow-none p-0" />
+                  <ProfileSettingsCard className="border-0 bg-transparent p-0 shadow-none" />
                   <EditableBalanceLine
                     currentBalance={bankBalance}
                     onBalanceUpdate={handleBankBalanceUpdate}
@@ -333,13 +401,13 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            
+
             {/* Menu Footer with Logout */}
-            <div className="p-4 border-t border-gray-200">
+            <div className="border-t border-gray-200 p-4">
               <Button
                 onClick={logoutAndRedirect}
                 variant="outline"
-                className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+                className="w-full border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
               >
                 Se déconnecter
               </Button>
@@ -368,7 +436,6 @@ export default function DashboardPage() {
         context="profile"
         onTransactionUpdated={handleTransactionUpdated}
       />
-
     </div>
   )
 }

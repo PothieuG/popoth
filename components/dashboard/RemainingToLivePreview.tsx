@@ -39,7 +39,7 @@ export default function RemainingToLivePreview({
   type,
   isExceptional,
   selectedId,
-  context = 'profile'
+  context = 'profile',
 }: RemainingToLivePreviewProps) {
   const { financialData, loading } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
@@ -59,7 +59,7 @@ export default function RemainingToLivePreview({
       const impact = type === 'expense' ? -amount : amount
       return {
         newRemainingToLive: currentRemainingToLive + impact,
-        change: impact
+        change: impact,
       }
     }
 
@@ -81,14 +81,13 @@ export default function RemainingToLivePreview({
 
           return {
             newRemainingToLive: currentRemainingToLive - additionalOverrun,
-            change: -additionalOverrun
+            change: -additionalOverrun,
           }
         }
       }
 
       // Si pas de dépassement, pas d'impact (déjà budgété)
       return { newRemainingToLive: currentRemainingToLive, change: 0 }
-
     } else if (type === 'income' && selectedId) {
       // Pour les revenus, vérifier si c'est un bonus
       const progress = incomeProgress[selectedId]
@@ -110,7 +109,7 @@ export default function RemainingToLivePreview({
           // Premier revenu pour cette estimation : impact = différence totale vs estimation
           return {
             newRemainingToLive: currentRemainingToLive + newDifference,
-            change: newDifference
+            change: newDifference,
           }
         } else {
           // Revenus supplémentaires : impact = changement différentiel
@@ -119,7 +118,7 @@ export default function RemainingToLivePreview({
           if (additionalChange !== 0) {
             return {
               newRemainingToLive: currentRemainingToLive + additionalChange,
-              change: additionalChange
+              change: additionalChange,
             }
           }
         }
@@ -148,16 +147,16 @@ export default function RemainingToLivePreview({
   const formatEur = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
-      currency: 'EUR'
+      currency: 'EUR',
     }).format(value)
   }
 
   if (loading || !financialData) {
     return (
-      <div className="bg-gray-50 rounded-lg p-4 border">
+      <div className="rounded-lg border bg-gray-50 p-4">
         <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-          <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+          <div className="mb-2 h-4 w-3/4 rounded bg-gray-200"></div>
+          <div className="h-6 w-1/2 rounded bg-gray-200"></div>
         </div>
       </div>
     )
@@ -169,11 +168,9 @@ export default function RemainingToLivePreview({
   }
 
   return (
-    <div className="bg-blue-50/50 rounded-lg p-4 border border-blue-200">
+    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
       <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-700">
-          Impact sur le reste à vivre :
-        </p>
+        <p className="text-sm font-medium text-gray-700">Impact sur le reste à vivre :</p>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600">Actuel :</span>
@@ -184,17 +181,19 @@ export default function RemainingToLivePreview({
 
         {change !== 0 && (
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              {change > 0 ? 'Ajout :' : 'Déduction :'}
-            </span>
+            <span className="text-sm text-gray-600">{change > 0 ? 'Ajout :' : 'Déduction :'}</span>
             <span className={`font-semibold ${getColorClass(change)}`}>
-              {change > 0 ? '+' : ''}{formatEur(change)}
+              {change > 0 ? '+' : ''}
+              {formatEur(change)}
             </span>
           </div>
         )}
 
         {/* Affichage spécial pour les déficits de revenus */}
-        {!isExceptional && type === 'income' && selectedId && amount > 0 && (
+        {!isExceptional &&
+          type === 'income' &&
+          selectedId &&
+          amount > 0 &&
           (() => {
             const progress = incomeProgress[selectedId]
             if (progress) {
@@ -212,10 +211,9 @@ export default function RemainingToLivePreview({
               }
             }
             return null
-          })()
-        )}
+          })()}
 
-        <div className="pt-2 border-t border-blue-200">
+        <div className="border-t border-blue-200 pt-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-700">Nouveau :</span>
             <span className={`text-lg font-bold ${getColorClass(newRemainingToLive)}`}>
@@ -225,16 +223,21 @@ export default function RemainingToLivePreview({
         </div>
 
         {isExceptional ? (
-          <p className="text-xs text-blue-600 mt-2">
-            {type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel - Impact direct sur le reste à vivre
+          <p className="mt-2 text-xs text-blue-600">
+            {type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel - Impact direct sur le reste à
+            vivre
           </p>
         ) : change !== 0 ? (
-          <p className="text-xs text-amber-600 mt-2">
-            {type === 'expense' ? 'Dépassement de budget' : change > 0 ? 'Bonus au-delà de l\'estimation' : 'Déficit par rapport à l\'estimation'}
+          <p className="mt-2 text-xs text-amber-600">
+            {type === 'expense'
+              ? 'Dépassement de budget'
+              : change > 0
+                ? "Bonus au-delà de l'estimation"
+                : "Déficit par rapport à l'estimation"}
           </p>
         ) : (
-          <p className="text-xs text-gray-500 mt-2">
-            {type === 'expense' ? 'Dans les limites du budget' : 'Dans les limites de l\'estimation'}
+          <p className="mt-2 text-xs text-gray-500">
+            {type === 'expense' ? 'Dans les limites du budget' : "Dans les limites de l'estimation"}
           </p>
         )}
       </div>

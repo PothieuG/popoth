@@ -23,16 +23,16 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
 
     // Validation
     if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
-      return NextResponse.json(
-        { error: 'Le nom du groupe ne peut pas être vide' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le nom du groupe ne peut pas être vide' }, { status: 400 })
     }
 
-    if (monthly_budget_estimate !== undefined && (typeof monthly_budget_estimate !== 'number' || monthly_budget_estimate <= 0)) {
+    if (
+      monthly_budget_estimate !== undefined &&
+      (typeof monthly_budget_estimate !== 'number' || monthly_budget_estimate <= 0)
+    ) {
       return NextResponse.json(
-        { error: 'L\'estimation du budget mensuel doit être un nombre positif' },
-        { status: 400 }
+        { error: "L'estimation du budget mensuel doit être un nombre positif" },
+        { status: 400 },
       )
     }
 
@@ -46,29 +46,24 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
       .single()
 
     if (fetchError || !group) {
-      return NextResponse.json(
-        { error: 'Groupe introuvable' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
     }
 
     if (group.creator_id !== userId) {
       return NextResponse.json(
         { error: 'Seul le créateur peut modifier le groupe' },
-        { status: 403 }
+        { status: 403 },
       )
     }
 
     // Prepare update data
     const updateData: Partial<UpdateGroupRequest> = {}
     if (name !== undefined) updateData.name = name.trim()
-    if (monthly_budget_estimate !== undefined) updateData.monthly_budget_estimate = monthly_budget_estimate
+    if (monthly_budget_estimate !== undefined)
+      updateData.monthly_budget_estimate = monthly_budget_estimate
 
     if (Object.keys(updateData).length === 0) {
-      return NextResponse.json(
-        { error: 'Aucune donnée à mettre à jour' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the group
@@ -82,29 +77,23 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
     if (updateError) {
       // Handle unique constraint violation
       if (updateError.code === '23505') {
-        return NextResponse.json(
-          { error: 'Un groupe avec ce nom existe déjà' },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: 'Un groupe avec ce nom existe déjà' }, { status: 409 })
       }
 
       console.error('Error updating group:', updateError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du groupe' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
       group: updatedGroup,
-      message: 'Groupe mis à jour avec succès'
+      message: 'Groupe mis à jour avec succès',
     })
   } catch (error) {
     console.error('Error in PUT /api/groups/[id]:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
 
@@ -125,41 +114,32 @@ export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeCo
       .single()
 
     if (fetchError || !group) {
-      return NextResponse.json(
-        { error: 'Groupe introuvable' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
     }
 
     if (group.creator_id !== userId) {
       return NextResponse.json(
         { error: 'Seul le créateur peut supprimer le groupe' },
-        { status: 403 }
+        { status: 403 },
       )
     }
 
     // Delete the group (cascade will handle group_members)
-    const { error: deleteError } = await supabase
-      .from('groups')
-      .delete()
-      .eq('id', groupId)
+    const { error: deleteError } = await supabase.from('groups').delete().eq('id', groupId)
 
     if (deleteError) {
       console.error('Error deleting group:', deleteError)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du groupe' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     return NextResponse.json({
-      message: 'Groupe supprimé avec succès'
+      message: 'Groupe supprimé avec succès',
     })
   } catch (error) {
     console.error('Error in DELETE /api/groups/[id]:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

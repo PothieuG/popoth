@@ -58,7 +58,7 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
       created_at: group.created_at,
       updated_at: group.updated_at,
       member_count: count || 0,
-      is_creator: group.creator_id === userId
+      is_creator: group.creator_id === userId,
     }
 
     return NextResponse.json({ groups: [groupData] })
@@ -66,8 +66,11 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
     console.error('Error in GET /api/groups:', error)
     console.error('Stack trace:', (error as Error).stack)
     return NextResponse.json(
-      { error: 'Erreur interne du serveur', details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined },
-      { status: 500 }
+      {
+        error: 'Erreur interne du serveur',
+        details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined,
+      },
+      { status: 500 },
     )
   }
 })
@@ -82,16 +85,17 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
 
     // Validation
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Le nom du groupe est requis' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Le nom du groupe est requis' }, { status: 400 })
     }
 
-    if (!monthly_budget_estimate || typeof monthly_budget_estimate !== 'number' || monthly_budget_estimate <= 0) {
+    if (
+      !monthly_budget_estimate ||
+      typeof monthly_budget_estimate !== 'number' ||
+      monthly_budget_estimate <= 0
+    ) {
       return NextResponse.json(
-        { error: 'L\'estimation du budget mensuel doit être un nombre positif' },
-        { status: 400 }
+        { error: "L'estimation du budget mensuel doit être un nombre positif" },
+        { status: 400 },
       )
     }
 
@@ -100,8 +104,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     // Check if user is already in a group
     if (profile.group_id) {
       return NextResponse.json(
-        { error: 'Vous êtes déjà membre d\'un groupe. Quittez d\'abord votre groupe actuel.' },
-        { status: 409 }
+        { error: "Vous êtes déjà membre d'un groupe. Quittez d'abord votre groupe actuel." },
+        { status: 409 },
       )
     }
 
@@ -111,7 +115,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       .insert({
         name: name.trim(),
         monthly_budget_estimate,
-        creator_id: userId
+        creator_id: userId,
       })
       .select()
       .single()
@@ -119,17 +123,11 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     if (createError) {
       // Handle unique constraint violation
       if (createError.code === '23505') {
-        return NextResponse.json(
-          { error: 'Un groupe avec ce nom existe déjà' },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: 'Un groupe avec ce nom existe déjà' }, { status: 409 })
       }
 
       console.error('Error creating group:', createError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la création du groupe' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Erreur lors de la création du groupe' }, { status: 500 })
     }
 
     // Update user's profile to join the group
@@ -144,8 +142,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       await supabase.from('groups').delete().eq('id', group.id)
 
       return NextResponse.json(
-        { error: 'Erreur lors de l\'ajout du créateur au groupe' },
-        { status: 500 }
+        { error: "Erreur lors de l'ajout du créateur au groupe" },
+        { status: 500 },
       )
     }
 
@@ -158,18 +156,15 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       created_at: group.created_at,
       updated_at: group.updated_at,
       member_count: 1,
-      is_creator: true
+      is_creator: true,
     }
 
     return NextResponse.json({
       group: groupData,
-      message: 'Groupe créé avec succès'
+      message: 'Groupe créé avec succès',
     })
   } catch (error) {
     console.error('Error in POST /api/groups:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
