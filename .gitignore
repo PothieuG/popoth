@@ -79,7 +79,10 @@ lerna-debug.log*
 .supabase/
 
 # IDEs and editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo
