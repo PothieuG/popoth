@@ -1,7 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { triggerFinancialRefresh, registerFinancialRefreshCallback } from '@/hooks/useFinancialData'
+import { useEffect } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  registerFinancialRefreshCallback,
+  triggerFinancialRefresh,
+} from '@/hooks/useFinancialData'
 
 export interface EstimatedBudget {
   id: string
@@ -43,204 +47,169 @@ interface UseBudgetsReturn {
  * Gère le CRUD complet avec la base de données
  */
 export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
-  const [budgets, setBudgets] = useState<EstimatedBudget[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const queryKey = ['budgets', context ?? null]
 
-  /**
-   * Calcule le total des budgets estimés
-   */
-  const totalBudgets = budgets.reduce((sum, budget) => sum + budget.estimated_amount, 0)
-
-  /**
-   * Récupère tous les budgets depuis l'API
-   */
-  const fetchBudgets = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
+  const {
+    data: budgets = [],
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<EstimatedBudget[]>({
+    queryKey,
+    queryFn: async () => {
       const url = context
         ? `/api/finance/budgets/estimated?group=${context === 'group'}`
         : '/api/finance/budgets/estimated'
-      const response = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-      })
-
+      const response = await fetch(url, { method: 'GET', credentials: 'include' })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
         console.error('Erreur API budgets:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
-
       const data = await response.json()
-      setBudgets(data.estimated_budgets || [])
-    } catch (err) {
-      console.error('Erreur lors de la récupération des budgets:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-    } finally {
-      setLoading(false)
-    }
-  }, [context])
-
-  /**
-   * Ajoute un nouveau budget
-   */
-  const addBudget = useCallback(
-    async (budgetData: {
-      name: string
-      estimatedAmount: number
-      isGroupBudget?: boolean
-    }): Promise<boolean> => {
-      try {
-        setError(null)
-
-        const requestBody = {
-          name: budgetData.name,
-          estimatedAmount: budgetData.estimatedAmount,
-        }
-
-        const url = context ? `/api/finance/budgets?context=${context}` : `/api/finance/budgets`
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null)
-          console.error('❌ Erreur API budget:', response.status, errorData)
-          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        setBudgets((prev) => [data.budget, ...prev])
-
-        // Rafraîchir les données financières
-        triggerFinancialRefresh()
-
-        return true
-      } catch (err) {
-        console.error("Erreur lors de l'ajout du budget:", err)
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
-        return false
-      }
+      return (data.estimated_budgets ?? []) as EstimatedBudget[]
     },
-    [context],
-  )
+  })
 
-  /**
-   * Met à jour un budget existant
-   */
-  const updateBudget = useCallback(
-    async (
-      budgetId: string,
-      budgetData: { name: string; estimatedAmount: number },
-    ): Promise<boolean> => {
-      try {
-        setError(null)
-
-        const requestBody = {
-          name: budgetData.name,
-          estimatedAmount: budgetData.estimatedAmount,
-        }
-
-        const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
-          body: JSON.stringify(requestBody),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null)
-          console.error('❌ Erreur API budget:', response.status, errorData)
-          throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
-        }
-
-        const data = await response.json()
-
-        // Met à jour le budget dans la liste
-        setBudgets((prev) => prev.map((budget) => (budget.id === budgetId ? data.budget : budget)))
-
-        // Rafraîchir les données financières
-        triggerFinancialRefresh()
-
-        return true
-      } catch (err) {
-        console.error('Erreur lors de la mise à jour du budget:', err)
-        setError(err instanceof Error ? err.message : 'Erreur inconnue')
-        return false
+  const addMutation = useMutation<
+    EstimatedBudget,
+    Error,
+    { name: string; estimatedAmount: number; isGroupBudget?: boolean }
+  >({
+    mutationFn: async (budgetData) => {
+      const requestBody = {
+        name: budgetData.name,
+        estimatedAmount: budgetData.estimatedAmount,
       }
+      const url = context ? `/api/finance/budgets?context=${context}` : `/api/finance/budgets`
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Erreur API budget:', response.status, errorData)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.budget as EstimatedBudget
     },
-    [],
-  )
+    onSuccess: (newBudget) => {
+      queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) => [newBudget, ...prev])
+      triggerFinancialRefresh()
+    },
+    onError: (err) => {
+      console.error("Erreur lors de l'ajout du budget:", err)
+    },
+  })
 
-  /**
-   * Supprime un budget
-   */
-  const deleteBudget = useCallback(async (budgetId: string): Promise<boolean> => {
-    try {
-      setError(null)
+  const updateMutation = useMutation<
+    EstimatedBudget,
+    Error,
+    { budgetId: string; budgetData: { name: string; estimatedAmount: number } }
+  >({
+    mutationFn: async ({ budgetId, budgetData }) => {
+      const requestBody = {
+        name: budgetData.name,
+        estimatedAmount: budgetData.estimatedAmount,
+      }
+      const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestBody),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        console.error('❌ Erreur API budget:', response.status, errorData)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const data = await response.json()
+      return data.budget as EstimatedBudget
+    },
+    onSuccess: (updatedBudget, { budgetId }) => {
+      queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) =>
+        prev.map((budget) => (budget.id === budgetId ? updatedBudget : budget)),
+      )
+      triggerFinancialRefresh()
+    },
+    onError: (err) => {
+      console.error('Erreur lors de la mise à jour du budget:', err)
+    },
+  })
 
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: async (budgetId) => {
       const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
         method: 'DELETE',
         credentials: 'include',
       })
-
       if (!response.ok) {
         throw new Error('Erreur lors de la suppression du budget')
       }
-
-      setBudgets((prev) => prev.filter((budget) => budget.id !== budgetId))
-
-      // Rafraîchir les données financières
+    },
+    onSuccess: (_, budgetId) => {
+      queryClient.setQueryData<EstimatedBudget[]>(queryKey, (prev = []) =>
+        prev.filter((budget) => budget.id !== budgetId),
+      )
       triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
+    },
+    onError: (err) => {
       console.error('Erreur lors de la suppression du budget:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
+    },
+  })
 
-  /**
-   * Rafraîchit la liste des budgets
-   */
-  const refreshBudgets = useCallback(async () => {
-    await fetchBudgets()
-  }, [fetchBudgets])
-
-  // Charger les budgets au montage du composant
-  useEffect(() => {
-    fetchBudgets()
-  }, [fetchBudgets])
-
-  // Se re-synchroniser quand les donnees financieres changent globalement
+  // Bridge: re-sync this query when global financial refresh fires
+  // (e.g. after a transaction in another hook)
   useEffect(() => {
     const unregister = registerFinancialRefreshCallback(() => {
-      fetchBudgets()
+      queryClient.invalidateQueries({ queryKey: ['budgets'] })
     })
     return () => {
       unregister()
     }
-  }, [fetchBudgets])
+  }, [queryClient])
+
+  const totalBudgets = budgets.reduce((sum, budget) => sum + budget.estimated_amount, 0)
+
+  const latestError =
+    addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
+  const error = latestError instanceof Error ? latestError.message : null
 
   return {
     budgets,
-    loading,
+    loading: isLoading,
     error,
-    addBudget,
-    updateBudget,
-    deleteBudget,
-    refreshBudgets,
+    addBudget: async (budgetData) => {
+      try {
+        await addMutation.mutateAsync(budgetData)
+        return true
+      } catch {
+        return false
+      }
+    },
+    updateBudget: async (budgetId, budgetData) => {
+      try {
+        await updateMutation.mutateAsync({ budgetId, budgetData })
+        return true
+      } catch {
+        return false
+      }
+    },
+    deleteBudget: async (budgetId) => {
+      try {
+        await deleteMutation.mutateAsync(budgetId)
+        return true
+      } catch {
+        return false
+      }
+    },
+    refreshBudgets: async () => {
+      await refetch()
+    },
     totalBudgets,
   }
 }
