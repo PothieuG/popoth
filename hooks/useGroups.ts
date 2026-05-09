@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateGroupRequest, GroupData } from '@/app/api/groups/route'
 import type { UpdateGroupRequest } from '@/app/api/groups/[id]/route'
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 /**
  * Custom hook for managing user groups
@@ -62,6 +63,8 @@ export function useGroups() {
     },
     onSuccess: (newGroup) => {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) => [...prev, newGroup])
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error creating group:', err)
@@ -86,10 +89,13 @@ export function useGroups() {
       }
       return data.group as GroupData
     },
-    onSuccess: (updatedGroup, { groupId }) => {
+    onSuccess: (updatedGroup, { groupId, updates }) => {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) =>
         prev.map((g) => (g.id === groupId ? { ...g, ...updatedGroup } : g)),
       )
+      if ('monthly_budget_estimate' in updates) {
+        invalidateFinancialRefreshes(queryClient)
+      }
     },
     onError: (err) => {
       console.error('Error updating group:', err)
@@ -111,6 +117,8 @@ export function useGroups() {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) =>
         prev.filter((g) => g.id !== groupId),
       )
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error deleting group:', err)
@@ -130,6 +138,8 @@ export function useGroups() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error joining group:', err)
@@ -151,6 +161,8 @@ export function useGroups() {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) =>
         prev.filter((g) => g.id !== groupId),
       )
+      queryClient.invalidateQueries({ queryKey: ['profile'] })
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error leaving group:', err)
