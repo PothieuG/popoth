@@ -11,7 +11,7 @@ Chaque handler vit dans [`lib/api/finance/<route>.ts`](../../lib/api/finance/) (
 export { GET } from '@/lib/api/finance/summary'
 ```
 
-Depuis le **Sprint Refactor-Architecture-v3** (livré 2026-05-08), tous les handlers sont wrappés par un higher-order helper depuis [`lib/api/with-auth.ts`](../../lib/api/with-auth.ts) :
+Depuis le **Sprint Refactor-Architecture-v3** (livré 2026-05-08, finance) et le **Sprint Refactor-Architecture-v4** (livré 2026-05-08, Volet C — extension aux 21 routes hors finance), tous les handlers sont wrappés par un higher-order helper depuis [`lib/api/with-auth.ts`](../../lib/api/with-auth.ts) :
 
 ```ts
 // Auth + profile fetch (always-fetch handlers : budgets, incomes, rav, summary)
@@ -98,15 +98,28 @@ Toutes les routes valident le cookie `session` via le wrapper `withAuth` / `with
 - `expenses/preview-breakdown` GET : `?amount=42.50&budget_id=<uuid>&context=profile|group&expense_id=<uuid>` (le dernier exclut une dépense de la simulation).
 - `expenses/add-with-logic` POST : body `{ amount, description, expense_date?, estimated_budget_id?, is_for_group? }` — gère l'allocation tirelire → savings → budget en RPC atomique.
 
-## Routes hors `/api/finance/*` (non concernées par ce sprint)
+## Routes hors `/api/finance/*` — wrappées en v4
 
-Ces routes restent structurellement inchangées (l'unification n'a pas étendu à elles) :
-- `/api/auth/*` — login/logout/refresh JWT
-- `/api/profile` — lecture/maj profil
-- `/api/groups`, `/api/groups/[id]`, `/api/groups/[id]/members`, `/api/groups/contributions`, `/api/groups/search`
-- `/api/savings/data`, `/api/savings/transfer`
-- `/api/monthly-recap/*` — workflow récap mensuel (god route `process-step1` exclue du refactor I5)
-- `/api/debug/*` — bloquées en prod via `blockInProduction()`
+Ces routes vivent dans `app/api/{path}/route.ts` (pas d'extraction `lib/api/<route>.ts`, contrairement à finance) mais utilisent toutes le wrapper `withAuth` / `withAuthAndProfile` depuis le **Sprint Refactor-Architecture-v4** (livré 2026-05-08) :
+
+| Surface | Routes | Helper |
+|---|---|---|
+| `/api/profile` | GET, POST, PUT | `withAuth` (GET fait son `select('*')` + 200-on-no-profile en interne) |
+| `/api/savings/data` | GET | `withAuthAndProfile` |
+| `/api/savings/transfer` | POST | `withAuthAndProfile` |
+| `/api/bank-balance` | GET, POST | `withAuth` + lazy fetch profil dans le body (conditional sur `context==='group'`) |
+| `/api/groups` | GET, POST | `withAuthAndProfile` |
+| `/api/groups/search` | GET | `withAuthAndProfile` |
+| `/api/groups/contributions` | GET, POST | `withAuthAndProfile` |
+| `/api/groups/[id]` | PUT, DELETE | `withAuth<RouteParams>` (auth-only — auth check via groups table, pas profile) |
+| `/api/groups/[id]/members` | GET, POST, DELETE | `withAuthAndProfile<RouteParams>` |
+| `/api/monthly-recap/status` | GET | `withAuth` (délègue à `lib/recap/check-status.ts`) |
+| `/api/monthly-recap/*` (12 autres routes) | divers | `withAuthAndProfile` |
+
+**Routes restantes hors wrapper** :
+- `/api/auth/*` — login/logout/refresh — créent ou rafraîchissent la session, ne la valident pas.
+- `/api/monthly-recap/process-step1` — god route, chantier I5 séparé (auth-only migration potentielle dans le Sprint v5 — voir [`prompts/prompt-03-architecture-v5.md`](../../prompts/prompt-03-architecture-v5.md)).
+- `/api/debug/*` — bloquées en prod via `blockInProduction()` ; skipped du wrapper en v4 (low value, ~12 callsites éphémères).
 
 ## Diagramme de flux (allocation d'une dépense)
 
@@ -141,13 +154,15 @@ pnpm build 2>&1 | grep "/api/finance"
 # Doit lister les 12 paths sous /api/finance/ (tous canoniques)
 ```
 
-## Vérifications de cohérence post-Sprint-v3
+## Vérifications de cohérence post-Sprint-v3 + v4
 
 ```bash
-# Aucun callsite direct de validateSessionToken — tout passe par les wrappers
+# Aucun callsite direct de validateSessionToken dans les surfaces wrappées
 rg -n "validateSessionToken" lib/api/finance/   # → 0 lignes
+rg -n "validateSessionToken" app/api/{savings,groups,profile,monthly-recap,bank-balance}/
+# → seulement app/api/monthly-recap/process-step1/route.ts (god route, exclue)
 
-# Messages d'erreur harmonisés
-rg -n "'Non autoris" lib/api/finance/           # → 0 lignes
-rg -n "'Non authentifi" lib/api/finance/        # → 0 lignes
+# Messages d'erreur harmonisés sur 'Session invalide' (CLAUDE.md §6)
+rg -n "'Non autoris" app/api/                   # → seulement app/api/debug/{financial,group-financial}/route.ts
+rg -n "'Non authentifi" app/api/                # → 0 lignes (sauf debug routes restantes)
 ```
