@@ -34,12 +34,6 @@ const eslintConfig = [
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      // New rules in eslint-plugin-react-hooks v7 (shipped with eslint-config-next 16).
-      // 26 pre-existing sites flag set-state-in-effect / refs — both are real React 19
-      // anti-patterns but fixing them requires a dedicated refactor sprint. Downgraded
-      // to 'warn' for parity with the no-console debt model so lint:check stays green.
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
     },
   },
 ]
