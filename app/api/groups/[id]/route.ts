@@ -16,7 +16,7 @@ export interface UpdateGroupRequest {
  */
 export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContext) => {
   try {
-    const resolvedParams = await routeContext!.params
+    const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
     const body: UpdateGroupRequest = await request.json()
     const { name, monthly_budget_estimate } = body
@@ -113,7 +113,7 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
  */
 export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeContext) => {
   try {
-    const resolvedParams = await routeContext!.params
+    const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 

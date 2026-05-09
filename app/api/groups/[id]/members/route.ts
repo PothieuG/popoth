@@ -18,7 +18,7 @@ export interface GroupMember {
  */
 export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile }, routeContext) => {
   try {
-    const resolvedParams = await routeContext!.params
+    const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 
@@ -73,7 +73,7 @@ export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile },
  */
 export const POST = withAuthAndProfile<RouteParams>(async (_request, { profile }, routeContext) => {
   try {
-    const resolvedParams = await routeContext!.params
+    const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 
@@ -137,7 +137,7 @@ export const POST = withAuthAndProfile<RouteParams>(async (_request, { profile }
  */
 export const DELETE = withAuthAndProfile<RouteParams>(async (_request, { userId, profile }, routeContext) => {
   try {
-    const resolvedParams = await routeContext!.params
+    const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
     const supabase = supabaseServer
 
