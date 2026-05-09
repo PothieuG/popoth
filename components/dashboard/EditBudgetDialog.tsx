@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface EstimatedBudget {
@@ -30,21 +30,9 @@ export default function EditBudgetDialog({
   currentBudgetsTotal,
   totalEstimatedIncome,
 }: EditBudgetDialogProps) {
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
+  const [name, setName] = useState(() => budget?.name ?? '')
+  const [amount, setAmount] = useState(() => budget?.estimated_amount?.toString() ?? '')
   const [isLoading, setIsLoading] = useState(false)
-
-  // Reset form when dialog opens/closes or budget changes
-  useEffect(() => {
-    if (isOpen && budget) {
-      setName(budget.name)
-      setAmount(budget.estimated_amount.toString())
-    } else if (!isOpen) {
-      setName('')
-      setAmount('')
-      setIsLoading(false)
-    }
-  }, [isOpen, budget])
 
   const validationError = useMemo(() => {
     if (!name && !amount) return ''

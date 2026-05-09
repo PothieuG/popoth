@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,14 +35,29 @@ export default function EditTransactionModal({
   context,
   onTransactionUpdated,
 }: EditTransactionModalProps) {
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    date: '',
-    budgetId: '',
-    incomeId: '',
+  const [formData, setFormData] = useState(() => {
+    if (!transaction) {
+      return { description: '', amount: '', date: '', budgetId: '', incomeId: '' }
+    }
+    const dateField =
+      transactionType === 'expense'
+        ? (transaction as RealExpense).expense_date
+        : (transaction as RealIncome).entry_date
+    return {
+      description: transaction.description || '',
+      amount: transaction.amount.toString(),
+      date: dateField,
+      budgetId:
+        transactionType === 'expense'
+          ? (transaction as RealExpense).estimated_budget_id || ''
+          : '',
+      incomeId:
+        transactionType === 'income'
+          ? (transaction as RealIncome).estimated_income_id || ''
+          : '',
+    }
   })
-  const [isExceptional, setIsExceptional] = useState(false)
+  const [isExceptional, setIsExceptional] = useState(() => transaction?.is_exceptional ?? false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -98,33 +113,6 @@ export default function EditTransactionModal({
 
   // Vérifier si c'est une transaction exceptionnelle originale
   const isOriginallyExceptional = transaction?.is_exceptional || false
-
-  /**
-   * Load transaction data into form when modal opens or transaction changes
-   */
-  useEffect(() => {
-    if (isOpen && transaction) {
-      // Get the date field based on transaction type
-      const dateField =
-        transactionType === 'expense'
-          ? (transaction as RealExpense).expense_date
-          : (transaction as RealIncome).entry_date
-
-      setFormData({
-        description: transaction.description || '',
-        amount: transaction.amount.toString(),
-        date: dateField,
-        budgetId:
-          transactionType === 'expense'
-            ? (transaction as RealExpense).estimated_budget_id || ''
-            : '',
-        incomeId:
-          transactionType === 'income' ? (transaction as RealIncome).estimated_income_id || '' : '',
-      })
-      setIsExceptional(transaction.is_exceptional || false)
-      setError(null)
-    }
-  }, [isOpen, transaction, transactionType])
 
   /**
    * Handle form submission

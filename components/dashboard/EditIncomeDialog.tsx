@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 interface EstimatedIncome {
   id: string
@@ -27,21 +27,9 @@ export default function EditIncomeDialog({
   income,
   currentIncomesTotal,
 }: EditIncomeDialogProps) {
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
+  const [name, setName] = useState(() => income?.name ?? '')
+  const [amount, setAmount] = useState(() => income?.estimated_amount?.toString() ?? '')
   const [isLoading, setIsLoading] = useState(false)
-
-  // Reset form when dialog opens/closes or income changes
-  useEffect(() => {
-    if (isOpen && income) {
-      setName(income.name)
-      setAmount(income.estimated_amount.toString())
-    } else if (!isOpen) {
-      setName('')
-      setAmount('')
-      setIsLoading(false)
-    }
-  }, [isOpen, income])
 
   const validationError = useMemo(() => {
     if (!name && !amount) return ''

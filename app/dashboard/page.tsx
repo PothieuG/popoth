@@ -416,26 +416,33 @@ export default function DashboardPage() {
         </div>
       </>
 
-      {/* Add Transaction Modal */}
-      <AddTransactionModal
-        isOpen={isAddTransactionModalOpen}
-        onClose={() => setIsAddTransactionModalOpen(false)}
-        context="profile"
-        onTransactionAdded={handleTransactionAdded}
-      />
+      {/* Add Transaction Modal — conditional render so lazy useState
+         init runs fresh on each open. */}
+      {isAddTransactionModalOpen && (
+        <AddTransactionModal
+          isOpen={isAddTransactionModalOpen}
+          onClose={() => setIsAddTransactionModalOpen(false)}
+          context="profile"
+          onTransactionAdded={handleTransactionAdded}
+        />
+      )}
 
-      {/* Edit Transaction Modal */}
-      <EditTransactionModal
-        isOpen={isEditTransactionModalOpen}
-        onClose={() => {
-          setIsEditTransactionModalOpen(false)
-          setEditingTransaction(null)
-        }}
-        transaction={editingTransaction}
-        transactionType={editingTransactionType}
-        context="profile"
-        onTransactionUpdated={handleTransactionUpdated}
-      />
+      {/* Edit Transaction Modal — key on transaction.id remounts the
+         modal when the user switches edit targets. */}
+      {isEditTransactionModalOpen && editingTransaction && (
+        <EditTransactionModal
+          key={editingTransaction.id}
+          isOpen={isEditTransactionModalOpen}
+          onClose={() => {
+            setIsEditTransactionModalOpen(false)
+            setEditingTransaction(null)
+          }}
+          transaction={editingTransaction}
+          transactionType={editingTransactionType}
+          context="profile"
+          onTransactionUpdated={handleTransactionUpdated}
+        />
+      )}
     </div>
   )
 }

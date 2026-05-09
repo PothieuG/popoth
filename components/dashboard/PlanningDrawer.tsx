@@ -762,24 +762,32 @@ export default function PlanningDrawer({
           currentIncomesTotal={totalIncomesWithSalary}
         />
 
-        {/* Edit Budget Dialog */}
-        <EditBudgetDialog
-          isOpen={isEditBudgetOpen}
-          onClose={() => setIsEditBudgetOpen(false)}
-          onSave={handleSaveEditedBudget}
-          budget={editingBudget}
-          currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomesWithSalary}
-        />
+        {/* Edit Budget Dialog — conditional render + key on editingBudget.id
+           remounts the dialog cleanly when the user switches targets,
+           so lazy useState init re-runs from the new budget data. */}
+        {isEditBudgetOpen && editingBudget && (
+          <EditBudgetDialog
+            key={editingBudget.id}
+            isOpen={isEditBudgetOpen}
+            onClose={() => setIsEditBudgetOpen(false)}
+            onSave={handleSaveEditedBudget}
+            budget={editingBudget}
+            currentBudgetsTotal={totalBudgets}
+            totalEstimatedIncome={totalIncomesWithSalary}
+          />
+        )}
 
-        {/* Edit Income Dialog */}
-        <EditIncomeDialog
-          isOpen={isEditIncomeOpen}
-          onClose={() => setIsEditIncomeOpen(false)}
-          onSave={handleSaveEditedIncome}
-          income={editingIncome}
-          currentIncomesTotal={totalIncomesWithSalary}
-        />
+        {/* Edit Income Dialog — same pattern as Edit Budget */}
+        {isEditIncomeOpen && editingIncome && (
+          <EditIncomeDialog
+            key={editingIncome.id}
+            isOpen={isEditIncomeOpen}
+            onClose={() => setIsEditIncomeOpen(false)}
+            onSave={handleSaveEditedIncome}
+            income={editingIncome}
+            currentIncomesTotal={totalIncomesWithSalary}
+          />
+        )}
 
         {/* Confirmation Dialog */}
         <ConfirmationDialog

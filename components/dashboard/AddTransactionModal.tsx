@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -116,24 +116,6 @@ export default function AddTransactionModal({
       bonusAmount: bonusAmount, // 🔥 Calcul en temps réel du bonus
     }
   })
-
-  /**
-   * Reset form when modal opens/closes and force refresh
-   */
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        description: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        budgetId: '',
-        incomeId: '',
-      })
-      setIsExceptional(false)
-      setTransactionType('expense')
-      setError(null)
-    }
-  }, [isOpen])
 
   /**
    * Handle form submission
