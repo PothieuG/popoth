@@ -1,7 +1,12 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+
+function invalidateFinancialRefreshes(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['financial-summary'] })
+  qc.invalidateQueries({ queryKey: ['progress-data'] })
+  qc.invalidateQueries({ queryKey: ['budgets'] })
+}
 
 export interface EstimatedIncome {
   id: string
@@ -88,7 +93,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
     },
     onSuccess: (newIncome) => {
       queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) => [newIncome, ...prev])
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error("Erreur lors de l'ajout du revenu:", err)
@@ -123,7 +128,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) =>
         prev.map((income) => (income.id === incomeId ? updatedIncome : income)),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Erreur lors de la mise à jour du revenu:', err)
@@ -144,7 +149,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       queryClient.setQueryData<EstimatedIncome[]>(queryKey, (prev = []) =>
         prev.filter((income) => income.id !== incomeId),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Erreur lors de la suppression du revenu:', err)

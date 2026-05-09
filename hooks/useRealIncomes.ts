@@ -1,7 +1,12 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+
+function invalidateFinancialRefreshes(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['financial-summary'] })
+  qc.invalidateQueries({ queryKey: ['progress-data'] })
+  qc.invalidateQueries({ queryKey: ['budgets'] })
+}
 
 export interface RealIncome {
   id: string
@@ -103,7 +108,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     },
     onSuccess: (newIncome) => {
       queryClient.setQueryData<RealIncome[]>(queryKey, (prev = []) => [newIncome, ...prev])
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error in addIncome:', err)
@@ -130,7 +135,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       queryClient.setQueryData<RealIncome[]>(queryKey, (prev = []) =>
         prev.map((income) => (income.id === incomeData.id ? updatedIncome : income)),
       )
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Error in updateIncome:', err)
@@ -146,11 +151,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error(
-          '❌ [useRealIncomes] API Error deleting income:',
-          response.status,
-          errorData,
-        )
+        console.error('❌ [useRealIncomes] API Error deleting income:', response.status, errorData)
         throw new Error(errorData?.error || 'Erreur lors de la suppression du revenu')
       }
     },
@@ -160,7 +161,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       )
       console.log('✅ [useRealIncomes] Income removed from local state')
       console.log('🔄 [useRealIncomes] Refreshing financial data...')
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
       console.log('✅ [useRealIncomes] Financial data refreshed')
     },
     onError: (err) => {
