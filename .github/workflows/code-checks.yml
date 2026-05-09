@@ -72,6 +72,10 @@ jobs:
         if: always()
         run: pnpm lint:check
 
+      - name: Prettier format check
+        if: always()
+        run: pnpm format:check
+
       - name: Vitest single run
         if: always()
         run: pnpm test:run
