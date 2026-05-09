@@ -1,6 +1,7 @@
 import './globals.css'
 import { Roboto } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { QueryProvider } from '@/components/providers/QueryProvider'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 import type { Metadata, Viewport } from 'next'
 
@@ -43,7 +44,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning={true}
       >
         <ServiceWorkerRegistration />
-        <AuthProvider>{children}</AuthProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   )
