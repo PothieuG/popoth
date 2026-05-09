@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { registerFinancialRefreshCallback } from '@/hooks/useFinancialData'
 
 interface ExpenseProgress {
@@ -28,26 +29,22 @@ interface UseProgressDataReturn {
   refreshProgressData: () => Promise<void>
 }
 
+interface ProgressDataPayload {
+  expense: Record<string, ExpenseProgress>
+  income: Record<string, IncomeProgress>
+}
+
 /**
  * Hook pour récupérer les données de progression des budgets et revenus
  */
 export function useProgressData(context?: 'profile' | 'group'): UseProgressDataReturn {
-  const [expenseProgress, setExpenseProgress] = useState<Record<string, ExpenseProgress>>({})
-  const [incomeProgress, setIncomeProgress] = useState<Record<string, IncomeProgress>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const contextRef = useRef(context)
-  contextRef.current = context
+  const { data, isLoading, error, refetch } = useQuery<ProgressDataPayload>({
+    queryKey: ['progress-data', context ?? null],
+    queryFn: async () => {
+      const contextParam = context ? `?context=${context}` : ''
 
-  const fetchProgressData = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      const contextParam = contextRef.current ? `?context=${contextRef.current}` : ''
-
-      // Récupérer les progressions des dépenses et revenus en parallèle
       const [expenseResponse, incomeResponse] = await Promise.all([
         fetch(`/api/finance/expenses/progress${contextParam}`, {
           method: 'GET',
@@ -68,59 +65,39 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
         incomeResponse.json(),
       ])
 
-      // Transformer les données en maps pour un accès rapide
-      const expenseMap: Record<string, ExpenseProgress> = {}
+      const expense: Record<string, ExpenseProgress> = {}
       expenseData.forEach((item: ExpenseProgress) => {
-        expenseMap[item.budgetId] = item
+        expense[item.budgetId] = item
       })
 
-      const incomeMap: Record<string, IncomeProgress> = {}
+      const income: Record<string, IncomeProgress> = {}
       incomeData.forEach((item: IncomeProgress) => {
-        incomeMap[item.incomeId] = item
+        income[item.incomeId] = item
       })
 
-      setExpenseProgress(expenseMap)
-      setIncomeProgress(incomeMap)
-    } catch (err) {
-      console.error('❌ Erreur dans useProgressData:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      setExpenseProgress({})
-      setIncomeProgress({})
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+      return { expense, income }
+    },
+  })
 
-  const refreshProgressData = useCallback(async () => {
-    await fetchProgressData()
-  }, [fetchProgressData])
-
-  useEffect(() => {
-    fetchProgressData()
-  }, [fetchProgressData])
-
-  // Watch for context changes and refetch
-  useEffect(() => {
-    fetchProgressData()
-  }, [context, fetchProgressData])
-
-  // S'enregistrer pour les rafraîchissements globaux
+  // Bridge: legacy `triggerFinancialRefresh()` invalidates the progress-data
+  // query, which Query then refetches.
   useEffect(() => {
     const unregister = registerFinancialRefreshCallback(() => {
       console.log('🔄 [ProgressData] Received global financial refresh trigger')
-      fetchProgressData()
+      queryClient.invalidateQueries({ queryKey: ['progress-data'] })
     })
-
     return () => {
       unregister()
     }
-  }, [fetchProgressData])
+  }, [queryClient])
 
   return {
-    expenseProgress,
-    incomeProgress,
-    loading,
-    error,
-    refreshProgressData,
+    expenseProgress: data?.expense ?? {},
+    incomeProgress: data?.income ?? {},
+    loading: isLoading,
+    error: error instanceof Error ? error.message : null,
+    refreshProgressData: async () => {
+      await refetch()
+    },
   }
 }
