@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { registerFinancialRefreshCallback } from '@/hooks/useFinancialData'
+import { useQuery } from '@tanstack/react-query'
 
 interface ExpenseProgress {
   budgetId: string
@@ -38,8 +36,6 @@ interface ProgressDataPayload {
  * Hook pour récupérer les données de progression des budgets et revenus
  */
 export function useProgressData(context?: 'profile' | 'group'): UseProgressDataReturn {
-  const queryClient = useQueryClient()
-
   const { data, isLoading, error, refetch } = useQuery<ProgressDataPayload>({
     queryKey: ['progress-data', context ?? null],
     queryFn: async () => {
@@ -78,18 +74,6 @@ export function useProgressData(context?: 'profile' | 'group'): UseProgressDataR
       return { expense, income }
     },
   })
-
-  // Bridge: legacy `triggerFinancialRefresh()` invalidates the progress-data
-  // query, which Query then refetches.
-  useEffect(() => {
-    const unregister = registerFinancialRefreshCallback(() => {
-      console.log('🔄 [ProgressData] Received global financial refresh trigger')
-      queryClient.invalidateQueries({ queryKey: ['progress-data'] })
-    })
-    return () => {
-      unregister()
-    }
-  }, [queryClient])
 
   return {
     expenseProgress: data?.expense ?? {},

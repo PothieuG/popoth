@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import type { FinancialData } from '@/lib/financial-calculations'
 
 interface UseFinancialDataReturn {
@@ -37,9 +36,12 @@ const defaultFinancialData: FinancialData = {
  * - Calcul toujours en temps réel sans cache
  */
 export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinancialDataReturn {
-  const queryClient = useQueryClient()
-
-  const { data: apiResponse, isLoading, error, refetch } = useQuery<FinancialApiResponse>({
+  const {
+    data: apiResponse,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery<FinancialApiResponse>({
     queryKey: ['financial-summary', forceContext ?? null],
     queryFn: async () => {
       const url = forceContext
@@ -82,19 +84,6 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     },
   })
 
-  // Bridge: legacy `triggerFinancialRefresh()` callsites (in useBudgets, useIncomes, etc.)
-  // invalidate the financial-summary query, which Query then refetches.
-  useEffect(() => {
-    const handler = () => {
-      console.log('🔄 [useFinancialData] Global refresh triggered')
-      queryClient.invalidateQueries({ queryKey: ['financial-summary'] })
-    }
-    const unregister = registerFinancialRefreshCallback(handler)
-    return () => {
-      unregister()
-    }
-  }, [queryClient])
-
   return {
     financialData: apiResponse?.data ?? (error ? defaultFinancialData : null),
     loading: isLoading,
@@ -104,31 +93,4 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
       await refetch()
     },
   }
-}
-
-/**
- * Global refresh callback registry for financial data
- * Allows other hooks to register refresh callbacks that get triggered
- * when real transactions are modified
- */
-const financialRefreshCallbacks = new Set<() => void>()
-
-export function registerFinancialRefreshCallback(callback: () => void) {
-  financialRefreshCallbacks.add(callback)
-  return () => financialRefreshCallbacks.delete(callback)
-}
-
-export function triggerFinancialRefresh() {
-  console.log(
-    '🔄 [FinancialData] Triggering global financial refresh for',
-    financialRefreshCallbacks.size,
-    'registered callbacks',
-  )
-  financialRefreshCallbacks.forEach((callback) => {
-    try {
-      callback()
-    } catch (error) {
-      console.error('❌ Error in financial refresh callback:', error)
-    }
-  })
 }
