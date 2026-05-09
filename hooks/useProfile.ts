@@ -1,8 +1,13 @@
 'use client'
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { CreateProfileRequest, ProfileData } from '@/app/api/profile/route'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+
+function invalidateFinancialRefreshes(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: ['financial-summary'] })
+  qc.invalidateQueries({ queryKey: ['progress-data'] })
+  qc.invalidateQueries({ queryKey: ['budgets'] })
+}
 
 /**
  * Hook personnalisé pour gérer les profils utilisateur
@@ -91,7 +96,7 @@ export function useProfile() {
     },
     onSuccess: (newProfile) => {
       queryClient.setQueryData(['profile'], newProfile)
-      triggerFinancialRefresh()
+      invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
       console.error('Erreur lors de la mise à jour du profil:', err)
