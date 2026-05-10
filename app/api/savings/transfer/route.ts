@@ -3,6 +3,7 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile, type AuthedProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
@@ -55,16 +56,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       )
     }
 
-    console.log(``)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(`💸💸💸 [SAVINGS TRANSFER] DÉBUT DU TRANSFERT`)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(`💸 Contexte: ${context}`)
-    console.log(`💸 De budget: ${from_budget_id}`)
-    console.log(`💸 Vers budget: ${to_budget_id}`)
-    console.log(`💸 Montant: ${amount}€`)
-    console.log(`💸💸💸 ========================================================`)
-
     // Determine context filter
     const contextFilter =
       context === 'group' && profile.group_id
@@ -80,7 +71,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .single()
 
     if (fromError || !fromBudget) {
-      console.error('❌ Budget source non trouvé:', fromError)
       return NextResponse.json({ error: 'Budget source non trouvé' }, { status: 404 })
     }
 
@@ -93,7 +83,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .single()
 
     if (toError || !toBudget) {
-      console.error('❌ Budget destination non trouvé:', toError)
       return NextResponse.json({ error: 'Budget destination non trouvé' }, { status: 404 })
     }
 
@@ -109,18 +98,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       )
     }
 
-    console.log(`✅ Validation OK:`)
-    console.log(`   - Budget source: ${fromBudget.name} - ${currentSavings}€ disponibles`)
-    console.log(
-      `   - Budget destination: ${toBudget.name} - ${toBudget.cumulated_savings || 0}€ actuels`,
-    )
-
     // 4. Update FROM budget (subtract savings) — atomique via RPC
     let newFromSavings: number
     try {
       newFromSavings = await updateBudgetCumulatedSavings(from_budget_id, -amount)
     } catch (updateFromError) {
-      console.error('❌ Erreur mise à jour budget source:', updateFromError)
+      logger.error('❌ Erreur mise à jour budget source:', updateFromError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget source' },
         { status: 500 },
@@ -132,12 +115,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     try {
       newToSavings = await updateBudgetCumulatedSavings(to_budget_id, amount)
     } catch (updateToError) {
-      console.error('❌ Erreur mise à jour budget destination:', updateToError)
+      logger.error('❌ Erreur mise à jour budget destination:', updateToError)
       // Rollback from budget (re-add the amount)
       try {
         await updateBudgetCumulatedSavings(from_budget_id, amount)
       } catch (rollbackError) {
-        console.error('❌ Erreur rollback budget source:', rollbackError)
+        logger.error('❌ Erreur rollback budget source:', rollbackError)
       }
 
       return NextResponse.json(
@@ -145,13 +128,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         { status: 500 },
       )
     }
-
-    console.log(``)
-    console.log(`✅✅✅ TRANSFERT RÉUSSI`)
-    console.log(`   - ${fromBudget.name}: ${currentSavings}€ → ${newFromSavings}€`)
-    console.log(`   - ${toBudget.name}: ${toBudget.cumulated_savings || 0}€ → ${newToSavings}€`)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(``)
 
     return NextResponse.json({
       success: true,
@@ -169,8 +145,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         new_savings: newToSavings,
       },
     })
-  } catch (error) {
-    console.error('❌ Erreur dans POST /api/savings/transfer:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur lors du transfert' }, { status: 500 })
   }
 })
@@ -188,15 +163,6 @@ async function handlePiggyBankAction(
     return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
   }
 
-  console.log(``)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(`🐷🐷🐷 [PIGGY BANK] ${action.toUpperCase()}`)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(`🐷 Action: ${action}`)
-  console.log(`🐷 Montant: ${amount}€`)
-  console.log(`🐷 Contexte: ${context}`)
-  console.log(`🐷 User ID: ${profile.id}`)
-
   // Determine context filter
   const contextFilter =
     context === 'group' && profile.group_id
@@ -208,8 +174,6 @@ async function handlePiggyBankAction(
       ? { group_id: profile.group_id }
       : { profile_id: profile.id }
 
-  console.log(`🐷 Filtre appliqué:`, matchFilter)
-
   // Get current piggy bank
   const { data: currentPiggyBank, error: getPiggyError } = await supabaseServer
     .from('piggy_bank')
@@ -218,7 +182,6 @@ async function handlePiggyBankAction(
     .maybeSingle()
 
   if (getPiggyError) {
-    console.error('❌ Erreur récupération tirelire:', getPiggyError)
     return NextResponse.json(
       { error: 'Erreur lors de la récupération de la tirelire' },
       { status: 500 },
@@ -226,7 +189,6 @@ async function handlePiggyBankAction(
   }
 
   const currentAmount = currentPiggyBank?.amount || 0
-  console.log(`🐷 Montant actuel tirelire: ${currentAmount}€`)
 
   let newAmount: number
 
@@ -244,15 +206,12 @@ async function handlePiggyBankAction(
       return NextResponse.json({ error: `Action inconnue: ${action}` }, { status: 400 })
   }
 
-  console.log(`🐷 Nouveau montant tirelire: ${newAmount}€`)
-
   // Update or insert piggy bank (RPC atomique sur le delta)
   if (currentPiggyBank) {
     try {
       const delta = newAmount - currentAmount
       newAmount = await updatePiggyBank(matchFilter as Parameters<typeof updatePiggyBank>[0], delta)
-    } catch (updateError) {
-      console.error('❌ Erreur mise à jour tirelire:', updateError)
+    } catch {
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour de la tirelire' },
         { status: 500 },
@@ -267,17 +226,12 @@ async function handlePiggyBankAction(
     })
 
     if (insertError) {
-      console.error('❌ Erreur création tirelire:', insertError)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la tirelire' },
         { status: 500 },
       )
     }
   }
-
-  console.log(`✅ Tirelire mise à jour avec succès`)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(``)
 
   return NextResponse.json({
     success: true,
@@ -332,8 +286,7 @@ async function handleBudgetToPiggyBank(
   let newBudgetSavings: number
   try {
     newBudgetSavings = await updateBudgetCumulatedSavings(fromBudgetId, -amount)
-  } catch (updateBudgetError) {
-    console.error('❌ Erreur mise à jour budget:', updateBudgetError)
+  } catch {
     return NextResponse.json({ error: 'Erreur mise à jour du budget' }, { status: 500 })
   }
 
@@ -361,12 +314,12 @@ async function handleBudgetToPiggyBank(
     try {
       await updatePiggyBank(piggyMatchFilter as Parameters<typeof updatePiggyBank>[0], amount)
     } catch (updateError) {
-      console.error('❌ Erreur mise à jour tirelire:', updateError)
+      logger.error('❌ Erreur mise à jour tirelire:', updateError)
       // Rollback budget
       try {
         await updateBudgetCumulatedSavings(fromBudgetId, amount)
       } catch (rollbackErr) {
-        console.error('❌ Rollback budget impossible:', rollbackErr)
+        logger.error('❌ Rollback budget impossible:', rollbackErr)
       }
       return NextResponse.json({ error: 'Erreur mise à jour tirelire' }, { status: 500 })
     }
@@ -382,7 +335,7 @@ async function handleBudgetToPiggyBank(
       try {
         await updateBudgetCumulatedSavings(fromBudgetId, amount)
       } catch (rollbackErr) {
-        console.error('❌ Rollback budget impossible:', rollbackErr)
+        logger.error('❌ Rollback budget impossible:', rollbackErr)
       }
       return NextResponse.json({ error: 'Erreur création tirelire' }, { status: 500 })
     }
