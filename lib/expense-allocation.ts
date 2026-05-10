@@ -2,6 +2,7 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { asContextFilter } from '@/lib/finance/context'
+import { logger } from '@/lib/logger'
 
 export interface AllocationBreakdown {
   fromPiggyBank: number
@@ -75,7 +76,7 @@ export async function reverseAllocation(
     try {
       await updatePiggyBank(asContextFilter(contextFilter), piggyToRestore)
     } catch (error) {
-      console.error('Erreur restauration tirelire:', error)
+      logger.error('Erreur restauration tirelire:', error)
       throw new Error('Erreur lors de la restauration de la tirelire')
     }
   }
@@ -85,7 +86,7 @@ export async function reverseAllocation(
     try {
       await updateBudgetCumulatedSavings(oldExpense.estimated_budget_id, savingsToRestore)
     } catch (error) {
-      console.error('Erreur restauration economies:', error)
+      logger.error('Erreur restauration economies:', error)
       throw new Error('Erreur lors de la restauration des economies')
     }
   }
@@ -146,7 +147,7 @@ export async function applyAllocation(
     try {
       await updatePiggyBank(asContextFilter(contextFilter), -breakdown.fromPiggyBank)
     } catch (error) {
-      console.error('Erreur mise a jour tirelire:', error)
+      logger.error('Erreur mise a jour tirelire:', error)
       throw new Error('Erreur lors de la mise a jour de la tirelire')
     }
   }
@@ -156,7 +157,7 @@ export async function applyAllocation(
     try {
       await updateBudgetCumulatedSavings(budgetId, -breakdown.fromBudgetSavings)
     } catch (error) {
-      console.error('Erreur mise a jour economies:', error)
+      logger.error('Erreur mise a jour economies:', error)
       throw new Error('Erreur lors de la mise a jour des economies')
     }
   }
