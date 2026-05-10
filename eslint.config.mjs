@@ -37,7 +37,13 @@ const eslintConfig = [
     },
   },
   {
-    files: ['middleware.ts', 'lib/expense-allocation.ts', 'lib/logger.ts', 'app/api/groups/**'],
+    files: [
+      'middleware.ts',
+      'lib/expense-allocation.ts',
+      'lib/logger.ts',
+      'app/api/groups/**',
+      'app/api/monthly-recap/{status,refresh,resume,initialize,step1-data,step2-data,accumulate-piggy-bank,transfer,update-step}/**',
+    ],
     rules: { 'no-console': 'error' },
   },
 ]
