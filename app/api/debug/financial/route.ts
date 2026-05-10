@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { getProfileFinancialData, calculateBudgetSavings } from '@/lib/financial-calculations'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -18,8 +19,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    console.log('🔍 DEBUG FINANCIER - Début pour userId:', userId)
-
     // 1. Récupérer les informations du profil
     const { data: profile, error: profileError } = await supabaseServer
       .from('profiles')
@@ -31,15 +30,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
 
-    console.log('👤 Profile trouvé:', profile)
-
     // 2. Récupérer tous les revenus estimés
     const { data: estimatedIncomes } = await supabaseServer
       .from('estimated_incomes')
       .select('*')
       .eq('profile_id', userId)
-
-    console.log('💰 Revenus estimés:', estimatedIncomes)
 
     // 3. Récupérer tous les budgets estimés
     const { data: estimatedBudgets } = await supabaseServer
@@ -47,23 +42,17 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('profile_id', userId)
 
-    console.log('📊 Budgets estimés:', estimatedBudgets)
-
     // 4. Récupérer les revenus réels
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
       .select('*')
       .eq('profile_id', userId)
 
-    console.log('💵 Revenus réels:', realIncomes)
-
     // 5. Récupérer les dépenses réelles
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select('*')
       .eq('profile_id', userId)
-
-    console.log('💳 Dépenses réelles:', realExpenses)
 
     // 6. Calculs étape par étape
     const totalEstimatedIncome =
@@ -108,17 +97,6 @@ export async function GET(request: NextRequest) {
     // 7. Obtenir le calcul officiel via la fonction
     const officialData = await getProfileFinancialData(userId)
 
-    console.log('📋 RÉSUMÉ DEBUG:')
-    console.log('- Total revenus estimés:', totalEstimatedIncome)
-    console.log('- Total budgets estimés:', totalEstimatedBudgets)
-    console.log('- Total revenus réels:', totalRealIncome)
-    console.log('- Total dépenses réelles:', totalRealExpenses)
-    console.log('- Dépenses exceptionnelles:', exceptionalExpenses)
-    console.log('- Total économies:', totalSavings)
-    console.log('- Calcul manuel - Solde disponible:', availableBalance)
-    console.log('- Calcul manuel - Reste à vivre:', remainingToLive)
-    console.log('- Calcul officiel:', officialData)
-
     return NextResponse.json({
       profile,
       rawData: {
@@ -145,7 +123,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('❌ Erreur dans DEBUG financier:', error)
+    logger.error('Erreur dans DEBUG financier:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

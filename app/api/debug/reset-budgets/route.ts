@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -19,38 +20,31 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = sessionData.userId
-    console.log(`🔄 [Reset Budgets] Démarrage de la réinitialisation pour userId: ${userId}`)
 
     // 1. Supprimer tous les transferts de budget
-    console.log('🗑️ [Reset Budgets] Suppression des transferts existants...')
     const { error: deleteTransfersError } = await supabaseServer
       .from('budget_transfers')
       .delete()
       .eq('profile_id', userId)
 
     if (deleteTransfersError) {
-      console.error(
-        '❌ [Reset Budgets] Erreur lors de la suppression des transferts:',
+      logger.error(
+        '[Reset Budgets] Erreur lors de la suppression des transferts:',
         deleteTransfersError,
       )
-    } else {
-      console.log('✅ [Reset Budgets] Transferts supprimés')
     }
 
     // 2. Supprimer toutes les dépenses réelles existantes
-    console.log('🗑️ [Reset Budgets] Suppression des dépenses existantes...')
     const { error: deleteExpensesError } = await supabaseServer
       .from('real_expenses')
       .delete()
       .eq('profile_id', userId)
 
     if (deleteExpensesError) {
-      console.error(
-        '❌ [Reset Budgets] Erreur lors de la suppression des dépenses:',
+      logger.error(
+        '[Reset Budgets] Erreur lors de la suppression des dépenses:',
         deleteExpensesError,
       )
-    } else {
-      console.log('✅ [Reset Budgets] Dépenses supprimées')
     }
 
     // 3. Récupérer les budgets estimés
@@ -60,14 +54,12 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
 
     if (budgetsError) {
-      console.error('❌ [Reset Budgets] Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('[Reset Budgets] Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
         { status: 500 },
       )
     }
-
-    console.log(`📊 [Reset Budgets] ${budgets.length} budgets trouvés`)
 
     // 4. Créer des dépenses de test cohérentes
     const testExpenses = []
@@ -111,21 +103,16 @@ export async function POST(request: NextRequest) {
         surplus: Math.max(0, difference),
         deficit: Math.max(0, -difference),
       })
-
-      console.log(
-        `📝 [Reset Budgets] ${budget.name}: ${expenseAmount}€ / ${estimated}€ estimé → ${difference > 0 ? '+' : ''}${difference}€`,
-      )
     }
 
     // 5. Insérer les nouvelles dépenses
-    console.log('💾 [Reset Budgets] Création des nouvelles dépenses...')
     const { error: insertExpensesError } = await supabaseServer
       .from('real_expenses')
       .insert(testExpenses)
 
     if (insertExpensesError) {
-      console.error(
-        "❌ [Reset Budgets] Erreur lors de l'insertion des dépenses:",
+      logger.error(
+        "[Reset Budgets] Erreur lors de l'insertion des dépenses:",
         insertExpensesError,
       )
       return NextResponse.json(
@@ -134,10 +121,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('✅ [Reset Budgets] Nouvelles dépenses créées')
-
     // 6. Désactiver tous les snapshots actifs pour forcer une réinitialisation
-    console.log('📸 [Reset Budgets] Désactivation des snapshots actifs...')
     const { error: deactivateSnapshotsError } = await supabaseServer
       .from('recap_snapshots')
       .update({ is_active: false })
@@ -145,23 +129,16 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
 
     if (deactivateSnapshotsError) {
-      console.error(
-        '❌ [Reset Budgets] Erreur lors de la désactivation des snapshots:',
+      logger.error(
+        '[Reset Budgets] Erreur lors de la désactivation des snapshots:',
         deactivateSnapshotsError,
       )
-    } else {
-      console.log('✅ [Reset Budgets] Snapshots désactivés')
     }
 
     // 7. Calculer les totaux
     const totalSurplus = summary.reduce((sum, item) => sum + item.surplus, 0)
     const totalDeficit = summary.reduce((sum, item) => sum + item.deficit, 0)
     const generalRatio = totalSurplus - totalDeficit
-
-    console.log('📊 [Reset Budgets] Résumé des nouvelles données:')
-    console.log(`💚 Total surplus: ${totalSurplus}€`)
-    console.log(`❤️ Total déficit: ${totalDeficit}€`)
-    console.log(`⚖️ Ratio général: ${generalRatio}€`)
 
     return NextResponse.json({
       success: true,
@@ -182,7 +159,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('❌ [Reset Budgets] Erreur générale:', error)
+    logger.error('[Reset Budgets] Erreur générale:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 }

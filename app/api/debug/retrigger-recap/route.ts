@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -51,9 +52,6 @@ export async function POST(request: NextRequest) {
     const currentMonth = now.getMonth() + 1
     const currentYear = now.getFullYear()
 
-    console.log(`🔄 [RETRIGGER] Suppression du recap pour ${currentMonth}/${currentYear}`)
-    console.log(`   Contexte: ${context}, ID: ${contextId}`)
-
     // Supprimer le monthly recap du mois en cours
     const { data: deletedRecaps, error: deleteError } = await supabaseServer
       .from('monthly_recaps')
@@ -64,7 +62,7 @@ export async function POST(request: NextRequest) {
       .select('id')
 
     if (deleteError) {
-      console.error('❌ Erreur suppression recap:', deleteError)
+      logger.error('Erreur suppression recap:', deleteError)
       return NextResponse.json(
         { error: `Erreur suppression: ${deleteError.message}` },
         { status: 500 },
@@ -81,10 +79,8 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
 
     if (snapshotError) {
-      console.warn('⚠️ Erreur désactivation snapshots:', snapshotError)
+      logger.warn('Erreur désactivation snapshots:', snapshotError)
     }
-
-    console.log(`✅ [RETRIGGER] ${recapsDeleted} recap(s) supprimé(s)`)
 
     return NextResponse.json({
       success: true,
@@ -110,7 +106,7 @@ export async function POST(request: NextRequest) {
       ],
     })
   } catch (error) {
-    console.error('❌ [RETRIGGER] Erreur:', error)
+    logger.error('[RETRIGGER] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
       { status: 500 },

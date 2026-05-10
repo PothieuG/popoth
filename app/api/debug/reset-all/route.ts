@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { blockInProduction } from '@/lib/debug-guard'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/debug/reset-all
@@ -20,7 +21,6 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = sessionData.userId
-    console.log(`🗑️ [RESET ALL] Démarrage reset complet pour userId: ${userId}`)
 
     const results: Record<string, string> = {}
 
@@ -89,12 +89,6 @@ export async function POST(request: NextRequest) {
       ? `❌ ${bankBalanceError.message}`
       : '✅ (remis à 0€)'
 
-    // Log des résultats
-    console.log('📊 [RESET ALL] Résultats:')
-    for (const [table, status] of Object.entries(results)) {
-      console.log(`   ${table}: ${status}`)
-    }
-
     const hasErrors = Object.values(results).some((r) => r.startsWith('❌'))
 
     return NextResponse.json({
@@ -118,7 +112,7 @@ export async function POST(request: NextRequest) {
       ],
     })
   } catch (error) {
-    console.error('❌ [RESET ALL] Erreur:', error)
+    logger.error('[RESET ALL] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
       { status: 500 },

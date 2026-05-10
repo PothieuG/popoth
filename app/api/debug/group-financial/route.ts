@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
 import { getGroupFinancialData } from '@/lib/financial-calculations'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -18,8 +19,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
     }
 
-    console.log('🔍 DEBUG FINANCIER GROUPE - Début pour userId:', userId)
-
     // 1. Récupérer les informations du profil
     const { data: profile, error: profileError } = await supabaseServer
       .from('profiles')
@@ -32,7 +31,6 @@ export async function GET(request: NextRequest) {
     }
 
     const groupId = profile.group_id
-    console.log('👥 Groupe trouvé:', groupId)
 
     // 2. Récupérer tous les revenus estimés du GROUPE
     const { data: estimatedIncomes } = await supabaseServer
@@ -40,15 +38,11 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('group_id', groupId)
 
-    console.log('💰 Revenus estimés GROUPE:', estimatedIncomes)
-
     // 3. Récupérer tous les budgets estimés du GROUPE
     const { data: estimatedBudgets } = await supabaseServer
       .from('estimated_budgets')
       .select('*')
       .eq('group_id', groupId)
-
-    console.log('📊 Budgets estimés GROUPE:', estimatedBudgets)
 
     // 4. Récupérer les revenus réels du GROUPE
     const { data: realIncomes } = await supabaseServer
@@ -56,23 +50,17 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('group_id', groupId)
 
-    console.log('💵 Revenus réels GROUPE:', realIncomes)
-
     // 5. Récupérer les dépenses réelles du GROUPE
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select('*')
       .eq('group_id', groupId)
 
-    console.log('💳 Dépenses réelles GROUPE:', realExpenses)
-
     // 6. Récupérer les contributions des membres
     const { data: contributions } = await supabaseServer
       .from('group_contributions')
       .select('*')
       .eq('group_id', groupId)
-
-    console.log('👥 Contributions membres:', contributions)
 
     // 7. Calculs étape par étape
     const totalEstimatedIncome =
@@ -101,16 +89,6 @@ export async function GET(request: NextRequest) {
 
     // 8. Obtenir le calcul officiel via la fonction
     const officialData = await getGroupFinancialData(groupId)
-
-    console.log('📋 RÉSUMÉ DEBUG GROUPE:')
-    console.log('- Total revenus estimés GROUPE:', totalEstimatedIncome)
-    console.log('- Total budgets estimés GROUPE:', totalEstimatedBudgets)
-    console.log('- Total revenus réels GROUPE:', totalRealIncome)
-    console.log('- Total dépenses réelles GROUPE:', totalRealExpenses)
-    console.log('- Contributions des profiles:', profileContributions)
-    console.log('- Total revenus (estimé + réel + contributions):', totalIncomes)
-    console.log('- Calcul manuel - Reste à vivre:', remainingToLive)
-    console.log('- Calcul officiel:', officialData)
 
     return NextResponse.json({
       profile,
@@ -141,7 +119,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('❌ Erreur dans DEBUG financier groupe:', error)
+    logger.error('Erreur dans DEBUG financier groupe:', error)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

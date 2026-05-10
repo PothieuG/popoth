@@ -6,6 +6,7 @@ import {
   getGroupFinancialData,
   type FinancialData,
 } from '@/lib/financial-calculations'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -62,8 +63,6 @@ export async function GET(request: NextRequest) {
       contextId = profile.group_id
     }
 
-    console.log(`🔍 [RAV Debug] Analyse détaillée pour ${context}:${contextId}`)
-
     // 1. Récupérer les données financières calculées
     let financialData: FinancialData
     if (context === 'profile') {
@@ -71,8 +70,6 @@ export async function GET(request: NextRequest) {
     } else {
       financialData = await getGroupFinancialData(contextId)
     }
-
-    console.log('📊 [RAV Debug] Données financières calculées:', financialData)
 
     // 2. Récupérer les données détaillées pour analyse
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -244,7 +241,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('❌ [RAV Debug] Erreur:', error)
+    logger.error('[RAV Debug] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
       { status: 500 },
