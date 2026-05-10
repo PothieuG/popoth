@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { logger } from '@/lib/logger'
 
 export interface GroupMember {
   id: string
@@ -45,7 +46,7 @@ export function useGroupMembers() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      console.error('Error fetching group members:', err)
+      logger.error('Error fetching group members:', err)
       return false
     } finally {
       setIsLoading(false)

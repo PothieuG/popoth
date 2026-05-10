@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateProfileRequest, ProfileData } from '@/app/api/profile/route'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 /**
@@ -29,13 +30,12 @@ export function useProfile() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur API profil:', {
-            status: response.status,
-            statusText: response.statusText,
-            data,
-          })
-        }
+        // Verbose dev diagnostic — gated par LOG_LEVEL=debug (default dev), strip prod.
+        logger.debug('Erreur API profil:', {
+          status: response.status,
+          statusText: response.statusText,
+          data,
+        })
 
         if (response.status === 401) {
           throw new Error('Session expirée. Veuillez vous reconnecter.')
@@ -71,7 +71,7 @@ export function useProfile() {
       queryClient.setQueryData(['profile'], newProfile)
     },
     onError: (err) => {
-      console.error('Erreur lors de la création du profil:', err)
+      logger.error('Erreur lors de la création du profil:', err)
     },
   })
 
@@ -94,7 +94,7 @@ export function useProfile() {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Erreur lors de la mise à jour du profil:', err)
+      logger.error('Erreur lors de la mise à jour du profil:', err)
     },
   })
 

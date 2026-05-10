@@ -19,6 +19,7 @@ import {
   type AuthUser,
 } from '@/lib/auth'
 import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
+import { logger } from '@/lib/logger'
 import { authReducer, initialAuthState } from './auth-reducer'
 
 // Sprint 2-followup-v3 / Item 2 — useReducer replaces the user/loading/error
@@ -104,7 +105,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         window.location.href = '/connexion'
       }
     } catch (err) {
-      console.error('Logout error:', err)
+      logger.error('Logout error:', err)
       stopTokenRefresh()
       stopAuthCheck()
       dispatch({ type: 'LOGOUT' })
@@ -123,7 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           await handleLogout()
         }
       } catch (err) {
-        console.error('Auto refresh error:', err)
+        logger.error('Auto refresh error:', err)
         await handleLogout()
       }
     }, SESSION_REFRESH_INTERVAL_MS)
@@ -142,7 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       } catch (err) {
         if (!(err instanceof Error) || !err.message.includes('401')) {
-          console.error('Auth check error:', err)
+          logger.warn('Auth check error:', err)
         }
         if (userRef.current) {
           await handleLogout()
@@ -179,7 +180,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } catch (err) {
       if (err instanceof Error && !err.message.includes('401')) {
-        console.error('Auth initialization error:', err)
+        logger.error('Auth initialization error:', err)
         initError = "Erreur d'initialisation de l'authentification"
       }
       stopTokenRefresh()
@@ -256,7 +257,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await handleLogout()
       }
     } catch (err) {
-      console.error('Manual refresh error:', err)
+      logger.error('Manual refresh error:', err)
       await handleLogout()
     }
   }, [handleLogout])

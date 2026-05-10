@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { logger } from '@/lib/logger'
 
 export default function NouveauMotDePassePage() {
   return (
@@ -45,7 +46,7 @@ function NouveauMotDePasseContent() {
         } = await supabase.auth.getSession()
 
         if (sessionError) {
-          console.error('Session validation error:', sessionError)
+          logger.error('Session validation error:', sessionError)
           setError('Lien de réinitialisation invalide ou expiré')
           setValidatingToken(false)
           return
@@ -63,7 +64,7 @@ function NouveauMotDePasseContent() {
         setIsValidToken(true)
         setValidatingToken(false)
       } catch (error) {
-        console.error('Token validation error:', error)
+        logger.error('Token validation error:', error)
         setError('Erreur lors de la validation du lien. Veuillez réessayer.')
         setValidatingToken(false)
       }

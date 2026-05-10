@@ -8,6 +8,7 @@ import { useProfile } from '@/hooks/useProfile'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useBankBalance } from '@/hooks/useBankBalance'
+import { logger } from '@/lib/logger'
 import FirstTimeProfileDialog from '@/components/profile/FirstTimeProfileDialog'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
@@ -65,7 +66,7 @@ export default function DashboardPage() {
    * Gère les erreurs de création de profil
    */
   const handleProfileError = (error: string) => {
-    console.error('Erreur lors de la création du profil:', error)
+    logger.error('Erreur lors de la création du profil:', error)
     // On peut ajouter une toast notification ici plus tard
   }
 
@@ -111,32 +112,6 @@ export default function DashboardPage() {
       fetchContributions()
     }
   }, [profile?.group_id, isLoading, fetchContributions])
-
-  // Log des données financières quand elles changent
-  useEffect(() => {
-    if (!financialLoading && financialData) {
-      console.log(``)
-      console.log(`📱📱📱 ========================================================`)
-      console.log(`📱📱📱 [DASHBOARD PAGE] AFFICHAGE DES DONNÉES`)
-      console.log(`📱📱📱 ========================================================`)
-      console.log(`📱 Utilisateur: ${profile?.first_name} ${profile?.last_name}`)
-      console.log(`📱 Context: ${context}`)
-      console.log(``)
-      console.log(`💰 RESTE À VIVRE AFFICHÉ: ${financialData.remainingToLive}€`)
-      console.log(`💵 SOLDE DISPONIBLE AFFICHÉ: ${financialData.availableBalance}€`)
-      console.log(`💎 ÉCONOMIES AFFICHÉES: ${financialData.totalSavings}€`)
-      console.log(``)
-      console.log(`📊 AUTRES DONNÉES:`)
-      console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
-      console.log(
-        `   - Budgets estimés: ${financialData.totalEstimatedBudget || financialData.totalEstimatedBudgets}€`,
-      )
-      console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
-      console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
-      console.log(`📱📱📱 ========================================================`)
-      console.log(``)
-    }
-  }, [financialData, financialLoading, profile, context])
 
   // Créer un composant de loader centralisé
   const renderCentralLoader = (message: string) => (

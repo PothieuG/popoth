@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 import type { ProfileData } from '@/app/api/profile/route'
@@ -97,7 +98,7 @@ export default function TransactionListItem({
         setIsDeleteModalOpen(false)
       }
     } catch (error) {
-      console.error('Error deleting transaction:', error)
+      logger.error('Error deleting transaction:', error)
     } finally {
       setIsDeleting(false)
     }

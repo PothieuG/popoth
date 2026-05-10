@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { logger } from '@/lib/logger'
 
 /**
  * Registration page allowing users to create a new account with email and password
@@ -91,7 +92,7 @@ export default function InscriptionPage() {
         }
 
         // Log all signup errors for debugging (they're less common than login errors)
-        console.error('Signup error:', signUpError.message)
+        logger.error('Signup error:', signUpError.message)
         return
       }
 
@@ -104,7 +105,7 @@ export default function InscriptionPage() {
       }
     } catch (error) {
       setError('Erreur de connexion. Veuillez réessayer.')
-      console.error('Signup error:', error)
+      logger.error('Signup error:', error)
     } finally {
       setLoading(false)
     }

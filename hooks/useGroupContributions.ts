@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { logger } from '@/lib/logger'
 import type {
   GroupContributionData,
   GroupContributionsResponse,
@@ -39,14 +40,12 @@ export function useGroupContributions() {
       const data = await response.json()
 
       if (!response.ok) {
-        // Log détaillé uniquement pour le développement
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur API contributions:', {
-            status: response.status,
-            statusText: response.statusText,
-            data,
-          })
-        }
+        // Verbose dev diagnostic — gated par LOG_LEVEL=debug (default dev), strip prod.
+        logger.debug('Erreur API contributions:', {
+          status: response.status,
+          statusText: response.statusText,
+          data,
+        })
 
         // Gestion spécifique des erreurs communes
         if (response.status === 401) {
@@ -73,10 +72,7 @@ export function useGroupContributions() {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
 
-      // Log uniquement en développement
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur lors de la récupération des contributions:', err)
-      }
+      logger.error('Erreur lors de la récupération des contributions:', err)
     } finally {
       setIsLoading(false)
     }
@@ -108,9 +104,7 @@ export function useGroupContributions() {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
 
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur lors du recalcul des contributions:', err)
-      }
+      logger.error('Erreur lors du recalcul des contributions:', err)
       return false
     } finally {
       setIsRecalculating(false)

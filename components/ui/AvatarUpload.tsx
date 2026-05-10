@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import type { ProfileData } from '@/app/api/profile/route'
+import { logger } from '@/lib/logger'
 import UserAvatar from './UserAvatar'
 
 interface AvatarUploadProps {
@@ -60,7 +61,7 @@ export default function AvatarUpload({
       const dataUrl = await convertFileToDataUrl(file)
       await onAvatarUpdate(dataUrl)
     } catch (error) {
-      console.error('Error uploading avatar:', error)
+      logger.error('Error uploading avatar:', error)
       alert("Erreur lors du téléchargement de l'image")
     } finally {
       setIsProcessing(false)
@@ -79,7 +80,7 @@ export default function AvatarUpload({
     try {
       await onAvatarUpdate(null)
     } catch (error) {
-      console.error('Error removing avatar:', error)
+      logger.error('Error removing avatar:', error)
       alert("Erreur lors de la suppression de l'avatar")
     } finally {
       setIsProcessing(false)

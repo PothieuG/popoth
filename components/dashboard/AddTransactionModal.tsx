@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
@@ -181,7 +182,7 @@ export default function AddTransactionModal({
         onClose()
       }
     } catch (err) {
-      console.error('Error adding transaction:', err)
+      logger.error('Error adding transaction:', err)
       setError("Erreur lors de l'ajout de la transaction")
     } finally {
       setIsSubmitting(false)

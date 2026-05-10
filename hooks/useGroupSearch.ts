@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { logger } from '@/lib/logger'
 import type { SearchableGroup } from '@/app/api/groups/search/route'
 
 /**
@@ -42,14 +43,12 @@ export function useGroupSearch() {
       const data = await response.json()
 
       if (!response.ok) {
-        // Detailed logging for development only
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Group search API error:', {
-            status: response.status,
-            statusText: response.statusText,
-            data,
-          })
-        }
+        // Verbose dev diagnostic — gated par LOG_LEVEL=debug (default dev), strip prod.
+        logger.debug('Group search API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          data,
+        })
 
         // Handle common errors
         if (response.status === 401) {
@@ -70,10 +69,8 @@ export function useGroupSearch() {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
 
-      // Log only in development
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error searching groups:', err)
-      }
+      // Verbose dev diagnostic — gated par LOG_LEVEL=debug (default dev), strip prod.
+      logger.debug('Error searching groups:', err)
     } finally {
       setIsLoading(false)
     }

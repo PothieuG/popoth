@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { logger } from '@/lib/logger'
 
 /**
  * Forgot password page allowing users to request a password reset email
@@ -52,7 +53,7 @@ export default function MotDePasseOubliePage() {
         } else {
           setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
         }
-        console.error('Password reset error:', resetError)
+        logger.error('Password reset error:', resetError)
         return
       }
 
@@ -61,7 +62,7 @@ export default function MotDePasseOubliePage() {
       setSuccess(true)
     } catch (error) {
       setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
-      console.error('Password reset error:', error)
+      logger.error('Password reset error:', error)
     } finally {
       setLoading(false)
     }

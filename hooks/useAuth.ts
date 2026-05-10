@@ -3,6 +3,7 @@
 import { useAuthUser, useAuthActions } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { logger } from '@/lib/logger'
 
 /**
  * Guards guest-only pages. Subscribes only to AuthUserContext.
@@ -47,7 +48,7 @@ export function useLogin() {
 
       return result
     } catch (err) {
-      console.error('Login error:', err)
+      logger.error('Login error:', err)
       return { success: false, error: 'Erreur de connexion inattendue' }
     } finally {
       setIsSubmitting(false)

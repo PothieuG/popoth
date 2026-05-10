@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { logger } from '@/lib/logger'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>
@@ -15,7 +16,10 @@ export function ServiceWorkerRegistration() {
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch((error) => {
-        console.error('SW registration failed:', error)
+        // CRITICAL non-négociable boot path : PWA registration silent par
+        // design (continue sans offline). Log nécessaire pour les tickets
+        // support "offline ne marche pas".
+        logger.error('SW registration failed:', error)
       })
     }
 

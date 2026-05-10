@@ -13,6 +13,7 @@ import {
   formatCurrency,
   formatPercentage,
 } from '@/lib/contribution-calculator'
+import { logger } from '@/lib/logger'
 import AvatarUpload from '@/components/ui/AvatarUpload'
 import type { ProfileData } from '@/app/api/profile/route'
 
@@ -178,7 +179,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
         }, 1000)
       }
     } catch (error) {
-      console.error('Error updating avatar:', error)
+      logger.error('Error updating avatar:', error)
       throw error
     }
   }
@@ -210,7 +211,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
         setTimeout(() => setSuccessMessage(''), 3000)
       }
     } catch (error) {
-      console.error('Error saving profile:', error)
+      logger.error('Error saving profile:', error)
     } finally {
       setIsSaving(false)
     }

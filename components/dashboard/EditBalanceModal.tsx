@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { logger } from '@/lib/logger'
 
 interface EditBalanceModalProps {
   isOpen: boolean
@@ -38,7 +39,7 @@ export default function EditBalanceModal({
 
       await onSubmit(newBalance)
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du solde:', error)
+      logger.error('Erreur lors de la mise à jour du solde:', error)
       // Afficher l'erreur à l'utilisateur si nécessaire
     } finally {
       setIsLoading(false)

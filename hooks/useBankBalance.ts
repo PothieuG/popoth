@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logger } from '@/lib/logger'
 
 interface BankBalanceState {
   balance: number
@@ -31,7 +32,8 @@ export function useBankBalance(context?: 'profile' | 'group') {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('Erreur API bank-balance:', response.status, errorText)
+        // Validation diagnostic — branche 500+missing-table est un fallback légit, log helps grep
+        logger.warn('Erreur API bank-balance:', response.status, errorText)
 
         // Si la table n'existe pas, on initialise le solde à 0 sans erreur
         if (
@@ -56,7 +58,7 @@ export function useBankBalance(context?: 'profile' | 'group') {
         loading: false,
       }))
     } catch (error) {
-      console.error('Erreur lors de la récupération du solde bancaire:', error)
+      logger.error('Erreur lors de la récupération du solde bancaire:', error)
       setState((prev) => ({
         ...prev,
         balance: 0, // Valeur par défaut en cas d'erreur
@@ -96,7 +98,7 @@ export function useBankBalance(context?: 'profile' | 'group') {
 
       return true
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du solde bancaire:', error)
+      logger.error('Erreur lors de la mise à jour du solde bancaire:', error)
       setState((prev) => ({
         ...prev,
         loading: false,

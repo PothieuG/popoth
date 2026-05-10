@@ -27,49 +27,13 @@ function MonthlyRecapPageContent() {
   const searchParams = useSearchParams()
   // Context is derived directly from the URL parameter — useSearchParams is
   // synchronous, so no loading state is needed here.
-  const context: 'profile' | 'group' =
-    searchParams.get('context') === 'group' ? 'group' : 'profile'
+  const context: 'profile' | 'group' = searchParams.get('context') === 'group' ? 'group' : 'profile'
 
-  // TEMPORAIREMENT DÉSACTIVÉ : Double vérification pour éviter les boucles
-  // La redirection est déjà gérée par le middleware
-  // useEffect(() => {
-  //   const checkRecapRequired = async () => {
-  //     try {
-  //       const response = await fetch(`/api/monthly-recap/status?context=${context}`)
-  //       const data = await response.json()
-
-  //       if (response.ok && !data.required) {
-  //         console.log('📅 [MonthlyRecapPage] Récap non requis, redirection vers le dashboard')
-  //         const dashboardUrl = context === 'profile' ? '/dashboard' : '/group-dashboard'
-  //         router.replace(dashboardUrl)
-  //       }
-  //     } catch (error) {
-  //       console.error('❌ Erreur lors de la vérification du récap requis:', error)
-  //     }
-  //   }
-
-  //   if (!isChecking) {
-  //     checkRecapRequired()
-  //   }
-  // }, [context, router, isChecking])
-
-  // Debug: Log pour voir si la page se charge
-  useEffect(() => {
-    console.log('📅 [MonthlyRecapPage] Page chargée avec contexte:', context)
-  }, [context])
+  // Note : la redirection conditionnelle "récap requis" est gérée par le middleware.
 
   // Gestionnaire de fin de récap
   const handleRecapComplete = () => {
-    console.log('✅ [MonthlyRecapPage] Récapitulatif terminé avec succès')
-
-    // Afficher un message de confirmation
-    const confirmMessage =
-      context === 'profile'
-        ? 'Récapitulatif personnel terminé ! Redirection vers votre dashboard...'
-        : 'Récapitulatif de groupe terminé ! Redirection vers le dashboard de groupe...'
-
-    // Vous pouvez ajouter ici une notification toast si vous en avez un système
-    console.log(confirmMessage)
+    // L'UI montre déjà la confirmation dans MonthlyRecapFlow (setTimeout redirect 2s).
   }
 
   // Empêcher la navigation en arrière avec le navigateur
