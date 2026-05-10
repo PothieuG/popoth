@@ -65,6 +65,8 @@ const eslintConfig = [
       'lib/monthly-recap-calculations.ts',
       'lib/api/with-auth.ts',
       'app/auth/**',
+      'app/api/debug/**',
+      'lib/debug-guard.ts',
     ],
     rules: { 'no-console': 'error' },
   },
