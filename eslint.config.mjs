@@ -36,6 +36,10 @@ const eslintConfig = [
       ],
     },
   },
+  {
+    files: ['middleware.ts', 'lib/expense-allocation.ts', 'lib/logger.ts'],
+    rules: { 'no-console': 'error' },
+  },
 ]
 
 export default eslintConfig
