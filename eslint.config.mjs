@@ -37,12 +37,7 @@ const eslintConfig = [
     },
   },
   {
-    files: [
-      'middleware.ts',
-      'lib/expense-allocation.ts',
-      'lib/logger.ts',
-      'app/api/groups/**',
-    ],
+    files: ['middleware.ts', 'lib/expense-allocation.ts', 'lib/logger.ts', 'app/api/groups/**'],
     rules: { 'no-console': 'error' },
   },
 ]
