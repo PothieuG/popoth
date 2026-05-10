@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 // Group data types
 export interface GroupData {
@@ -40,7 +41,7 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
       .single()
 
     if (groupError || !group) {
-      console.error('Error fetching group details:', groupError)
+      logger.error('Error fetching group details:', groupError)
       return NextResponse.json({ groups: [] })
     }
 
@@ -63,8 +64,6 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
 
     return NextResponse.json({ groups: [groupData] })
   } catch (error) {
-    console.error('Error in GET /api/groups:', error)
-    console.error('Stack trace:', (error as Error).stack)
     return NextResponse.json(
       {
         error: 'Erreur interne du serveur',
@@ -126,7 +125,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
         return NextResponse.json({ error: 'Un groupe avec ce nom existe déjà' }, { status: 409 })
       }
 
-      console.error('Error creating group:', createError)
+      logger.error('Error creating group:', createError)
       return NextResponse.json({ error: 'Erreur lors de la création du groupe' }, { status: 500 })
     }
 
@@ -137,7 +136,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       .eq('id', profile.id)
 
     if (joinError) {
-      console.error('Error adding creator to group:', joinError)
+      logger.error('Error adding creator to group:', joinError)
       // Try to cleanup the created group
       await supabase.from('groups').delete().eq('id', group.id)
 
@@ -163,8 +162,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       group: groupData,
       message: 'Groupe créé avec succès',
     })
-  } catch (error) {
-    console.error('Error in POST /api/groups:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

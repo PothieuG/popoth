@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 // Group contribution data types
 export interface GroupContributionData {
@@ -68,7 +69,7 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
       .order('contribution_amount', { ascending: false })
 
     if (contributionsError) {
-      console.error('Error fetching contributions:', contributionsError)
+      logger.error('Error fetching contributions:', contributionsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des contributions' },
         { status: 500 },
@@ -105,8 +106,7 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
     }
 
     return NextResponse.json(response)
-  } catch (error) {
-    console.error('Error in GET /api/groups/contributions:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -130,7 +130,7 @@ export const POST = withAuthAndProfile(async (_request, { profile }) => {
     })
 
     if (calcError) {
-      console.error('Error recalculating contributions:', calcError)
+      logger.error('Error recalculating contributions:', calcError)
       return NextResponse.json(
         { error: 'Erreur lors du recalcul des contributions' },
         { status: 500 },
@@ -141,8 +141,7 @@ export const POST = withAuthAndProfile(async (_request, { profile }) => {
       message: 'Contributions recalculées avec succès',
       group_id: profile.group_id,
     })
-  } catch (error) {
-    console.error('Error in POST /api/groups/contributions:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

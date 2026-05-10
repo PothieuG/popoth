@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 export interface SearchableGroup {
   id: string
@@ -49,7 +50,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const { data: groups, error: groupsError } = await groupsQuery
 
     if (groupsError) {
-      console.error('Error searching groups:', groupsError)
+      logger.error('Error searching groups:', groupsError)
       return NextResponse.json({ error: 'Erreur lors de la recherche de groupes' }, { status: 500 })
     }
 
@@ -90,8 +91,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       total: searchableGroups.length,
       query: query || null,
     })
-  } catch (error) {
-    console.error('Error in GET /api/groups/search:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
