@@ -24,6 +24,10 @@ describe.skipIf(!ENABLED)('trigger behavior (Sprint Audit-Functions-v2 B2)', () 
   let userId1: string
   let userId2: string
   let groupId: string
+  // Sprint 2-followup-v3 / Item 1 — secondary group used by Case 5 to verify
+  // FK ON DELETE SET NULL on profiles.group_id. Tracked at describe scope so
+  // afterAll can clean it up if the test fails before its DELETE.
+  let groupId2: string | null = null
 
   const stamp = Date.now()
   const email1 = `audit-functions-v2-b2-1-${stamp}@popoth.test`
@@ -96,6 +100,10 @@ describe.skipIf(!ENABLED)('trigger behavior (Sprint Audit-Functions-v2 B2)', () 
     if (groupId) {
       await admin.from('group_contributions').delete().eq('group_id', groupId)
       await admin.from('groups').delete().eq('id', groupId)
+    }
+    if (groupId2) {
+      await admin.from('group_contributions').delete().eq('group_id', groupId2)
+      await admin.from('groups').delete().eq('id', groupId2)
     }
     if (userId1) {
       await admin.from('group_contributions').delete().eq('profile_id', userId1)
@@ -226,5 +234,71 @@ describe.skipIf(!ENABLED)('trigger behavior (Sprint Audit-Functions-v2 B2)', () 
     const afterTs = new Date(after!.updated_at!).getTime()
 
     expect(afterTs).toBeGreaterThan(beforeTs)
+  }, 30_000)
+
+  // Case 5 — Sprint 2-followup-v3 / Item 1.
+  // Regression guard for the FK profiles_group_id_fkey ON DELETE SET NULL.
+  // Not a trigger function strictly speaking, but lives in this file because
+  // it covers the same surface (what happens when a group is deleted).
+  // Pivot story: Sprint v3 originally proposed a BEFORE DELETE trigger to
+  // null profiles.group_id on group deletion - investigation found the FK
+  // already does this, so the trigger was dropped (see migration
+  // 20260515000001_drop_redundant_group_members_trigger.sql). This test
+  // pins the FK behavior so a future schema change that drops or alters the
+  // FK action surfaces in CI.
+  it('FK ON DELETE SET NULL nulls profiles.group_id when group is deleted', async () => {
+    // Cases 1-3 left both users with profiles.group_id = NULL (Case 3 deleted
+    // the seed group, FK SET NULL fired). Re-create a fresh group + JOIN.
+    const { data: g, error: gErr } = await admin
+      .from('groups')
+      .insert({
+        name: `B2 v3 Test Group ${stamp}`,
+        monthly_budget_estimate: 200,
+        creator_id: userId1,
+      })
+      .select('id')
+      .single()
+    expect(gErr).toBeNull()
+    expect(g).toBeTruthy()
+    groupId2 = g!.id
+
+    const { error: j1Err } = await admin
+      .from('profiles')
+      .update({ group_id: groupId2 })
+      .eq('id', userId1)
+    expect(j1Err).toBeNull()
+    const { error: j2Err } = await admin
+      .from('profiles')
+      .update({ group_id: groupId2 })
+      .eq('id', userId2)
+    expect(j2Err).toBeNull()
+
+    // Sanity: both members joined.
+    const { data: pre, error: preErr } = await admin
+      .from('profiles')
+      .select('id, group_id')
+      .in('id', [userId1, userId2])
+    expect(preErr).toBeNull()
+    for (const row of pre!) {
+      expect(row.group_id).toBe(groupId2)
+    }
+
+    // Action: delete the group. FK ON DELETE SET NULL should fire.
+    const { error: delErr } = await admin.from('groups').delete().eq('id', groupId2!)
+    expect(delErr).toBeNull()
+
+    // Assert: both profiles.group_id back to NULL.
+    const { data: post, error: postErr } = await admin
+      .from('profiles')
+      .select('id, group_id')
+      .in('id', [userId1, userId2])
+    expect(postErr).toBeNull()
+    expect(post).toHaveLength(2)
+    for (const row of post!) {
+      expect(row.group_id).toBeNull()
+    }
+
+    // Mark groupId2 cleared so afterAll skips the redundant DELETE.
+    groupId2 = null
   }, 30_000)
 })
