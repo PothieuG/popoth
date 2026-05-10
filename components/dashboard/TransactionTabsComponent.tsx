@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
+import { logger } from '@/lib/logger'
 import type { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
 
@@ -51,20 +52,18 @@ export default function TransactionTabsComponent({
    * Handle delete expense with callback
    */
   const handleDeleteExpense = async (expenseId: string): Promise<boolean> => {
-    console.log('🗑️ [TransactionTabs] Starting expense deletion:', expenseId)
     const success = await deleteExpense(expenseId)
 
     if (success) {
-      console.log('✅ [TransactionTabs] Expense deleted successfully, triggering financial refresh')
       if (onTransactionDeleted) {
         // Use setTimeout to avoid immediate re-render during deletion
         setTimeout(() => {
-          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
           onTransactionDeleted()
         }, 100)
       }
     } else {
-      console.log('❌ [TransactionTabs] Expense deletion failed')
+      // silently-swallowed côté UI (deleteExpense retourne false sans toast)
+      logger.warn('[TransactionTabs] Expense deletion failed', expenseId)
     }
 
     return success
@@ -74,20 +73,18 @@ export default function TransactionTabsComponent({
    * Handle delete income with callback
    */
   const handleDeleteIncome = async (incomeId: string): Promise<boolean> => {
-    console.log('🗑️ [TransactionTabs] Starting income deletion:', incomeId)
     const success = await deleteIncome(incomeId)
 
     if (success) {
-      console.log('✅ [TransactionTabs] Income deleted successfully, triggering financial refresh')
       if (onTransactionDeleted) {
         // Use setTimeout to avoid immediate re-render during deletion
         setTimeout(() => {
-          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
           onTransactionDeleted()
         }, 100)
       }
     } else {
-      console.log('❌ [TransactionTabs] Income deletion failed')
+      // silently-swallowed côté UI (deleteIncome retourne false sans toast)
+      logger.warn('[TransactionTabs] Income deletion failed', incomeId)
     }
 
     return success

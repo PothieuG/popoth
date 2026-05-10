@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface EstimatedIncome {
@@ -53,7 +54,6 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       const response = await fetch(url, { method: 'GET', credentials: 'include' })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Erreur API revenus:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -80,7 +80,6 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API revenu:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -91,7 +90,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error("Erreur lors de l'ajout du revenu:", err)
+      logger.error("Erreur lors de l'ajout du revenu:", err)
     },
   })
 
@@ -113,7 +112,6 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API revenu:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -126,7 +124,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Erreur lors de la mise à jour du revenu:', err)
+      logger.error('Erreur lors de la mise à jour du revenu:', err)
     },
   })
 
@@ -147,7 +145,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Erreur lors de la suppression du revenu:', err)
+      logger.error('Erreur lors de la suppression du revenu:', err)
     },
   })
 

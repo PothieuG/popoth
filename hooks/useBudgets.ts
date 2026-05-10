@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface EstimatedBudget {
@@ -60,7 +61,6 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       const response = await fetch(url, { method: 'GET', credentials: 'include' })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Erreur API budgets:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -87,7 +87,6 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API budget:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -98,7 +97,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error("Erreur lors de l'ajout du budget:", err)
+      logger.error("Erreur lors de l'ajout du budget:", err)
     },
   })
 
@@ -120,7 +119,6 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ Erreur API budget:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -133,7 +131,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Erreur lors de la mise à jour du budget:', err)
+      logger.error('Erreur lors de la mise à jour du budget:', err)
     },
   })
 
@@ -154,7 +152,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Erreur lors de la suppression du budget:', err)
+      logger.error('Erreur lors de la suppression du budget:', err)
     },
   })
 

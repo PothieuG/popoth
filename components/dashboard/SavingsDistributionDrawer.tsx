@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 
 interface BudgetSavings {
@@ -67,21 +68,11 @@ export default function SavingsDistributionDrawer({
     queryKey: ['savings-data', context],
     enabled: isOpen,
     queryFn: async () => {
-      console.log('🔄 [SavingsDrawer] Récupération des données des économies')
       const response = await fetch(`/api/savings/data?context=${context}`)
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
-      console.log(``)
-      console.log(`💰💰💰 ========================================================`)
-      console.log(`💰💰💰 [SAVINGS DRAWER] DONNÉES REÇUES`)
-      console.log(`💰💰💰 ========================================================`)
-      console.log(`💰 Total économies: ${data.statistics.total_savings}€`)
-      console.log(`💰 Budgets avec économies: ${data.statistics.budgets_with_savings}`)
-      console.log(`💰 Total budgets: ${data.statistics.total_budgets}`)
-      console.log(`💰💰💰 ========================================================`)
-      console.log(``)
       return data as SavingsData
     },
   })
@@ -168,7 +159,9 @@ export default function SavingsDistributionDrawer({
         onSavingsChange()
       }
     } catch (error) {
-      console.error('❌ [SavingsDrawer] Erreur lors du transfert:', error)
+      // CRITICAL cleanup-attempt : POST /api/savings/transfer peut laisser DB
+      // partiellement débitée si fail. Pas de toast, juste validationError state.
+      logger.error('❌ [SavingsDrawer] Erreur lors du transfert:', error)
       setValidationError(error instanceof Error ? error.message : 'Erreur lors du transfert')
     } finally {
       setIsProcessing(false)

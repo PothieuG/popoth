@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface RealIncome {
@@ -73,7 +74,6 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error fetching incomes:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -95,7 +95,6 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error adding income:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -106,7 +105,8 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error in addIncome:', err)
+      // silently-swallowed côté UI (addIncome retourne false sans toast)
+      logger.error('Error in addIncome:', err)
     },
   })
 
@@ -120,7 +120,6 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error updating income:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -133,20 +132,19 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error in updateIncome:', err)
+      // silently-swallowed côté UI (updateIncome retourne false sans toast)
+      logger.error('Error in updateIncome:', err)
     },
   })
 
   const deleteMutation = useMutation<void, Error, string>({
     mutationFn: async (incomeId) => {
-      console.log('🗑️ [useRealIncomes] Deleting income:', incomeId)
       const response = await fetch(`/api/finance/income/real?id=${incomeId}`, {
         method: 'DELETE',
         credentials: 'include',
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ [useRealIncomes] API Error deleting income:', response.status, errorData)
         throw new Error(errorData?.error || 'Erreur lors de la suppression du revenu')
       }
     },
@@ -154,13 +152,11 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       queryClient.setQueryData<RealIncome[]>(queryKey, (prev = []) =>
         prev.filter((income) => income.id !== incomeId),
       )
-      console.log('✅ [useRealIncomes] Income removed from local state')
-      console.log('🔄 [useRealIncomes] Refreshing financial data...')
       invalidateFinancialRefreshes(queryClient)
-      console.log('✅ [useRealIncomes] Financial data refreshed')
     },
     onError: (err) => {
-      console.error('❌ [useRealIncomes] Error in deleteIncome:', err)
+      // silently-swallowed côté UI (deleteIncome retourne false sans toast)
+      logger.error('❌ [useRealIncomes] Error in deleteIncome:', err)
     },
   })
 

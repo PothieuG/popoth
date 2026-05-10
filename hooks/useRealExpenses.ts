@@ -1,6 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface RealExpense {
@@ -76,7 +77,6 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error fetching expenses:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -98,7 +98,6 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error adding expense:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -112,7 +111,8 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error in addExpense:', err)
+      // silently-swallowed côté UI (addExpense retourne false sans toast)
+      logger.error('Error in addExpense:', err)
     },
   })
 
@@ -126,7 +126,6 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error updating expense:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
       const data = await response.json()
@@ -139,24 +138,19 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error in updateExpense:', err)
+      // silently-swallowed côté UI (updateExpense retourne false sans toast)
+      logger.error('Error in updateExpense:', err)
     },
   })
 
   const deleteMutation = useMutation<void, Error, string>({
     mutationFn: async (expenseId) => {
-      console.log('🗑️ [useRealExpenses] Deleting expense:', expenseId)
       const response = await fetch(`/api/finance/expenses/real?id=${expenseId}`, {
         method: 'DELETE',
         credentials: 'include',
       })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error(
-          '❌ [useRealExpenses] API Error deleting expense:',
-          response.status,
-          errorData,
-        )
         throw new Error(errorData?.error || 'Erreur lors de la suppression de la dépense')
       }
     },
@@ -164,13 +158,11 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
         prev.filter((expense) => expense.id !== expenseId),
       )
-      console.log('✅ [useRealExpenses] Expense removed from local state')
-      console.log('🔄 [useRealExpenses] Refreshing financial data...')
       invalidateFinancialRefreshes(queryClient)
-      console.log('✅ [useRealExpenses] Financial data refreshed')
     },
     onError: (err) => {
-      console.error('❌ [useRealExpenses] Error in deleteExpense:', err)
+      // silently-swallowed côté UI (deleteExpense retourne false sans toast)
+      logger.error('❌ [useRealExpenses] Error in deleteExpense:', err)
     },
   })
 

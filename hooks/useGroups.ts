@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateGroupRequest, GroupData } from '@/app/api/groups/route'
 import type { UpdateGroupRequest } from '@/app/api/groups/[id]/route'
+import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 /**
@@ -30,13 +31,6 @@ export function useGroups() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Groups API error:', {
-            status: response.status,
-            statusText: response.statusText,
-            data,
-          })
-        }
         if (response.status === 401) {
           throw new Error('Session expirée. Veuillez vous reconnecter.')
         }
@@ -67,7 +61,7 @@ export function useGroups() {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error creating group:', err)
+      logger.error('Error creating group:', err)
     },
   })
 
@@ -98,7 +92,7 @@ export function useGroups() {
       }
     },
     onError: (err) => {
-      console.error('Error updating group:', err)
+      logger.error('Error updating group:', err)
     },
   })
 
@@ -121,7 +115,7 @@ export function useGroups() {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error deleting group:', err)
+      logger.error('Error deleting group:', err)
     },
   })
 
@@ -142,7 +136,10 @@ export function useGroups() {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error joining group:', err)
+      // CRITICAL cross-mutation cascade : si POST /members succeed côté serveur
+      // mais le client throw avant l'invalidation profile/financial, le state
+      // financier reste stale jusqu'au prochain staleTime / F5.
+      logger.error('Error joining group:', err)
     },
   })
 
@@ -165,7 +162,10 @@ export function useGroups() {
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      console.error('Error leaving group:', err)
+      // CRITICAL cross-mutation cascade : si DELETE /members succeed côté
+      // serveur mais le client throw avant l'invalidation profile/financial,
+      // le state financier reste stale.
+      logger.error('Error leaving group:', err)
     },
   })
 

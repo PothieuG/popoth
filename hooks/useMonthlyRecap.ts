@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { logger } from '@/lib/logger'
 
 // Types pour le récapitulatif mensuel (maintenus pour compatibilité)
 export interface TransferData {
@@ -57,7 +58,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
     async (transferData: TransferData) => {
       try {
         setError(null)
-        console.log('🔄 [Hook] Démarrage du transfert:', transferData)
 
         const response = await fetch('/api/monthly-recap/transfer', {
           method: 'POST',
@@ -76,12 +76,14 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
           throw new Error(data.error || 'Erreur lors du transfert')
         }
 
-        console.log('✅ [Hook] Transfert réussi côté serveur')
         return data
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
         setError(errorMessage)
-        console.error('❌ Erreur lors du transfert entre budgets:', err)
+        // CRITICAL cleanup-attempt : POST /api/monthly-recap/transfer fail peut
+        // laisser le state monthly-recap cassé (transfer atomique côté DB mais
+        // le hook propage juste null au caller — pas de retry).
+        logger.error('❌ Erreur lors du transfert entre budgets:', err)
         return null
       }
     },
@@ -91,7 +93,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
   const autoBalanceBudgets = useCallback(async () => {
     try {
       setError(null)
-      console.log('🔄 [Hook] Démarrage de la répartition automatique')
 
       const response = await fetch('/api/monthly-recap/auto-balance', {
         method: 'POST',
@@ -107,12 +108,13 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
         throw new Error(data.error || 'Erreur lors de la répartition automatique')
       }
 
-      console.log('✅ [Hook] Répartition automatique réussie côté serveur')
       return data
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
       setError(errorMessage)
-      console.error('❌ Erreur lors de la répartition automatique:', err)
+      // CRITICAL cleanup-attempt : POST /api/monthly-recap/auto-balance fail
+      // peut laisser un déficit partiellement équilibré côté serveur.
+      logger.error('❌ Erreur lors de la répartition automatique:', err)
       return null
     }
   }, [context])
@@ -134,8 +136,6 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
           remaining_to_live_choice: remainingToLiveChoice,
         }
 
-        console.log("🔍 [useMonthlyRecap] Données envoyées à l'API complete:", requestData)
-
         const response = await fetch('/api/monthly-recap/complete', {
           method: 'POST',
           headers: {
@@ -154,7 +154,10 @@ export function useMonthlyRecap(context: 'profile' | 'group' = 'profile') {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
         setError(errorMessage)
-        console.error('❌ Erreur lors de la finalisation du récap:', err)
+        // CRITICAL cleanup-attempt : POST /api/monthly-recap/complete fail
+        // peut laisser le récap dans un état partiellement finalisé (snapshots
+        // créés, carryover non appliqué). Pas de retry côté hook.
+        logger.error('❌ Erreur lors de la finalisation du récap:', err)
         return null
       }
     },
