@@ -15,6 +15,7 @@ import {
 import { EMPTY_FINANCIAL_DATA } from '@/lib/finance/constants'
 import { asContextFilter } from '@/lib/finance/context'
 import { calculateIncomeCompensation } from '@/lib/finance/income-compensation'
+import { saveRavToDatabase } from '@/lib/finance/rav-persistence'
 import type { BudgetSavings, FinancialData } from '@/lib/finance/types'
 
 // God file per CLAUDE.md (chantier I4 — do not refactor). Scope-cast to
@@ -55,94 +56,10 @@ export {
 // ============================================
 // FONCTIONS DE RÉCUPÉRATION DE DONNÉES
 // ============================================
-
-/**
- * Saves the calculated RAV to the database for a profile or group
- */
-async function saveRavToDatabase(
-  profileId: string | null,
-  groupId: string | null,
-  remainingToLive: number,
-): Promise<void> {
-  try {
-    // Determine which field to use for the update
-    if (profileId) {
-      const { error } = await supabaseServer
-        .from('bank_balances')
-        .update({
-          current_remaining_to_live: remainingToLive,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('profile_id', profileId)
-
-      if (error) {
-        console.error('❌ Error saving RAV to database (profile):', error)
-      } else {
-        console.log(`✅ RAV saved to database for profile ${profileId}: ${remainingToLive}€`)
-      }
-    } else if (groupId) {
-      const { error } = await supabaseServer
-        .from('bank_balances')
-        .update({
-          current_remaining_to_live: remainingToLive,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('group_id', groupId)
-
-      if (error) {
-        console.error('❌ Error saving RAV to database (group):', error)
-      } else {
-        console.log(`✅ RAV saved to database for group ${groupId}: ${remainingToLive}€`)
-      }
-    }
-  } catch (error) {
-    console.error('❌ Exception while saving RAV to database:', error)
-  }
-}
-
-/**
- * Retrieves the RAV from database for a profile
- * Falls back to calculating if not found in database
- */
-export async function getRavFromDatabase(
-  profileId: string | null,
-  groupId: string | null,
-): Promise<number> {
-  try {
-    if (profileId) {
-      const { data, error } = await supabaseServer
-        .from('bank_balances')
-        .select('current_remaining_to_live')
-        .eq('profile_id', profileId)
-        .single()
-
-      if (error) {
-        console.warn('⚠️ Could not retrieve RAV from database for profile, will calculate:', error)
-        return 0
-      }
-
-      return data?.current_remaining_to_live ?? 0
-    } else if (groupId) {
-      const { data, error } = await supabaseServer
-        .from('bank_balances')
-        .select('current_remaining_to_live')
-        .eq('group_id', groupId)
-        .single()
-
-      if (error) {
-        console.warn('⚠️ Could not retrieve RAV from database for group, will calculate:', error)
-        return 0
-      }
-
-      return data?.current_remaining_to_live ?? 0
-    }
-
-    return 0
-  } catch (error) {
-    console.error('❌ Exception while retrieving RAV from database:', error)
-    return 0
-  }
-}
+// `saveRavToDatabase` (interne) et `getRavFromDatabase` (utilisé par
+// rav.ts + summary.ts) extraits vers lib/finance/rav-persistence.ts au
+// chantier I4. Re-export public + import local pour les call sites internes.
+export { getRavFromDatabase } from './finance/rav-persistence'
 
 /**
  * Récupère les données financières pour un utilisateur (profile)
@@ -327,7 +244,9 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     console.log(
       `🔍 [DEBUG getProfileFinancialData] Calcul contribution revenus pour profile ${profileId}`,
     )
-    const incomeCompensation = await calculateIncomeCompensation(asContextFilter({ profile_id: profileId }))
+    const incomeCompensation = await calculateIncomeCompensation(
+      asContextFilter({ profile_id: profileId }),
+    )
     // Ajouter le salaire du profil comme revenu (toujours à 100%, pas de "real income" lié)
     const incomeContribution = incomeCompensation + profileSalary
     console.log(
@@ -549,7 +468,9 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     )
 
     // Calculer la contribution des revenus au RAV selon les règles métier
-    const incomeContribution = await calculateIncomeCompensation(asContextFilter({ group_id: groupId }))
+    const incomeContribution = await calculateIncomeCompensation(
+      asContextFilter({ group_id: groupId }),
+    )
 
     // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels + Contributions - Budgets - Dépenses Exceptionnelles - Déficits des Budgets
     const remainingToLive = await calculateRemainingToLiveGroup(
@@ -674,113 +595,8 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
 // ============================================
 // FONCTIONS DE SAUVEGARDE AUTOMATIQUE
 // ============================================
-
-/**
- * Sauvegarde automatique du reste à vivre pour un profile après modification de planification
- */
-export async function saveRemainingToLiveSnapshotProfile(
-  profileId: string,
-  reason: string,
-): Promise<boolean> {
-  try {
-    console.log(`📊 Sauvegarde du reste à vivre pour le profile ${profileId}, raison: ${reason}`)
-
-    // 1. Calculer les données financières actuelles
-    const financialData = await getProfileFinancialData(profileId)
-
-    // 2. Insérer le snapshot en base
-    const { error } = await supabaseServer.from('remaining_to_live_snapshots').insert({
-      profile_id: profileId,
-      remaining_to_live: financialData.remainingToLive,
-      available_balance: financialData.availableBalance,
-      total_savings: financialData.totalSavings,
-      total_estimated_income: financialData.totalEstimatedIncome,
-      total_estimated_budgets: financialData.totalEstimatedBudgets,
-      total_real_income: financialData.totalRealIncome,
-      total_real_expenses: financialData.totalRealExpenses,
-      snapshot_reason: reason,
-    })
-
-    if (error) {
-      console.error('❌ Erreur lors de la sauvegarde du snapshot:', error)
-      return false
-    }
-
-    console.log(`✅ Snapshot sauvegardé - Reste à vivre: ${financialData.remainingToLive}€`)
-    return true
-  } catch (error) {
-    console.error('❌ Erreur lors de la sauvegarde du snapshot profile:', error)
-    return false
-  }
-}
-
-/**
- * Sauvegarde automatique du reste à vivre pour un groupe après modification de planification
- */
-export async function saveRemainingToLiveSnapshotGroup(
-  groupId: string,
-  reason: string,
-): Promise<boolean> {
-  try {
-    console.log(`📊 Sauvegarde du reste à vivre pour le groupe ${groupId}, raison: ${reason}`)
-
-    // 1. Calculer les données financières actuelles du groupe
-    const financialData = await getGroupFinancialData(groupId)
-
-    // 2. Insérer le snapshot en base
-    const { error } = await supabaseServer.from('remaining_to_live_snapshots').insert({
-      group_id: groupId,
-      remaining_to_live: financialData.remainingToLive,
-      available_balance: financialData.availableBalance,
-      total_savings: financialData.totalSavings,
-      total_estimated_income: financialData.totalEstimatedIncome,
-      total_estimated_budgets: financialData.totalEstimatedBudgets,
-      total_real_income: financialData.totalRealIncome,
-      total_real_expenses: financialData.totalRealExpenses,
-      snapshot_reason: reason,
-    })
-
-    if (error) {
-      console.error('❌ Erreur lors de la sauvegarde du snapshot groupe:', error)
-      return false
-    }
-
-    console.log(`✅ Snapshot groupe sauvegardé - Reste à vivre: ${financialData.remainingToLive}€`)
-    return true
-  } catch (error) {
-    console.error('❌ Erreur lors de la sauvegarde du snapshot groupe:', error)
-    return false
-  }
-}
-
-/**
- * Sauvegarde intelligente qui détecte automatiquement si c'est un profile ou un groupe
- * en fonction des paramètres fournis lors de la modification de planification
- */
-export async function saveRemainingToLiveSnapshot(options: {
-  profileId?: string
-  groupId?: string
-  reason: string
-}): Promise<boolean> {
-  const { profileId, groupId, reason } = options
-
-  // Validation: doit avoir soit profileId soit groupId
-  if (!profileId && !groupId) {
-    console.error('❌ Erreur: profileId ou groupId requis pour la sauvegarde')
-    return false
-  }
-
-  if (profileId && groupId) {
-    console.error('❌ Erreur: profileId et groupId ne peuvent pas être fournis simultanément')
-    return false
-  }
-
-  // Appeler la fonction appropriée
-  if (profileId) {
-    return await saveRemainingToLiveSnapshotProfile(profileId, reason)
-  } else if (groupId) {
-    return await saveRemainingToLiveSnapshotGroup(groupId, reason)
-  }
-
-  return false
-}
+// `saveRemainingToLiveSnapshot` extrait vers lib/finance/snapshots.ts au
+// chantier I4 — fail-soft contract préservé (R1). Les 2 wrappers
+// `*Profile`/`*Group` n'avaient aucun callsite externe (vérifié grep), seul
+// le dispatcher est ré-exporté pour les 5 callsites dans lib/api/finance/*.
+export { saveRemainingToLiveSnapshot } from './finance/snapshots'
