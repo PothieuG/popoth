@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decrypt } from '@/lib/session'
+import { logger } from '@/lib/logger'
 import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
 
 // Define protected and public routes
@@ -68,7 +69,7 @@ export default async function middleware(req: NextRequest) {
         const status = await checkRecapStatus(session.userId, context)
 
         if (status.required) {
-          console.log(`📅 [Middleware] Récap mensuel requis pour ${context}, redirection`)
+          logger.debug(`📅 [Middleware] Récap mensuel requis pour ${context}, redirection`)
           const recapUrl = new URL('/monthly-recap', req.url)
           recapUrl.searchParams.set('context', context)
           return NextResponse.redirect(recapUrl)
@@ -77,7 +78,7 @@ export default async function middleware(req: NextRequest) {
         if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
           // Pas de groupe attaché : l'utilisateur n'est pas concerné par le récap groupe
         } else {
-          console.error('❌ [Middleware] Erreur lors de la vérification du récap mensuel:', error)
+          logger.error('❌ [Middleware] Erreur lors de la vérification du récap mensuel:', error)
         }
         // En cas d'erreur, continuer normalement plutôt que de bloquer l'utilisateur
       }
@@ -90,7 +91,7 @@ export default async function middleware(req: NextRequest) {
 
     return NextResponse.next()
   } catch (error) {
-    console.error('Middleware authentication error:', error)
+    logger.error('Middleware authentication error:', error)
 
     // If there's an error decrypting the session on a protected route, redirect to login
     if (isProtectedRoute) {
