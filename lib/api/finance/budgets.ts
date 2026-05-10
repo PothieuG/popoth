@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API pour la création/modification/suppression des budgets estimés.
@@ -12,29 +13,16 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    console.log('🔄 API POST /api/finance/budgets - Début')
-
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
     const body = await request.json()
-    console.log('📥 Données reçues:', body)
-    console.log('🎯 Contexte:', context)
 
     const { name, estimatedAmount } = body
 
     // Validation des données
-    console.log('🔍 Validation - name:', name, 'type:', typeof name)
-    console.log(
-      '🔍 Validation - estimatedAmount:',
-      estimatedAmount,
-      'type:',
-      typeof estimatedAmount,
-    )
-
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      console.log('❌ Validation échouée: nom invalide')
       return NextResponse.json(
         { error: 'Le nom du budget est requis (minimum 2 caractères)' },
         { status: 400 },
@@ -42,13 +30,10 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
-      console.log('❌ Validation échouée: montant invalide')
       return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
     }
 
     const supabase = supabaseServer
-
-    console.log('✅ Profil trouvé:', profile)
 
     // Vérifier le contexte et l'appartenance à un groupe
     if (context === 'group' && !profile.group_id) {
@@ -78,8 +63,6 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       }
     }
 
-    console.log('💾 Données budget à insérer:', budgetData)
-
     // Créer le budget
     const { data: budget, error } = await supabase
       .from('estimated_budgets')
@@ -88,11 +71,9 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       .single()
 
     if (error) {
-      console.error('❌ Erreur lors de la création du budget:', error)
+      logger.error('Erreur lors de la création du budget:', error)
       return NextResponse.json({ error: 'Erreur lors de la création du budget' }, { status: 500 })
     }
-
-    console.log('✅ Budget créé avec succès:', budget)
 
     // Sauvegarder automatiquement le nouveau reste à vivre
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
@@ -101,23 +82,18 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       reason: 'budget_created',
     })
 
-    if (snapshotSuccess) {
-      console.log('📊 Snapshot reste à vivre sauvegardé après création budget')
-    } else {
-      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    if (!snapshotSuccess) {
+      logger.warn('Échec sauvegarde snapshot (non critique)')
     }
 
     return NextResponse.json({ budget }, { status: 201 })
-  } catch (error) {
-    console.error('Erreur dans POST /api/finance/budgets:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })
 
 export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    console.log('🔄 API PUT /api/finance/budgets - Début')
-
     const { searchParams } = new URL(request.url)
     const budgetId = searchParams.get('id')
 
@@ -126,21 +102,11 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     }
 
     const body = await request.json()
-    console.log('📥 Données reçues:', body)
 
     const { name, estimatedAmount } = body
 
     // Validation des données
-    console.log('🔍 Validation - name:', name, 'type:', typeof name)
-    console.log(
-      '🔍 Validation - estimatedAmount:',
-      estimatedAmount,
-      'type:',
-      typeof estimatedAmount,
-    )
-
     if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      console.log('❌ Validation échouée: nom invalide')
       return NextResponse.json(
         { error: 'Le nom du budget est requis (minimum 2 caractères)' },
         { status: 400 },
@@ -148,13 +114,10 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     }
 
     if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
-      console.log('❌ Validation échouée: montant invalide')
       return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
     }
 
     const supabase = supabaseServer
-
-    console.log('✅ Profil trouvé:', profile)
 
     // Préparer les données de mise à jour
     const updateData = {
@@ -162,8 +125,6 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
       estimated_amount: estimatedAmount,
       updated_at: new Date().toISOString(),
     }
-
-    console.log('💾 Données budget à mettre à jour:', updateData)
 
     // Vérifier d'abord que le budget appartient à l'utilisateur ou à son groupe
     let ownershipCondition = `profile_id.eq.${userId}`
@@ -182,7 +143,6 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
       .single()
 
     if (!existingBudget) {
-      console.log('❌ Budget non trouvé ou accès non autorisé')
       return NextResponse.json(
         { error: 'Budget non trouvé ou accès non autorisé' },
         { status: 404 },
@@ -198,14 +158,12 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
       .single()
 
     if (error) {
-      console.error('❌ Erreur lors de la mise à jour du budget:', error)
+      logger.error('Erreur lors de la mise à jour du budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget' },
         { status: 500 },
       )
     }
-
-    console.log('✅ Budget mis à jour avec succès:', budget)
 
     // Sauvegarder automatiquement le nouveau reste à vivre après modification
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
@@ -214,15 +172,12 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
       reason: 'budget_updated',
     })
 
-    if (snapshotSuccess) {
-      console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour budget')
-    } else {
-      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    if (!snapshotSuccess) {
+      logger.warn('Échec sauvegarde snapshot (non critique)')
     }
 
     return NextResponse.json({ budget })
-  } catch (error) {
-    console.error('Erreur dans PUT /api/finance/budgets:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })
@@ -253,7 +208,6 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
       .single()
 
     if (!existingBudget) {
-      console.log('❌ Budget non trouvé ou accès non autorisé pour suppression')
       return NextResponse.json(
         { error: 'Budget non trouvé ou accès non autorisé' },
         { status: 404 },
@@ -264,7 +218,7 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
     const { error } = await supabase.from('estimated_budgets').delete().eq('id', budgetId)
 
     if (error) {
-      console.error('Erreur lors de la suppression du budget:', error)
+      logger.error('Erreur lors de la suppression du budget:', error)
       return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
     }
 
@@ -275,15 +229,12 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
       reason: 'budget_deleted',
     })
 
-    if (snapshotSuccess) {
-      console.log('📊 Snapshot reste à vivre sauvegardé après suppression budget')
-    } else {
-      console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+    if (!snapshotSuccess) {
+      logger.warn('Échec sauvegarde snapshot (non critique)')
     }
 
     return NextResponse.json({ message: 'Budget supprimé avec succès' })
-  } catch (error) {
-    console.error('Erreur dans DELETE /api/finance/budgets:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

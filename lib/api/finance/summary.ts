@@ -7,6 +7,7 @@ import {
   type FinancialData,
 } from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API Dashboard Financier
@@ -38,38 +39,22 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       contextId = userId
     }
 
-    console.log('🎯 Contexte déterminé:', {
-      forceContext,
-      context,
-      contextId,
-      hasGroup: !!profile.group_id,
-      shouldRecalculate,
-    })
-
     let financialData: FinancialData
 
     // If recalculate is requested, do a full calculation (which will also save to DB)
     if (shouldRecalculate) {
-      console.log(`🔄 [DASHBOARD] Recalculating financial data for ${context}:${contextId}`)
-
       if (context === 'group') {
         financialData = await getGroupFinancialData(profile.group_id!)
       } else {
         financialData = await getProfileFinancialData(userId)
       }
-
-      console.log(`✅ [DASHBOARD] Recalculation complete - RAV: ${financialData.remainingToLive}€`)
     } else {
       // Default behavior: retrieve RAV from database, calculate other metrics in real-time
-      console.log(`📊 [DASHBOARD] Retrieving RAV from database for ${context}:${contextId}`)
-
       // Get the persisted RAV from database
       const persistedRav = await getRavFromDatabase(
         context === 'profile' ? contextId : null,
         context === 'group' ? contextId : null,
       )
-
-      console.log(`📖 [DASHBOARD] RAV retrieved from DB: ${persistedRav}€`)
 
       // Calculate other metrics in real-time (without recalculating RAV)
       if (context === 'group') {
@@ -80,31 +65,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
       // Override the calculated RAV with the persisted one from DB
       financialData.remainingToLive = persistedRav
-
-      console.log(`✅ [DASHBOARD] Financial data retrieved - RAV from DB: ${persistedRav}€`)
     }
-
-    console.log(``)
-    console.log(`🏠🏠🏠 ========================================================`)
-    console.log(`🏠🏠🏠 DASHBOARD - CHARGEMENT DONNÉES FINANCIÈRES`)
-    console.log(`🏠🏠🏠 ========================================================`)
-    console.log(`🏠 CONTEXTE: ${context.toUpperCase()}`)
-    console.log(`🏠 ID: ${contextId}`)
-    console.log(`🏠 TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(`🏠 RECALCULATE: ${shouldRecalculate}`)
-    console.log(``)
-    console.log(`💰 RESTE À VIVRE (RAV): ${financialData.remainingToLive}€`)
-    console.log(``)
-    console.log(`📊 DÉTAILS FINANCIERS COMPLETS:`)
-    console.log(`   - Solde bancaire: ${financialData.bankBalance}€`)
-    console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
-    console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
-    console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget}€`)
-    console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
-    console.log(`   - Solde disponible: ${financialData.availableBalance}€`)
-    console.log(`   - Total économies: ${financialData.totalSavings}€`)
-    console.log(`🏠🏠🏠 ========================================================`)
-    console.log(``)
 
     return NextResponse.json({
       data: financialData,
@@ -112,7 +73,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       timestamp: Date.now(),
     })
   } catch (error) {
-    console.error('❌ Erreur dans GET /api/finance/summary:', error)
+    logger.warn('Erreur dans GET /api/finance/summary — fallback sur données par défaut:', error)
 
     // En cas d'erreur, retourner des données par défaut pour éviter de casser l'UI
     return NextResponse.json(

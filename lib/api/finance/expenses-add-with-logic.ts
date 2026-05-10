@@ -8,6 +8,7 @@ import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
 
@@ -56,15 +57,6 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
     }
 
-    console.log('')
-    console.log('💳💳💳 ========================================================')
-    console.log('💳 [ADD EXPENSE WITH LOGIC] NOUVELLE DÉPENSE')
-    console.log('💳💳💳 ========================================================')
-    console.log(`💳 Montant: ${amount}€`)
-    console.log(`💳 Description: ${description}`)
-    console.log(`💳 Budget ID: ${estimated_budget_id || 'Exceptionnel'}`)
-    console.log(`💳 Contexte: ${is_for_group ? 'Groupe' : 'Profil'}`)
-
     // Determine profile_id or group_id
     let profile_id: string | undefined = undefined
     let group_id: string | undefined = undefined
@@ -111,7 +103,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (error) {
-        console.error('❌ Erreur création dépense exceptionnelle:', error)
+        logger.error('Erreur création dépense exceptionnelle:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la création de la dépense' },
           { status: 500 },
@@ -124,10 +116,6 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         groupId: group_id,
         reason: 'exceptional_expense_created',
       })
-
-      console.log('✅ Dépense exceptionnelle créée avec succès')
-      console.log('💳💳💳 ========================================================')
-      console.log('')
 
       return NextResponse.json({
         real_expense: data,
@@ -179,13 +167,6 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         )
       }, 0) || 0
 
-    console.log('')
-    console.log('📊 ÉTAT AVANT:')
-    console.log(`   - Tirelire: ${piggyBankBefore}€`)
-    console.log(`   - Savings du budget: ${savingsBefore}€`)
-    console.log(`   - Budget dépensé: ${budgetSpentBefore}€ / ${budgetData.estimated_amount}€`)
-    console.log('')
-
     // Step 4: Calculate the breakdown
     const { fromPiggyBank, fromBudgetSavings, fromBudget } = calculateBreakdown(
       amount,
@@ -197,23 +178,12 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const savingsAfter = savingsBefore - fromBudgetSavings
     const budgetSpentAfter = budgetSpentBefore + fromBudget
 
-    console.log('💡 RÉPARTITION:')
-    console.log(`   - De la tirelire: ${fromPiggyBank}€`)
-    console.log(`   - Des savings: ${fromBudgetSavings}€`)
-    console.log(`   - Du budget: ${fromBudget}€`)
-    console.log('')
-    console.log('📊 ÉTAT APRÈS:')
-    console.log(`   - Tirelire: ${piggyBankAfter}€`)
-    console.log(`   - Savings du budget: ${savingsAfter}€`)
-    console.log(`   - Budget dépensé: ${budgetSpentAfter}€ / ${budgetData.estimated_amount}€`)
-    console.log('')
-
     // Step 5: Update piggy bank if needed (atomique via RPC)
     if (fromPiggyBank > 0 && piggyBankData) {
       try {
         await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, -fromPiggyBank)
       } catch (piggyError) {
-        console.error('❌ Erreur mise à jour tirelire:', piggyError)
+        logger.error('Erreur mise à jour tirelire:', piggyError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
           { status: 500 },
@@ -226,7 +196,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       try {
         await updateBudgetCumulatedSavings(estimated_budget_id, -fromBudgetSavings)
       } catch (savingsError) {
-        console.error('❌ Erreur mise à jour savings:', savingsError)
+        logger.error('Erreur mise à jour savings:', savingsError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour des économies' },
           { status: 500 },
@@ -260,7 +230,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (expenseError) {
-      console.error('❌ Erreur création dépense:', expenseError)
+      logger.error('Erreur création dépense:', expenseError)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la dépense' },
         { status: 500 },
@@ -280,17 +250,12 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       budget_spent_after: budgetSpentAfter,
     }
 
-    console.log('✅ Dépense créée avec succès')
-    console.log('💳💳💳 ========================================================')
-    console.log('')
-
     return NextResponse.json({
       real_expense: expenseData,
       breakdown,
       message: 'Dépense créée avec succès',
     })
-  } catch (error) {
-    console.error('❌ Error in POST /api/finance/expenses/add-with-logic:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
