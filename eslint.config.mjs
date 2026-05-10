@@ -44,7 +44,7 @@ const eslintConfig = [
       'app/api/groups/**',
       'app/api/monthly-recap/{status,refresh,resume,initialize,step1-data,step2-data,accumulate-piggy-bank,transfer,update-step}/**',
       'app/api/profile/**',
-      'app/api/savings/data/**',
+      'app/api/savings/**',
       'app/api/bank-balance/**',
     ],
     rules: { 'no-console': 'error' },
