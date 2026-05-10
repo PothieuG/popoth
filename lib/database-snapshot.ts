@@ -1,6 +1,7 @@
 import type { Json, TablesInsert } from '@/lib/database.types'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { SnapshotPayloadV2 } from '@/lib/recap-snapshot.types'
+import { logger } from '@/lib/logger'
 
 /**
  * Crée un snapshot complet de toutes les données financières d'un utilisateur/groupe
@@ -72,7 +73,7 @@ export async function createFullDatabaseSnapshot(
     const checkError = (name: string, result: { error: { message?: string } | null }) => {
       if (result.error) {
         warnings.push(`${name}: ${result.error.message}`)
-        console.warn(`⚠️ [Snapshot] Erreur sur ${name}:`, result.error.message)
+        logger.warn(`⚠️ [Snapshot] Erreur sur ${name}:`, result.error.message)
       }
     }
 
@@ -160,21 +161,20 @@ export async function createFullDatabaseSnapshot(
       .single()
 
     if (insertError) {
-      console.error('❌ [Snapshot] Erreur insertion snapshot:', insertError)
+      logger.error('❌ [Snapshot] Erreur insertion snapshot:', insertError)
       return { snapshotId: null, error: insertError.message }
     }
 
     const totalRecords = Object.values(tableCounts).reduce((sum, count) => sum + count, 0)
 
-    console.log(`📸 [Snapshot] Snapshot complet créé avec succès`)
-    console.log(`📸 [Snapshot] ID: ${inserted.id}`)
-    console.log(`📸 [Snapshot] Mois: ${snapshotMonth}/${snapshotYear}`)
-    console.log(`📸 [Snapshot] Total enregistrements capturés: ${totalRecords}`)
-    console.log(`📸 [Snapshot] Détail:`, tableCounts)
+    logger.info(`📸 [Snapshot] Snapshot complet créé avec succès`)
+    logger.info(`📸 [Snapshot] ID: ${inserted.id}`)
+    logger.info(`📸 [Snapshot] Mois: ${snapshotMonth}/${snapshotYear}`)
+    logger.info(`📸 [Snapshot] Total enregistrements capturés: ${totalRecords}`)
+    logger.info(`📸 [Snapshot] Détail:`, tableCounts)
 
     return { snapshotId: inserted.id, error: null }
   } catch (err: unknown) {
-    console.error('❌ [Snapshot] Erreur inattendue:', err)
     const message = err instanceof Error ? err.message : 'Erreur inattendue'
     return { snapshotId: null, error: message }
   }

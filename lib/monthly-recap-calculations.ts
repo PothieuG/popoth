@@ -4,6 +4,7 @@
  */
 
 import { supabaseServer } from '@/lib/supabase-server'
+import { logger } from '@/lib/logger'
 
 // ============================================
 // INTERFACES TYPESCRIPT
@@ -62,7 +63,7 @@ export async function calculateMonthlyBudgetStats(
       .eq(ownerField, contextId)
 
     if (budgetsError || !budgets) {
-      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
       return []
     }
 
@@ -78,7 +79,7 @@ export async function calculateMonthlyBudgetStats(
       )
 
     if (expensesError) {
-      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      logger.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
     }
 
     const monthlyExpenses = expenses || []
@@ -114,12 +115,11 @@ export async function calculateMonthlyBudgetStats(
       budgetStats.push(budgetStat)
     }
 
-    console.log(
+    logger.info(
       `📊 [Monthly Budget Stats] Calculé pour ${context}:${contextId} - ${budgetStats.length} budgets`,
     )
     return budgetStats
-  } catch (error) {
-    console.error('❌ Erreur lors du calcul des statistiques mensuelles:', error)
+  } catch {
     return []
   }
 }
@@ -144,14 +144,13 @@ export async function updateBudgetMonthlySurplusDeficit(
       .eq('id', budgetId)
 
     if (error) {
-      console.error(`❌ Erreur lors de la mise à jour du budget ${budgetId}:`, error)
+      logger.error(`❌ Erreur lors de la mise à jour du budget ${budgetId}:`, error)
       return false
     }
 
-    console.log(`✅ Budget ${budgetId} mis à jour: surplus=${surplus}€, deficit=${deficit}€`)
+    logger.info(`✅ Budget ${budgetId} mis à jour: surplus=${surplus}€, deficit=${deficit}€`)
     return true
-  } catch (error) {
-    console.error('❌ Erreur lors de la mise à jour mensuelle du budget:', error)
+  } catch {
     return false
   }
 }
@@ -167,7 +166,7 @@ export async function updateAllBudgetsMonthlySurplusDeficit(
   let successCount = 0
   let errorCount = 0
 
-  console.log(
+  logger.info(
     `🔄 [Update All Budgets] Début pour ${context}:${contextId} - ${budgetStats.length} budgets`,
   )
 
@@ -185,7 +184,7 @@ export async function updateAllBudgetsMonthlySurplusDeficit(
     }
   }
 
-  console.log(`✅ [Update All Budgets] Terminé: ${successCount} succès, ${errorCount} erreurs`)
+  logger.info(`✅ [Update All Budgets] Terminé: ${successCount} succès, ${errorCount} erreurs`)
   return { success: successCount, errors: errorCount }
 }
 
@@ -214,12 +213,11 @@ export async function hasMonthlyRecapBeenCompleted(
 
     if (error && error.code !== 'PGRST116') {
       // PGRST116 = no rows found
-      console.error('❌ Erreur lors de la vérification du récap mensuel:', error)
+      logger.error('❌ Erreur lors de la vérification du récap mensuel:', error)
     }
 
     return !!recap
-  } catch (error) {
-    console.error('❌ Erreur lors de la vérification du récap mensuel:', error)
+  } catch {
     return false
   }
 }
@@ -321,14 +319,13 @@ export async function getMonthlyRecapSummary(
       real_expenses_total: realExpensesTotal,
     }
 
-    console.log(`📊 [Monthly Recap Summary] Généré pour ${context}:${contextId}`)
-    console.log(
+    logger.info(`📊 [Monthly Recap Summary] Généré pour ${context}:${contextId}`)
+    logger.info(
       `📊 [Monthly Recap Summary] Surplus: ${totalSurplus}€, Déficit: ${totalDeficit}€, Ratio: ${generalRatio}€`,
     )
 
     return summary
-  } catch (error) {
-    console.error('❌ Erreur lors de la génération du résumé mensuel:', error)
+  } catch {
     return null
   }
 }
@@ -352,17 +349,16 @@ export async function resetEstimatedIncomes(
       .eq(ownerField, contextId)
 
     if (error) {
-      console.error(
+      logger.error(
         `❌ Erreur lors du reset des revenus estimés pour ${context}:${contextId}:`,
         error,
       )
       return false
     }
 
-    console.log(`✅ [Reset Incomes] Revenus estimés remis à 0 pour ${context}:${contextId}`)
+    logger.info(`✅ [Reset Incomes] Revenus estimés remis à 0 pour ${context}:${contextId}`)
     return true
-  } catch (error) {
-    console.error('❌ Erreur lors du reset des revenus estimés:', error)
+  } catch {
     return false
   }
 }
@@ -387,19 +383,18 @@ export async function markBudgetsAsUpdated(
       .eq(ownerField, contextId)
 
     if (error) {
-      console.error(
+      logger.error(
         `❌ Erreur lors de la mise à jour des budgets pour ${context}:${contextId}:`,
         error,
       )
       return false
     }
 
-    console.log(
+    logger.info(
       `✅ [Mark Budgets Updated] Budgets marqués comme mis à jour pour ${context}:${contextId}`,
     )
     return true
-  } catch (error) {
-    console.error('❌ Erreur lors de la mise à jour des budgets:', error)
+  } catch {
     return false
   }
 }
