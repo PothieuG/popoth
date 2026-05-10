@@ -59,47 +59,15 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       contextId = profile.group_id
     }
 
-    console.log(`🔍 [DEBUG STEP2] ====================================`)
-    console.log(
-      `🔍 [DEBUG STEP2] ÉTAPE 2 - RÉCUPÉRATION RAV POUR ${context.toUpperCase()}:${contextId}`,
-    )
-    console.log(`🔍 [DEBUG STEP2] TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(`🔍 [DEBUG STEP2] ====================================`)
-
     // 1. Récupérer le reste à vivre actuel
     let financialData: FinancialData
     if (context === 'profile') {
-      console.log(
-        `🔍 [DEBUG STEP2] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`,
-      )
       financialData = await getProfileFinancialData(contextId)
     } else {
-      console.log(
-        `🔍 [DEBUG STEP2] Appel getGroupFinancialData pour ${contextId} - ${new Date().toISOString()}`,
-      )
       financialData = await getGroupFinancialData(contextId)
     }
 
     const currentRemainingToLive = financialData.remainingToLive
-    console.log(``)
-    console.log(`📊📊📊 ========================================================`)
-    console.log(`📊📊📊 ÉTAPE 2 - RESTE À VIVRE`)
-    console.log(`📊📊📊 ========================================================`)
-    console.log(`📊 CONTEXTE: ${context.toUpperCase()}`)
-    console.log(`📊 ID: ${contextId}`)
-    console.log(`📊 TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(``)
-    console.log(`💰 RESTE À VIVRE (RAV): ${currentRemainingToLive}€`)
-    console.log(``)
-    console.log(`📊 DÉTAILS FINANCIERS:`)
-    console.log(`   - Solde bancaire: ${financialData.bankBalance}€`)
-    console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
-    console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
-    console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget}€`)
-    console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
-    console.log(`   - Solde disponible: ${financialData.availableBalance}€`)
-    console.log(`📊📊📊 ========================================================`)
-    console.log(``)
 
     // 2. Récupérer les budgets avec leurs données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -124,25 +92,15 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     }
 
     // 3a. Récupérer les dépenses exceptionnelles (sans budget lié)
-    const { data: exceptionalExpenses, error: exceptionalError } = await supabaseServer
+    const { data: exceptionalExpenses } = await supabaseServer
       .from('real_expenses')
       .select('id, amount, description, expense_date')
       .eq(ownerField, contextId)
       .is('estimated_budget_id', null)
 
-    if (exceptionalError) {
-      console.warn(
-        '⚠️ [Step2 Data] Erreur récupération dépenses exceptionnelles:',
-        exceptionalError,
-      )
-    }
-
     const totalExceptionalExpenses = (exceptionalExpenses || []).reduce(
       (sum, exp) => sum + exp.amount,
       0,
-    )
-    console.log(
-      `⚠️ [Step2 Data] ${exceptionalExpenses?.length || 0} dépense(s) exceptionnelle(s) trouvée(s), total: ${totalExceptionalExpenses}€`,
     )
 
     // 3b. Récupérer les transferts de budgets pour ce mois
@@ -155,8 +113,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       throw new Error(`Erreur récupération transferts: ${transfersError.message}`)
     }
 
-    console.log(`🔄 [Step2 Data] ${transfers?.length || 0} transferts trouvés`)
-
     // Calculer le total du surplus/économies/tirelire utilisé pour combler le gap (step1 + auto-balance)
     const surplusUsedToFillGap = (transfers || [])
       .filter(
@@ -166,8 +122,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
           t.transfer_reason?.includes('auto-balance récap'),
       )
       .reduce((sum, t) => sum + t.transfer_amount, 0)
-
-    console.log(`💰 [Step2 Data] Surplus utilisé pour combler gap: ${surplusUsedToFillGap}€`)
 
     // 4. Calculer les statistiques pour chaque budget
     const budgetStats = []
@@ -222,19 +176,12 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       budgetStats.push(budgetStat)
       totalSurplus += surplus
       totalDeficit += deficit
-
-      console.log(
-        `📊 [Step2 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, transferts (from: ${transfersFrom}€, to: ${transfersTo}€), ajusté=${adjustedSpentAmount}€, différence=${difference}€, surplus=${surplus}€`,
-      )
     }
 
     // 5. Informations sur le mois actuel
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1 // 1-12
     const currentYear = currentDate.getFullYear()
-
-    console.log(`💎 [Step2 Data] Total surplus: ${totalSurplus}€`)
-    console.log(`📉 [Step2 Data] Total deficit: ${totalDeficit}€`)
 
     // 6. Calculer le reste à vivre budgétaire
     const budgetaryRemainingToLive =
@@ -254,14 +201,11 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     if (piggyBankData && !piggyBankError) {
       // La tirelire existe déjà, on utilise le montant stocké
       piggyBank = piggyBankData.amount || 0
-      console.log(`🐷 [Step2 Data] Tirelire existante récupérée: ${piggyBank}€`)
     } else if (!piggyBankData && !piggyBankError) {
       // Pas d'entrée trouvée, la tirelire est à 0
       // Elle sera créée lors de la validation de l'étape 1
-      console.log(`🐷 [Step2 Data] Aucune tirelire trouvée, montant à 0€`)
       piggyBank = 0
     } else {
-      console.warn('⚠️ [Step2 Data] Erreur lors de la récupération de la tirelire:', piggyBankError)
       piggyBank = 0
     }
 
@@ -279,9 +223,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     // Le déficit global = gap brut MOINS le surplus utilisé pour le combler
     const deficitGlobal = Math.max(0, gapGlobal - surplusUsedToFillGap)
 
-    console.log(`   - Gap brut: ${gapGlobal}€`)
-    console.log(`   - Surplus utilisé: ${surplusUsedToFillGap}€`)
-    console.log(`   - Déficit global net: ${deficitGlobal}€`)
     const deficitBudgets = totalDeficit // Somme des déficits des budgets individuels
     const deficitAutres = Math.max(0, deficitGlobal - deficitBudgets) // La différence = autres sources
 
@@ -309,25 +250,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       autres_non_identifies: Math.max(0, deficitAutres - totalExceptionalExpenses - ecartRevenus),
     }
 
-    console.log(``)
-    console.log(`🏦🏦🏦 ========================================================`)
-    console.log(`🏦 TIRELIRE (depuis table piggy_bank)`)
-    console.log(`🏦🏦🏦 ========================================================`)
-    console.log(`💰 RAV budgétaire: ${budgetaryRemainingToLive}€`)
-    console.log(`💰 RAV actuel: ${currentRemainingToLive}€`)
-    console.log(`💎 Total surplus budgets: ${totalSurplus}€`)
-    console.log(`🏦 TIRELIRE disponible: ${piggyBank}€`)
-    console.log(``)
-    console.log(`📉 DÉTAIL DES DÉFICITS:`)
-    console.log(`   - Déficit global (gap): ${deficitGlobal}€`)
-    console.log(`   - Déficit budgets: ${deficitBudgets}€`)
-    console.log(`   - Déficit autres: ${deficitAutres}€`)
-    console.log(`     → Dépenses exceptionnelles: ${totalExceptionalExpenses}€`)
-    console.log(`     → Écart revenus: ${ecartRevenus}€`)
-    console.log(`     → Autres non identifiés: ${detailAutres.autres_non_identifies}€`)
-    console.log(`🏦🏦🏦 ========================================================`)
-    console.log(``)
-
     // Retourner les données structurées pour l'étape 2
     return NextResponse.json({
       success: true,
@@ -351,7 +273,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       timestamp: Date.now(), // Pour forcer le rafraîchissement
     })
   } catch (error) {
-    console.error('❌ [Step2 Data] Erreur lors de la récupération des données:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
       { status: 500 },
