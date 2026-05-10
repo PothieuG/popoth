@@ -9,3 +9,4 @@ public/workbox-*.js
 pnpm-lock.yaml
 lib/database.types.ts
 next-env.d.ts
+supabase/.temp/

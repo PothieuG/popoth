@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useReducer, useRef } from 'react'
 import {
   signInWithPassword,
   signUp,
@@ -11,6 +11,71 @@ import {
   type AuthUser,
 } from '@/lib/auth'
 import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
+
+// Sprint 2-followup-v3 / Item 2 — useReducer replaces the user/loading/error
+// useState trio. Why: the react-hooks/set-state-in-effect rule (in
+// eslint-plugin-react-hooks v7) tracks `useState` setters via a
+// setStateCallSites WeakMap registered only during useState destructuring.
+// `dispatch` from useReducer is exempt, so the initializeAuth() call inside
+// the mount effect no longer needs a lint suppression comment.
+
+type AuthState = {
+  user: AuthUser | null
+  loading: boolean
+  error: string | null
+}
+
+const initialAuthState: AuthState = {
+  user: null,
+  loading: true,
+  error: null,
+}
+
+type AuthAction =
+  | { type: 'INIT_START' } // setLoading(true)
+  | { type: 'INIT_SUCCESS'; user: AuthUser | null } // setUser + setLoading(false)
+  | { type: 'INIT_ERROR'; error: string | null } // setError + setUser(null) + setLoading(false)
+  | { type: 'AUTH_REQUEST' } // setLoading(true) + setError(null)
+  | { type: 'AUTH_SUCCESS'; user: AuthUser } // setUser + setLoading(false)
+  | { type: 'AUTH_FAILURE'; error: string } // setError + setLoading(false)
+  | { type: 'LOGOUT_START' } // setLoading(true)
+  | { type: 'LOGOUT' } // setUser(null) + setError(null)
+  | { type: 'REGISTER_SUCCESS' } // setLoading(false) + setError(null), user unchanged (signUp does not auto-login)
+  | { type: 'CLEAR_ERROR' } // setError(null)
+  | { type: 'SET_USER'; user: AuthUser } // single-setUser (refreshUserSession)
+
+function authReducer(state: AuthState, action: AuthAction): AuthState {
+  switch (action.type) {
+    case 'INIT_START':
+      return { ...state, loading: true }
+    case 'INIT_SUCCESS':
+      return { user: action.user, loading: false, error: null }
+    case 'INIT_ERROR':
+      return { user: null, loading: false, error: action.error }
+    case 'AUTH_REQUEST':
+      return { ...state, loading: true, error: null }
+    case 'AUTH_SUCCESS':
+      return { user: action.user, loading: false, error: null }
+    case 'AUTH_FAILURE':
+      return { ...state, loading: false, error: action.error }
+    case 'LOGOUT_START':
+      return { ...state, loading: true }
+    case 'LOGOUT':
+      return { ...state, user: null, error: null }
+    case 'REGISTER_SUCCESS':
+      return { ...state, loading: false, error: null }
+    case 'CLEAR_ERROR':
+      return { ...state, error: null }
+    case 'SET_USER':
+      return { ...state, user: action.user }
+    default: {
+      // Compile-time exhaustiveness check.
+      const _exhaustive: never = action
+      void _exhaustive
+      return state
+    }
+  }
+}
 
 interface AuthUserValue {
   user: AuthUser | null
@@ -60,9 +125,8 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [state, dispatch] = useReducer(authReducer, initialAuthState)
+  const { user, loading, error } = state
 
   // Refs avoid setState churn on every interval (start|stop) and let
   // handlers read the latest user without listing it as a useCallback dep.
@@ -93,8 +157,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       stopTokenRefresh()
       stopAuthCheck()
       await signOut()
-      setUser(null)
-      setError(null)
+      dispatch({ type: 'LOGOUT' })
       if (typeof window !== 'undefined') {
         window.location.href = '/connexion'
       }
@@ -102,7 +165,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Logout error:', err)
       stopTokenRefresh()
       stopAuthCheck()
-      setUser(null)
+      dispatch({ type: 'LOGOUT' })
       if (typeof window !== 'undefined') {
         window.location.href = '/connexion'
       }
@@ -148,13 +211,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [stopAuthCheck, handleLogout])
 
   const initializeAuth = useCallback(async () => {
+    let resolved: AuthUser | null = null
+    let initError: string | null = null
+
     try {
-      setLoading(true)
+      dispatch({ type: 'INIT_START' })
 
       const hasSession = typeof document !== 'undefined' && document.cookie.includes('session=')
 
       if (!hasSession) {
-        setUser(null)
         stopTokenRefresh()
         stopAuthCheck()
         return
@@ -163,79 +228,80 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const currentUser = await getCurrentUser()
 
       if (currentUser) {
-        setUser(currentUser)
+        resolved = currentUser
         startTokenRefresh()
         startAuthCheck()
       } else {
-        setUser(null)
         stopTokenRefresh()
         stopAuthCheck()
       }
     } catch (err) {
       if (err instanceof Error && !err.message.includes('401')) {
         console.error('Auth initialization error:', err)
-        setError("Erreur d'initialisation de l'authentification")
+        initError = "Erreur d'initialisation de l'authentification"
       }
-      setUser(null)
       stopTokenRefresh()
       stopAuthCheck()
     } finally {
-      setLoading(false)
+      if (initError !== null) {
+        dispatch({ type: 'INIT_ERROR', error: initError })
+      } else {
+        dispatch({ type: 'INIT_SUCCESS', user: resolved })
+      }
     }
   }, [stopTokenRefresh, stopAuthCheck, startTokenRefresh, startAuthCheck])
 
   const login = useCallback(
     async (email: string, password: string) => {
-      try {
-        setLoading(true)
-        setError(null)
+      dispatch({ type: 'AUTH_REQUEST' })
 
+      try {
         const result = await signInWithPassword(email, password)
 
         if (result.success && result.user) {
-          setUser(result.user)
+          dispatch({ type: 'AUTH_SUCCESS', user: result.user })
           startTokenRefresh()
           startAuthCheck()
           return { success: true }
         } else {
-          setError(result.error || 'Erreur de connexion')
+          dispatch({ type: 'AUTH_FAILURE', error: result.error || 'Erreur de connexion' })
           return { success: false, error: result.error }
         }
       } catch {
         const errorMessage = 'Erreur de connexion. Veuillez réessayer.'
-        setError(errorMessage)
+        dispatch({ type: 'AUTH_FAILURE', error: errorMessage })
         return { success: false, error: errorMessage }
-      } finally {
-        setLoading(false)
       }
     },
     [startTokenRefresh, startAuthCheck],
   )
 
   const register = useCallback(async (email: string, password: string) => {
-    try {
-      setLoading(true)
-      setError(null)
+    dispatch({ type: 'AUTH_REQUEST' })
 
+    try {
       const result = await signUp(email, password)
 
       if (result.success) {
+        // signUp does not auto-login; flip loading off without changing user.
+        dispatch({ type: 'REGISTER_SUCCESS' })
         return { success: true }
       } else {
-        setError(result.error || 'Erreur de création de compte')
+        dispatch({
+          type: 'AUTH_FAILURE',
+          error: result.error || 'Erreur de création de compte',
+        })
         return { success: false, error: result.error }
       }
     } catch {
       const errorMessage = 'Erreur de création de compte. Veuillez réessayer.'
-      setError(errorMessage)
+      dispatch({ type: 'AUTH_FAILURE', error: errorMessage })
       return { success: false, error: errorMessage }
-    } finally {
-      setLoading(false)
     }
   }, [])
 
   const logout = useCallback(async () => {
-    setLoading(true)
+    dispatch({ type: 'LOGOUT_START' })
     await handleLogout()
   }, [handleLogout])
 
@@ -243,7 +309,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const result = await refreshSession()
       if (result.success && result.user) {
-        setUser(result.user)
+        dispatch({ type: 'SET_USER', user: result.user })
       } else {
         await handleLogout()
       }
@@ -254,11 +320,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [handleLogout])
 
   const clearError = useCallback(() => {
-    setError(null)
+    dispatch({ type: 'CLEAR_ERROR' })
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initializeAuth() is an async setup pipeline; the setStates inside fire after `await getCurrentUser()` resolves, not synchronously in the effect body. Scoped to this single call so any future setState added directly to the effect body is still flagged.
     initializeAuth()
     return () => {
       stopTokenRefresh()
