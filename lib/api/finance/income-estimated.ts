@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
 type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['Update']
@@ -30,28 +31,9 @@ export interface CreateEstimatedIncomeRequest {
  * Retourne les revenus estimés de l'utilisateur ou de son groupe
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
-  const startTime = Date.now()
-  const logContext = {
-    component: '/api/finance/income/estimated',
-    operation: 'fetch_estimated_incomes',
-    timestamp: new Date().toISOString(),
-  }
-
-  console.log('📖 Fetching estimated incomes', {
-    ...logContext,
-    level: 'info',
-  })
-
   try {
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
-
-    console.log('🔍 Query context', {
-      ...logContext,
-      level: 'debug',
-      userId,
-      forGroup: forGroup,
-    })
 
     let data, error
 
@@ -89,34 +71,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     if (error) {
-      console.error('Error fetching estimated incomes:', error)
+      logger.error('Error fetching estimated incomes:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des revenus estimés' },
         { status: 500 },
       )
     }
 
-    console.log('✅ Estimated incomes fetched successfully', {
-      ...logContext,
-      level: 'info',
-      userId,
-      forGroup: forGroup,
-      count: data?.length || 0,
-      duration: Date.now() - startTime,
-    })
-
     return NextResponse.json({ estimated_incomes: data || [] })
-  } catch (error) {
-    console.error('❌ Error fetching estimated incomes', {
-      ...logContext,
-      level: 'error',
-      error: {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        name: error instanceof Error ? error.name : 'UnknownError',
-      },
-      duration: Date.now() - startTime,
-    })
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -175,7 +138,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (error) {
-      console.error('Error creating estimated income:', error)
+      logger.error('Error creating estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création du revenu estimé' },
         { status: 500 },
@@ -186,8 +149,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       estimated_income: data,
       message: 'Revenu estimé créé avec succès',
     })
-  } catch (error) {
-    console.error('Error in POST /api/finance/income/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -237,7 +199,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .single()
 
     if (error) {
-      console.error('Error updating estimated income:', error)
+      logger.error('Error updating estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du revenu estimé' },
         { status: 500 },
@@ -248,8 +210,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       estimated_income: data,
       message: 'Revenu estimé mis à jour avec succès',
     })
-  } catch (error) {
-    console.error('Error in PUT /api/finance/income/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -270,7 +231,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { error } = await supabaseServer.from('estimated_incomes').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting estimated income:', error)
+      logger.error('Error deleting estimated income:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du revenu estimé' },
         { status: 500 },
@@ -280,8 +241,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     return NextResponse.json({
       message: 'Revenu estimé supprimé avec succès',
     })
-  } catch (error) {
-    console.error('Error in DELETE /api/finance/income/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

@@ -175,8 +175,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     return NextResponse.json({ breakdown })
-  } catch (error) {
-    console.error('❌ Error in GET /api/finance/expenses/preview-breakdown:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

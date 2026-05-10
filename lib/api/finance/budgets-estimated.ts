@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
 type EstimatedBudgetInsert = Database['public']['Tables']['estimated_budgets']['Insert']
@@ -78,7 +79,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     if (error) {
-      console.error('Error fetching estimated budgets:', error)
+      logger.error('Error fetching estimated budgets:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets estimés' },
         { status: 500 },
@@ -122,8 +123,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     )
 
     return NextResponse.json({ estimated_budgets: budgetsWithSpending })
-  } catch (error) {
-    console.error('Error in GET /api/finance/budgets/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -183,7 +183,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (error) {
-      console.error('Error creating estimated budget:', error)
+      logger.error('Error creating estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création du budget estimé' },
         { status: 500 },
@@ -194,8 +194,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       estimated_budget: { ...data, spent_this_month: 0 },
       message: 'Budget estimé créé avec succès',
     })
-  } catch (error) {
-    console.error('Error in POST /api/finance/budgets/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -246,7 +245,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .single()
 
     if (error) {
-      console.error('Error updating estimated budget:', error)
+      logger.error('Error updating estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du budget estimé' },
         { status: 500 },
@@ -278,8 +277,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       estimated_budget: { ...data, spent_this_month: spentThisMonth },
       message: 'Budget estimé mis à jour avec succès',
     })
-  } catch (error) {
-    console.error('Error in PUT /api/finance/budgets/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -300,7 +298,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { error } = await supabaseServer.from('estimated_budgets').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting estimated budget:', error)
+      logger.error('Error deleting estimated budget:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du budget estimé' },
         { status: 500 },
@@ -310,8 +308,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     return NextResponse.json({
       message: 'Budget estimé supprimé avec succès',
     })
-  } catch (error) {
-    console.error('Error in DELETE /api/finance/budgets/estimated:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

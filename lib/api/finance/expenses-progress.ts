@@ -91,10 +91,6 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         (expense) => expense.estimated_budget_id === budget.id,
       )
 
-      console.log(``)
-      console.log(`🔍 [PROGRESS DEBUG] Budget: ${budget.name} (${budget.id})`)
-      console.log(`🔍 [PROGRESS DEBUG] Nombre de dépenses: ${relatedExpenses.length}`)
-
       const spentAmount = relatedExpenses.reduce((sum, expense) => {
         // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         const amountFromBudget =
@@ -102,15 +98,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
             ? Number(expense.amount_from_budget)
             : Number(expense.amount)
 
-        console.log(`🔍 [PROGRESS DEBUG]     amount: ${expense.amount}`)
-        console.log(`🔍 [PROGRESS DEBUG]     amount_from_budget: ${expense.amount_from_budget}`)
-        console.log(`🔍 [PROGRESS DEBUG]     amountFromBudget calculé: ${amountFromBudget}`)
-
         return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
       }, 0)
-
-      console.log(`🔍 [PROGRESS DEBUG] Total spentAmount: ${spentAmount}`)
-      console.log(``)
 
       const remainingAmount = budget.estimated_amount - spentAmount
       // Utiliser les économies stockées en base (cumulated_savings)
@@ -127,8 +116,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     })
 
     return NextResponse.json(progressData)
-  } catch (error) {
-    console.error('❌ Erreur dans /api/finance/expenses/progress:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

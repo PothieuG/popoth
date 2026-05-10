@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getRavFromDatabase } from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API to retrieve the current Remaining to Live (RAV) from database
@@ -28,15 +29,11 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       contextId = userId
     }
 
-    console.log(`🔍 [GET /api/finance/rav] Fetching RAV from database for ${context}: ${contextId}`)
-
     // Retrieve RAV from database
     const remainingToLive = await getRavFromDatabase(
       context === 'profile' ? contextId : null,
       context === 'group' ? contextId : null,
     )
-
-    console.log(`✅ [GET /api/finance/rav] RAV retrieved: ${remainingToLive}€`)
 
     return NextResponse.json({
       remainingToLive,
@@ -44,7 +41,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       timestamp: Date.now(),
     })
   } catch (error) {
-    console.error('❌ Error in GET /api/finance/rav:', error)
+    logger.error('Error in GET /api/finance/rav:', error)
     return NextResponse.json(
       {
         error: 'Erreur lors de la récupération du RAV',

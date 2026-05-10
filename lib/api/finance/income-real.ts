@@ -5,6 +5,7 @@ import FinancialLogger from '@/lib/financial-logger'
 import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
 type RealIncomeUpdate = Database['public']['Tables']['real_income_entries']['Update']
@@ -86,7 +87,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching real income entries:', error)
+      logger.error('Error fetching real income entries:', error)
       return NextResponse.json(
         { error: "Erreur lors de la récupération des entrées d'argent" },
         { status: 500 },
@@ -120,8 +121,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       limit,
       offset,
     })
-  } catch (error) {
-    console.error('Error in GET /api/finance/income/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -221,7 +221,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (error) {
-      console.error('Error creating real income entry:', error)
+      logger.error('Error creating real income entry:', error)
       return NextResponse.json(
         { error: "Erreur lors de la création de l'entrée d'argent" },
         { status: 500 },
@@ -239,10 +239,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         reason,
       })
 
-      if (snapshotSuccess) {
-        console.log(`📊 Snapshot reste à vivre sauvegardé après création revenu (${reason})`)
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      if (!snapshotSuccess) {
+        logger.warn('Échec sauvegarde snapshot (non critique)')
       }
     }
 
@@ -250,8 +248,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       real_income_entry: data,
       message: "Entrée d'argent créée avec succès",
     })
-  } catch (error) {
-    console.error('Error in POST /api/finance/income/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -311,7 +308,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .single()
 
     if (error) {
-      console.error('Error updating real income entry:', error)
+      logger.error('Error updating real income entry:', error)
       return NextResponse.json(
         { error: "Erreur lors de la mise à jour de l'entrée d'argent" },
         { status: 500 },
@@ -329,10 +326,8 @@ export const PUT = withAuth(async (request: NextRequest) => {
         reason,
       })
 
-      if (snapshotSuccess) {
-        console.log(`📊 Snapshot reste à vivre sauvegardé après mise à jour revenu (${reason})`)
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      if (!snapshotSuccess) {
+        logger.warn('Échec sauvegarde snapshot (non critique)')
       }
     }
 
@@ -340,8 +335,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       real_income_entry: data,
       message: "Entrée d'argent mise à jour avec succès",
     })
-  } catch (error) {
-    console.error('Error in PUT /api/finance/income/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -369,7 +363,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { error } = await supabaseServer.from('real_income_entries').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting real income entry:', error)
+      logger.error('Error deleting real income entry:', error)
       return NextResponse.json(
         { error: "Erreur lors de la suppression de l'entrée d'argent" },
         { status: 500 },
@@ -387,18 +381,15 @@ export const DELETE = withAuth(async (request: NextRequest) => {
         reason,
       })
 
-      if (snapshotSuccess) {
-        console.log(`📊 Snapshot reste à vivre sauvegardé après suppression revenu (${reason})`)
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      if (!snapshotSuccess) {
+        logger.warn('Échec sauvegarde snapshot (non critique)')
       }
     }
 
     return NextResponse.json({
       message: "Entrée d'argent supprimée avec succès",
     })
-  } catch (error) {
-    console.error('Error in DELETE /api/finance/income/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

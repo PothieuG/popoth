@@ -84,8 +84,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     })
 
     return NextResponse.json(progressData)
-  } catch (error) {
-    console.error('❌ Erreur dans /api/finance/income/progress:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

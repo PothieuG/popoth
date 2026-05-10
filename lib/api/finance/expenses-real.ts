@@ -5,6 +5,7 @@ import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
 type RealExpenseUpdate = Database['public']['Tables']['real_expenses']['Update']
@@ -88,7 +89,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching real expenses:', error)
+      logger.error('Error fetching real expenses:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
         { status: 500 },
@@ -132,8 +133,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       limit,
       offset,
     })
-  } catch (error) {
-    console.error('Error in GET /api/finance/expenses/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -233,7 +233,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .single()
 
     if (error) {
-      console.error('Error creating real expense:', error)
+      logger.error('Error creating real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la création de la dépense' },
         { status: 500 },
@@ -248,10 +248,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         reason: 'exceptional_expense_created',
       })
 
-      if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après création dépense exceptionnelle')
-      } else {
-        console.log('⚠️ Échec sauvegarde snapshot (non critique)')
+      if (!snapshotSuccess) {
+        logger.warn('Échec sauvegarde snapshot (non critique)')
       }
     }
 
@@ -259,8 +257,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       real_expense: data,
       message: 'Dépense créée avec succès',
     })
-  } catch (error) {
-    console.error('Error in POST /api/finance/expenses/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -357,7 +354,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .single()
 
     if (error) {
-      console.error('Error updating real expense:', error)
+      logger.error('Error updating real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour de la dépense' },
         { status: 500 },
@@ -365,22 +362,17 @@ export const PUT = withAuth(async (request: NextRequest) => {
     }
 
     // Sauvegarder le snapshot reste a vivre
-    const snapshotSuccess = await saveRemainingToLiveSnapshot({
+    await saveRemainingToLiveSnapshot({
       profileId: data.profile_id || undefined,
       groupId: data.group_id || undefined,
       reason: data.is_exceptional ? 'exceptional_expense_updated' : 'budgeted_expense_updated',
     })
 
-    if (snapshotSuccess) {
-      console.log('📊 Snapshot reste à vivre sauvegardé après mise à jour dépense')
-    }
-
     return NextResponse.json({
       real_expense: data,
       message: 'Dépense mise à jour avec succès',
     })
-  } catch (error) {
-    console.error('Error in PUT /api/finance/expenses/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -410,7 +402,7 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { error } = await supabaseServer.from('real_expenses').delete().eq('id', id)
 
     if (error) {
-      console.error('Error deleting real expense:', error)
+      logger.error('Error deleting real expense:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression de la dépense' },
         { status: 500 },
@@ -426,31 +418,27 @@ export const DELETE = withAuth(async (request: NextRequest) => {
 
         try {
           await reverseAllocation(expenseToDelete, contextFilter)
-          console.log('📊 Allocation reversee apres suppression depense budgetee')
         } catch (err) {
-          console.error("⚠️ Erreur lors du reversement de l'allocation:", err)
+          // Cleanup-attempt CRITIQUE : le reversement d'allocation a fail après que la
+          // dépense est déjà supprimée — état DB potentiellement inconsistant
+          logger.error("Erreur lors du reversement de l'allocation:", err)
         }
       }
 
       // Sauvegarder le snapshot reste a vivre
-      const snapshotSuccess = await saveRemainingToLiveSnapshot({
+      await saveRemainingToLiveSnapshot({
         profileId: expenseToDelete.profile_id || undefined,
         groupId: expenseToDelete.group_id || undefined,
         reason: expenseToDelete.is_exceptional
           ? 'exceptional_expense_deleted'
           : 'budgeted_expense_deleted',
       })
-
-      if (snapshotSuccess) {
-        console.log('📊 Snapshot reste à vivre sauvegardé après suppression dépense')
-      }
     }
 
     return NextResponse.json({
       message: 'Dépense supprimée avec succès',
     })
-  } catch (error) {
-    console.error('Error in DELETE /api/finance/expenses/real:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
