@@ -104,7 +104,8 @@ lib/
   debug-guard.ts           # blockInProduction() pour /api/debug/*
   expense-allocation.ts    # calculateBreakdown + applyAllocation (lecture, RPC à l'écriture)
   financial-calculations.ts # GOD FILE 1075 LOC — chantier I4, ne pas refactorer
-  financial-logger.ts      # logger custom (LogContext)
+  logger.ts                # ✅ Sprint Cleanup-I8 / Lot 1 — logger général level-aware Edge-safe (LOG_LEVEL gated, défaut warn prod / debug dev). Boundary `console.*` du repo ; tout le reste appelle logger.error/warn/info/debug
+  financial-logger.ts      # logger domain-specific (LogContext, FinancialLogger class) — 1 consumer (lib/api/finance/income-real.ts), alignement avec lib/logger.ts deferred I4
   database-snapshot.ts     # createFullDatabaseSnapshot — utilise SnapshotPayloadV2 (Sprint Polish T4)
   recap-snapshot.types.ts  # ✅ SnapshotPayload v1/v2 discriminated union + isSnapshotV2() (Sprint Polish T4)
   recap/
