@@ -62,15 +62,6 @@ export function useAuthActions(): AuthActionsValue {
   return context
 }
 
-/**
- * Backwards-compatible aggregator hook. Subscribes to BOTH contexts, so
- * callers re-render on any change. New code should prefer `useAuthUser()`
- * or `useAuthActions()` directly to opt into finer-grained subscription.
- */
-export function useAuth(): AuthUserValue & AuthActionsValue {
-  return { ...useAuthUser(), ...useAuthActions() }
-}
-
 interface AuthProviderProps {
   children: React.ReactNode
 }
