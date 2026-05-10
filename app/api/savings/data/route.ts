@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API Get Savings Data
@@ -16,20 +17,11 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       return NextResponse.json({ error: 'Contexte invalide' }, { status: 400 })
     }
 
-    console.log(``)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(`💰💰💰 [SAVINGS DATA] RÉCUPÉRATION DES ÉCONOMIES`)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(`💰 Contexte: ${context}`)
-    console.log(`💰 User ID: ${profile.id}`)
-
     // Determine context filter
     const contextFilter =
       context === 'group' && profile.group_id
         ? { group_id: profile.group_id }
         : { profile_id: profile.id }
-
-    console.log(`💰 Filtre appliqué:`, contextFilter)
 
     // Get all estimated budgets with their savings
     const { data: budgets, error: budgetsError } = await supabaseServer
@@ -39,7 +31,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .order('name', { ascending: true })
 
     if (budgetsError) {
-      console.error('❌ Erreur récupération budgets:', budgetsError)
+      logger.error('❌ Erreur récupération budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
         { status: 500 },
@@ -61,21 +53,11 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const piggyBankAmount = piggyBankData?.amount || 0
 
     if (piggyBankError) {
-      console.warn('⚠️ Erreur récupération tirelire:', piggyBankError)
+      logger.warn('⚠️ Erreur récupération tirelire:', piggyBankError)
     }
 
     // Total savings = budgets savings + piggy bank
     const totalSavings = budgetsSavings + piggyBankAmount
-
-    console.log(``)
-    console.log(`📊 RÉSULTAT:`)
-    console.log(`   - Total budgets: ${budgets?.length || 0}`)
-    console.log(`   - Budgets avec économies: ${budgetsWithSavings.length}`)
-    console.log(`   - Économies budgets: ${budgetsSavings}€`)
-    console.log(`   - Tirelire: ${piggyBankAmount}€`)
-    console.log(`   - Total économies: ${totalSavings}€`)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(``)
 
     return NextResponse.json({
       success: true,
@@ -92,8 +74,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
         total_savings: totalSavings,
       },
     })
-  } catch (error) {
-    console.error('❌ Erreur dans GET /api/savings/data:', error)
+  } catch {
     return NextResponse.json(
       { error: 'Erreur serveur lors de la récupération des données' },
       { status: 500 },

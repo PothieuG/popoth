@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 export interface ProfileData {
   id: string
@@ -27,8 +28,6 @@ export interface CreateProfileRequest {
  */
 export const GET = withAuth(async (_request, { userId }) => {
   try {
-    console.log('🔍 GET /api/profile - userId:', userId)
-
     // Récupérer le profil depuis Supabase (full row — withAuthAndProfile's
     // narrow select would lose salary/avatar_url/timestamps; the 200-on-no-
     // profile fallback below also rules it out)
@@ -41,11 +40,10 @@ export const GET = withAuth(async (_request, { userId }) => {
     if (error) {
       // Si le profil n'existe pas, ce n'est pas une erreur
       if (error.code === 'PGRST116') {
-        console.log('✅ Aucun profil trouvé (normal pour première connexion)')
         return NextResponse.json({ profile: null })
       }
 
-      console.error('❌ Erreur Supabase lors de la récupération du profil:', error)
+      logger.error('❌ Erreur Supabase lors de la récupération du profil:', error)
       return NextResponse.json({ error: `Erreur Supabase: ${error.message}` }, { status: 500 })
     }
 
@@ -76,7 +74,6 @@ export const GET = withAuth(async (_request, { userId }) => {
 
     return NextResponse.json({ profile: profileData })
   } catch (error) {
-    console.error('❌ Erreur inattendue lors de la récupération du profil:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
       { status: 500 },
@@ -90,21 +87,16 @@ export const GET = withAuth(async (_request, { userId }) => {
  */
 export const POST = withAuth(async (request, { userId }) => {
   try {
-    console.log('🚀 POST /api/profile - userId:', userId)
-
     // Parser les données de la requête
     const body = (await request.json()) as CreateProfileRequest
     const { first_name, last_name, salary } = body
-    console.log('📝 Données reçues:', { first_name, last_name, salary })
 
     // Validation des données
     if (!first_name || !last_name) {
-      console.log('❌ Données manquantes')
       return NextResponse.json({ error: 'Le prénom et le nom sont requis' }, { status: 400 })
     }
 
     if (first_name.trim().length < 1 || last_name.trim().length < 1) {
-      console.log('❌ Données vides après trim')
       return NextResponse.json(
         { error: 'Le prénom et le nom ne peuvent pas être vides' },
         { status: 400 },
@@ -113,7 +105,6 @@ export const POST = withAuth(async (request, { userId }) => {
 
     // Validation du salaire (requis)
     if (salary !== undefined && (salary <= 0 || salary > 999999.99)) {
-      console.log('❌ Salaire invalide')
       return NextResponse.json(
         { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
         { status: 400 },
@@ -121,7 +112,6 @@ export const POST = withAuth(async (request, { userId }) => {
     }
 
     // Créer le profil dans Supabase
-    console.log('💾 Insertion dans Supabase avec userId:', userId)
     const { data, error } = await supabaseServer
       .from('profiles')
       .insert({
@@ -136,18 +126,15 @@ export const POST = withAuth(async (request, { userId }) => {
     if (error) {
       // Si le profil existe déjà
       if (error.code === '23505') {
-        console.log('⚠️ Profil existe déjà')
         return NextResponse.json(
           { error: 'Un profil existe déjà pour cet utilisateur' },
           { status: 409 },
         )
       }
 
-      console.error('❌ Erreur Supabase lors de la création du profil:', error)
+      logger.error('❌ Erreur Supabase lors de la création du profil:', error)
       return NextResponse.json({ error: `Erreur Supabase: ${error.message}` }, { status: 500 })
     }
-
-    console.log('✅ Profil créé avec succès:', data)
 
     // Format the profile data
     const profileData: ProfileData = {
@@ -167,7 +154,6 @@ export const POST = withAuth(async (request, { userId }) => {
       message: 'Profil créé avec succès',
     })
   } catch (error) {
-    console.error('❌ Erreur inattendue lors de la création du profil:', error)
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
       { status: 500 },
@@ -181,8 +167,6 @@ export const POST = withAuth(async (request, { userId }) => {
  */
 export const PUT = withAuth(async (request, { userId }) => {
   try {
-    console.log('👤 User ID for update:', userId)
-
     // Parser les données de la requête
     const body = await request.json()
     const updates: Partial<CreateProfileRequest> = {}
@@ -221,8 +205,6 @@ export const PUT = withAuth(async (request, { userId }) => {
       return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
-    console.log('💾 Updating profile for userId:', userId, 'with:', updates)
-
     // Mettre à jour le profil dans Supabase
     const { data, error } = await supabaseServer
       .from('profiles')
@@ -232,7 +214,7 @@ export const PUT = withAuth(async (request, { userId }) => {
       .single()
 
     if (error) {
-      console.error('Erreur lors de la mise à jour du profil:', error)
+      logger.error('Erreur lors de la mise à jour du profil:', error)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du profil' },
         { status: 500 },
@@ -268,8 +250,7 @@ export const PUT = withAuth(async (request, { userId }) => {
       profile: profileData,
       message: 'Profil mis à jour avec succès',
     })
-  } catch (error) {
-    console.error('Erreur inattendue lors de la mise à jour du profil:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
