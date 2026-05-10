@@ -13,21 +13,13 @@
  * '⚠️ Échec sauvegarde snapshot (non critique)'` et continuent leur
  * exécution. Tester avec un mock supabase qui error-out — le résultat
  * doit être `false`, pas une exception.
- *
- * Note de cycle import: ce module importe `getProfileFinancialData` et
- * `getGroupFinancialData` depuis `@/lib/financial-calculations`. Le god
- * file ré-exporte `saveRemainingToLiveSnapshot` depuis ce module — cycle
- * value-import value-import. Cycle-safe en ES modules grâce aux live
- * bindings (les usages se font dans des bodies async appelées plus tard,
- * pas au load du module). Disparaît au commit #8 quand get*FinancialData
- * migrent vers `lib/finance/financial-data.ts`.
  */
 
-import { getGroupFinancialData, getProfileFinancialData } from '@/lib/financial-calculations'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 import type { ContextFilter } from './context'
+import { getGroupFinancialData, getProfileFinancialData } from './financial-data'
 import type { FinancialData } from './types'
 
 async function _insertSnapshot(

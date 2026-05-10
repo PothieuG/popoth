@@ -23,7 +23,7 @@ vi.mock('@/lib/supabase-server', () => {
   }
 })
 
-vi.mock('@/lib/financial-calculations', () => ({
+vi.mock('@/lib/finance/financial-data', () => ({
   getProfileFinancialData: vi.fn(async () => ({
     availableBalance: 100,
     remainingToLive: 200,
