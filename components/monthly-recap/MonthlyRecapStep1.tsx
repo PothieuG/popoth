@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useStep1Data } from '@/hooks/useStep1Data'
@@ -43,43 +43,6 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
   const currentDate = new Date()
   const currentMonthName = monthNames[currentDate.getMonth()]
   const currentYear = currentDate.getFullYear()
-
-  // Debug des données récupérées
-  useEffect(() => {
-    if (step1Data) {
-      console.log('🎯 [STEP 1 LIVE] === DONNÉES LIVE RÉCUPÉRÉES ===')
-      console.log('🎯 [STEP 1 LIVE] Step1Data:', step1Data)
-      console.log('')
-
-      console.log('💰 [STEP 1 LIVE] RESTE À VIVRE:')
-      console.log(`💰 [STEP 1 LIVE] - Montant: ${step1Data.current_remaining_to_live}€`)
-      console.log(
-        `💰 [STEP 1 LIVE] - Statut: ${step1Data.is_positive ? 'POSITIF/NUL ✅' : 'NÉGATIF ❌'}`,
-      )
-      console.log('')
-
-      console.log('📊 [STEP 1 LIVE] ANALYSE BUDGETS:')
-      console.log(
-        `📊 [STEP 1 LIVE] - Budgets avec surplus: ${step1Data.budgets_with_surplus.length}`,
-      )
-      console.log(
-        `📊 [STEP 1 LIVE] - Budgets avec économies: ${step1Data.budgets_with_savings.length}`,
-      )
-      console.log(`📊 [STEP 1 LIVE] - Total surplus: ${step1Data.total_surplus_available}€`)
-      console.log(`📊 [STEP 1 LIVE] - Total économies: ${step1Data.total_savings_available}€`)
-      console.log(`📊 [STEP 1 LIVE] - Total disponible: ${step1Data.total_available}€`)
-      console.log('')
-
-      if (!step1Data.is_positive) {
-        console.log(`📉 [STEP 1 LIVE] Déficit à équilibrer: ${step1Data.deficit}€`)
-        console.log(
-          `💡 [STEP 1 LIVE] Peut équilibrer complètement: ${step1Data.can_fully_balance ? 'OUI ✅' : 'PARTIELLEMENT ⚠️'}`,
-        )
-      }
-
-      console.log('🎯 [STEP 1 LIVE] === FIN ANALYSE ===')
-    }
-  }, [step1Data])
 
   // L'utilisateur peut toujours continuer - le rééquilibrage se fera automatiquement lors du passage à Step 2
   const canContinue = true
@@ -572,8 +535,8 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
                   if (result instanceof Promise) {
                     await result
                   }
-                } catch (error) {
-                  console.error('[Step1] Erreur onClick:', error)
+                } catch {
+                  // l'erreur est déjà gérée par MonthlyRecapFlow.handleStep1Next via alert()
                 } finally {
                   setIsSubmitting(false)
                 }

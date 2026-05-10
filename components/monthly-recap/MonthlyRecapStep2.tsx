@@ -106,34 +106,11 @@ export default function MonthlyRecapStep2({
   } = useQuery<Step2Data>({
     queryKey: ['step2-data', context],
     queryFn: async () => {
-      console.log("🔄 [Step2] Récupération des données live depuis l'API step2-data")
       const response = await fetch(`/api/monthly-recap/step2-data?context=${context}`)
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error || 'Erreur lors de la récupération des données')
       }
-      console.log(``)
-      console.log(`📊📊📊 ========================================================`)
-      console.log(`📊📊📊 [FRONTEND] ÉTAPE 2 - DONNÉES REÇUES`)
-      console.log(`📊📊📊 ========================================================`)
-      console.log(`💰 RESTE À VIVRE: ${data.current_remaining_to_live}€`)
-      console.log(`📊 Total surplus: ${data.total_surplus}€`)
-      console.log(`📉 Total déficit budgets: ${data.total_deficit}€`)
-      console.log(`📊 Nombre de budgets: ${data.budget_stats?.length || 0}`)
-      console.log(``)
-      console.log(`📉 DÉTAIL DÉFICITS:`)
-      console.log(`   - Déficit global: ${data.deficit_global || 0}€`)
-      console.log(`   - Déficit budgets: ${data.deficit_budgets || 0}€`)
-      console.log(`   - Déficit autres: ${data.deficit_autres || 0}€`)
-      if (data.detail_autres) {
-        console.log(
-          `   → Dépenses exceptionnelles: ${data.detail_autres.depenses_exceptionnelles?.total || 0}€`,
-        )
-        console.log(`   → Écart revenus: ${data.detail_autres.ecart_revenus || 0}€`)
-        console.log(`   → Autres non identifiés: ${data.detail_autres.autres_non_identifies || 0}€`)
-      }
-      console.log(`📊📊📊 ========================================================`)
-      console.log(``)
       return data as Step2Data
     },
   })
@@ -212,8 +189,7 @@ export default function MonthlyRecapStep2({
 
       // Rafraîchir les données
       await refetch()
-    } catch (error) {
-      console.error('❌ [Step2] Erreur lors du transfert:', error)
+    } catch {
       setValidationError('Erreur lors du transfert. Veuillez réessayer.')
     } finally {
       setIsProcessing(false)
@@ -227,8 +203,8 @@ export default function MonthlyRecapStep2({
 
       // Rafraîchir les données après équilibrage automatique
       await refetch()
-    } catch (error) {
-      console.error("❌ [Step2] Erreur lors de l'équilibrage automatique:", error)
+    } catch {
+      // l'erreur est exposée via state queryError du useQuery (refetch côté hook)
     } finally {
       setIsProcessing(false)
     }
@@ -273,23 +249,9 @@ export default function MonthlyRecapStep2({
     // Appeler notre fonction locale qui gère tout
     if (selectedFromBudget.surplus > 0) {
       // Mode transfert: de selectedFromBudget vers selectedToBudget
-      console.log(
-        '🔄 [Frontend] Transfer:',
-        selectedFromBudget.id,
-        '→',
-        selectedToBudget,
-        `${amount}€`,
-      )
       await handleTransfer(selectedFromBudget.id, selectedToBudget, amount)
     } else {
       // Mode récupération: de selectedToBudget vers selectedFromBudget
-      console.log(
-        '🔄 [Frontend] Recovery:',
-        selectedToBudget,
-        '→',
-        selectedFromBudget.id,
-        `${amount}€`,
-      )
       await handleTransfer(selectedToBudget, selectedFromBudget.id, amount)
     }
   }
@@ -638,8 +600,8 @@ export default function MonthlyRecapStep2({
               setIsSubmitting(true)
               try {
                 await onNext()
-              } catch (error) {
-                console.error('[Step2] Erreur onClick:', error)
+              } catch {
+                // l'erreur est gérée par MonthlyRecapFlow.handleCompleteFromStep2
               } finally {
                 setIsSubmitting(false)
               }
