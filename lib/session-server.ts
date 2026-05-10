@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { createSessionToken, decrypt, type SessionPayload } from './session'
 import { SESSION_EXPIRATION_SECONDS } from './constants/auth'
+import { logger } from './logger'
 
 /**
  * Server-side session management utilities
@@ -92,7 +93,6 @@ export async function validateSessionToken(request: Request): Promise<SessionPay
       ?.split('=')[1]
 
     if (!sessionCookie) {
-      console.log('❌ Aucun cookie de session trouvé')
       return null
     }
 
@@ -100,21 +100,18 @@ export async function validateSessionToken(request: Request): Promise<SessionPay
     const sessionData = await decrypt(sessionCookie)
 
     if (!sessionData) {
-      console.log('❌ Token de session invalide')
       return null
     }
 
     // Check if session is expired
     const currentTime = Math.floor(Date.now() / 1000)
     if (sessionData.expiresAt <= currentTime) {
-      console.log('❌ Session expirée')
       return null
     }
 
-    console.log('✅ Session valide pour userId:', sessionData.userId)
+    logger.debug('✅ Session valide pour userId:', sessionData.userId)
     return sessionData
-  } catch (error) {
-    console.error('❌ Erreur lors de la validation de session:', error)
+  } catch {
     return null
   }
 }

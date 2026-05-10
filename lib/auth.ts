@@ -1,5 +1,6 @@
 import { supabase } from './supabase-client'
 import { hasSessionCookie } from './session-client'
+import { logger } from './logger'
 
 // Auth response interfaces
 export interface AuthUser {
@@ -45,8 +46,7 @@ export async function signInWithPassword(email: string, password: string): Promi
     }
 
     return { success: false, error: result.error || 'Erreur de connexion' }
-  } catch (error) {
-    console.error('Sign in error:', error)
+  } catch {
     return { success: false, error: 'Erreur de connexion. Veuillez réessayer.' }
   }
 }
@@ -87,8 +87,7 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
     }
 
     return { success: false, error: 'Erreur de création de compte inattendue' }
-  } catch (error) {
-    console.error('Sign up error:', error)
+  } catch {
     return { success: false, error: 'Erreur de création de compte. Veuillez réessayer.' }
   }
 }
@@ -114,9 +113,7 @@ export async function signOut(): Promise<void> {
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
     }
-  } catch (error) {
-    console.error('Sign out error:', error)
-
+  } catch {
     // Even if API fails, clear client-side cookie
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
@@ -153,8 +150,7 @@ export async function refreshSession(): Promise<AuthResponse> {
     }
 
     return { success: false, error: result.error || 'Erreur de rafraîchissement' }
-  } catch (error) {
-    console.error('Refresh session error:', error)
+  } catch {
     return { success: false, error: 'Erreur lors du rafraîchissement de la session' }
   }
 }
@@ -191,7 +187,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
-      console.error('Get current user error:', error)
+      logger.warn('Get current user error:', error)
     }
     return null
   }
@@ -221,7 +217,7 @@ export async function isAuthenticated(): Promise<boolean> {
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
-      console.error('Authentication check error:', error)
+      logger.warn('Authentication check error:', error)
     }
     return false
   }
@@ -238,13 +234,11 @@ export async function resetPassword(email: string): Promise<AuthResponse> {
     })
 
     if (error) {
-      console.error('Password reset error:', error)
       return { success: false, error: "Erreur lors de l'envoi de l'email de réinitialisation" }
     }
 
     return { success: true }
-  } catch (error) {
-    console.error('Reset password error:', error)
+  } catch {
     return { success: false, error: "Erreur lors de l'envoi de l'email de réinitialisation" }
   }
 }
@@ -267,8 +261,7 @@ export async function updatePassword(newPassword: string): Promise<AuthResponse>
     }
 
     return { success: true }
-  } catch (error) {
-    console.error('Update password error:', error)
+  } catch {
     return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
   }
 }

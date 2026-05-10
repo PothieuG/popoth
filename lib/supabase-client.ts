@@ -23,25 +23,3 @@ function getSupabaseClient(): SupabaseClient<Database> {
  * Uses environment variables to connect to the Supabase project
  */
 export const supabase = getSupabaseClient()
-
-/**
- * Tests the connection to Supabase by performing a simple auth check
- * Returns connection status and any potential errors
- */
-export async function testSupabaseConnection() {
-  try {
-    // Test basic connection by checking auth session
-    const { error } = await supabase.auth.getSession()
-
-    if (error && error.message !== 'Auth session missing!') {
-      console.log('Supabase connection test result:', error.message)
-      return { success: false, error: error.message }
-    }
-
-    console.log('✅ Supabase connection successful!')
-    return { success: true, data: 'Connection successful' }
-  } catch (err) {
-    console.error('❌ Supabase connection failed:', err)
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
-  }
-}

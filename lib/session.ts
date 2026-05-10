@@ -38,8 +38,7 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
     })
 
     return payload as unknown as SessionPayload
-  } catch (error) {
-    console.error('Failed to decrypt session:', error)
+  } catch {
     return null
   }
 }

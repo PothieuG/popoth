@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase-client'
+import { logger } from '@/lib/logger'
 
 /**
  * API route for handling email confirmation tokens from Supabase
@@ -14,11 +15,11 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') || '/'
 
   // Log the incoming parameters for debugging
-  console.log('Auth confirmation request:', { token_hash: !!token_hash, type, next })
+  logger.debug('Auth confirmation request:', { token_hash: !!token_hash, type, next })
 
   // Validate required parameters
   if (!token_hash || !type) {
-    console.error('Missing required parameters:', { token_hash: !!token_hash, type })
+    logger.warn('Missing required parameters:', { token_hash: !!token_hash, type })
     return NextResponse.redirect(new URL('/auth/auth-code-error', request.url))
   }
 
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (error) {
-      console.error('OTP verification error:', error)
+      logger.error('OTP verification error:', error)
 
       // Handle specific verification errors
       if (error.message.includes('expired')) {
@@ -43,11 +44,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (!data.user) {
-      console.error('No user found after successful OTP verification')
+      logger.error('No user found after successful OTP verification')
       return NextResponse.redirect(new URL('/auth/auth-code-error?error=no_user', request.url))
     }
 
-    console.log('OTP verification successful for user:', data.user.email)
+    logger.info('OTP verification successful for user:', data.user.email)
 
     // Handle different types of confirmations
     if (type === 'recovery') {
@@ -61,8 +62,7 @@ export async function GET(request: NextRequest) {
       const redirectUrl = next.startsWith('/') ? next : `/${next}`
       return NextResponse.redirect(new URL(redirectUrl, request.url))
     }
-  } catch (error) {
-    console.error('Unexpected error during OTP verification:', error)
+  } catch {
     return NextResponse.redirect(new URL('/auth/auth-code-error?error=server', request.url))
   }
 }
