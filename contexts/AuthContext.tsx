@@ -11,6 +11,7 @@ import {
   type AuthUser,
 } from '@/lib/auth'
 import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/constants/auth'
+import { authReducer, initialAuthState } from './auth-reducer'
 
 // Sprint 2-followup-v3 / Item 2 — useReducer replaces the user/loading/error
 // useState trio. Why: the react-hooks/set-state-in-effect rule (in
@@ -18,64 +19,6 @@ import { AUTH_CHECK_INTERVAL_MS, SESSION_REFRESH_INTERVAL_MS } from '@/lib/const
 // setStateCallSites WeakMap registered only during useState destructuring.
 // `dispatch` from useReducer is exempt, so the initializeAuth() call inside
 // the mount effect no longer needs a lint suppression comment.
-
-type AuthState = {
-  user: AuthUser | null
-  loading: boolean
-  error: string | null
-}
-
-const initialAuthState: AuthState = {
-  user: null,
-  loading: true,
-  error: null,
-}
-
-type AuthAction =
-  | { type: 'INIT_START' } // setLoading(true)
-  | { type: 'INIT_SUCCESS'; user: AuthUser | null } // setUser + setLoading(false)
-  | { type: 'INIT_ERROR'; error: string | null } // setError + setUser(null) + setLoading(false)
-  | { type: 'AUTH_REQUEST' } // setLoading(true) + setError(null)
-  | { type: 'AUTH_SUCCESS'; user: AuthUser } // setUser + setLoading(false)
-  | { type: 'AUTH_FAILURE'; error: string } // setError + setLoading(false)
-  | { type: 'LOGOUT_START' } // setLoading(true)
-  | { type: 'LOGOUT' } // setUser(null) + setError(null)
-  | { type: 'REGISTER_SUCCESS' } // setLoading(false) + setError(null), user unchanged (signUp does not auto-login)
-  | { type: 'CLEAR_ERROR' } // setError(null)
-  | { type: 'SET_USER'; user: AuthUser } // single-setUser (refreshUserSession)
-
-function authReducer(state: AuthState, action: AuthAction): AuthState {
-  switch (action.type) {
-    case 'INIT_START':
-      return { ...state, loading: true }
-    case 'INIT_SUCCESS':
-      return { user: action.user, loading: false, error: null }
-    case 'INIT_ERROR':
-      return { user: null, loading: false, error: action.error }
-    case 'AUTH_REQUEST':
-      return { ...state, loading: true, error: null }
-    case 'AUTH_SUCCESS':
-      return { user: action.user, loading: false, error: null }
-    case 'AUTH_FAILURE':
-      return { ...state, loading: false, error: action.error }
-    case 'LOGOUT_START':
-      return { ...state, loading: true }
-    case 'LOGOUT':
-      return { ...state, user: null, error: null }
-    case 'REGISTER_SUCCESS':
-      return { ...state, loading: false, error: null }
-    case 'CLEAR_ERROR':
-      return { ...state, error: null }
-    case 'SET_USER':
-      return { ...state, user: action.user }
-    default: {
-      // Compile-time exhaustiveness check.
-      const _exhaustive: never = action
-      void _exhaustive
-      return state
-    }
-  }
-}
 
 interface AuthUserValue {
   user: AuthUser | null
