@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSession, updateSession, deleteSession, getSession } from '@/lib/session-server'
 import { supabase } from '@/lib/supabase-client'
+import { logger } from '@/lib/logger'
 
 /**
  * API route for session management
@@ -53,7 +54,8 @@ export async function POST(request: NextRequest) {
               },
             })
           } catch (sessionError) {
-            console.error('Session creation error:', sessionError)
+            // CLEANUP-ATTEMPT CRITIQUE: Supabase auth réussi mais JWT session fail → état inconsistant
+            logger.error('Session creation error:', sessionError)
             return NextResponse.json(
               { success: false, error: 'Erreur de création de session' },
               { status: 500 },
@@ -93,8 +95,7 @@ export async function POST(request: NextRequest) {
       default:
         return NextResponse.json({ success: false, error: 'Action non reconnue' }, { status: 400 })
     }
-  } catch (error) {
-    console.error('Session API error:', error)
+  } catch {
     return NextResponse.json({ success: false, error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -125,8 +126,7 @@ export async function GET() {
         email: session.email,
       },
     })
-  } catch (error) {
-    console.error('Session status error:', error)
+  } catch {
     return NextResponse.json({ success: false, error: 'Erreur serveur' }, { status: 500 })
   }
 }

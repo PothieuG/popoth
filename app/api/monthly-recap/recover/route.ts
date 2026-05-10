@@ -3,6 +3,7 @@ import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
 import { isSnapshotV2, type SnapshotPayload } from '@/lib/recap-snapshot.types'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 // Tables that the recovery flow restores from a snapshot blob. Restoration
 // follows a delete-by-owner + bulk-insert pattern, so each branch picks the
@@ -85,9 +86,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       )
     }
 
-    console.log(`🔄 [Monthly Recap Recovery] Début de la récupération pour ${context}:${contextId}`)
-    console.log(`🔄 [Monthly Recap Recovery] Snapshot: ${snapshot.id} du ${snapshot.created_at}`)
-
     const snapshotData = snapshot.snapshot_data as unknown as SnapshotPayload
 
     if (!snapshotData || !snapshotData.estimated_incomes || !snapshotData.estimated_budgets) {
@@ -96,10 +94,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         { status: 500 },
       )
     }
-
-    console.log(
-      `🔄 [Recovery] Version du snapshot: ${isSnapshotV2(snapshotData) ? 'v2 (complet)' : 'v1 (legacy)'}`,
-    )
 
     // Commencer la récupération des données
     const recoveryResults: {
@@ -285,11 +279,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .eq('id', snapshot.id)
 
       if (deactivateSnapshotError) {
-        console.warn('⚠️ Erreur lors de la désactivation du snapshot:', deactivateSnapshotError)
+        logger.warn('⚠️ Erreur lors de la désactivation du snapshot:', deactivateSnapshotError)
       }
-
-      console.log(`✅ [Monthly Recap Recovery] Récupération terminée pour ${context}:${contextId}`)
-      console.log(`✅ [Monthly Recap Recovery] Résultats:`, recoveryResults)
 
       return NextResponse.json({
         success: true,
@@ -303,7 +294,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         has_errors: recoveryResults.errors.length > 0,
       })
     } catch (recoveryError) {
-      console.error('❌ Erreur lors de la récupération:', recoveryError)
+      // CLEANUP-ATTEMPT CRITIQUE: recovery rollback partiel → snapshot peut rester actif
+      logger.error('❌ Erreur lors de la récupération:', recoveryError)
       return NextResponse.json(
         {
           error: 'Erreur lors de la récupération des données',
@@ -312,8 +304,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         { status: 500 },
       )
     }
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération du récap mensuel:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -401,7 +392,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       total_count: formattedSnapshots.length,
     })
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération des snapshots:', error)
+    logger.error('❌ Erreur lors de la récupération des snapshots:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
