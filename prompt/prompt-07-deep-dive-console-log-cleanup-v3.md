@@ -28,23 +28,47 @@ Ce qui n'est PAS dans ce sprint :
 
 ## Approach
 
-Pattern miroir Lot 3 (livré 2026-05-10, plan dans `C:\Users\gille\.claude\plans\sprint-cleanup-i8-sleepy-pebble.md`). Découpage suggéré : **3 commits + closeout**.
+Pattern miroir Lot 3 (livré 2026-05-10, plan dans `C:\Users\gille\.claude\plans\sprint-cleanup-i8-sleepy-pebble.md`) **mais avec un twist** : Lot 3 était drop-in mécanique (`console.* → logger.*` verbatim). Lot 4a **change l'approche** — au lieu de migrer chaque site, **trier d'abord** : supprimer le plus possible, et ne garder que ce qui a vraiment du sens. La majorité des `console.*` du repo sont du résidu de debug — ils ne servent ni à l'observabilité prod (le strip SWC les supprime), ni au dev (TanStack Query DevTools, Network tab, et la pile d'erreur Next.js couvrent l'essentiel). Découpage suggéré : **3 commits + closeout** (mais le découpage entre static/dynamic devient secondaire ; le découpage par fichier reste utile pour le review).
 
-### Phase 1 — Audit (5 min)
+### Heuristique de triage (à appliquer site par site)
 
-`grep -n "console\." app/api/groups/` pour confirmer le total et le shape des sites. Attendu : tous des `console.error` dans des `catch (error)`. Si un `console.log` apparaît, le traiter au cas par cas (downgrade `logger.debug` ou `logger.info` selon le sens).
+Pour chaque `console.*` rencontré, classer en 3 buckets :
 
-### Commit 1 — Migration `app/api/groups/route.ts` + `app/api/groups/search/route.ts` + `app/api/groups/contributions/route.ts`
+**🗑️ SUPPRIMER (défaut — la majorité)** :
 
-Les 3 routes statiques (sans param dynamique). 12 sites au total. Drop-in mécanique :
+- `console.log('✅ Truc créé:', truc)` ou `console.log('📊 Résultat:', JSON.stringify(...))` — dump de debug. Le client a déjà la réponse, le serveur a déjà fait le travail. Zéro valeur.
+- `console.log('🚀 Début POST /api/groups')` ou `console.log('--- step 2 ---')` — flow log de debug. Le rate-of-fire est visible dans les access logs Vercel/Next.js.
+- `console.error('Erreur:', error)` quand le `error` est ensuite rethrown ou converti en `NextResponse.json({ error: 'message' }, { status: 500 })` — Next.js logge déjà l'erreur, et le client reçoit le message.
+- Tout `console.log` de payload (`console.log('body:', body)`, `console.log('user:', user)`) — exposes éventuellement des données personnelles, jamais utile en prod.
 
-- Ajouter `import { logger } from '@/lib/logger'` au top de chaque fichier.
-- Pour chaque `console.error('msg', error)` → `logger.error('msg', error)`. Message verbatim, rest-spread préservé.
-- Pour les rares `console.log` (s'il y en a — probablement 0 ou 1 max) : choisir `logger.debug` (flow log) ou `logger.info` (event utilisateur réussi) selon le sens.
+**✏️ GARDER mais migrer en `logger.*`** (minorité justifiée — quand garder ?) :
 
-### Commit 2 — Migration `app/api/groups/[id]/route.ts` + `app/api/groups/[id]/members/route.ts`
+- L'erreur est **silencieusement avalée** (le catch retourne 200 ou un fallback) — sans le log, le serveur perd l'info que quelque chose s'est mal passé. Exemple : `lib/expense-allocation.ts` Lot 3, où l'erreur est rethrown mais le contexte (`'Erreur restauration tirelire'` vs `'Erreur restauration economies'`) discrimine la branche métier qui a fail.
+- Le log capture un **état métier non-trivial** qui ne reapparaîtra pas dans la stack trace ni la réponse. Exemple : `'Récap requis pour group X, redirection'` dans middleware Lot 3 (downgradé à `logger.debug` parce que c'est utile en dev mais bruit en prod).
+- Une erreur d'invariant (e.g. "trigger function returned unexpected shape") qui mérite un alert si jamais elle arrive — `logger.error` avec un message distinctif qui sera grep-able.
 
-Les 2 routes dynamiques. 10 sites au total. Même pattern que commit 1. Vérifier que les patterns de `withAuth<RouteParams>` (Sprint v5 overload) ne sont pas accidentellement cassés.
+**🔄 GARDER mais ré-architecturer** (rare — éviter scope creep) :
+
+- Si tu trouves un `console.log` dump qui est en fait critical pour le debug d'un bug actif, c'est probablement un signe qu'il faut un test ou un logger structuré (financial-logger pattern) — mais hors scope Lot 4a, à noter pour le sprint dédié.
+
+**Règle d'or** : la question à se poser pour chaque site est "est-ce que quelqu'un (toi, dans 6 mois, devant une prod en panne) lira ce log ?". Si la réponse est non → SUPPRIMER. Si la réponse est "ça pourrait aider" mais sans cas concret → SUPPRIMER aussi (YAGNI : on ré-instrumente quand le bug arrive, on n'instrumente pas pour des bugs hypothétiques).
+
+**Estimation** : sur 22 sites Lot 4a, attendre **~15-18 suppressions purs** + **~4-7 migrations `logger.*`**. Le ratio sera variable par fichier ; les routes CRUD simples auront probablement 0-1 log à garder, alors que les routes avec branches métier (`groups/[id]/members` POST/DELETE) auront peut-être 2-3 logs justifiés sur les paths d'erreur métier (FK violation, member not found, etc.).
+
+### Phase 1 — Audit + classification (15 min)
+
+`grep -n "console\." app/api/groups/` pour confirmer le total et le shape des sites. **Pour chaque site, appliquer l'heuristique ci-dessus** et noter SUPPRIMER / GARDER+migrer dans un scratchpad mental ou un commit message draft. **Si tu hésites pour un site, défaut = SUPPRIMER** (on peut toujours rajouter un log ciblé si un bug surface plus tard ; on ne peut pas "désencombrer" une fois la dette installée).
+
+### Commit 1 — Cleanup `app/api/groups/route.ts` + `app/api/groups/search/route.ts` + `app/api/groups/contributions/route.ts`
+
+Les 3 routes statiques. 12 sites au total. Pour chacun :
+
+- Si **SUPPRIMER** : juste `git rm` la ligne (ou la séquence `console.log + commentaires associés s'il y en a`). Pas d'import `logger` à ajouter si toutes les lignes sont suppressed dans le fichier.
+- Si **GARDER+migrer** : ajouter `import { logger } from '@/lib/logger'` au top + remplacer `console.X(...)` par `logger.X(...)`. Message verbatim si la chaîne identifie déjà la branche métier ; sinon enrichir le message pour qu'il soit grep-able.
+
+### Commit 2 — Cleanup `app/api/groups/[id]/route.ts` + `app/api/groups/[id]/members/route.ts`
+
+Les 2 routes dynamiques. 10 sites au total. Même pattern. Vérifier que les patterns de `withAuth<RouteParams>` (Sprint v5 overload) ne sont pas accidentellement cassés. Les routes dynamiques avec branches métier (member not found, group not found, FK violation) sont les plus susceptibles d'avoir des logs justifiés à garder.
 
 ### Commit 3 — Per-file ESLint override
 
@@ -70,24 +94,25 @@ Ou alternativement, refactorer en glob pattern si la liste devient longue : `'ap
 
 ### Commit 4 — Closeout
 
-Ajouter entry §11 dans CLAUDE.md sur le modèle des entries Lot 1 et Lot 3. Mettre à jour le compteur §6 Logs (~985 → ~963 console.log si tous les sites étaient des log, ou ~985 stable si tous étaient des error ; à ajuster selon l'audit phase 1). Mettre à jour le compteur de fichiers protégés par l'override (3 → 8, ou 3 → 4 si glob).
+Ajouter entry §11 dans CLAUDE.md sur le modèle des entries Lot 1 et Lot 3. Mettre à jour le compteur §6 Logs : si tu as suppressed N sites et migré M sites, le compteur baisse de N (pour les `console.log`) ; les `console.error` allow-listés ne comptaient pas en warning de toute façon. Annoncer le ratio supprimé/gardé dans le closeout (e.g. "18 supprimés, 4 migrés sur 22 sites — 82% de bruit éliminé"). Mettre à jour le compteur de fichiers protégés par l'override (3 → 8, ou 3 → 4 si glob). **Bonus** : mettre à jour CLAUDE.md §6 Logs pour ajouter explicitement l'heuristique de triage (SUPPRIMER par défaut, GARDER+migrer seulement si le log a vraiment du sens) — ce sera la règle pour les Lots 4b-6.
 
 ## Critères de succès
 
 - `grep "console\." app/api/groups/` → 0 hit.
-- `grep "from '@/lib/logger'" app/api/groups/` → 5 hits (un par fichier).
-- `pnpm lint:check` exit 0. **Lint baseline** doit baisser de ~N (où N = nombre de `console.log` + nouveaux `console.error` non allow-listed dans les 5 fichiers — à mesurer pré/post).
+- `grep "from '@/lib/logger'" app/api/groups/` → **entre 0 et 5 hits** (= 1 par fichier ayant au moins 1 site GARDÉ ; si un fichier voit tous ses logs supprimés, l'import disparaît avec). **Si ce nombre est 5 (un par fichier), c'est probablement un signe que la phase de triage a été trop conservative** — re-questionner chaque migrate pour confirmer qu'il a vraiment du sens.
+- `pnpm lint:check` exit 0. **Lint baseline** doit baisser de N (où N = nombre de `console.log` supprimés/migrés + le delta de `console.error` non allow-listed s'il y en a — à mesurer pré/post).
 - `pnpm typecheck` + `pnpm test:run` (30 passed / 34 skipped) + `pnpm format:check` + `pnpm build` exit 0.
 - Negative regression : `SUPABASE_API_TESTS=1 pnpm test:run` toujours vert (les tests `with-auth.test.ts` couvrent groups dynamic-route, recall les overloads sont préservés).
+- **Ratio supprimé/migré documenté dans le closeout** : annoncer "X supprimés, Y migrés sur Z sites" pour matérialiser la philosophie "ménage, pas refactor mécanique".
 
 **Smoke browser** (deferred to user) : créer un groupe via `/dashboard` → join un autre user → leave → delete. Couvre les 5 routes en flow utilisateur.
 
 ## Découpage en commits
 
-1. `refactor(api/groups): migrate console.* to logger.* (static routes)` — 3 fichiers, 12 sites.
-2. `refactor(api/groups): migrate console.* to logger.* (dynamic routes)` — 2 fichiers, 10 sites.
+1. `refactor(api/groups): triage console.* — drop noise, migrate the rest (static routes)` — 3 fichiers, 12 sites en input.
+2. `refactor(api/groups): triage console.* — drop noise, migrate the rest (dynamic routes)` — 2 fichiers, 10 sites en input.
 3. `chore(eslint): extend no-console: error override to app/api/groups/**` — glob pattern recommandé.
-4. `docs(claude): closeout Sprint Cleanup-I8 / Lot 4a`
+4. `docs(claude): closeout Sprint Cleanup-I8 / Lot 4a` — inclure le ratio supprimé/migré + mise à jour de l'heuristique CLAUDE.md §6.
 
 ## Hors scope (rappel)
 
