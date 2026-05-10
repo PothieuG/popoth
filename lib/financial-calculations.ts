@@ -13,6 +13,8 @@ import {
   calculateRemainingToLiveProfile,
 } from '@/lib/finance/calc-rtl'
 import { EMPTY_FINANCIAL_DATA } from '@/lib/finance/constants'
+import { asContextFilter } from '@/lib/finance/context'
+import { calculateIncomeCompensation } from '@/lib/finance/income-compensation'
 import type { BudgetSavings, FinancialData } from '@/lib/finance/types'
 
 // God file per CLAUDE.md (chantier I4 — do not refactor). Scope-cast to
@@ -32,138 +34,11 @@ export type { BudgetSavings, FinancialData } from './finance/types'
 // CALCULS SELON BATTLEPLAN.TXT
 // ============================================
 
-/**
- * Calcule l'ajout de revenus au reste à vivre pour un profile
- * LOGIQUE CORRECTE:
- * - Revenu estimé NON utilisé (0€ réel) = +revenu estimé au reste à vivre
- * - Revenu estimé utilisé = +montant réellement reçu au reste à vivre
- */
-async function calculateIncomeCompensationProfile(profileId: string): Promise<number> {
-  try {
-    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
-    console.log(`🔍 [DEBUG INCOME COMPENSATION] CALCUL CONTRIBUTION REVENUS PROFILE: ${profileId}`)
-    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
-
-    // 1. Récupérer tous les revenus estimés du profile
-    const { data: estimatedIncomes } = await supabaseServer
-      .from('estimated_incomes')
-      .select('id, estimated_amount')
-      .eq('profile_id', profileId)
-
-    console.log(
-      `🔍 [DEBUG INCOME COMPENSATION] Revenus estimés trouvés: ${estimatedIncomes?.length || 0}`,
-    )
-    if (!estimatedIncomes || estimatedIncomes.length === 0) {
-      console.log(`🔍 [DEBUG INCOME COMPENSATION] Aucun revenu estimé - Contribution: 0€`)
-      return 0
-    }
-
-    // 2. Récupérer tous les revenus réels liés aux revenus estimés
-    const { data: realIncomes } = await supabaseServer
-      .from('real_income_entries')
-      .select('amount, estimated_income_id')
-      .eq('profile_id', profileId)
-      .not('estimated_income_id', 'is', null)
-
-    const realIncomesData = realIncomes || []
-
-    // 3. Calculer ce qui doit être ajouté au reste à vivre
-    let totalToAdd = 0
-
-    for (const estimatedIncome of estimatedIncomes) {
-      const estimated = estimatedIncome.estimated_amount
-      const realAmountForThisIncome = realIncomesData
-        .filter((real) => real.estimated_income_id === estimatedIncome.id)
-        .reduce((sum, real) => sum + real.amount, 0)
-
-      let amountToAdd = 0
-
-      if (realAmountForThisIncome === 0) {
-        // Revenu estimé NON utilisé → ajouter le montant estimé au reste à vivre
-        amountToAdd = estimated
-        console.log(
-          `📊 [Income Addition] Revenu ${estimatedIncome.id}: NON UTILISÉ, estimé=${estimated}€ → +${estimated}€ au reste à vivre`,
-        )
-      } else {
-        // Revenu estimé utilisé → ajouter le montant réellement reçu
-        amountToAdd = realAmountForThisIncome
-        console.log(
-          `📊 [Income Addition] Revenu ${estimatedIncome.id}: UTILISÉ, estimé=${estimated}€, réel=${realAmountForThisIncome}€ → +${realAmountForThisIncome}€ au reste à vivre`,
-        )
-      }
-
-      totalToAdd += amountToAdd
-    }
-
-    console.log(`🔍 [DEBUG INCOME COMPENSATION] RÉSULTAT FINAL - Contribution: ${totalToAdd}€`)
-    console.log(`🔍 [DEBUG INCOME COMPENSATION] ====================================`)
-    return totalToAdd
-  } catch (error) {
-    console.error('❌ Erreur lors du calcul des revenus profile:', error)
-    return 0
-  }
-}
-
-/**
- * Calcule l'ajout de revenus au reste à vivre pour un groupe
- * LOGIQUE CORRECTE:
- * - Revenu estimé NON utilisé (0€ réel) = +revenu estimé au reste à vivre
- * - Revenu estimé utilisé = +montant réellement reçu au reste à vivre
- */
-async function calculateIncomeCompensationGroup(groupId: string): Promise<number> {
-  try {
-    // 1. Récupérer tous les revenus estimés du groupe
-    const { data: estimatedIncomes } = await supabaseServer
-      .from('estimated_incomes')
-      .select('id, estimated_amount')
-      .eq('group_id', groupId)
-
-    if (!estimatedIncomes || estimatedIncomes.length === 0) return 0
-
-    // 2. Récupérer tous les revenus réels liés aux revenus estimés
-    const { data: realIncomes } = await supabaseServer
-      .from('real_income_entries')
-      .select('amount, estimated_income_id')
-      .eq('group_id', groupId)
-      .not('estimated_income_id', 'is', null)
-
-    const realIncomesData = realIncomes || []
-
-    // 3. Calculer la compensation pour chaque revenu estimé
-    let totalCompensation = 0
-
-    for (const estimatedIncome of estimatedIncomes) {
-      const estimated = estimatedIncome.estimated_amount
-      const realAmountForThisIncome = realIncomesData
-        .filter((real) => real.estimated_income_id === estimatedIncome.id)
-        .reduce((sum, real) => sum + real.amount, 0)
-
-      let compensation = 0
-
-      if (realAmountForThisIncome === 0) {
-        // Revenu estimé NON utilisé → ajouter le montant estimé au reste à vivre
-        compensation = estimated
-        console.log(
-          `📊 [Income Compensation] Revenu ${estimatedIncome.id}: NON UTILISÉ, estimé=${estimated}€ → +${estimated}€ au reste à vivre`,
-        )
-      } else {
-        // Revenu estimé utilisé → ajouter le montant réellement reçu
-        compensation = realAmountForThisIncome
-        console.log(
-          `📊 [Income Compensation] Revenu ${estimatedIncome.id}: UTILISÉ, estimé=${estimated}€, réel=${realAmountForThisIncome}€ → +${realAmountForThisIncome}€ au reste à vivre`,
-        )
-      }
-
-      totalCompensation += compensation
-    }
-
-    console.log(`💰 [Income Compensation Group] Total à ajouter: ${totalCompensation}€`)
-    return totalCompensation
-  } catch (error) {
-    console.error('❌ Erreur lors du calcul de compensation revenus group:', error)
-    return 0
-  }
-}
+// calculateIncomeCompensation{Profile,Group} unified into a single function
+// taking ContextFilter at chantier I4 — see lib/finance/income-compensation.ts.
+// The 2 internal callers below pass `asContextFilter({ profile_id })` /
+// `asContextFilter({ group_id })`. Flow logs and per-iteration logs dropped
+// per Lot 2 §6 règle d'or; outer catch error migrated to logger.error.
 
 // Pure calc helpers moved to lib/finance/calc-rtl.ts at chantier I4 — flow
 // logs dropped per Lot 2 §6 règle d'or (DROP debug-only); deficit notice
@@ -452,7 +327,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
     console.log(
       `🔍 [DEBUG getProfileFinancialData] Calcul contribution revenus pour profile ${profileId}`,
     )
-    const incomeCompensation = await calculateIncomeCompensationProfile(profileId)
+    const incomeCompensation = await calculateIncomeCompensation(asContextFilter({ profile_id: profileId }))
     // Ajouter le salaire du profil comme revenu (toujours à 100%, pas de "real income" lié)
     const incomeContribution = incomeCompensation + profileSalary
     console.log(
@@ -674,7 +549,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     )
 
     // Calculer la contribution des revenus au RAV selon les règles métier
-    const incomeContribution = await calculateIncomeCompensationGroup(groupId)
+    const incomeContribution = await calculateIncomeCompensation(asContextFilter({ group_id: groupId }))
 
     // NOUVELLE LOGIQUE CORRECTE: RAV = Revenus + Revenus Exceptionnels + Contributions - Budgets - Dépenses Exceptionnelles - Déficits des Budgets
     const remainingToLive = await calculateRemainingToLiveGroup(
