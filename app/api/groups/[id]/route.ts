@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 interface RouteParams {
   id: string
@@ -80,7 +81,7 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
         return NextResponse.json({ error: 'Un groupe avec ce nom existe déjà' }, { status: 409 })
       }
 
-      console.error('Error updating group:', updateError)
+      logger.error('Error updating group:', updateError)
       return NextResponse.json(
         { error: 'Erreur lors de la mise à jour du groupe' },
         { status: 500 },
@@ -91,8 +92,7 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
       group: updatedGroup,
       message: 'Groupe mis à jour avec succès',
     })
-  } catch (error) {
-    console.error('Error in PUT /api/groups/[id]:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -128,7 +128,7 @@ export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeCo
     const { error: deleteError } = await supabase.from('groups').delete().eq('id', groupId)
 
     if (deleteError) {
-      console.error('Error deleting group:', deleteError)
+      logger.error('Error deleting group:', deleteError)
       return NextResponse.json(
         { error: 'Erreur lors de la suppression du groupe' },
         { status: 500 },
@@ -138,8 +138,7 @@ export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeCo
     return NextResponse.json({
       message: 'Groupe supprimé avec succès',
     })
-  } catch (error) {
-    console.error('Error in DELETE /api/groups/[id]:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

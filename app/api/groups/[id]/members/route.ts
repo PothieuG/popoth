@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 interface RouteParams {
   id: string
@@ -42,7 +43,7 @@ export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile },
       .order('created_at', { ascending: true })
 
     if (membersError) {
-      console.error('Error fetching group members:', membersError)
+      logger.error('Error fetching group members:', membersError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des membres' },
         { status: 500 },
@@ -58,8 +59,7 @@ export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile },
     }))
 
     return NextResponse.json({ members: transformedMembers })
-  } catch (error) {
-    console.error('Error in GET /api/groups/[id]/members:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -105,15 +105,14 @@ export const POST = withAuthAndProfile<RouteParams>(async (_request, { profile }
       .eq('id', profile.id)
 
     if (joinError) {
-      console.error('Error joining group:', joinError)
+      logger.error('Error joining group:', joinError)
       return NextResponse.json({ error: "Erreur lors de l'adhésion au groupe" }, { status: 500 })
     }
 
     return NextResponse.json({
       message: `Vous avez rejoint le groupe "${group.name}" avec succès`,
     })
-  } catch (error) {
-    console.error('Error in POST /api/groups/[id]/members:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -162,15 +161,14 @@ export const DELETE = withAuthAndProfile<RouteParams>(
         .eq('id', profile.id)
 
       if (leaveError) {
-        console.error('Error leaving group:', leaveError)
+        logger.error('Error leaving group:', leaveError)
         return NextResponse.json({ error: 'Erreur lors de la sortie du groupe' }, { status: 500 })
       }
 
       return NextResponse.json({
         message: `Vous avez quitté le groupe "${group.name}" avec succès`,
       })
-    } catch (error) {
-      console.error('Error in DELETE /api/groups/[id]/members:', error)
+    } catch {
       return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
     }
   },
