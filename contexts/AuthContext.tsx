@@ -1,6 +1,14 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useReducer, useRef } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from 'react'
 import {
   signInWithPassword,
   signUp,
@@ -276,20 +284,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const isLoggedIn = user !== null
 
-  const userValue: AuthUserValue = {
-    user,
-    loading,
-    error,
-    isLoggedIn,
-  }
+  // Memoize the Context value props so consumers subscribed to a single
+  // slice (useAuthUser or useAuthActions) only re-render when their slice
+  // changes. With useReducer, the state object identity changes on every
+  // dispatch, so an unwrapped object literal would create a new reference
+  // on every render and defeat the per-context split.
+  const userValue: AuthUserValue = useMemo(
+    () => ({ user, loading, error, isLoggedIn }),
+    [user, loading, error, isLoggedIn],
+  )
 
-  const actionsValue: AuthActionsValue = {
-    login,
-    register,
-    logout,
-    clearError,
-    refreshUserSession,
-  }
+  const actionsValue: AuthActionsValue = useMemo(
+    () => ({ login, register, logout, clearError, refreshUserSession }),
+    [login, register, logout, clearError, refreshUserSession],
+  )
 
   return (
     <AuthUserContext.Provider value={userValue}>
