@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import type { BudgetSavings, FinancialData } from '@/lib/finance/types'
 
 // God file per CLAUDE.md (chantier I4 — do not refactor). Scope-cast to
 // untyped: legacy local shapes diverge from generated row types
@@ -15,27 +16,9 @@ const supabaseServer = typedSupabase as unknown as SupabaseClient
 // ============================================
 // INTERFACES TYPESCRIPT
 // ============================================
-
-export interface FinancialData {
-  availableBalance: number // Cash disponible (peut être négatif)
-  remainingToLive: number // Reste à vivre (peut être négatif)
-  totalSavings: number // Total des économies des budgets
-  totalEstimatedIncome: number // Total des revenus estimés
-  totalEstimatedBudgets: number // Total des budgets estimés
-  totalRealIncome: number // Total des revenus réels
-  totalRealExpenses: number // Total des dépenses réelles
-  bankBalance?: number // Optional: solde bancaire (legacy field used in some logs)
-  piggyBank?: number // Optional: tirelire (utilisé par useExpenseBreakdown)
-  totalEstimatedBudget?: number // Optional: alias singulier (legacy logs)
-}
-
-export interface BudgetSavings {
-  budgetId: string
-  budgetName: string
-  estimatedAmount: number
-  spentThisMonth: number
-  savings: number // MAX(0, estimatedAmount - spentThisMonth)
-}
+// Moved to lib/finance/types.ts at chantier I4 — re-exported here for
+// back-compat with the 17 importers until commit #9 migrates them.
+export type { BudgetSavings, FinancialData } from './finance/types'
 
 // ============================================
 // CALCULS SELON BATTLEPLAN.TXT
