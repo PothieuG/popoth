@@ -293,8 +293,7 @@ export async function getMonthlyRecapSummary(
       realExpenses?.reduce((sum, expense) => sum + parseFloat(expense.amount.toString()), 0) || 0
 
     // Calculer le reste à vivre avec la logique complète (JAMAIS de simplification)
-    const { getProfileFinancialData, getGroupFinancialData } =
-      await import('./financial-calculations')
+    const { getProfileFinancialData, getGroupFinancialData } = await import('./finance')
     type FinancialData = Awaited<ReturnType<typeof getProfileFinancialData>>
     let financialData: FinancialData
     if (context === 'profile') {
