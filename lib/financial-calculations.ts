@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import { EMPTY_FINANCIAL_DATA } from '@/lib/finance/constants'
 import type { BudgetSavings, FinancialData } from '@/lib/finance/types'
 
 // God file per CLAUDE.md (chantier I4 — do not refactor). Scope-cast to
@@ -648,15 +649,7 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
   } catch (error) {
     console.error('❌ Erreur lors du calcul des données financières:', error)
     // Retourner des valeurs par défaut en cas d'erreur
-    return {
-      availableBalance: 0,
-      remainingToLive: 0,
-      totalSavings: 0,
-      totalEstimatedIncome: 0,
-      totalEstimatedBudgets: 0,
-      totalRealIncome: 0,
-      totalRealExpenses: 0,
-    }
+    return { ...EMPTY_FINANCIAL_DATA }
   }
 }
 
@@ -852,15 +845,7 @@ export async function getGroupFinancialData(groupId: string): Promise<FinancialD
     }
   } catch (error) {
     console.error('❌ Erreur lors du calcul des données financières du groupe:', error)
-    return {
-      availableBalance: 0,
-      remainingToLive: 0,
-      totalSavings: 0,
-      totalEstimatedIncome: 0,
-      totalEstimatedBudgets: 0,
-      totalRealIncome: 0,
-      totalRealExpenses: 0,
-    }
+    return { ...EMPTY_FINANCIAL_DATA }
   }
 }
 
