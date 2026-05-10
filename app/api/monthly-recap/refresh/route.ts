@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API GET /api/monthly-recap/refresh
@@ -38,8 +39,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
     const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
-    console.log(`🔄 [Monthly Recap Refresh] Rafraîchissement pour ${context}:${contextId}`)
-
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
@@ -52,7 +51,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (budgetsError) {
-      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
         { status: 500 },
@@ -65,40 +64,25 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (expensesError) {
-      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      logger.error('Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
         { status: 500 },
       )
     }
 
-    console.log(
-      `📊 [Refresh Debug] Utilisation des données temps réel avec ${budgets.length} budgets et ${expenses.length} dépenses`,
-    )
-
     // Récupérer les transferts (seule donnée qui change après le début du récap)
-    console.log(`🔍 [Refresh Debug] Recherche des transferts avec ${ownerField} = ${contextId}`)
     const { data: transfersData, error: transfersError } = await supabaseServer
       .from('budget_transfers')
       .select('from_budget_id, to_budget_id, transfer_amount')
       .eq(ownerField, contextId)
 
     if (transfersError) {
-      console.error(
-        '❌ [Refresh Debug] Erreur lors de la récupération des transferts:',
-        transfersError,
-      )
+      logger.error('[Refresh] Erreur lors de la récupération des transferts:', transfersError)
     }
 
     // Si la récupération des transferts échoue, continuer sans transferts
     const transfers = transfersError ? [] : transfersData || []
-
-    console.log(
-      `🔄 [Refresh Debug] ${transfers.length} transferts trouvés pour le contexte ${context}:${contextId}`,
-    )
-    if (transfers.length > 0) {
-      console.log('📋 [Refresh Debug] Transferts:', transfers)
-    }
 
     // Recalculer les statistiques des budgets en temps réel
     const budgetStats = []
@@ -130,17 +114,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       const estimated = budget.estimated_amount
       const difference = estimated - adjustedSpentAmount
 
-      console.log(`🔍 [Refresh Debug] Budget "${budget.name}":`)
-      console.log(`  - baseSpentAmount: ${baseSpentAmount}€`)
-      console.log(`  - outgoingTransfers: ${outgoingTransfers}€`)
-      console.log(`  - incomingTransfers: ${incomingTransfers}€`)
-      console.log(`  - transferAdjustment: ${transferAdjustment}€`)
-      console.log(`  - adjustedSpentAmount: ${adjustedSpentAmount}€`)
-      console.log(`  - estimated: ${estimated}€`)
-      console.log(`  - difference: ${difference}€`)
-      console.log(`  - surplus: ${Math.max(0, difference)}€`)
-      console.log(`  - deficit: ${Math.max(0, -difference)}€`)
-
       const budgetStat = {
         id: budget.id,
         name: budget.name,
@@ -162,20 +135,9 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const totalDeficit = budgetStats.reduce((sum, budget) => sum + budget.deficit, 0)
     const generalRatio = totalSurplus - totalDeficit
 
-    console.log(
-      `📊 [Monthly Recap Refresh] Nouvelles données calculées pour ${context}:${contextId}`,
-    )
-    console.log(
-      `📊 [Monthly Recap Refresh] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`,
-    )
-
     // Recalculer le remaining_to_live en temps réel
     // Pour l'instant, on met 0 car on se concentre sur les transferts
     const currentRemainingToLive = 0
-
-    console.log(
-      `💰 [Refresh Debug] Remaining to live: ${currentRemainingToLive}€ (calculé en temps réel)`,
-    )
 
     // Retourner les données rafraîchies avec la même structure que l'initialisation
     return NextResponse.json({
@@ -191,8 +153,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`,
     })
-  } catch (error) {
-    console.error('❌ Erreur lors du rafraîchissement du récap mensuel:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

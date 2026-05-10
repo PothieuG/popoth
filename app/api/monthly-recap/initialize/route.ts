@@ -7,6 +7,7 @@ import {
 } from '@/lib/financial-calculations'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/initialize
@@ -63,7 +64,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .limit(1)
 
     if (recapCheckError && recapCheckError.code !== 'PGRST116') {
-      console.error('❌ Erreur lors de la vérification des récaps existants:', recapCheckError)
+      logger.error('Erreur lors de la vérification des récaps existants:', recapCheckError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification des récaps existants' },
         { status: 500 },
@@ -78,9 +79,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     }
 
     // 0. Créer un snapshot complet de la DB avant toute modification
-    console.log(
-      `📸 [Monthly Recap] Création du snapshot complet avant recap pour ${context}:${contextId}`,
-    )
     const { snapshotId, error: snapshotError } = await createFullDatabaseSnapshot(
       contextId,
       context,
@@ -89,20 +87,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     )
 
     if (snapshotError) {
-      console.error(`❌ [Monthly Recap] Erreur création snapshot: ${snapshotError}`)
       return NextResponse.json(
         { error: 'Erreur lors de la création du snapshot de sécurité' },
         { status: 500 },
       )
     }
 
-    console.log(`📸 [Monthly Recap] Snapshot créé: ${snapshotId}`)
-
     // 1. Récupérer les données actuelles en temps réel
-    console.log(
-      `📊 [Monthly Recap] Récupération des données en temps réel pour ${context}:${contextId}`,
-    )
-
     // Récupérer les budgets estimés
     const { data: budgets, error: budgetsError } = await supabaseServer
       .from('estimated_budgets')
@@ -110,7 +101,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (budgetsError) {
-      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
         { status: 500 },
@@ -124,7 +115,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (expensesError) {
-      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      logger.error('Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
         { status: 500 },
@@ -138,14 +129,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (transfersError) {
-      console.error(
-        '❌ [Initialize] Erreur lors de la récupération des transferts:',
-        transfersError,
-      )
+      logger.error('[Initialize] Erreur lors de la récupération des transferts:', transfersError)
     }
 
     const transfers = transfersError ? [] : existingTransfers || []
-    console.log(`🔍 [Initialize] ${transfers.length} transferts existants trouvés`)
 
     // 3. Calculer les économies/déficits des budgets pour ce mois (avec transferts)
     const budgetStats = []
@@ -178,17 +165,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         const estimated = budget.estimated_amount
         const difference = estimated - adjustedSpentAmount
 
-        console.log(`🔍 [Initialize Debug] Budget "${budget.name}":`)
-        console.log(`  - baseSpentAmount: ${baseSpentAmount}€`)
-        console.log(`  - outgoingTransfers: ${outgoingTransfers}€`)
-        console.log(`  - incomingTransfers: ${incomingTransfers}€`)
-        console.log(`  - transferAdjustment: ${transferAdjustment}€`)
-        console.log(`  - adjustedSpentAmount: ${adjustedSpentAmount}€`)
-        console.log(`  - estimated: ${estimated}€`)
-        console.log(`  - difference: ${estimated} - ${adjustedSpentAmount} = ${difference}€`)
-        console.log(`  - surplus: ${Math.max(0, difference)}€`)
-        console.log(`  - deficit: ${Math.max(0, -difference)}€`)
-
         const budgetStat = {
           id: budget.id,
           name: budget.name,
@@ -211,12 +187,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const totalDeficit = budgetStats.reduce((sum, budget) => sum + budget.deficit, 0)
     const generalRatio = totalSurplus - totalDeficit
 
-    console.log(`📊 [Monthly Recap] Données calculées pour ${context}:${contextId}`)
-    console.log(`📊 [Monthly Recap] Reste à vivre actuel: ${financialData.remainingToLive}€`)
-    console.log(
-      `📊 [Monthly Recap] Surplus total: ${totalSurplus}€, Déficit total: ${totalDeficit}€`,
-    )
-
     // Créer une session_id simple pour le suivi de page
     const sessionId = `${context}_${contextId}_${currentMonth}_${currentYear}_${Date.now()}`
 
@@ -235,8 +205,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`,
     })
-  } catch (error) {
-    console.error("❌ Erreur lors de l'initialisation du récap mensuel:", error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
