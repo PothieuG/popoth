@@ -25,12 +25,6 @@ export const GET = withAuth(async (request, { userId }) => {
 
     const status = await checkRecapStatus(userId, context)
 
-    console.log(`📅 [Monthly Recap Status] Context: ${context}, User: ${userId}`)
-    console.log(`📅 [Monthly Recap Status] Date: ${status.currentMonth}/${status.currentYear}`)
-    console.log(
-      `📅 [Monthly Recap Status] Required: ${status.required} (Has existing: ${status.hasExistingRecap})`,
-    )
-
     return NextResponse.json(status)
   } catch (error) {
     if (error instanceof RecapStatusError) {
@@ -38,7 +32,6 @@ export const GET = withAuth(async (request, { userId }) => {
       return NextResponse.json({ error: error.message }, { status: httpStatus })
     }
 
-    console.error('❌ Erreur lors de la vérification du statut du récap mensuel:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

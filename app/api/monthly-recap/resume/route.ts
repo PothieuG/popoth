@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API GET /api/monthly-recap/resume
@@ -54,7 +55,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .maybeSingle()
 
     if (recapCheckError) {
-      console.error('❌ Erreur lors de la vérification du récap existant:', recapCheckError)
+      logger.error('Erreur lors de la vérification du récap existant:', recapCheckError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification du récap existant' },
         { status: 500 },
@@ -63,7 +64,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
     // Si aucun récap existant, retourner null
     if (!existingRecap) {
-      console.log(`📊 [Resume API] Aucun récap existant trouvé pour ${context}:${contextId}`)
       return NextResponse.json({
         exists: false,
         message: 'Aucun récapitulatif en cours pour ce mois',
@@ -72,17 +72,12 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
 
     // Si le récap est déjà complété, l'utilisateur ne devrait pas être ici
     if (existingRecap.completed_at) {
-      console.log(`📊 [Resume API] Récap déjà complété pour ${context}:${contextId}`)
       return NextResponse.json({
         exists: false,
         completed: true,
         message: 'Récapitulatif déjà complété pour ce mois',
       })
     }
-
-    console.log(
-      `📊 [Resume API] Récap en cours trouvé pour ${context}:${contextId} à l'étape ${existingRecap.current_step}`,
-    )
 
     // Récupérer les données financières actuelles
     let financialData: Awaited<ReturnType<typeof getProfileFinancialData>>
@@ -99,7 +94,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (budgetsError) {
-      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
         { status: 500 },
@@ -113,7 +108,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (expensesError) {
-      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      logger.error('Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
         { status: 500 },
@@ -127,11 +122,10 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .eq(ownerField, contextId)
 
     if (transfersError) {
-      console.error('❌ [Resume] Erreur lors de la récupération des transferts:', transfersError)
+      logger.error('[Resume] Erreur lors de la récupération des transferts:', transfersError)
     }
 
     const transfers = transfersError ? [] : existingTransfers || []
-    console.log(`🔍 [Resume] ${transfers.length} transferts existants trouvés`)
 
     // Calculer les économies/déficits des budgets pour ce mois (avec transferts)
     const budgetStats = []
@@ -189,10 +183,6 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     // Créer une session_id simple pour le suivi de page
     const sessionId = `${context}_${contextId}_${currentMonth}_${currentYear}_${Date.now()}`
 
-    console.log(`📊 [Resume API] Données récupérées pour ${context}:${contextId}`)
-    console.log(`📊 [Resume API] Reste à vivre actuel: ${financialData.remainingToLive}€`)
-    console.log(`📊 [Resume API] Étape courante: ${existingRecap.current_step}`)
-
     // Retourner les données pour reprendre le récap
     return NextResponse.json({
       exists: true,
@@ -209,8 +199,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       user_name: `${profile.first_name} ${profile.last_name}`,
       recap_id: existingRecap.id,
     })
-  } catch (error) {
-    console.error('❌ Erreur lors de la récupération du récap mensuel:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

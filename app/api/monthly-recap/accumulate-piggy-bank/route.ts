@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/accumulate-piggy-bank
@@ -47,12 +48,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       return NextResponse.json({ error: `${context} introuvable` }, { status: 404 })
     }
 
-    console.log(`🐷 [Accumulate Piggy Bank] Démarrage pour ${context}:${contextId}`)
-    console.log(`🐷 [Accumulate Piggy Bank] Montant à ajouter: ${amount}€`)
-
     // Si le montant est 0, on ne fait rien
     if (amount === 0) {
-      console.log(`🐷 [Accumulate Piggy Bank] Montant nul, aucune action nécessaire`)
       return NextResponse.json({
         success: true,
         message: 'Aucun surplus à ajouter à la tirelire',
@@ -70,8 +67,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       .maybeSingle()
 
     if (fetchError) {
-      console.error(
-        '❌ [Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:',
+      logger.error(
+        '[Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:',
         fetchError,
       )
       return NextResponse.json(
@@ -89,16 +86,12 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
           ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
         newAmount = await updatePiggyBank(filter, amount)
       } catch (error) {
-        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la mise à jour:', error)
+        logger.error('[Accumulate Piggy Bank] Erreur lors de la mise à jour:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
           { status: 500 },
         )
       }
-
-      console.log(
-        `✅ [Accumulate Piggy Bank] Tirelire mise à jour: ${oldAmount}€ + ${amount}€ = ${newAmount}€`,
-      )
     } else {
       // Créer une nouvelle entrée (RPC ne crée pas la ligne)
       const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
@@ -107,14 +100,12 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       })
 
       if (insertError) {
-        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la création:', insertError)
+        logger.error('[Accumulate Piggy Bank] Erreur lors de la création:', insertError)
         return NextResponse.json(
           { error: 'Erreur lors de la création de la tirelire' },
           { status: 500 },
         )
       }
-
-      console.log(`✅ [Accumulate Piggy Bank] Tirelire créée: ${newAmount}€`)
     }
 
     return NextResponse.json({
@@ -124,8 +115,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       added_amount: amount,
       new_amount: newAmount,
     })
-  } catch (error) {
-    console.error('❌ [Accumulate Piggy Bank] Erreur:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

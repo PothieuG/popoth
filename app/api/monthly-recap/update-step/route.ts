@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST/GET /api/monthly-recap/update-step
@@ -76,7 +77,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .maybeSingle()
 
     if (checkError) {
-      console.error('❌ Erreur lors de la vérification du récap existant:', checkError)
+      logger.error('Erreur lors de la vérification du récap existant:', checkError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification du récap existant' },
         { status: 500 },
@@ -91,16 +92,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .eq('id', existingRecap.id)
 
       if (updateError) {
-        console.error("❌ Erreur lors de la mise à jour de l'étape:", updateError)
+        logger.error("Erreur lors de la mise à jour de l'étape:", updateError)
         return NextResponse.json(
           { error: "Erreur lors de la mise à jour de l'étape" },
           { status: 500 },
         )
       }
-
-      console.log(
-        `✅ Étape mise à jour: ${existingRecap.current_step} → ${current_step} pour ${context}:${contextId}`,
-      )
     } else {
       // Créer un nouvel enregistrement en cours (pas encore complété)
       const insertData = {
@@ -116,16 +113,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       const { error: insertError } = await supabaseServer.from('monthly_recaps').insert(insertData)
 
       if (insertError) {
-        console.error('❌ Erreur lors de la création du récap en cours:', insertError)
+        logger.error('Erreur lors de la création du récap en cours:', insertError)
         return NextResponse.json(
           { error: 'Erreur lors de la création du récap en cours' },
           { status: 500 },
         )
       }
-
-      console.log(
-        `✅ Nouveau récap en cours créé avec étape ${current_step} pour ${context}:${contextId}`,
-      )
     }
 
     return NextResponse.json({
@@ -133,8 +126,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       current_step,
       message: `Étape ${current_step} sauvegardée en base de données`,
     })
-  } catch (error) {
-    console.error("❌ Erreur lors de la mise à jour de l'étape:", error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -202,7 +194,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .maybeSingle()
 
     if (fetchError) {
-      console.error("❌ Erreur lors de la récupération de l'étape:", fetchError)
+      logger.error("Erreur lors de la récupération de l'étape:", fetchError)
       return NextResponse.json(
         { error: "Erreur lors de la récupération de l'étape" },
         { status: 500 },
@@ -213,18 +205,13 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
     const currentStep = recap?.current_step || 1
     const isCompleted = !!recap?.completed_at
 
-    console.log(
-      `🔍 Étape récupérée: ${currentStep} pour ${context}:${contextId} (complété: ${isCompleted})`,
-    )
-
     return NextResponse.json({
       success: true,
       current_step: currentStep,
       is_completed: isCompleted,
       message: `Étape ${currentStep} récupérée depuis la base de données`,
     })
-  } catch (error) {
-    console.error("❌ Erreur lors de la récupération de l'étape:", error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

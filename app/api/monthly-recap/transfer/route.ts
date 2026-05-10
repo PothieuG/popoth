@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/transfer
@@ -130,13 +131,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       )
     }
 
-    // Effectuer le transfert
-    console.log(`💸 [Budget Transfer] ${fromBudget.name} → ${toBudget.name}: ${amount}€`)
-    console.log(
-      `📊 [Transfer Debug] From: ${fromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${fromBudgetSurplus}€)`,
-    )
-    console.log(`📊 [Transfer Debug] To: ${toSpentAmount}€/${toBudget.estimated_amount}€`)
-
     // Enregistrer le transfert dans la table budget_transfers
     // Cela nous permet de calculer les ajustements sans modifier real_expenses
     const { error: transferInsertError } = await supabaseServer.from('budget_transfers').insert({
@@ -150,16 +144,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     })
 
     if (transferInsertError) {
-      console.error("❌ Erreur lors de l'enregistrement du transfert:", transferInsertError)
+      logger.error("Erreur lors de l'enregistrement du transfert:", transferInsertError)
       return NextResponse.json(
         { error: "Erreur lors de l'enregistrement du transfert" },
         { status: 500 },
       )
     }
-
-    console.log(
-      `✅ Transfert enregistré: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`,
-    )
 
     // Calculer les nouveaux montants après transfert
     const newFromSpentAmount = fromSpentAmount + amount
@@ -168,16 +158,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const newToSurplus = Math.max(0, toBudget.estimated_amount - newToSpentAmount)
     const newFromDeficit = Math.max(0, newFromSpentAmount - fromBudget.estimated_amount)
     const newToDeficit = Math.max(0, newToSpentAmount - toBudget.estimated_amount)
-
-    console.log(
-      `✅ [Budget Transfer] Transfert terminé: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`,
-    )
-    console.log(
-      `📊 [Transfer Result] From: ${newFromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${newFromSurplus}€, deficit: ${newFromDeficit}€)`,
-    )
-    console.log(
-      `📊 [Transfer Result] To: ${newToSpentAmount}€/${toBudget.estimated_amount}€ (surplus: ${newToSurplus}€, deficit: ${newToDeficit}€)`,
-    )
 
     return NextResponse.json({
       success: true,
@@ -204,8 +184,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         amount,
       },
     })
-  } catch (error) {
-    console.error('❌ Erreur lors du transfert entre budgets:', error)
+  } catch {
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
