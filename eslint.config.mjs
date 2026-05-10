@@ -46,6 +46,8 @@ const eslintConfig = [
       'app/api/profile/**',
       'app/api/savings/**',
       'app/api/bank-balance/**',
+      'lib/api/finance/**',
+      'app/api/finance/**',
     ],
     rules: { 'no-console': 'error' },
   },
