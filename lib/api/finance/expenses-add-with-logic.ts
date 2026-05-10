@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { calculateBreakdown } from '@/lib/expense-allocation'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'

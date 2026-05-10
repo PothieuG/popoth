@@ -4,7 +4,7 @@ import {
   getProfileFinancialData,
   getGroupFinancialData,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 /**

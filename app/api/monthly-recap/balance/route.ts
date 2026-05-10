@@ -4,7 +4,7 @@ import {
   getProfileFinancialData,
   getGroupFinancialData,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'

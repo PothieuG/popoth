@@ -5,9 +5,9 @@ import type { Database, Json, TablesInsert } from '@/lib/database.types'
 import type { SnapshotPayloadV1, SnapshotPayloadV2 } from '@/lib/recap-snapshot.types'
 
 // Same dynamic-import pattern as lib/finance/__tests__/rpc-concurrency.test.ts —
-// lib/financial-calculations.ts transitively loads lib/supabase-server.ts which
-// calls createClient at module load and would crash when env vars are missing.
-type FinCalcMod = typeof import('@/lib/financial-calculations')
+// @/lib/finance transitively loads lib/supabase-server.ts which calls
+// createClient at module load and would crash when env vars are missing.
+type FinCalcMod = typeof import('@/lib/finance')
 type RecoverRouteMod = typeof import('@/app/api/monthly-recap/recover/route')
 type SessionMod = typeof import('@/lib/session')
 
@@ -47,7 +47,7 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const finCalcMod = await import('@/lib/financial-calculations')
+    const finCalcMod = await import('@/lib/finance')
     getProfileFinancialData = finCalcMod.getProfileFinancialData
 
     const { data: userData, error: userErr } = await admin.auth.admin.createUser({

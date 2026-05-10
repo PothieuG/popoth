@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { saveRemainingToLiveSnapshot } from '@/lib/financial-calculations'
+import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'

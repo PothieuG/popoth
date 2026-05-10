@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
-import { getProfileFinancialData, calculateBudgetSavings } from '@/lib/financial-calculations'
+import { getProfileFinancialData, calculateBudgetSavings } from '@/lib/finance'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 

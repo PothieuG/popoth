@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert, Database } from '@/lib/database.types'
-import type { FinancialData } from '@/lib/financial-calculations'
+import type { FinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 
 type MonthlyRecapInsert = Database['public']['Tables']['monthly_recaps']['Insert']
@@ -92,8 +92,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Récupérer les données financières en temps réel
-    const { getProfileFinancialData, getGroupFinancialData } =
-      await import('@/lib/financial-calculations')
+    const { getProfileFinancialData, getGroupFinancialData } = await import('@/lib/finance')
 
     let financialData: FinancialData
     if (context === 'profile') {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 

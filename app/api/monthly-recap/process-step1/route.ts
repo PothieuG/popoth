@@ -6,7 +6,7 @@ import {
   getProfileFinancialData,
   getGroupFinancialData,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { ROUNDING_TOLERANCE } from '@/lib/constants/finance'

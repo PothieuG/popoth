@@ -4,7 +4,7 @@ import {
   getProfileFinancialData,
   getGroupFinancialData,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'

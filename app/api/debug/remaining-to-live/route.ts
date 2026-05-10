@@ -5,7 +5,7 @@ import {
   getProfileFinancialData,
   getGroupFinancialData,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 

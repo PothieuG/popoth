@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { FinancialData } from '@/lib/financial-calculations'
+import type { FinancialData } from '@/lib/finance'
 
 interface UseFinancialDataReturn {
   financialData: FinancialData | null

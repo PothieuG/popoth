@@ -111,9 +111,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         ?.filter((e) => e.is_exceptional || !e.estimated_budget_id)
         .reduce((sum, e) => sum + e.amount, 0) ?? 0
     const exceptionalIncomes =
-      realIncomes
-        ?.filter((i) => !i.estimated_income_id)
-        .reduce((sum, i) => sum + i.amount, 0) ?? 0
+      realIncomes?.filter((i) => !i.estimated_income_id).reduce((sum, i) => sum + i.amount, 0) ?? 0
 
     // 8. Économies cumulées (budgets + tirelire)
     let totalSavings = 0
@@ -146,7 +144,10 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
           carryoverSpent = Math.abs(budget.monthly_surplus)
         }
 
-        const deficit = calculateBudgetDeficit(budget.estimated_amount, spentOnBudget + carryoverSpent)
+        const deficit = calculateBudgetDeficit(
+          budget.estimated_amount,
+          spentOnBudget + carryoverSpent,
+        )
         if (deficit > 0) {
           logger.debug(
             `[Budget Deficit] "${budget.name}": ${budget.estimated_amount}€ budgété, ${spentOnBudget + carryoverSpent}€ dépensé → Déficit: ${deficit}€`,
@@ -197,11 +198,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     }
 
     // 12. Persister le RAV
-    await saveRavToDatabase(
-      isProfile ? ownerId : null,
-      isProfile ? null : ownerId,
-      remainingToLive,
-    )
+    await saveRavToDatabase(isProfile ? ownerId : null, isProfile ? null : ownerId, remainingToLive)
 
     return {
       availableBalance,

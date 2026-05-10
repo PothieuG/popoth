@@ -5,7 +5,7 @@ import {
   getGroupFinancialData,
   getRavFromDatabase,
   type FinancialData,
-} from '@/lib/financial-calculations'
+} from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 

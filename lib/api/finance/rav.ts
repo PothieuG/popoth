@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { getRavFromDatabase } from '@/lib/financial-calculations'
+import { getRavFromDatabase } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 
