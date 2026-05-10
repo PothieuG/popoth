@@ -5,6 +5,13 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseServer as typedSupabase } from '@/lib/supabase-server'
+import {
+  calculateAvailableCash,
+  calculateBudgetDeficit,
+  calculateBudgetSavings,
+  calculateRemainingToLiveGroup,
+  calculateRemainingToLiveProfile,
+} from '@/lib/finance/calc-rtl'
 import { EMPTY_FINANCIAL_DATA } from '@/lib/finance/constants'
 import type { BudgetSavings, FinancialData } from '@/lib/finance/types'
 
@@ -158,150 +165,17 @@ async function calculateIncomeCompensationGroup(groupId: string): Promise<number
   }
 }
 
-/**
- * Règle cash disponible (battleplan ligne 13-16):
- * "c'est l'argent disponible sur le compte bancaire à un temps T"
- * "c'est les réels entrées d'argent moins les réels dépenses"
- * "Ca peut être négatif"
- *
- * IMPORTANT: Cette fonction calcule le solde disponible en combinant:
- * - Le solde bancaire de base (éditable par l'utilisateur)
- * - Plus tous les revenus réels ajoutés
- * - Moins toutes les dépenses réelles ajoutées
- *
- * Formule: solde_disponible = solde_bancaire_base + revenus_réels - dépenses_réelles
- */
-export function calculateAvailableCash(
-  bankBalance: number,
-  realIncomes: number,
-  realExpenses: number,
-): number {
-  const result = bankBalance + realIncomes - realExpenses
-  console.log('💰 [calculateAvailableCash] Calcul du solde disponible:', {
-    bankBalance,
-    realIncomes,
-    realExpenses,
-    result,
-  })
-  return result
-}
-
-/**
- * CALCUL CORRECT du reste à vivre pour PROFILES selon les règles métier:
- * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
- *
- * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
- * NOTE: Les déficits des budgets (dépassements) sont maintenant soustraits du RAV
- */
-export async function calculateRemainingToLiveProfile(
-  totalIncomeContribution: number,
-  exceptionalIncomes: number,
-  estimatedBudgets: number,
-  exceptionalExpenses: number,
-  budgetDeficits: number = 0,
-): Promise<number> {
-  const remainingToLive =
-    totalIncomeContribution +
-    exceptionalIncomes -
-    estimatedBudgets -
-    exceptionalExpenses -
-    budgetDeficits
-  console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
-  console.log(`🔍 [DEBUG RAV PROFILE] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
-  console.log(`🔍 [DEBUG RAV PROFILE] - Contribution revenus: +${totalIncomeContribution}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] - Revenus exceptionnels: +${exceptionalIncomes}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] - Budgets estimés: -${estimatedBudgets}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] - Déficits des budgets: -${budgetDeficits}€`)
-  console.log(
-    `🔍 [DEBUG RAV PROFILE] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} - ${estimatedBudgets} - ${exceptionalExpenses} - ${budgetDeficits} = ${remainingToLive}€`,
-  )
-  console.log(`🔍 [DEBUG RAV PROFILE] RÉSULTAT FINAL: ${remainingToLive}€`)
-  console.log(`🔍 [DEBUG RAV PROFILE] ====================================`)
-  return remainingToLive
-}
-
-/**
- * CALCUL CORRECT du reste à vivre pour GROUPS selon les règles métier:
- * RAV = Revenus Estimés Non Utilisés + Revenus Réels Reçus + Revenus Exceptionnels + Contributions Groupe - Budgets Estimés - Dépenses Exceptionnelles - Déficits des Budgets
- *
- * NOTE: Les économies cumulées ont été SUPPRIMÉES de la formule à la demande utilisateur
- * NOTE: Les déficits des budgets (dépassements) sont maintenant soustraits du RAV
- */
-export async function calculateRemainingToLiveGroup(
-  totalIncomeContribution: number,
-  exceptionalIncomes: number,
-  totalGroupContributions: number,
-  estimatedBudgets: number,
-  exceptionalExpenses: number,
-  budgetDeficits: number = 0,
-): Promise<number> {
-  const remainingToLive =
-    totalIncomeContribution +
-    exceptionalIncomes +
-    totalGroupContributions -
-    estimatedBudgets -
-    exceptionalExpenses -
-    budgetDeficits
-  console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
-  console.log(`🔍 [DEBUG RAV GROUP] CALCUL DÉTAILLÉ DU RESTE À VIVRE:`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Contribution revenus: +${totalIncomeContribution}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Revenus exceptionnels: +${exceptionalIncomes}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Contributions groupe: +${totalGroupContributions}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Budgets estimés: -${estimatedBudgets}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Dépenses exceptionnelles: -${exceptionalExpenses}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] - Déficits des budgets: -${budgetDeficits}€`)
-  console.log(
-    `🔍 [DEBUG RAV GROUP] FORMULE: ${totalIncomeContribution} + ${exceptionalIncomes} + ${totalGroupContributions} - ${estimatedBudgets} - ${exceptionalExpenses} - ${budgetDeficits} = ${remainingToLive}€`,
-  )
-  console.log(`🔍 [DEBUG RAV GROUP] RÉSULTAT FINAL: ${remainingToLive}€`)
-  console.log(`🔍 [DEBUG RAV GROUP] ====================================`)
-  return remainingToLive
-}
-
-/**
- * Calcul des économies d'un budget (battleplan ligne 28):
- * "si je décide de budgété 200€ pour des courses pendant un mois et qu'en fait je ne dépense que 150€,
- * à la fin du mois, 50€ sera ajouté aux économies de ce budget"
- *
- * IMPORTANT: Les économies ne sont calculées QU'À LA FIN DU MOIS/PÉRIODE,
- * pas en temps réel pendant le mois en cours.
- * En temps réel = toujours 0 (car le mois n'est pas terminé)
- */
-export function calculateBudgetSavings(
-  estimatedAmount: number,
-  spentThisMonth: number,
-  isEndOfPeriod: boolean = false,
-): number {
-  // En temps réel pendant le mois : pas d'économies calculées
-  if (!isEndOfPeriod) {
-    return 0
-  }
-
-  // À la fin du mois seulement : calculer les vraies économies
-  return Math.max(0, estimatedAmount - spentThisMonth)
-}
-
-/**
- * Calcul du déficit d'un budget:
- * Si les dépenses réelles dépassent le budget estimé, le dépassement doit être soustrait du reste à vivre
- *
- * Formule: Déficit = MAX(0, Dépenses Réelles - Budget Estimé)
- *
- * Exemple:
- * - Budget Transport: 300€
- * - Dépensé: 450€
- * - Déficit: 150€ → Ces 150€ sont soustraits du reste à vivre
- */
-export function calculateBudgetDeficit(estimatedAmount: number, spentThisMonth: number): number {
-  const deficit = Math.max(0, spentThisMonth - estimatedAmount)
-  if (deficit > 0) {
-    console.log(
-      `⚠️ [Budget Deficit] Budget dépassé: ${spentThisMonth}€ dépensé sur ${estimatedAmount}€ → Déficit: ${deficit}€`,
-    )
-  }
-  return deficit
-}
+// Pure calc helpers moved to lib/finance/calc-rtl.ts at chantier I4 — flow
+// logs dropped per Lot 2 §6 règle d'or (DROP debug-only); deficit notice
+// migrated to logger.debug. Re-exported here for back-compat with the 17
+// importers until commit #9.
+export {
+  calculateAvailableCash,
+  calculateBudgetDeficit,
+  calculateBudgetSavings,
+  calculateRemainingToLiveGroup,
+  calculateRemainingToLiveProfile,
+} from './finance/calc-rtl'
 
 // ============================================
 // FONCTIONS DE RÉCUPÉRATION DE DONNÉES
