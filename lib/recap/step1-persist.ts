@@ -180,7 +180,12 @@ async function loadSnapshot(input: ProcessStep1Input): Promise<ProcessStep1Snaps
 // Decision application (I/O)
 // ---------------------------------------------------------------------------
 
-async function applyDecision(
+/**
+ * Apply the pure algorithm's decision to the database. Exported as
+ * testing surface (lib/recap/__tests__/step1-persist.test.ts) — production
+ * code goes through `processStep1()` and never calls this directly.
+ */
+export async function applyDecision(
   input: ProcessStep1Input,
   snapshot: ProcessStep1Snapshot,
   decision: ProcessStep1Decision,
