@@ -368,7 +368,6 @@ describe('Rounding tolerance — asymmetric > vs <=', () => {
     expect(d.gapResiduel).toBe(0.02)
     expect(d.isFullyBalanced).toBe(false)
   })
-
 })
 
 // ---------------------------------------------------------------------------
