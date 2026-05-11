@@ -31,6 +31,7 @@ const EXPECTED_RPCS = [
   'update_bank_balance',
   'update_budget_cumulated_savings',
   'transfer_from_piggy_to_budget',
+  'transfer_with_savings_debit',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'
