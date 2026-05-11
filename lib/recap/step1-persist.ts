@@ -35,6 +35,7 @@
 import { ROUNDING_TOLERANCE } from '@/lib/constants/finance'
 import type { Database } from '@/lib/database.types'
 import { getGroupFinancialData, getProfileFinancialData } from '@/lib/finance'
+import { transferWithSavingsDebit } from '@/lib/finance/budget-transfers'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { asContextFilter } from '@/lib/finance/context'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
@@ -298,51 +299,30 @@ async function applyDecision(
       })
     }
 
-    // ÉTAPE 2.4.2 — apply pre-decided 2nd-pass refloat operations. Note the
-    // L673 fix: cumulated_savings decrement now goes through the RPC instead
-    // of the raw SELECT-then-UPDATE pattern (mirror route.ts:673-679 → atomic
-    // updateBudgetCumulatedSavings).
+    // ÉTAPE 2.4.2 — apply pre-decided 2nd-pass refloat operations. Both the
+    // budget_transfers INSERT and the cumulated_savings debit go through
+    // `transferWithSavingsDebit`, which composes them in one Postgres
+    // transaction. Sprint Refactor-I5-followup-v2 (2026-05-11) replaced
+    // the prior two-step INSERT-then-RPC sequence to close an atomicity
+    // gap: a successful INSERT followed by a thrown RPC used to leave an
+    // orphaned audit-trail row claiming a debit that never happened.
+    // Fail-soft contract preserved — log + continue on any error.
     for (const op of decision.secondPassRefloatOps) {
       if (op.amount <= ROUNDING_TOLERANCE) continue
 
-      const payload = buildTransferPayload(input, {
-        from_budget_id: op.fromBudgetId,
-        to_budget_id: op.toBudgetId,
-        transfer_amount: op.amount,
-        transfer_reason: 'Renflouage déficit depuis économies cumulées (récap)',
-        transfer_date: new Date().toISOString().split('T')[0]!,
-      })
-      const { error: transferError } = await supabaseServer.from('budget_transfers').insert(payload)
-
-      if (transferError) {
-        // Fail-soft mirror route.ts:706-709
-        logger.warn('[process-step1 2.4.2] budget_transfers INSERT failed', {
-          step: '2.4.2.2',
-          error: transferError.message,
+      try {
+        await transferWithSavingsDebit(filter, {
           fromBudgetId: op.fromBudgetId,
           toBudgetId: op.toBudgetId,
           amount: op.amount,
         })
-        continue
-      }
-
-      try {
-        // L673 FIX: was a raw `update({ cumulated_savings: newSavings,
-        // updated_at: ... })`. Now uses the RPC (Sprint 0 / C3 atomic) so
-        // concurrent step1 invocations can't race on the same budget.
-        // The RPC sets `last_savings_update = NOW()` server-side
-        // (supabase/migrations/20260506000000_create_finance_rpcs.sql:120).
-        await updateBudgetCumulatedSavings(op.fromBudgetId, -op.amount)
       } catch (error) {
-        // The RPC enforces `cumulated_savings >= 0`. If it throws, the
-        // transfer was created but savings could not be debited — log and
-        // continue (the algorithm decided based on in-memory state which
-        // may have drifted from DB state if another process raced us).
-        logger.error('[process-step1 2.4.2] RPC updateBudgetCumulatedSavings failed', {
+        logger.warn('[process-step1 2.4.2] transferWithSavingsDebit failed', {
           step: '2.4.2.2',
           fromBudgetId: op.fromBudgetId,
+          toBudgetId: op.toBudgetId,
           amount: op.amount,
-          error,
+          error: error instanceof Error ? error.message : String(error),
         })
         continue
       }
