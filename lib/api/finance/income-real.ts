@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import FinancialLogger from '@/lib/financial-logger'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
@@ -38,17 +37,8 @@ export interface CreateRealIncomeEntryRequest {
  * Retourne les entrées d'argent de l'utilisateur ou de son groupe
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
-  const { log } = FinancialLogger.startOperation({
-    component: '/api/finance/income/real',
-    operation: 'fetch_real_income_entries',
-  })
-
   try {
-    log({
-      level: 'debug',
-      userId,
-      message: 'Session validated successfully',
-    })
+    logger.debug('[GET /api/finance/income/real] Session validated', { userId })
 
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
