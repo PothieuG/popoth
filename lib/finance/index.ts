@@ -14,6 +14,9 @@
  *   - @/lib/finance/snapshots             (snapshot dispatcher)
  *   - @/lib/finance/{piggy-bank,bank-balance,budget-savings,context}
  *     (Sprint 0 / C3 atomic RPC helpers)
+ *   - @/lib/finance/budget-transfers      (Sprint Refactor-I5-followup-v2
+ *     composite RPC for monthly recap step 2.4.2 — transfer + savings debit
+ *     in one Postgres transaction)
  */
 
 export {

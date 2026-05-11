@@ -716,6 +716,17 @@ export type Database = {
         }
         Returns: Json
       }
+      transfer_with_savings_debit: {
+        Args: {
+          p_amount: number
+          p_from_budget_id: string
+          p_group_id?: string
+          p_profile_id?: string
+          p_reason?: string
+          p_to_budget_id: string
+        }
+        Returns: Json
+      }
       update_bank_balance: {
         Args: { p_delta: number; p_group_id?: string; p_profile_id?: string }
         Returns: number
