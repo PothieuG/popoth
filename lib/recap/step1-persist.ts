@@ -74,6 +74,33 @@ function buildTransferPayload(
 // Public entry point
 // ---------------------------------------------------------------------------
 
+/**
+ * Process step 1 of the monthly recap (rééquilibrage).
+ *
+ * Pipeline: loadSnapshot → decideStep1Allocation (pure) → applyDecision (I/O).
+ * Each `applyDecision` RPC is atomic, but the pipeline itself is NOT
+ * transactional — there is no DB-level lock between the read (loadSnapshot)
+ * and the writes (applyDecision).
+ *
+ * ⚠️ CONCURRENCY EDGE CASE — known and accepted (Sprint Refactor-I5-followup,
+ * 2026-05-11). A concurrent double-invocation for the same user (e.g. fast
+ * network retry, curl, or devtools) can leave the DB in a partially-applied
+ * state: the first call's RPCs decrement piggy_bank / cumulated_savings,
+ * the second call (which loaded the same snapshot before the first call
+ * persisted) tries to apply the same delta, and the RPC enforces
+ * `>= 0` invariants → RAISE EXCEPTION → 500 to the second caller with no
+ * rollback of the inserts/RPCs already committed by either call.
+ *
+ * Protection today: the frontend `isSubmitting` flag in
+ * `components/monthly-recap/MonthlyRecapStep1.tsx` disables the submit
+ * button during the request. This covers user double-click but NOT network
+ * retries / curl / devtools.
+ *
+ * If a production incident shows half-applied state, prioritise implementing
+ * server-side idempotency (header `Idempotency-Key` + cache table) or a
+ * `pg_try_advisory_xact_lock(hashtext(user_id))` rather than client retry.
+ * See `prompt/prompt-07-deep-dive-recap-algorithm-v2.md` Axe 3 Options A/B.
+ */
 export async function processStep1(input: ProcessStep1Input): Promise<ProcessStep1Output> {
   const snapshot = await loadSnapshot(input)
   const decision = decideStep1Allocation(snapshot)
