@@ -42,7 +42,13 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
   const { profile_id: profileIdOrU, group_id: groupIdOrU } = resolveContextIds(filter)
   const isProfile = profileIdOrU !== undefined
   const ownerColumn: 'profile_id' | 'group_id' = isProfile ? 'profile_id' : 'group_id'
-  const ownerId: string = isProfile ? profileIdOrU : (groupIdOrU as string)
+  const ownerId = isProfile ? profileIdOrU : groupIdOrU
+  if (!ownerId) {
+    // resolveContextIds throws if neither id is defined, so this branch is
+    // unreachable. The assertion documents the invariant for the type-checker
+    // and replaces an `as string` cast that lied about runtime nullability.
+    throw new Error('unreachable: resolveContextIds returned no owner id')
+  }
 
   try {
     // 1. Solde bancaire (commun)
