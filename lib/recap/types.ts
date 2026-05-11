@@ -77,16 +77,6 @@ export type AllocationOperation =
       }
     }
   | {
-      step: '2.3'
-      type: 'consume_surplus'
-      details: {
-        budget_id: string
-        budget_name: string
-        amount: number
-        proportion: number
-      }
-    }
-  | {
       step: '2.3.1'
       type: 'transfer_to_deficit'
       details: {

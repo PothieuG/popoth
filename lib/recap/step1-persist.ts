@@ -217,34 +217,6 @@ async function applyDecision(
           }`,
         )
       }
-    } else if (op.step === '2.3' && op.type === 'consume_surplus') {
-      // Mirror route.ts:432-449 verbatim: to_budget_id = null encodes "surplus
-      // used to cover the gap" (no destination budget — the money is consumed,
-      // not transferred). The generated type lies about nullability (the
-      // baseline schema declares to_budget_id NOT NULL, but the production
-      // route inserts null here without errors because the constraint is
-      // enforced only at SELECT time via the schema cache — INSERT bypasses).
-      // Either way, the original route hits the fail-soft `continue` if the
-      // INSERT errors, so we preserve that behavior. Cast to satisfy TS.
-      const payload = buildTransferPayload(input, {
-        from_budget_id: op.details.budget_id,
-        to_budget_id: null as unknown as string,
-        transfer_amount: op.details.amount,
-        transfer_reason: 'Surplus utilisé pour combler gap (récap mensuel)',
-        transfer_date: new Date().toISOString().split('T')[0]!,
-      })
-      const { error: transferError } = await supabaseServer.from('budget_transfers').insert(payload)
-      if (transferError) {
-        // Fail-soft mirror route.ts:445-449: log and continue, partial writes
-        // are tolerated rather than aborting the whole rebalance.
-        logger.warn('[process-step1 2.3] budget_transfers INSERT failed', {
-          step: '2.3',
-          error: transferError.message,
-          details: op.details,
-        })
-        continue
-      }
-      operationsPerformed.push(op)
     } else if (op.step === '2.3.1' && op.type === 'transfer_to_deficit') {
       const payload = buildTransferPayload(input, {
         from_budget_id: null,
@@ -283,9 +255,7 @@ async function applyDecision(
         await updatePiggyBank(filter, newDifference)
       } catch (error) {
         throw new Error(
-          `Erreur mise à jour tirelire: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `Erreur mise à jour tirelire: ${error instanceof Error ? error.message : String(error)}`,
         )
       }
       const oldPiggy = piggyBankFinal

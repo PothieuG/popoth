@@ -20,20 +20,22 @@
  *  CAS 2 — difference < 0 (déficit):
  *    2.1. Tirelire préservée pour étape 2 (no-op)
  *    2.2. Utiliser les économies cumulées proportionnellement
- *    2.3. Consommer le surplus proportionnellement
  *    2.3.1. Renflouer les budgets déficitaires depuis les ressources utilisées
  *    2.4. (post-refetch in the persist layer) si excédent résiduel → tirelire
  *    2.4.2. Si budgets en déficit restants + économies restantes → renflouer
  *
- * ORDRE D'UTILISATION DES RESSOURCES (cf. route header comment):
- *   Tirelire (préservée jusqu'à l'étape 2) → Économies → Surplus
+ * (ÉTAPE 2.3 "consommer le surplus" supprimée Sprint Refactor-I5-followup
+ *  2026-05-11 : émettait des INSERT budget_transfers avec to_budget_id=null
+ *  qui violaient NOT NULL et étaient silently avalés par fail-soft. Dead code
+ *  en prod, 0 row valide jamais émise.)
+ *
+ * ORDRE D'UTILISATION DES RESSOURCES : Tirelire (préservée jusqu'à étape 2)
+ *   → Économies cumulées.
  *
  * TOLÉRANCE D'ARRONDI (ROUNDING_TOLERANCE = 0.01€) — asymétrie volontaire :
- *   - `gap > ROUNDING_TOLERANCE` (strict) : décide de SAUTER une étape
- *     (ÉTAPE 2.3 skipped if gap is already small enough). Mirror route L406.
  *   - `gap <= ROUNDING_TOLERANCE` (≤) : décide que l'équilibre EST atteint
  *     (`is_fully_balanced = true`). Mirror route L566/L762.
- *   Renverser cette asymétrie crée des "presque-équilibres" qui fonts du flip-
+ *   Renverser cette asymétrie crée des "presque-équilibres" qui font du flip-
  *   flop entre is_fully_balanced=false et l'auto-balance.
  */
 
@@ -115,7 +117,6 @@ function decideCase2(
   // Working copies — l'algorithme mute son COPY local mais jamais le snapshot
   // input. Permet d'enchaîner les sous-étapes en réutilisant le state évolutif.
   const workingBudgets: BudgetAnalysis[] = budgets.map((b) => ({ ...b }))
-  const budgetsWithSurplus = workingBudgets.filter((b) => b.surplus > 0)
   const budgetsWithDeficit = workingBudgets.filter((b) => b.deficit > 0)
   const budgetsWithSavings = workingBudgets.filter((b) => b.cumulated_savings > 0)
 
@@ -159,42 +160,14 @@ function decideCase2(
     }
   }
 
-  // ÉTAPE 2.3 — consommer le surplus proportionnellement.
-  // Note: tolérance haute (`> ROUNDING_TOLERANCE`) pour éviter d'émettre des
-  // micro-ops < 1 centime qui pollueraient operations_performed.
-  if (gap > ROUNDING_TOLERANCE) {
-    const totalSurplus = budgetsWithSurplus.reduce((s, b) => s + b.surplus, 0)
-    if (totalSurplus > 0) {
-      const surplusToConsume = Math.min(gap, totalSurplus)
-      for (const surplusBudget of budgetsWithSurplus) {
-        if (surplusBudget.surplus > 0 && gap > 0) {
-          const proportion = surplusBudget.surplus / totalSurplus
-          const amountToConsume = Math.min(
-            proportion * surplusToConsume,
-            surplusBudget.surplus,
-            gap,
-          )
-          operations.push({
-            step: '2.3',
-            type: 'consume_surplus',
-            details: {
-              budget_id: surplusBudget.id,
-              budget_name: surplusBudget.name,
-              amount: amountToConsume,
-              proportion,
-            },
-          })
-          surplusBudget.surplus -= amountToConsume
-          gap -= amountToConsume
-        }
-      }
-    }
-  }
+  // ÉTAPE 2.3 — supprimée (Sprint Refactor-I5-followup, 2026-05-11) : le step
+  // consume_surplus émettait des INSERT budget_transfers avec to_budget_id=null
+  // qui violaient NOT NULL et étaient avalés par fail-soft. Dead code en prod.
 
   // ÉTAPE 2.3.1 — renflouer les budgets déficitaires depuis les ressources
   // utilisées. Le `ressourcesUtilisees` est ce qu'on a réellement pu couvrir
-  // (gapInitial - gap résiduel). Si totalDeficit > ressourcesUtilisees, on
-  // ne refloue que partiellement → des deficits subsistent en mémoire et
+  // (gapInitial - gap résiduel après 2.2). Si totalDeficit > ressourcesUtilisees,
+  // on ne refloue que partiellement → des deficits subsistent en mémoire et
   // ÉTAPE 2.4.2 prend le relais avec les économies restantes.
   const ressourcesUtilisees = gapInitial - gap
   const totalDeficit = budgetsWithDeficit.reduce((s, b) => s + b.deficit, 0)

@@ -68,10 +68,7 @@ describe('CAS 1 — excédent (difference >= 0)', () => {
     const snap = makeSnapshot({
       ravActuel: 700,
       ravBudgetaire: 500,
-      budgetAnalyses: [
-        makeBudget({ id: 'a', deficit: 50 }),
-        makeBudget({ id: 'b', surplus: 30 }),
-      ],
+      budgetAnalyses: [makeBudget({ id: 'a', deficit: 50 }), makeBudget({ id: 'b', surplus: 30 })],
     })
     const d = decideStep1Allocation(snap)
     expect(d.case).toBe('excedent')
@@ -123,12 +120,8 @@ describe('CAS 2 ÉTAPE 2.2 — savings used proportionally', () => {
     // 200 / 500 = 40% from 'a' (80€), 60% from 'b' (120€)
     const useSavingsOps = d.operations.filter((o) => o.step === '2.2')
     expect(useSavingsOps).toHaveLength(2)
-    const aOp = useSavingsOps.find(
-      (o) => o.type === 'use_savings' && o.details.budget_id === 'a',
-    )
-    const bOp = useSavingsOps.find(
-      (o) => o.type === 'use_savings' && o.details.budget_id === 'b',
-    )
+    const aOp = useSavingsOps.find((o) => o.type === 'use_savings' && o.details.budget_id === 'a')
+    const bOp = useSavingsOps.find((o) => o.type === 'use_savings' && o.details.budget_id === 'b')
     expect(aOp?.type === 'use_savings' && aOp.details.amount_used).toBeCloseTo(80)
     expect(bOp?.type === 'use_savings' && bOp.details.amount_used).toBeCloseTo(120)
     expect(d.gapResiduel).toBeCloseTo(0)
@@ -136,7 +129,7 @@ describe('CAS 2 ÉTAPE 2.2 — savings used proportionally', () => {
     expect(d.newBudgetSavings).toEqual({ a: expect.closeTo(120), b: expect.closeTo(180) })
   })
 
-  it('savings < gap: gap reduced but not zeroed; 2.3 ops follow', () => {
+  it('savings < gap: gap reduced but not zeroed; surplus no longer consumed', () => {
     const snap = makeSnapshot({
       ravActuel: -500,
       ravBudgetaire: 0,
@@ -147,11 +140,13 @@ describe('CAS 2 ÉTAPE 2.2 — savings used proportionally', () => {
     })
     const d = decideStep1Allocation(snap)
     expect(d.case).toBe('deficit')
-    // 2.2 consumes 200 → gap = 300
-    // 2.3 consumes 300 from surplus 400 → gap = 0
+    // 2.2 consumes 200 → gap = 300 (post-Sprint Refactor-I5-followup: 2.3 dropped,
+    // surplus is no longer consumed, gap residuel stays 300, isFullyBalanced=false).
     const step22 = d.operations.filter((o) => o.step === '2.2')
     expect(step22).toHaveLength(1)
     expect(step22[0]?.type === 'use_savings' && step22[0].details.amount_used).toBeCloseTo(200)
+    expect(d.gapResiduel).toBeCloseTo(300)
+    expect(d.isFullyBalanced).toBe(false)
   })
 
   it('no savings budgets: 2.2 emits nothing, gap untouched', () => {
@@ -199,64 +194,6 @@ describe('CAS 2 ÉTAPE 2.2 — savings used proportionally', () => {
 })
 
 // ---------------------------------------------------------------------------
-// CAS 2 ÉTAPE 2.3 — surplus consumed proportionally
-// ---------------------------------------------------------------------------
-describe('CAS 2 ÉTAPE 2.3 — surplus consumed proportionally', () => {
-  it('surplus >= remaining gap (no savings): full gap covered by surplus', () => {
-    const snap = makeSnapshot({
-      ravActuel: -200,
-      ravBudgetaire: 0,
-      budgetAnalyses: [
-        makeBudget({ id: 'a', surplus: 100 }),
-        makeBudget({ id: 'b', surplus: 200 }),
-      ],
-    })
-    const d = decideStep1Allocation(snap)
-    const step23 = d.operations.filter((o) => o.step === '2.3')
-    // 100/300=33.3% × 200 → ~66.67 from a, 200/300=66.7% × 200 → ~133.33 from b
-    expect(step23).toHaveLength(2)
-    const total = step23.reduce(
-      (s, o) => s + (o.type === 'consume_surplus' ? o.details.amount : 0),
-      0,
-    )
-    expect(total).toBeCloseTo(200)
-  })
-
-  it('surplus < remaining gap: surplus exhausted, gap residual > 0', () => {
-    const snap = makeSnapshot({
-      ravActuel: -300,
-      ravBudgetaire: 0,
-      budgetAnalyses: [makeBudget({ id: 'sur', surplus: 100 })],
-    })
-    const d = decideStep1Allocation(snap)
-    expect(d.gapResiduel).toBeCloseTo(200)
-    expect(d.isFullyBalanced).toBe(false)
-  })
-
-  it('no surplus budgets: 2.3 emits nothing', () => {
-    const snap = makeSnapshot({
-      ravActuel: -50,
-      ravBudgetaire: 0,
-      budgetAnalyses: [makeBudget({ id: 'a' })],
-    })
-    const d = decideStep1Allocation(snap)
-    expect(d.operations.filter((o) => o.step === '2.3')).toHaveLength(0)
-  })
-
-  it('single surplus budget: takes 100% proportion of needed amount', () => {
-    const snap = makeSnapshot({
-      ravActuel: -50,
-      ravBudgetaire: 0,
-      budgetAnalyses: [makeBudget({ id: 'only', surplus: 200 })],
-    })
-    const d = decideStep1Allocation(snap)
-    const op = d.operations.find((o) => o.step === '2.3')
-    expect(op?.type === 'consume_surplus' && op.details.amount).toBeCloseTo(50)
-    expect(op?.type === 'consume_surplus' && op.details.proportion).toBe(1)
-  })
-})
-
-// ---------------------------------------------------------------------------
 // CAS 2 ÉTAPE 2.3.1 — deficit refloat proportional
 // ---------------------------------------------------------------------------
 describe('CAS 2 ÉTAPE 2.3.1 — deficit refloat proportional', () => {
@@ -274,9 +211,9 @@ describe('CAS 2 ÉTAPE 2.3.1 — deficit refloat proportional', () => {
     expect(refloat?.type === 'transfer_to_deficit' && refloat.details.transfer_amount).toBeCloseTo(
       100,
     )
-    expect(refloat?.type === 'transfer_to_deficit' && refloat.details.deficit_remaining).toBeCloseTo(
-      0,
-    )
+    expect(
+      refloat?.type === 'transfer_to_deficit' && refloat.details.deficit_remaining,
+    ).toBeCloseTo(0)
   })
 
   it('partial refloat by proportion across multiple deficit budgets', () => {
@@ -432,22 +369,6 @@ describe('Rounding tolerance — asymmetric > vs <=', () => {
     expect(d.isFullyBalanced).toBe(false)
   })
 
-  it('skip-decision asymmetry: gap > tolerance fires 2.3, gap <= tolerance skips it', () => {
-    // Construct a scenario where 2.2 leaves gap = 0.005 → 2.3 should be SKIPPED
-    // even though surplus exists (mirror route L406 `gap > ROUNDING_TOLERANCE`).
-    const snap = makeSnapshot({
-      ravActuel: -100.005,
-      ravBudgetaire: 0,
-      budgetAnalyses: [
-        makeBudget({ id: 'sav', cumulated_savings: 100 }),
-        makeBudget({ id: 'sur', surplus: 50 }),
-      ],
-    })
-    const d = decideStep1Allocation(snap)
-    // 2.2 takes 100 → gap = 0.005
-    // 2.3 is skipped because 0.005 < tolerance → no 2.3 op
-    expect(d.operations.filter((o) => o.step === '2.3')).toHaveLength(0)
-  })
 })
 
 // ---------------------------------------------------------------------------
@@ -491,9 +412,9 @@ describe('Edge cases', () => {
     })
     const d = decideStep1Allocation(snap)
     expect(d.newPiggyBank).toBe(1e9 + 9e9) // 1e10
-    expect(d.operations[0]?.type === 'excedent_to_piggy_bank' && d.operations[0].details.excedent_amount).toBe(
-      9e9,
-    )
+    expect(
+      d.operations[0]?.type === 'excedent_to_piggy_bank' && d.operations[0].details.excedent_amount,
+    ).toBe(9e9)
   })
 
   it('all-zero amounts produce CAS 1 with no piggy push', () => {
@@ -549,28 +470,24 @@ describe('Determinism', () => {
 // Snapshot test: locks operations_performed shape + ordering for one scenario
 // ---------------------------------------------------------------------------
 describe('Operations ordering — snapshot lock', () => {
-  it('CAS 2 with full chain (2.2 + 2.3 + 2.3.1 + 2.4.2) emits ops in the right order', () => {
-    // gap=400, savings=300 (partial coverage in 2.2), surplus=200 (covers
-    // remaining 100 in 2.3), deficit=200 (will be refloated in 2.3.1 from
-    // ressourcesUtilisees=400, then 2.4.2 won't fire because savings are
-    // exhausted).
+  it('CAS 2 with chain (2.2 + 2.3.1) emits ops in the right order', () => {
+    // gap=100, savings=400 (covers gap fully in 2.2), deficit=200 (will be
+    // partially refloated in 2.3.1 from ressourcesUtilisees=100).
+    // Note: 2.4.2 ops live in `secondPassRefloatOps`, not in `operations`.
+    // (Step 2.3 "consume_surplus" was dropped Sprint Refactor-I5-followup.)
     const snap = makeSnapshot({
-      ravActuel: -400,
+      ravActuel: -100,
       ravBudgetaire: 0,
       budgetAnalyses: [
         makeBudget({ id: 'def', deficit: 200 }),
-        makeBudget({ id: 'sav', cumulated_savings: 300 }),
-        makeBudget({ id: 'sur', surplus: 200 }),
+        makeBudget({ id: 'sav', cumulated_savings: 400 }),
       ],
     })
     const d = decideStep1Allocation(snap)
-    // Ordering: 2.2 ops, then 2.3 ops, then 2.3.1 ops.
     const steps = d.operations.map((o) => o.step)
     const idx22 = steps.indexOf('2.2')
-    const idx23 = steps.indexOf('2.3')
     const idx231 = steps.indexOf('2.3.1')
     expect(idx22).toBeGreaterThanOrEqual(0)
-    expect(idx23).toBeGreaterThan(idx22)
-    expect(idx231).toBeGreaterThan(idx23)
+    expect(idx231).toBeGreaterThan(idx22)
   })
 })
