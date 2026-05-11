@@ -389,6 +389,242 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/process-step1 — characteriz
   }, 60_000)
 
   // ------------------------------------------------------------------------
+  // CAS 2 — déficit with 2nd-pass refloat from remaining savings (ÉTAPE 2.4.2)
+  // Exercises the L673 fix: cumulated_savings decrement via the atomic
+  // updateBudgetCumulatedSavings RPC instead of raw SELECT-then-UPDATE.
+  // ------------------------------------------------------------------------
+  it('CAS 2 ÉTAPE 2.4.2: 2nd-pass refloat from remaining savings (exercises L673 RPC fix)', async () => {
+    await resetUserFinancialState()
+
+    // Math (validated in plan):
+    //   estimated_income=100, real_income=600 linked → incomeContribution=600
+    //   3 deficit budgets (each: estimated=50, real_expense=250 amount_from_budget=250) → deficit=200 each
+    //   3 savings budgets (each: estimated=50, cumulated_savings=100, spend=50) → surplus=0, deficit=0
+    //   totalEstimatedBudgets=300, totalDeficit=600, totalSavings=300
+    //   ravBudgetaire = 100 - 300 = -200
+    //   remainingToLive = 600 - 300 - 600 = -300
+    //   difference = -300 - (-200) = -100 → gap=100 < totalSavings=300 ✓
+    //
+    // Trace:
+    //   2.2: consume 100 from savings (33.33 each) → gap=0, savings_memory each=66.67
+    //   2.3 dropped (Sprint Refactor-I5-followup)
+    //   2.3.1: ressourcesUtilisees=100, totalDeficit=600, montantARenflouer=100.
+    //          Refloat 33.33 per deficit → deficit_memory each = 166.67 (PARTIAL).
+    //   2.4.1: skipped (newDifference still negative after refetch).
+    //   2.4.2: isFullyBalanced=true ✓, 3 deficit_memory > 0 ✓, 3 savings_memory > 0 ✓ → FIRES.
+
+    await admin.from('bank_balances').insert({
+      profile_id: testUserId,
+      group_id: null,
+      balance: 1000,
+    })
+    await admin.from('piggy_bank').insert({
+      profile_id: testUserId,
+      group_id: null,
+      amount: 0,
+    })
+    const { data: incomeRow, error: incomeErr } = await admin
+      .from('estimated_incomes')
+      .insert({
+        profile_id: testUserId,
+        group_id: null,
+        name: 'cas2-2.4.2 income',
+        estimated_amount: 100,
+      })
+      .select('id')
+      .single()
+    if (incomeErr || !incomeRow) throw incomeErr ?? new Error('estimated_income returned no id')
+    const estimatedIncomeId = incomeRow.id
+
+    // Link a real_income to the estimated income → incomeContribution uses real
+    // (= 600). See lib/finance/income-compensation.ts:51-57.
+    const todayIso = new Date().toISOString().split('T')[0]!
+    await admin.from('real_income_entries').insert({
+      profile_id: testUserId,
+      group_id: null,
+      amount: 600,
+      description: 'cas2-2.4.2 real income',
+      entry_date: todayIso,
+      estimated_income_id: estimatedIncomeId,
+      is_exceptional: false,
+    })
+
+    // 3 deficit budgets + 3 savings budgets, all estimated=50.
+    const { data: budgets } = await admin
+      .from('estimated_budgets')
+      .insert([
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'def-A',
+          estimated_amount: 50,
+          cumulated_savings: 0,
+        },
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'def-B',
+          estimated_amount: 50,
+          cumulated_savings: 0,
+        },
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'def-C',
+          estimated_amount: 50,
+          cumulated_savings: 0,
+        },
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'sav-A',
+          estimated_amount: 50,
+          cumulated_savings: 100,
+        },
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'sav-B',
+          estimated_amount: 50,
+          cumulated_savings: 100,
+        },
+        {
+          profile_id: testUserId,
+          group_id: null,
+          name: 'sav-C',
+          estimated_amount: 50,
+          cumulated_savings: 100,
+        },
+      ])
+      .select('id, name')
+    expect(budgets).toHaveLength(6)
+    const idByName = (name: string) => budgets!.find((b) => b.name === name)!.id
+    const defAId = idByName('def-A')
+    const defBId = idByName('def-B')
+    const defCId = idByName('def-C')
+    const savAId = idByName('sav-A')
+    const savBId = idByName('sav-B')
+    const savCId = idByName('sav-C')
+
+    // Spend 250 on each deficit budget → deficit=200 each (estimated=50, spent=250).
+    // Spend 50 on each savings budget → no deficit, no surplus, no impact on savings.
+    // amount_from_budget MUST be set explicit (DB default = 0 breaks deficit calc).
+    await admin.from('real_expenses').insert([
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 250,
+        amount_from_budget: 250,
+        description: 'def-A overspend',
+        expense_date: todayIso,
+        estimated_budget_id: defAId,
+        is_exceptional: false,
+      },
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 250,
+        amount_from_budget: 250,
+        description: 'def-B overspend',
+        expense_date: todayIso,
+        estimated_budget_id: defBId,
+        is_exceptional: false,
+      },
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 250,
+        amount_from_budget: 250,
+        description: 'def-C overspend',
+        expense_date: todayIso,
+        estimated_budget_id: defCId,
+        is_exceptional: false,
+      },
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 50,
+        amount_from_budget: 50,
+        description: 'sav-A spent',
+        expense_date: todayIso,
+        estimated_budget_id: savAId,
+        is_exceptional: false,
+      },
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 50,
+        amount_from_budget: 50,
+        description: 'sav-B spent',
+        expense_date: todayIso,
+        estimated_budget_id: savBId,
+        is_exceptional: false,
+      },
+      {
+        profile_id: testUserId,
+        group_id: null,
+        amount: 50,
+        amount_from_budget: 50,
+        description: 'sav-C spent',
+        expense_date: todayIso,
+        estimated_budget_id: savCId,
+        is_exceptional: false,
+      },
+    ])
+
+    const response = await POST(buildRequest({ context: 'profile' }, testToken))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as Record<string, unknown>
+
+    expect(body.case).toBe('deficit')
+    expect(body.is_fully_balanced).toBe(true)
+    expect(typeof body.gap_residuel).toBe('number')
+    expect(body.gap_residuel as number).toBeLessThanOrEqual(0.01)
+
+    // At least 1 op step '2.4.2.2' must fire — this is the L673 RPC path.
+    const ops = body.operations_performed as Array<{ step: string; type: string }>
+    const refloatOps = ops.filter((o) => o.step === '2.4.2.2' && o.type === 'refloat_from_savings')
+    expect(refloatOps.length).toBeGreaterThanOrEqual(1)
+
+    // DB side effect: budget_transfers must contain
+    //   (a) 3 rows from=null, to ∈ {defA, defB, defC}  (étape 2.3.1)
+    //   (b) >= 1 row from ∈ {savA, savB, savC}, to ∈ {defA, defB, defC}  (étape 2.4.2)
+    const { data: transfers } = await admin
+      .from('budget_transfers')
+      .select('from_budget_id, to_budget_id, transfer_amount')
+      .eq('profile_id', testUserId)
+    expect(transfers).toBeTruthy()
+    const deficitIds = new Set([defAId, defBId, defCId])
+    const savingsIds = new Set([savAId, savBId, savCId])
+    const refloat231 = transfers!.filter(
+      (t) => t.from_budget_id === null && deficitIds.has(t.to_budget_id!),
+    )
+    const refloat242 = transfers!.filter(
+      (t) =>
+        t.from_budget_id !== null &&
+        savingsIds.has(t.from_budget_id!) &&
+        deficitIds.has(t.to_budget_id!),
+    )
+    expect(refloat231.length).toBeGreaterThanOrEqual(1)
+    expect(refloat242.length).toBeGreaterThanOrEqual(1)
+
+    // DB side effect: at least one savings budget has been decremented via
+    // the updateBudgetCumulatedSavings RPC. After 2.2 each savings budget was
+    // at 66.67; after 2.4.2 at least one further decrement should have fired.
+    const { data: savingsBudgetsAfter } = await admin
+      .from('estimated_budgets')
+      .select('id, cumulated_savings')
+      .in('id', [savAId, savBId, savCId])
+    expect(savingsBudgetsAfter).toBeTruthy()
+    const allDecremented = savingsBudgetsAfter!.every((b) => Number(b.cumulated_savings) < 100)
+    expect(allDecremented).toBe(true)
+    const someBelowPostStep22 = savingsBudgetsAfter!.some(
+      (b) => Number(b.cumulated_savings) < 66.66,
+    )
+    expect(someBelowPostStep22).toBe(true)
+  }, 60_000)
+
+  // ------------------------------------------------------------------------
   // Validation — 400 invalid body
   // ------------------------------------------------------------------------
   it('returns 400 on invalid context value', async () => {
