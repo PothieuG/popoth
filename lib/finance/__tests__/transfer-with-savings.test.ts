@@ -153,7 +153,10 @@ describe.skipIf(!ENABLED)('transfer_with_savings_debit (Sprint Refactor-I5-follo
     await deleteAllTransfers()
 
     await expect(
-      transferWithSavingsDebit({ profile_id: testUserId }, { fromBudgetId, toBudgetId, amount: 50 }),
+      transferWithSavingsDebit(
+        { profile_id: testUserId },
+        { fromBudgetId, toBudgetId, amount: 50 },
+      ),
     ).rejects.toThrow(/negative|cumulated_savings/i)
 
     // Savings unchanged (RPC raised before/at the savings UPDATE)

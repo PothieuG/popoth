@@ -318,9 +318,7 @@ describe('applyDecision — CAS 2 (déficit)', () => {
     expect(transferMod.transferWithSavingsDebit).toHaveBeenCalledTimes(3)
     // Only the two successful ones land in operations_performed
     expect(output.operations_performed).toHaveLength(2)
-    expect(
-      output.operations_performed.every((op) => op.step === '2.4.2.2'),
-    ).toBe(true)
+    expect(output.operations_performed.every((op) => op.step === '2.4.2.2')).toBe(true)
     const recordedAmounts = output.operations_performed
       .filter((op) => op.step === '2.4.2.2')
       .map((op) => (op.type === 'refloat_from_savings' ? op.details.amount : -1))

@@ -133,12 +133,12 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 **Tests gated** (la suite skip sans la variable, donc CI standard reste rapide) :
 
 ```bash
-SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run   # rpc-concurrency.test.ts
+SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run   # rpc-concurrency.test.ts + transfer-with-savings.test.ts (Sprint Refactor-I5-followup-v2 — 4 cas atomicité atomic-RPC + concurrent invariant)
 SUPABASE_RLS_TESTS=1            pnpm test:run   # rls-isolation.test.ts
 SUPABASE_API_TESTS=1            pnpm test:run   # api-regressions.test.ts + with-auth.test.ts
 SUPABASE_TRIGGER_TESTS=1        pnpm test:run   # trigger-behavior.test.ts (Sprint Audit-Functions-v2 / B2)
 SUPABASE_FINANCE_TESTS=1        pnpm test:run   # financial-data.test.ts (Sprint Refactor-I4 follow-up)
-SUPABASE_RECAP_TESTS=1          pnpm test:run   # process-step1/__tests__/route.integration.test.ts (Sprint Refactor-I5)
+SUPABASE_RECAP_TESTS=1          pnpm test:run   # process-step1/__tests__/route.integration.test.ts (Sprint Refactor-I5 — 6 cas post Sprint Refactor-I5-followup couvrant le path 2.4.2 atomique)
 ```
 
 ---
@@ -191,6 +191,7 @@ lib/
     piggy-bank.ts          # updatePiggyBank, transferFromPiggyToBudget
     bank-balance.ts        # updateBankBalance
     budget-savings.ts      # updateBudgetCumulatedSavings
+    budget-transfers.ts    # ✅ Sprint Refactor-I5-followup-v2 — transferWithSavingsDebit (composite RPC : INSERT budget_transfers + debit cumulated_savings en une tx Postgres)
     # Sprint Refactor-I4 (2026-05-11) — modules extraits de l'ex-god file
     types.ts               # FinancialData, BudgetSavings interfaces
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)
@@ -202,13 +203,13 @@ lib/
     snapshots.ts           # saveRemainingToLiveSnapshot — fail-soft Promise<boolean>, dispatcher + private inserter via ContextFilter
     index.ts               # barrel re-export — `import { ... } from '@/lib/finance'`
     __tests__/             # rpc-concurrency, rls-isolation (gated) + calc-rtl (19 cas pure-unit) + snapshots (5 cas mocked supabase)
-  recap/                   # ✅ Sprint Refactor-Architecture (check-status) + Sprint Refactor-I5 (step1 split)
+  recap/                   # ✅ Sprint Refactor-Architecture (check-status) + Sprint Refactor-I5 (step1 split) + Sprint Refactor-I5-followup-v2 (atomic 2.4.2)
     check-status.ts        # ✅ checkRecapStatus(userId, context) Edge-safe — appelé directement par middleware.ts ET la route status (Sprint Refactor-Architecture)
-    types.ts               # ✅ Sprint Refactor-I5 — ProcessStep1Input/Snapshot/Decision/Output + BudgetAnalysis + AllocationOperation discriminated union
-    step1-algorithm.ts     # ✅ Sprint Refactor-I5 — decideStep1Allocation(snapshot) pure (0 I/O, 0 console, immutable, sort by id pour déterminisme). 292 LOC
-    step1-persist.ts       # ✅ Sprint Refactor-I5 — processStep1(input) orchestrateur I/O. Fix race L673 via updateBudgetCumulatedSavings RPC atomique. 396 LOC
+    types.ts               # ✅ Sprint Refactor-I5 — ProcessStep1Input/Snapshot/Decision/Output + BudgetAnalysis + AllocationOperation discriminated union (5 membres post Sprint Refactor-I5-followup)
+    step1-algorithm.ts     # ✅ Sprint Refactor-I5 — decideStep1Allocation(snapshot) pure (0 I/O, 0 console, immutable, sort by id pour déterminisme). ~260 LOC post Sprint Refactor-I5-followup
+    step1-persist.ts       # ✅ Sprint Refactor-I5 — processStep1(input) orchestrateur I/O + applyDecision exporté comme surface de test (Sprint Refactor-I5-followup-v2). Fix race L673 via updateBudgetCumulatedSavings RPC atomique ; étape 2.4.2 atomique via transferWithSavingsDebit (deux appels fail-soft → un seul). ~350 LOC post Sprint Refactor-I5-followup-v2
     index.ts               # ✅ Sprint Refactor-I5 — barrel re-export
-    __tests__/             # ✅ step1-algorithm.test.ts — 33 cas pure-unit non-gated couvrant CAS 1, CAS 2 (2.2/2.3/2.3.1/2.4.2), tolérance asymétrique, edge cases, déterminisme
+    __tests__/             # ✅ step1-algorithm.test.ts — 28 cas pure-unit non-gated post Sprint Refactor-I5-followup ; ✅ step1-persist.test.ts — 8 cas mocked non-gated (Sprint Refactor-I5-followup-v2) couvrant CAS 1/2, 2.4.2 happy + fail-soft, 2.2 throw, 2.3.1 INSERT fail-soft, isFullyBalanced edge cases
   schemas/                 # ✅ Sprint Refactor-I5 — Zod schemas API (catalyseur chantier 07.8)
     recap.ts               # processStep1BodySchema (1er schema)
   api/
@@ -252,7 +253,7 @@ flowchart LR
     JWT[(cookie session<br/>JWT signé)]
     AnonClient[supabase-client.ts<br/>anon key — RLS active]
     ServerClient[supabase-server.ts<br/>service_role — RLS bypass]
-    RPC[RPC atomiques<br/>update_piggy_bank_amount<br/>update_bank_balance<br/>update_budget_cumulated_savings<br/>transfer_from_piggy_to_budget]
+    RPC[RPC atomiques<br/>update_piggy_bank_amount<br/>update_bank_balance<br/>update_budget_cumulated_savings<br/>transfer_from_piggy_to_budget<br/>transfer_with_savings_debit]
     DB[(PostgreSQL<br/>Supabase)]
 
     Browser -->|hooks/| AnonClient
@@ -268,7 +269,7 @@ flowchart LR
 **Points-clés** :
 
 - Deux clients Supabase coexistent. Le **server** (`supabase-server.ts`) bypass RLS, utilisé par toutes les routes API. Le **browser** (`supabase-client.ts`) est soumis à RLS et utilisé uniquement par les hooks. Les failles RLS s'exploitent via le browser, pas le server.
-- Les **écritures sur les invariants financiers** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) **doivent passer par les helpers `lib/finance/*`** qui appellent les 4 RPC atomiques `SECURITY DEFINER`. Pas de SELECT-then-UPDATE direct.
+- Les **écritures sur les invariants financiers** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) **doivent passer par les helpers `lib/finance/*`** qui appellent les **5 RPC atomiques** `SECURITY DEFINER` (4 C3 du Sprint 0 + `transfer_with_savings_debit` du Sprint Refactor-I5-followup-v2 pour la paire INSERT `budget_transfers` + debit `cumulated_savings`). Pas de SELECT-then-UPDATE direct. Pas non plus de séquence INSERT + RPC séparée sur un budget — utiliser `transferWithSavingsDebit` pour la combinaison atomique.
 - L'**auth** est un JWT custom signé via `jose`, vérifié par `validateSessionToken(request)` dans chaque route API. Pas Supabase Auth direct côté serveur.
 - Le **workflow récap mensuel** (`app/api/monthly-recap/*`) est un état-machine en 3 étapes. Depuis Sprint Refactor-I5 (2026-05-11), le cœur algorithmique `process-step1` est dans [`lib/recap/step1-algorithm.ts`](./lib/recap/step1-algorithm.ts) (pure) + [`lib/recap/step1-persist.ts`](./lib/recap/step1-persist.ts) (I/O via RPC atomiques) ; la route elle-même est un thin handler (~45 LOC). Les routes `complete` / `auto-balance` / `balance` restent god files (chantier I6 séparé).
 - **Pattern API canonique** depuis Sprint Refactor-Architecture : les handlers vivent dans [`lib/api/finance/*`](./lib/api/finance/) (named exports `GET` / `POST` / etc.) et les `route.ts` sous [`app/api/finance/`](./app/api/finance/) ré-exportent. Ça permet aux handlers d'être importés ailleurs (tests, autres routes, middleware) sans dépendre de la convention `route.ts`. Lors d'un rename d'API, wrapper l'ancien handler pour ajouter `response.headers.set('Deprecation', 'true')` (un helper `lib/api/with-deprecation.ts` a existé entre v1 et v2 puis a été supprimé après cleanup — le recréer ad-hoc si besoin). Voir [docs/api/README.md](./docs/api/README.md) pour la liste complète des endpoints `/api/finance/*` et leurs shapes.
@@ -340,7 +341,9 @@ CI : `.github/workflows/` contient (a) un cron weekly DB-side `pnpm db:check-dri
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après **Sprint Refactor-I5-followup** 2026-05-11 (**~99.6/100**) — consolidation post-I5 qui ferme les 3 dettes identifiées au moment de la livraison I5 : (a) drop step 2.3 (`consume_surplus`) dead code dont l'INSERT `to_budget_id=null` violait silencieusement la contrainte NOT NULL en prod, (b) ajout du 6ᵉ cas caractérisation gated couvrant explicitement le path 2.4.2 (RPC L673 atomique), (c) documentation explicite de l'edge case concurrent-invocation dans la JSDoc de `processStep1()` + CLAUDE.md §8. Tests pure-unit 33 → 28 (−5 cas du describe `CAS 2 ÉTAPE 2.3` droppé), tests gated 5 → 6. Lint baseline 183 warnings stable. Suites secondaires identifiées dans [`prompt/prompt-07-deep-dive-recap-algorithm-v3.md`](./prompt/prompt-07-deep-dive-recap-algorithm-v3.md) : (Axe 1) **gap d'atomicité dans step 2.4.2** — la séquence INSERT `budget_transfers` → RPC `updateBudgetCumulatedSavings` n'est pas atomique, si la RPC fail après INSERT réussi la row claim un mouvement de fonds sans débit correspondant (solution recommandée : nouvelle RPC `transfer_with_savings_debit` pattern miroir C3) ; (Axe 2) tests unitaires mockés pour `step1-persist.ts` orchestration.
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après **Sprint Refactor-I5-followup-v2** 2026-05-11 (**~99.7/100**) — clôt les 2 axes du prompt v3 : (Axe 1 atomicité) nouvelle RPC composite [`transfer_with_savings_debit`](./supabase/migrations/20260516000000_create_transfer_with_savings_debit_rpc.sql) qui combine INSERT `budget_transfers` + debit `cumulated_savings` en une transaction Postgres atomique ; helper [`transferWithSavingsDebit`](./lib/finance/budget-transfers.ts) ; step 2.4.2 dans [`lib/recap/step1-persist.ts`](./lib/recap/step1-persist.ts) réécrit de deux appels fail-soft séquentiels à un seul appel atomique (sur RPC throw, INSERT et debit rollback ensemble — plus de risque d'audit-trail orphelin). (Axe 2 testing) 8 tests mocked non-gated sur `applyDecision` dans [`lib/recap/__tests__/step1-persist.test.ts`](./lib/recap/__tests__/step1-persist.test.ts) (~1s, mocke `vi.mock('@/lib/finance/*')` + `__mocks` registry). 4 tests gated atomicité (insufficient-savings rollback proof + 100× concurrent invariant) dans [`lib/finance/__tests__/transfer-with-savings.test.ts`](./lib/finance/__tests__/transfer-with-savings.test.ts). Tests non-gated 88 → 96 ; lint baseline 183 stable. Suites secondaires (jamais sur le radar) identifiées dans [`prompt/prompt-07-deep-dive-recap-algorithm-v4.md`](./prompt/prompt-07-deep-dive-recap-algorithm-v4.md) : (Axe 1) **`monthly_recap_id` jamais set sur les `budget_transfers` produits par les paths automatiques** — un seul site (manual transfer UI) set la colonne, tous les autres laissent NULL, FK `ON DELETE CASCADE` ne fire pas → accumulation rows orphelins ; (Axe 2) `scripts/check-rpcs.mjs` ne pin pas la nouvelle RPC ; (Axe 3) extension du pattern mocked-test à `expenses-add-with-logic.ts` + `savings/transfer/route.ts` (orchestrateurs multi-RPC sans tests aujourd'hui).
+
+État précédent — **Sprint Refactor-I5-followup** 2026-05-11 (**~99.6/100**) — consolidation post-I5 qui ferme les 3 dettes identifiées au moment de la livraison I5 : (a) drop step 2.3 (`consume_surplus`) dead code dont l'INSERT `to_budget_id=null` violait silencieusement la contrainte NOT NULL en prod, (b) ajout du 6ᵉ cas caractérisation gated couvrant explicitement le path 2.4.2 (RPC L673 atomique), (c) documentation explicite de l'edge case concurrent-invocation dans la JSDoc de `processStep1()` + CLAUDE.md §8.
 
 État précédent — **Sprint Refactor-I5** 2026-05-11 (**~99.5/100**) — chantier majeur qui a supprimé le god file `app/api/monthly-recap/process-step1/route.ts` (740 LOC) et l'a splitté en `lib/recap/{step1-algorithm.ts pure 292 LOC + step1-persist.ts I/O 396 LOC + types.ts 180 LOC + index.ts}`. **Le dernier scope-cast `as unknown as SupabaseClient` du repo est tombé** (counter 1 → 0). Race condition L673-679 fixée via `updateBudgetCumulatedSavings` RPC atomique (math identique, atomicité ajoutée). Infrastructure Zod minimale installée (`lib/api/parse-body.ts` + `lib/schemas/recap.ts`) — catalyseur du chantier 07.8. 33 cas pure-unit non-gated sur l'algorithme + 5 cas caractérisation gated `SUPABASE_RECAP_TESTS=1` lockent la response byte-identique pré/post-refactor. ~120 console.\* du god file → ~7 logger.\* keep+migrate / ~113 drop, lint baseline 299 → 183 warnings (−116).
 
@@ -409,7 +412,7 @@ Pas de pipeline déploiement automatisé documenté. Le projet est conçu pour V
   - [`07-deep-dive-*.md`](./docs/audit/) — playbooks par chantier (financial-calculations, recap algorithm, RLS, testing strategy, Zod rollout, …).
 - [`docs/db/SCHEMA.md`](./docs/db/SCHEMA.md) — carte des tables, RPC atomiques, indexes, FK, hot-path, inventaire complet des triggers prod.
 - [`docs/api/README.md`](./docs/api/README.md) — référence rapide du namespace canonique `/api/finance/*` (Sprint Refactor-Architecture) : endpoints, verbes, query params, shapes de réponse.
-- [`prompt/`](./prompt/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint Refactor-I5-followup (livré 2026-05-11). Voir [`prompt/README.md`](./prompt/README.md) pour le sommaire chronologique. **Dernier prompt pré-rédigé en attente** : [`prompt/prompt-07-deep-dive-recap-algorithm-v3.md`](./prompt/prompt-07-deep-dive-recap-algorithm-v3.md) — 2 axes secondaires post-I5-followup : (Axe 1) gap d'atomicité step 2.4.2 (INSERT + RPC séquentiels non-atomiques, recommandation : RPC `transfer_with_savings_debit` pattern C3) ; (Axe 2) tests mockés pour orchestration `step1-persist.ts`. La roadmap longue planifiée dans [CLAUDE.md](./CLAUDE.md) §11 reste la référence canonique (Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I6 `complete/route.ts` ~730 LOC + 4 globals, Lots 2 / 6 du chantier console.log cleanup post-I5, chantier dead-code purge — `lib/auth.ts` exports orphelins `signUp`/`resetPassword`/`updatePassword` 0 consumer dans app/ + `app/api/debug/remaining-to-live` 254 LOC pour 3 sites candidat orpheline + `app/api/debug/financial`/`group-financial` quasi-dupliqués, chantier Zod rollout, GH Actions Node.js 24 migration juin 2026).
+- [`prompt/`](./prompt/) — prompts Claude Code par sprint, du Sprint 0 (v0) à Sprint Refactor-I5-followup-v2 (livré 2026-05-11). Voir [`prompt/README.md`](./prompt/README.md) pour le sommaire chronologique. **Dernier prompt pré-rédigé en attente** : [`prompt/prompt-07-deep-dive-recap-algorithm-v4.md`](./prompt/prompt-07-deep-dive-recap-algorithm-v4.md) — 3 axes secondaires post-I5-followup-v2 : (Axe 1) **`monthly_recap_id` jamais set sur les `budget_transfers` produits par les paths automatiques** (4 options A/B/C/D à arbitrer Phase 1) ; (Axe 2) `scripts/check-rpcs.mjs` pin trivial pour la nouvelle RPC `transfer_with_savings_debit` ; (Axe 3) extension du pattern mocked-test à `expenses-add-with-logic.ts` + `savings/transfer/route.ts`. Le v3 ([prompt/prompt-07-deep-dive-recap-algorithm-v3.md](./prompt/prompt-07-deep-dive-recap-algorithm-v3.md)) est **clos** par I5-followup-v2 (Axe 1 atomicité 2.4.2 + Axe 2 mocked tests). La roadmap longue planifiée dans [CLAUDE.md](./CLAUDE.md) §11 reste la référence canonique (Sprint Tailwind-v4, Sprint Supabase-Strict-Types, chantier I6 `complete/route.ts` ~730 LOC + 4 globals — bundle l'auto-balance atomicity avec celui-là, Lots 2 / 6 du chantier console.log cleanup post-I5, chantier dead-code purge — `lib/auth.ts` exports orphelins `signUp`/`resetPassword`/`updatePassword` 0 consumer dans app/ + `app/api/debug/remaining-to-live` 254 LOC pour 3 sites candidat orpheline + `app/api/debug/financial`/`group-financial` quasi-dupliqués, chantier Zod rollout, GH Actions Node.js 24 migration juin 2026).
 
 ---
 
