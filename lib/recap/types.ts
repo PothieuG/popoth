@@ -172,8 +172,11 @@ export interface ProcessStep1Output {
   difference: number
   piggy_bank_final: number
   operations_performed: AllocationOperation[]
-  budgets_with_deficit_refloated: Array<{ id: string; name: string; deficit: number }>
   timestamp: number
+  // CAS 1 only — list of deficit budgets in the snapshot. Despite the field
+  // name they are NOT refloated in CAS 1; the name is preserved verbatim for
+  // backward compatibility with the existing consumer (MonthlyRecapFlow.tsx).
+  budgets_with_deficit_refloated?: Array<{ id: string; name: string; deficit: number }>
   // CAS 2 only
   gap_residuel?: number
   is_fully_balanced?: boolean
