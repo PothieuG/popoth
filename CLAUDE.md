@@ -189,6 +189,7 @@ prompts/                   # prompts Claude Code par chantier
 - **Allocation des dépenses** : ordre de priorité tirelire → économies budget → budget restant, codé dans [lib/expense-allocation.ts:calculateBreakdown](lib/expense-allocation.ts). L'écriture passe **toujours** par les helpers `lib/finance/*` (RPC atomiques).
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API.
 - **Globals partagés** dans `app/api/monthly-recap/complete/route.ts` (`global.carryoverUpdates`, etc.) — déclarés via `declare global` au top du fichier. Ne pas étendre ce pattern aux autres routes.
+- **Distinction calculs finance** : [lib/contribution-calculator.ts](lib/contribution-calculator.ts) (budget-allocation, salary-proportional split d'un group budget, consumer = `components/profile/ProfileSettingsCard.tsx`) ≠ [lib/finance/income-compensation.ts](lib/finance/income-compensation.ts) (income aggregation, alimente le RAV via `_loadFinancialData`). Les noms sont voisins mais les domaines sont orthogonaux — l'un répond "que doit cotiser chaque membre ?", l'autre "quel est le total des revenus à ajouter au RAV ?". Le module `contribution-calculator` est pure-sync sans I/O ; `income-compensation` est async + Supabase.
 
 ## 6. Conventions
 

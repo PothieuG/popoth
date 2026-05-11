@@ -1,6 +1,20 @@
 /**
- * Utility functions for calculating group contributions
- * Used for validation and preview calculations
+ * Group budget-allocation helpers — répartit un budget de groupe entre ses
+ * membres au prorata de leurs salaires.
+ *
+ * ⚠️ À NE PAS CONFONDRE avec `calculateIncomeCompensation`
+ * ([lib/finance/income-compensation.ts](./finance/income-compensation.ts)) :
+ *
+ * - **Ici** (budget-allocation) : "que doit cotiser chaque membre pour un
+ *   budget de groupe fixé ?" — input = salaires + group budget, output =
+ *   contribution attendue par membre. Logique pure synchrone, zéro I/O.
+ * - **Income compensation** : "quel est le total des revenus à ajouter au
+ *   reste-à-vivre (RAV) ?" — input = `ContextFilter` (DB-driven), output =
+ *   somme des revenus (réels si présents, sinon estimés). Async + Supabase.
+ *
+ * Les domaines sont orthogonaux malgré la proximité du naming. Le seul
+ * consumer applicatif est `components/profile/ProfileSettingsCard.tsx`
+ * (validation salary-vs-contribution + display).
  */
 
 export interface ContributionCalculation {
