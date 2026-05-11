@@ -112,7 +112,12 @@ export async function processStep1(input: ProcessStep1Input): Promise<ProcessSte
 // Snapshot loading (I/O)
 // ---------------------------------------------------------------------------
 
-async function loadSnapshot(input: ProcessStep1Input): Promise<ProcessStep1Snapshot> {
+/**
+ * Load the snapshot used as input to `decideStep1Allocation`. Exported as
+ * testing surface (lib/recap/__tests__/step1-persist.test.ts) — production
+ * code goes through `processStep1()` and never calls this directly.
+ */
+export async function loadSnapshot(input: ProcessStep1Input): Promise<ProcessStep1Snapshot> {
   // 1. Compute initial financial data (mirror route.ts:79-86)
   const financialData =
     input.context === 'profile'

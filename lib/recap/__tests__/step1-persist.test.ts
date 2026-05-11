@@ -22,12 +22,37 @@ import type {
 } from '@/lib/recap/types'
 
 // Hoisted mocks
+//
+// Sprint Refactor-Test-Coverage (2026-05-12) — extended the chain shape to
+// support `loadSnapshot`:
+// - `.select` / `.eq` / `.not` / `.match` return the chain (chainable)
+// - `.single` is a vi.fn used by `from('piggy_bank').select(...).eq(...).single()`
+// - chain is thenable via `.then` — enables `await chain` (no terminal) for
+//   the budgets + expenses listing SELECTs at lines 127-138 of step1-persist.ts.
+//   Pops responses from the `arrayAwait` queue.
+// - `.insert` remains a plain vi.fn(async () => ({error: null})) so existing
+//   `applyDecision` tests (which queue insert results via mockResolvedValueOnce)
+//   work unchanged.
 vi.mock('@/lib/supabase-server', () => {
   const insert = vi.fn(async () => ({ error: null }))
-  const from = vi.fn(() => ({ insert }))
+  const single = vi.fn(async () => ({ data: null, error: null }))
+  const arrayAwait = vi.fn(async () => ({ data: [], error: null }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chain is intentionally thenable + chainable
+  const chain: any = {}
+  chain.select = vi.fn(() => chain)
+  chain.eq = vi.fn(() => chain)
+  chain.not = vi.fn(() => chain)
+  chain.match = vi.fn(() => chain)
+  chain.single = single
+  chain.insert = insert
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arbitrary onResolve/onReject signatures
+  chain.then = (onResolve: any, onReject: any) => arrayAwait().then(onResolve, onReject)
+
+  const from = vi.fn(() => chain)
   return {
     supabaseServer: { from },
-    __mocks: { insert, from },
+    __mocks: { insert, from, single, arrayAwait },
   }
 })
 
@@ -484,5 +509,129 @@ describe('applyDecision — CAS 2 (déficit)', () => {
     expect(piggyMod.updatePiggyBank).not.toHaveBeenCalled()
     expect(transferMod.transferWithSavingsDebit).not.toHaveBeenCalled()
     expect(output.is_fully_balanced).toBe(false)
+  })
+})
+
+// loadSnapshot tests --------------------------------------------------------
+//
+// Sprint Refactor-Test-Coverage (2026-05-12) — extends the file with direct
+// coverage of `loadSnapshot`. Previously exercised only indirectly through
+// the 8 applyDecision cases above. Each SELECT failure path is pinned with
+// an assertion on the thrown error message containing the table name.
+
+describe('loadSnapshot', () => {
+  it('happy path: 3 SELECTs + financial-data all succeed → snapshot shape complete', async () => {
+    const supabaseMock = (await import('@/lib/supabase-server')) as unknown as {
+      __mocks: {
+        single: ReturnType<typeof vi.fn>
+        arrayAwait: ReturnType<typeof vi.fn>
+      }
+    }
+    // 1st await chain → estimated_budgets list (2 budgets)
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
+      data: [
+        { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 0 },
+        { id: 'b-2', name: 'Budget 2', estimated_amount: 100, cumulated_savings: 20 },
+      ],
+      error: null,
+    })
+    // 2nd await chain → real_expenses list (one expense linked to b-1)
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
+      data: [{ id: 'rx-1', estimated_budget_id: 'b-1', amount: 50 }],
+      error: null,
+    })
+    // single() → piggy_bank
+    supabaseMock.__mocks.single.mockResolvedValueOnce({
+      data: { amount: 1000 },
+      error: null,
+    })
+
+    const { loadSnapshot } = await import('@/lib/recap/step1-persist')
+    const snapshot = await loadSnapshot(buildInput())
+
+    // From the mocked getProfileFinancialData (top of file):
+    //   ravActuel = remainingToLive = 200
+    //   ravBudgetaire = totalEstimatedIncome - totalEstimatedBudgets = 1000 - 800 = 200
+    //   difference = 0
+    expect(snapshot.context).toBe('profile')
+    expect(snapshot.contextId).toBe('profile-1')
+    expect(snapshot.ownerField).toBe('profile_id')
+    expect(snapshot.piggyBank).toBe(1000)
+    expect(snapshot.ravActuel).toBe(200)
+    expect(snapshot.ravBudgetaire).toBe(200)
+    expect(snapshot.difference).toBe(0)
+    expect(snapshot.budgetAnalyses).toHaveLength(2)
+    // Budget 1: estimated=200, spent=50 (from rx-1) → surplus=150, deficit=0
+    expect(snapshot.budgetAnalyses[0]).toMatchObject({
+      id: 'b-1',
+      name: 'Budget 1',
+      estimated_amount: 200,
+      spent_amount: 50,
+      surplus: 150,
+      deficit: 0,
+      cumulated_savings: 0,
+    })
+    // Budget 2: estimated=100, spent=0 → surplus=100, deficit=0
+    expect(snapshot.budgetAnalyses[1]).toMatchObject({
+      id: 'b-2',
+      name: 'Budget 2',
+      estimated_amount: 100,
+      spent_amount: 0,
+      surplus: 100,
+      deficit: 0,
+      cumulated_savings: 20,
+    })
+  })
+
+  it('estimated_budgets SELECT fails → throws "Erreur récupération budgets"', async () => {
+    const supabaseMock = (await import('@/lib/supabase-server')) as unknown as {
+      __mocks: { arrayAwait: ReturnType<typeof vi.fn> }
+    }
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'simulated estimated_budgets failure' },
+    })
+
+    const { loadSnapshot } = await import('@/lib/recap/step1-persist')
+
+    await expect(loadSnapshot(buildInput())).rejects.toThrow(/Erreur récupération budgets/)
+  })
+
+  it('real_expenses SELECT fails → throws "Erreur récupération dépenses"', async () => {
+    const supabaseMock = (await import('@/lib/supabase-server')) as unknown as {
+      __mocks: { arrayAwait: ReturnType<typeof vi.fn> }
+    }
+    // budgets OK
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({ data: [], error: null })
+    // real_expenses fails
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'simulated real_expenses failure' },
+    })
+
+    const { loadSnapshot } = await import('@/lib/recap/step1-persist')
+
+    await expect(loadSnapshot(buildInput())).rejects.toThrow(/Erreur récupération dépenses/)
+  })
+
+  it('piggy_bank SELECT fails → throws "Erreur récupération tirelire"', async () => {
+    const supabaseMock = (await import('@/lib/supabase-server')) as unknown as {
+      __mocks: {
+        single: ReturnType<typeof vi.fn>
+        arrayAwait: ReturnType<typeof vi.fn>
+      }
+    }
+    // budgets + expenses OK
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({ data: [], error: null })
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({ data: [], error: null })
+    // piggy_bank single() fails
+    supabaseMock.__mocks.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'simulated piggy_bank failure' },
+    })
+
+    const { loadSnapshot } = await import('@/lib/recap/step1-persist')
+
+    await expect(loadSnapshot(buildInput())).rejects.toThrow(/Erreur récupération tirelire/)
   })
 })
