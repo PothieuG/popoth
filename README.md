@@ -94,7 +94,7 @@ SUPABASE_ACCESS_TOKEN=sbp_...     # pour scripts/{export-schema,apply-sql,check-
 SUPABASE_DB_PASSWORD=...          # pour pnpm supabase db push
 ```
 
-Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS=1`, `SUPABASE_RLS_TESTS=1`, `SUPABASE_API_TESTS=1`.
+Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS=1`, `SUPABASE_RLS_TESTS=1`, `SUPABASE_API_TESTS=1`, `SUPABASE_TRIGGER_TESTS=1`, `SUPABASE_FINANCE_TESTS=1`, `SUPABASE_RECAP_TESTS=1` (Sprint Refactor-I5).
 
 ---
 
@@ -135,8 +135,10 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 ```bash
 SUPABASE_RPC_CONCURRENCY_TESTS=1 pnpm test:run   # rpc-concurrency.test.ts
 SUPABASE_RLS_TESTS=1            pnpm test:run   # rls-isolation.test.ts
-SUPABASE_API_TESTS=1            pnpm test:run   # api-regressions.test.ts
+SUPABASE_API_TESTS=1            pnpm test:run   # api-regressions.test.ts + with-auth.test.ts
 SUPABASE_TRIGGER_TESTS=1        pnpm test:run   # trigger-behavior.test.ts (Sprint Audit-Functions-v2 / B2)
+SUPABASE_FINANCE_TESTS=1        pnpm test:run   # financial-data.test.ts (Sprint Refactor-I4 follow-up)
+SUPABASE_RECAP_TESTS=1          pnpm test:run   # process-step1/__tests__/route.integration.test.ts (Sprint Refactor-I5)
 ```
 
 ---
@@ -200,9 +202,18 @@ lib/
     snapshots.ts           # saveRemainingToLiveSnapshot — fail-soft Promise<boolean>, dispatcher + private inserter via ContextFilter
     index.ts               # barrel re-export — `import { ... } from '@/lib/finance'`
     __tests__/             # rpc-concurrency, rls-isolation (gated) + calc-rtl (19 cas pure-unit) + snapshots (5 cas mocked supabase)
-  recap/
+  recap/                   # ✅ Sprint Refactor-Architecture (check-status) + Sprint Refactor-I5 (step1 split)
     check-status.ts        # ✅ checkRecapStatus(userId, context) Edge-safe — appelé directement par middleware.ts ET la route status (Sprint Refactor-Architecture)
+    types.ts               # ✅ Sprint Refactor-I5 — ProcessStep1Input/Snapshot/Decision/Output + BudgetAnalysis + AllocationOperation discriminated union
+    step1-algorithm.ts     # ✅ Sprint Refactor-I5 — decideStep1Allocation(snapshot) pure (0 I/O, 0 console, immutable, sort by id pour déterminisme). 292 LOC
+    step1-persist.ts       # ✅ Sprint Refactor-I5 — processStep1(input) orchestrateur I/O. Fix race L673 via updateBudgetCumulatedSavings RPC atomique. 396 LOC
+    index.ts               # ✅ Sprint Refactor-I5 — barrel re-export
+    __tests__/             # ✅ step1-algorithm.test.ts — 33 cas pure-unit non-gated couvrant CAS 1, CAS 2 (2.2/2.3/2.3.1/2.4.2), tolérance asymétrique, edge cases, déterminisme
+  schemas/                 # ✅ Sprint Refactor-I5 — Zod schemas API (catalyseur chantier 07.8)
+    recap.ts               # processStep1BodySchema (1er schema)
   api/
+    parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest. Validation Zod centralisée
+    __tests__/parse-body.test.ts # ✅ 6 cas non-gated
     with-auth.ts           # ✅ Sprint Refactor-Architecture-v3+v4+v5 — withAuth + withAuthAndProfile higher-order helpers utilisés par 34 modules (12 finance + 21 Volet C + process-step1 depuis v5). Profile shape étendu en v4 à { id, group_id, first_name, last_name }. Signature étendue avec 2 overloads en v5 : (a) static-route sans routeContext, (b) dynamic-route avec generic `<TParams>` et routeContext NON-optionnel (élimine le `routeContext!` dans groups/[id]/**).
     finance/               # 12 modules : handlers extraits, ré-exportés par app/api/finance/**/route.ts (tous wrappés en withAuth/withAuthAndProfile depuis v3)
     __tests__/             # with-auth (gated SUPABASE_API_TESTS=1, Sprint v5)
@@ -259,7 +270,7 @@ flowchart LR
 - Deux clients Supabase coexistent. Le **server** (`supabase-server.ts`) bypass RLS, utilisé par toutes les routes API. Le **browser** (`supabase-client.ts`) est soumis à RLS et utilisé uniquement par les hooks. Les failles RLS s'exploitent via le browser, pas le server.
 - Les **écritures sur les invariants financiers** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) **doivent passer par les helpers `lib/finance/*`** qui appellent les 4 RPC atomiques `SECURITY DEFINER`. Pas de SELECT-then-UPDATE direct.
 - L'**auth** est un JWT custom signé via `jose`, vérifié par `validateSessionToken(request)` dans chaque route API. Pas Supabase Auth direct côté serveur.
-- Le **workflow récap mensuel** (`app/api/monthly-recap/*`) est un état-machine en 3 étapes ; le cœur algorithmique (`process-step1`, >700 LOC) reste un god file en attente de refactor (chantier I5).
+- Le **workflow récap mensuel** (`app/api/monthly-recap/*`) est un état-machine en 3 étapes. Depuis Sprint Refactor-I5 (2026-05-11), le cœur algorithmique `process-step1` est dans [`lib/recap/step1-algorithm.ts`](./lib/recap/step1-algorithm.ts) (pure) + [`lib/recap/step1-persist.ts`](./lib/recap/step1-persist.ts) (I/O via RPC atomiques) ; la route elle-même est un thin handler (~45 LOC). Les routes `complete` / `auto-balance` / `balance` restent god files (chantier I6 séparé).
 - **Pattern API canonique** depuis Sprint Refactor-Architecture : les handlers vivent dans [`lib/api/finance/*`](./lib/api/finance/) (named exports `GET` / `POST` / etc.) et les `route.ts` sous [`app/api/finance/`](./app/api/finance/) ré-exportent. Ça permet aux handlers d'être importés ailleurs (tests, autres routes, middleware) sans dépendre de la convention `route.ts`. Lors d'un rename d'API, wrapper l'ancien handler pour ajouter `response.headers.set('Deprecation', 'true')` (un helper `lib/api/with-deprecation.ts` a existé entre v1 et v2 puis a été supprimé après cleanup — le recréer ad-hoc si besoin). Voir [docs/api/README.md](./docs/api/README.md) pour la liste complète des endpoints `/api/finance/*` et leurs shapes.
 - **Auth boilerplate extrait** depuis Sprint Refactor-Architecture-v3 + v4 + v5 : **34 modules** (12 finance + 21 Volet C : profile, savings, bank-balance, groups, monthly-recap + `process-step1` auth header depuis v5) utilisent `withAuth(handler)` (auth seule, passe `{ userId }`) ou `withAuthAndProfile(handler)` (auth + fetch `select('id, group_id, first_name, last_name')`, passe `{ userId, profile }`) depuis [`lib/api/with-auth.ts`](./lib/api/with-auth.ts). Le wrapper rejette les requêtes non authentifiées avec `401 'Session invalide'` (CLAUDE.md §6) ou `404 'Profil non trouvé'` (`withAuthAndProfile` uniquement). **Pas de try/catch dans le wrapper** — chaque handler garde son `try/catch` route-aware avec `console.error` ; permet à `summary.ts` et `profile.ts:GET` de préserver leurs fallbacks (200-with-default / 200-on-no-profile). Routes hors scope du wrapper : `app/api/debug/**` (blockInProduction d'abord), `app/api/auth/**` (créent/rafraîchissent la session). Le `process-step1/route.ts` est wrap pour son auth header depuis v5 — l'extraction de la logique métier reste chantier I5 séparé. **Pour les routes dynamiques** (e.g. `app/api/groups/[id]/route.ts`) : utiliser le generic 2nd arg `withAuth<RouteParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })` — depuis Sprint v5, l'overload TS rend `routeContext` non-optionnel quand `TParams` est fourni, donc plus besoin du `!` (le compte est désormais 0 dans `app/api/`). Pattern canonique : `export const POST = withAuthAndProfile(async (request, { userId, profile }) => { ... })`. Tests couvrant les 2 helpers + les overloads + l'isolation parallèle dans [`lib/api/__tests__/with-auth.test.ts`](./lib/api/__tests__/with-auth.test.ts) (gated `SUPABASE_API_TESTS=1`, 12 cas — Sprint v5).
 - **Edge runtime** (middleware) : pas de fetch HTTP self-call vers une route locale. Extraire la logique en lib pure et l'importer directement (pattern : [`lib/recap/check-status.ts`](./lib/recap/check-status.ts) appelé depuis [`middleware.ts`](./middleware.ts) ET la route API canonique). Vérifier que les imports transitifs restent Edge-safe (pas de `node:fs`, `node:path`, `next/headers`).
@@ -329,10 +340,12 @@ CI : `.github/workflows/` contient (a) un cron weekly DB-side `pnpm db:check-dri
 
 ## Sécurité
 
-L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après **Sprint Refactor-I4** 2026-05-11 (**~99/100**) — chantier majeur qui a supprimé le god file `lib/financial-calculations.ts` (1069 LOC, 11 exports, 60 Supabase queries, 112 console.\*) et l'a splitté en 8 modules cohérents sous [`lib/finance/`](./lib/finance/). Scope-cast `as unknown as SupabaseClient` 2 → 1 (reste seulement le god file I5 `process-step1`). Lot 2 console-cleanup officiellement clos par I4 (lint 406 → 307 warnings, −99). 24 nouveaux tests (19 caractérisation promus + 5 unit-mock snapshot dispatcher). Fail-soft contracts R1 (snapshot `Promise<boolean>`) et R2 (`EMPTY_FINANCIAL_DATA` fallback) préservés verbatim. État précédent (références historiques par sprint) :
+L'audit complet est dans [`docs/audit/00-executive-summary.md`](./docs/audit/00-executive-summary.md). État après **Sprint Refactor-I5** 2026-05-11 (**~99.5/100**) — chantier majeur qui a supprimé le god file `app/api/monthly-recap/process-step1/route.ts` (740 LOC) et l'a splitté en `lib/recap/{step1-algorithm.ts pure 292 LOC + step1-persist.ts I/O 396 LOC + types.ts 180 LOC + index.ts}`. **Le dernier scope-cast `as unknown as SupabaseClient` du repo est tombé** (counter 1 → 0). Race condition L673-679 fixée via `updateBudgetCumulatedSavings` RPC atomique (math identique, atomicité ajoutée). Infrastructure Zod minimale installée (`lib/api/parse-body.ts` + `lib/schemas/recap.ts`) — catalyseur du chantier 07.8. 33 cas pure-unit non-gated sur l'algorithme + 5 cas caractérisation gated `SUPABASE_RECAP_TESTS=1` lockent la response byte-identique pré/post-refactor. ~120 console.\* du god file → ~7 logger.\* keep+migrate / ~113 drop, lint baseline 299 → 183 warnings (−116). Suites identifiées dans [`prompt/prompt-07-deep-dive-recap-algorithm-v2.md`](./prompt/prompt-07-deep-dive-recap-algorithm-v2.md) (step 2.3 `to_budget_id: null` bug pre-existing, test L673 path, concurrency safety).
+
+État précédent — **Sprint Refactor-I4** 2026-05-11 (**~99/100**) — chantier majeur qui a supprimé le god file `lib/financial-calculations.ts` (1069 LOC, 11 exports, 60 Supabase queries, 112 console.\*) et l'a splitté en 8 modules cohérents sous [`lib/finance/`](./lib/finance/). Scope-cast `as unknown as SupabaseClient` 2 → 1 (résorbé en I5). Lot 2 console-cleanup officiellement clos par I4 (lint 406 → 307 warnings, −99). 24 nouveaux tests (19 caractérisation promus + 5 unit-mock snapshot dispatcher). Fail-soft contracts R1 (snapshot `Promise<boolean>`) et R2 (`EMPTY_FINANCIAL_DATA` fallback) préservés verbatim. État précédent (références historiques par sprint) :
 
 - ✅ Routes `/api/debug/*` bloquées en prod via [`lib/debug-guard.ts`](./lib/debug-guard.ts) — réponse 404 (pas 403, pour ne pas révéler l'existence).
-- ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`.
+- ✅ Mises à jour atomiques sur `piggy_bank` / `bank_balances` / `cumulated_savings` via 4 RPC `SECURITY DEFINER` (cf. [`supabase/migrations/20260506000000_create_finance_rpcs.sql`](./supabase/migrations/20260506000000_create_finance_rpcs.sql)). Tests de concurrence 100×parallèles dans `lib/finance/__tests__/rpc-concurrency.test.ts`. **Sprint Refactor-I5** a complété la couverture en migrant le dernier site SELECT-then-UPDATE résiduel (L673-679 dans `process-step1`) vers la RPC.
 - ✅ TypeScript strict appliqué au build (pas de `ignoreBuildErrors`).
 - ✅ RLS activée partout, isolation cross-user testée (Sprint DB / D4).
 - ✅ Drift detection automatisé : `pnpm db:check-drift`, `pnpm db:check-rpcs`, `pnpm db:check-functions`, GH Actions cron weekly + on-demand.
