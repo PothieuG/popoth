@@ -68,6 +68,17 @@ const eslintConfig = [
       'app/auth/**',
       'app/api/debug/**',
       'lib/debug-guard.ts',
+      // Sprint Refactor-I5 (2026-05-11) — process-step1 god file extraction.
+      // `lib/recap/check-status.ts` is intentionally NOT escalated (pre-Sprint
+      // I5 module, may grow benign console.* later); scope only the step1-* +
+      // route extraction so any regression sorts the PR red.
+      'app/api/monthly-recap/process-step1/**',
+      'lib/recap/step1-algorithm.ts',
+      'lib/recap/step1-persist.ts',
+      'lib/recap/types.ts',
+      'lib/recap/index.ts',
+      'lib/api/parse-body.ts',
+      'lib/schemas/**',
     ],
     rules: { 'no-console': 'error' },
   },
