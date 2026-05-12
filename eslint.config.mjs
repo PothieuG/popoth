@@ -63,7 +63,6 @@ const eslintConfig = [
       'lib/session-server.ts',
       'lib/supabase-client.ts',
       'lib/database-snapshot.ts',
-      'lib/monthly-recap-calculations.ts',
       'lib/api/with-auth.ts',
       'app/auth/**',
       'app/api/debug/**',
