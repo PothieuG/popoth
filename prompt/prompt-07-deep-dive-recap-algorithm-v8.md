@@ -1,5 +1,8 @@
 # Prompt v8 — Sprint Atomicity-Savings v2 : fermer le gap atomicité sur `handlePiggyBankAction`
 
+> ⚠️ **Prompt triagé 2026-05-12 — STALE, closed-by-deletion (Path B)**.
+> Phase 1 audit cross-codebase a confirmé que les 3 action types (`set_piggy_bank` / `add_to_piggy_bank` / `remove_from_piggy_bank`) sont du dead code (0 consumer applicatif — seul `budget_to_piggy_bank` est appelé depuis SavingsDistributionDrawer.tsx, déjà atomique post-v7). Sprint Atomicity-Savings v2 livré 2026-05-12 par **deletion** de `handlePiggyBankAction` + TODO + dispatch + JSDoc + import unused (~−108 LOC) plutôt que par composite RPC + atomicity refactor (~5 commits, ~3h cargo cult). Précédents codebase alignés : Lot 5b status-test DELETE, Lot 5c testSupabaseConnection DELETE, Audit-Closeout C2/C3 5 items "design for hypothetical" refusés. Voir CLAUDE.md §11 entrée Sprint Atomicity-Savings v2 pour le détail.
+
 > **Statut** : prompt rédigé en clôture du Sprint Atomicity-Savings (v7, livré 2026-05-12, score ~99.95). Le pattern composite RPC + helper TS + tests gated + réécriture du test mocked est désormais battle-tested **trois fois** (Sprint Refactor-I5-followup-v2 `transfer_with_savings_debit` + Sprint Atomicity-Expenses `add_expense_with_breakdown` + Sprint Atomicity-Savings `transfer_savings_between_budgets` / `transfer_budget_to_piggy_bank`). Le candidat suivant naturel — surfacé en **Phase 1 du Sprint v7** — est `handlePiggyBankAction` dans le même fichier, qui n'a JAMAIS été wiré sur l'existant `transfer_from_piggy_to_budget` ni adapté à la pattern composite.
 >
 > **Effort estimé** : ~5 commits, ~3h. Mirror exact du pattern v7. Scope marginalement plus large que v7 parce que 3 action types à supporter au lieu d'un seul, mais structurellement identique.
@@ -49,11 +52,11 @@ if (currentPiggyBank) {
 
 Le pattern SELECT-then-WRITE laisse une fenêtre de race entre L176 (read currentAmount) et L207/L216 (write). Deux invocations concurrentes peuvent toutes les deux lire `currentAmount=100`, calculer `newAmount` indépendamment, puis se overwrite mutuellement :
 
-| Scénario | Action | currentAmount read | amount param | newAmount computed | Effect |
-|---|---|---|---|---|---|
-| **Concurrent set + set** | `set_piggy_bank` × 2 | 100, 100 | 200, 300 | 200, 300 | "Lost update" — un des 2 settings est écrasé silently |
-| **Concurrent add + add** | `add_to_piggy_bank` × 2 | 100, 100 | +50, +30 | 150, 130 | Final = 130 ou 150 (race), **+50 ou +30 est perdu** au lieu de +80 |
-| **Concurrent set + add** | `set` 200 puis `add` 50 | 100, 100 | 200, 50 | 200, 150 | Race : final pourrait être 150 si add écrit après set |
+| Scénario                 | Action                  | currentAmount read | amount param | newAmount computed | Effect                                                             |
+| ------------------------ | ----------------------- | ------------------ | ------------ | ------------------ | ------------------------------------------------------------------ |
+| **Concurrent set + set** | `set_piggy_bank` × 2    | 100, 100           | 200, 300     | 200, 300           | "Lost update" — un des 2 settings est écrasé silently              |
+| **Concurrent add + add** | `add_to_piggy_bank` × 2 | 100, 100           | +50, +30     | 150, 130           | Final = 130 ou 150 (race), **+50 ou +30 est perdu** au lieu de +80 |
+| **Concurrent set + add** | `set` 200 puis `add` 50 | 100, 100           | 200, 50      | 200, 150           | Race : final pourrait être 150 si add écrit après set              |
 
 Pour `add_to_piggy_bank` et `remove_from_piggy_bank`, le bug est particulièrement subtil parce que la RPC `updatePiggyBank(matchFilter, delta)` est elle-même atomique sur le DELTA — mais le `delta = newAmount - currentAmount` est calculé depuis le `currentAmount` lu en L172 (non-locked). Sous concurrence, le delta ne reflète pas l'état actuel à l'instant de l'UPDATE.
 
@@ -137,19 +140,23 @@ Rapport <= 400 mots.
 ## Phase 2 — Arbitrage user (AskUserQuestion)
 
 **Q1 — Découpage RPC** :
+
 - **(A) 1 RPC paramétrée `set_piggy_bank_amount(p_action, p_amount, ...)` (Recommended)** — un seul appel, switch interne sur `p_action`. EXPECTED_RPCS 8 → 9. Cohérent avec l'API actuelle (1 endpoint, 3 actions). Surface de test simple (1 helper TS, 1 RPC à pinner).
 - (B) 3 RPCs séparées `set_piggy_bank_to_amount` / `increment_piggy_bank` / `decrement_piggy_bank` — atomique également, mais EXPECTED_RPCS 8 → 11, plus de surface de test fine-grain au prix d'un helper TS plus volumineux.
 - (C) Reuse `update_piggy_bank_amount` (existante C3) pour `add_to_piggy_bank` et `remove_from_piggy_bank` (delta-based), nouvelle RPC `set_piggy_bank_amount` (absolute value) seulement pour `set_piggy_bank`. **Caveat critique** : `update_piggy_bank_amount` raise si la row n'existe pas — donc on perd l'UX "première fois je crée ma piggy en faisant `add_to_piggy_bank`". Il faut un fallback INSERT, ce qui re-introduit le pattern non-atomique. Probablement à éviter.
 
 **Q2 — UPSERT piggy_bank** :
+
 - **(A) `INSERT ... ON CONFLICT DO UPDATE` dans la nouvelle RPC (Recommended)** — identique au pattern v7 `transfer_budget_to_piggy_bank` : branche `IF p_profile_id IS NOT NULL THEN ... ELSE ...` avec les 2 partial unique index predicates. Atomique single-statement.
 - (B) PERFORM existing `update_piggy_bank_amount` puis fallback INSERT pour le cas no-row — mais plus complexe et la sémantique de `set_piggy_bank` (valeur absolue) ne mappe pas bien sur `update_piggy_bank_amount` (delta-based).
 
 **Q3 — `Math.max(0, ...)` côté SQL vs côté TS** :
+
 - **(A) Déplacer la clamping côté SQL (RPC) (Recommended)** — la nouvelle RPC interprète `p_action` et applique la clamping. Sémantique cohérente : SQL garantit que `amount >= 0` post-op (la CHECK constraint `piggy_bank.amount >= 0` raise sur overdraft pour `remove_from_piggy_bank` excessif). Le helper TS et le frontend n'ont pas à se soucier de la clamping.
 - (B) Garder la clamping côté TS (helper wrapper compute → passe absolute value à une RPC plus dumb). Plus de roundtrips ; à éviter.
 
 **Q4 — Frontend impact** :
+
 - Confirmer que le frontend appelle POST `/api/savings/transfer` avec body `{ action, amount }` et reçoit `{ success, action, previous_amount, new_amount, difference, context }`. La response shape **doit être préservée verbatim** dans le refactor (pas de breaking change consumer-side).
 - Confirmer le `Math.max(0, ...)` post-op : si l'utilisateur envoie `remove_from_piggy_bank` avec `amount=200` sur une piggy à 50, le code actuel return `new_amount=0, difference=-50` (succès silencieux avec partial). La nouvelle RPC doit-elle ?
   - **(A) Préserver le comportement actuel (succès partial, clamp à 0) (Recommended)** — backward compat strict.
@@ -242,6 +249,7 @@ NOTIFY pgrst, 'reload schema';
 ```
 
 **Note clé** : la version atomique change subtilement la sémantique du `previous_amount` retourné. Pour le frontend qui affiche un toast "Tirelire mise à jour : 100€ → 150€", il faudra **soit** :
+
 - (a) Lire le `previous_amount` avant l'UPSERT via une `SELECT` séparée à l'intérieur de la RPC (lock-friendly via `FOR UPDATE`), retourner les deux dans le `json_build_object`.
 - (b) Recalculer `previous_amount = new_amount - difference` côté handler à partir de `new_amount` retourné et `amount` request param (NON applicable à `set_piggy_bank` où `difference != amount`).
 
@@ -288,12 +296,14 @@ Regen `pnpm db:types`, vérifier la nouvelle RPC dans `lib/database.types.ts`. `
 ### Commit 3 — Refactor route handler + extend mocked test
 
 [app/api/savings/transfer/route.ts](../app/api/savings/transfer/route.ts) :
+
 - **`handlePiggyBankAction` L150-244** : drop L160-228 (95 LOC) — drop le SELECT + switch + UPDATE/INSERT branches. Remplace par un seul `setPiggyBankAmount(filter, {action, amount})` dans try/catch. Drop le TODO comment L141-148.
 - **Response shape préservée verbatim** : `{ success, action, previous_amount, new_amount, difference, context }`. `difference = new_amount - previous_amount` calculé côté handler depuis la response RPC.
 - **Net : −~70 LOC** (95 LOC enlevées + 25 LOC d'helper call).
 - Le `updatePiggyBank` import dans le top du file devient unused — drop.
 
 Test rewrite [app/api/savings/transfer/\_\_tests\_\_/route.test.ts](../app/api/savings/transfer/__tests__/route.test.ts) — ajout d'un nouveau `describe` block `POST /api/savings/transfer — handlePiggyBankAction` avec ~4 cas :
+
 - Happy `set_piggy_bank` (piggy exists, value clamps to 0 on negative)
 - Happy `add_to_piggy_bank` (piggy missing → INSERT path)
 - Happy `remove_from_piggy_bank` (clamp à 0 sur overdraft)
@@ -306,6 +316,7 @@ Mock : ajouter `setPiggyBankAmount` au mock `@/lib/finance/savings`.
 Soit étendre `lib/finance/__tests__/transfer-savings.test.ts` (3e `describe` block) **ou** créer un nouveau fichier `lib/finance/__tests__/piggy-actions.test.ts`. Recommandation : extension du fichier v7 pour réutiliser le seed et amortir le test startup (~6s actuels).
 
 **6-8 cas** :
+
 1. Happy `set_piggy_bank` UPDATE path (piggy exists, set to 50 → amount=50)
 2. Happy `set_piggy_bank` INSERT path (piggy missing, set to 30 → INSERT row amount=30)
 3. Happy `add_to_piggy_bank` UPDATE path (piggy=10, add 30 → amount=40)
