@@ -1,16 +1,24 @@
 /**
- * Mocked unit tests for POST /api/savings/transfer — Sprint Refactor-Test-Coverage.
+ * Mocked unit tests for POST /api/savings/transfer — rewritten in
+ * Sprint Atomicity-Savings to mirror the new atomic surface.
  *
- * Regression-guards the 3 CRITICAL cleanup-attempts preserved at Lot 4d:
- * - route.ts L122 (POST budget→budget): rollback fail after RPC 2 (TO) fail
- * - route.ts L321 (handleBudgetToPiggyBank): rollback fail after piggy UPDATE fail
- * - route.ts L337 (handleBudgetToPiggyBank): rollback fail after piggy INSERT fail
+ * Pre-fix (Sprint Refactor-Test-Coverage): 8 cases regression-guarded
+ * the 3 cleanup-attempts at L122/L321/L337 — manual compensating
+ * rollbacks that could themselves fail.
  *
- * Mock strategy mirrors lib/recap/__tests__/step1-persist.test.ts —
- * `vi.mock` hoisted with passthrough wrapper for withAuthAndProfile, then
+ * Post-fix: the 3 cleanup-attempts no longer exist in the route. Both
+ * budget→budget and budget→piggy paths funnel through a single atomic
+ * helper from @/lib/finance/savings. The 4 cases below pin the
+ * architectural invariant (single mutation entry point, no manual
+ * UPDATE/INSERT on piggy_bank in the handler). The atomicity proof
+ * itself moves to the gated tests at
+ * lib/finance/__tests__/transfer-savings.test.ts (8 cases against prod).
+ *
+ * Mock strategy: passthrough wrapper for withAuthAndProfile, then
  * dynamic `await import` of the SUT inside test bodies. @/lib/logger is
- * mocked directly (the SUT calls logger.error, not console.error), so
- * cleanup-attempt assertions read off the mock spy without capturing console.
+ * mocked directly. @/lib/finance/savings mocks the 2 new helpers;
+ * piggy-bank kept mocked because handlePiggyBankAction (out of scope)
+ * still calls updatePiggyBank.
  */
 
 import type { NextRequest } from 'next/server'
@@ -18,8 +26,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted mocks ---------------------------------------------------------------
 
-// Passthrough wrapper: bypass session validation, inject a fixed profile.
-// withAuth is also exposed in case future versions add a withAuth call site.
 vi.mock('@/lib/api/with-auth', () => {
   type AnyHandler = (...args: unknown[]) => Promise<unknown>
   return {
@@ -33,7 +39,6 @@ vi.mock('@/lib/api/with-auth', () => {
   }
 })
 
-// Logger mock: spy-friendly, no console under the hood.
 vi.mock('@/lib/logger', () => ({
   logger: {
     error: vi.fn(),
@@ -43,9 +48,6 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
-// Supabase server: from() returns a chainable mock. Terminal methods are
-// shared vi.fn() across all from() calls — tests use mockResolvedValueOnce
-// to queue sequential responses.
 vi.mock('@/lib/supabase-server', () => {
   const single = vi.fn(async () => ({ data: null, error: null }))
   const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
@@ -73,8 +75,9 @@ vi.mock('@/lib/supabase-server', () => {
   }
 })
 
-vi.mock('@/lib/finance/budget-savings', () => ({
-  updateBudgetCumulatedSavings: vi.fn(async () => 0),
+vi.mock('@/lib/finance/savings', () => ({
+  transferSavingsBetweenBudgets: vi.fn(async () => ({ from_savings: 0, to_savings: 0 })),
+  transferBudgetToPiggyBank: vi.fn(async () => ({ from_savings: 0, piggy_bank_amount: 0 })),
 }))
 
 vi.mock('@/lib/finance/piggy-bank', () => ({
@@ -101,13 +104,16 @@ type SupabaseMocks = {
   }
 }
 
-type SavingsMocks = { updateBudgetCumulatedSavings: ReturnType<typeof vi.fn> }
+type SavingsMocks = {
+  transferSavingsBetweenBudgets: ReturnType<typeof vi.fn>
+  transferBudgetToPiggyBank: ReturnType<typeof vi.fn>
+}
 type PiggyMocks = { updatePiggyBank: ReturnType<typeof vi.fn> }
 type LoggerMocks = { logger: { error: ReturnType<typeof vi.fn> } }
 
 async function importMocks() {
   const supabase = (await import('@/lib/supabase-server')) as unknown as SupabaseMocks
-  const savings = (await import('@/lib/finance/budget-savings')) as unknown as SavingsMocks
+  const savings = (await import('@/lib/finance/savings')) as unknown as SavingsMocks
   const piggy = (await import('@/lib/finance/piggy-bank')) as unknown as PiggyMocks
   const loggerMod = (await import('@/lib/logger')) as unknown as LoggerMocks
   return { supabase, savings, piggy, loggerMod }
@@ -116,7 +122,7 @@ async function importMocks() {
 // Tests ----------------------------------------------------------------------
 
 describe('POST /api/savings/transfer — budget→budget', () => {
-  it('happy path: RPC 1 + RPC 2 succeed, returns 200', async () => {
+  it('happy path: single atomic helper call, returns 200', async () => {
     const { supabase, savings, loggerMod } = await importMocks()
 
     // FROM budget fetch
@@ -129,8 +135,10 @@ describe('POST /api/savings/transfer — budget→budget', () => {
       data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
       error: null,
     })
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(70)
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(80)
+    savings.transferSavingsBetweenBudgets.mockResolvedValueOnce({
+      from_savings: 70,
+      to_savings: 80,
+    })
 
     const { POST } = await import('@/app/api/savings/transfer/route')
     const response = await POST(
@@ -145,42 +153,26 @@ describe('POST /api/savings/transfer — budget→budget', () => {
 
     expect(response.status).toBe(200)
     expect(json.success).toBe(true)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(2)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenNthCalledWith(1, 'b-from', -30)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenNthCalledWith(2, 'b-to', 30)
+    expect(json.from.new_savings).toBe(70)
+    expect(json.to.new_savings).toBe(80)
+    expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledTimes(1)
+    expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledWith(
+      { profile_id: 'profile-1' },
+      { fromBudgetId: 'b-from', toBudgetId: 'b-to', amount: 30 },
+    )
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
 
-  it('RPC 1 fail: early 500, RPC 2 not called, no rollback', async () => {
-    const { supabase, savings } = await importMocks()
-
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
-      error: null,
-    })
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
-      error: null,
-    })
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('RPC 1 fail'))
-
-    const { POST } = await import('@/app/api/savings/transfer/route')
-    const response = await POST(
-      buildRequest({
-        context: 'profile',
-        from_budget_id: 'b-from',
-        to_budget_id: 'b-to',
-        amount: 30,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    // Only the first RPC call (which failed) — no rollback, no RPC 2
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(1)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledWith('b-from', -30)
-  })
-
-  it('RPC 2 fail + rollback succeeds: compensating call with +amount, returns 500', async () => {
+  it('PIN ATOMIC CONTRACT: single call site, no compensating rollback on failure', async () => {
+    // PIN — pre-Sprint Atomicity-Savings (Sprint Refactor-Test-Coverage),
+    // 4 cases regression-guarded 2 separate updateBudgetCumulatedSavings
+    // calls + a manual rollback at L122 that could itself fail. This
+    // case pins the architectural invariant of the post-fix route:
+    //   1. Exactly ONE call to transferSavingsBetweenBudgets (composite RPC)
+    //   2. Status 500 propagates the throw
+    //   3. logger.error fires with the new generic message
+    //   4. No manual UPDATE on estimated_budgets — atomicity is enforced
+    //      by Postgres tx, proven by the gated tests against prod.
     const { supabase, savings, loggerMod } = await importMocks()
 
     supabase.__mocks.single.mockResolvedValueOnce({
@@ -191,12 +183,7 @@ describe('POST /api/savings/transfer — budget→budget', () => {
       data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
       error: null,
     })
-    // RPC 1 (debit FROM) succeeds
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(70)
-    // RPC 2 (credit TO) fails
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('RPC 2 fail'))
-    // Rollback (re-add to FROM) succeeds
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(100)
+    savings.transferSavingsBetweenBudgets.mockRejectedValueOnce(new Error('atomic RPC fail'))
 
     const { POST } = await import('@/app/api/savings/transfer/route')
     const response = await POST(
@@ -209,57 +196,21 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     )
 
     expect(response.status).toBe(500)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(3)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenNthCalledWith(3, 'b-from', 30)
-    // L122 cleanup-attempt did NOT fire (rollback succeeded)
-    expect(loggerMod.logger.error).toHaveBeenCalled() // updateToError logged at L118
-    // Verify L122 (rollbackError) was NOT one of the calls
-    const errorCalls = loggerMod.logger.error.mock.calls.map((args) => args[0])
-    expect(errorCalls).toEqual(
-      expect.arrayContaining([expect.stringMatching(/Erreur mise à jour budget destination/)]),
-    )
-    expect(errorCalls).not.toEqual(
-      expect.arrayContaining([expect.stringMatching(/Erreur rollback budget source/)]),
-    )
-  })
-
-  it('CRITIQUE L122: RPC 2 fail + rollback fails → logger.error fires (regression-guard)', async () => {
-    const { supabase, savings, loggerMod } = await importMocks()
-
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
-      error: null,
-    })
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
-      error: null,
-    })
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(70)
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('RPC 2 fail'))
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('Rollback also fails'))
-
-    const { POST } = await import('@/app/api/savings/transfer/route')
-    const response = await POST(
-      buildRequest({
-        context: 'profile',
-        from_budget_id: 'b-from',
-        to_budget_id: 'b-to',
-        amount: 30,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(3)
-    // Regression-guard: route.ts:123 logger.error('❌ Erreur rollback budget source:', ...)
+    // ATOMIC INVARIANT — single call site, no rollback ceremony
+    expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledTimes(1)
     const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
     expect(errorMessages).toEqual(
+      expect.arrayContaining([expect.stringMatching(/Erreur transfert entre budgets/)]),
+    )
+    // Old L122 rollback log must NOT fire (cleanup-attempt is gone)
+    expect(errorMessages).not.toEqual(
       expect.arrayContaining([expect.stringMatching(/Erreur rollback budget source/)]),
     )
   })
 })
 
 describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
-  it('UPDATE happy path: budget debited + piggy_bank UPDATE called', async () => {
+  it('happy path: single atomic helper call, no manual UPDATE/INSERT', async () => {
     const { supabase, savings, piggy, loggerMod } = await importMocks()
 
     // FROM budget fetch
@@ -267,15 +218,15 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
       data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
       error: null,
     })
-    // Debit budget RPC
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(50)
-    // Existing piggy_bank row
+    // Pre-state piggy fetch (for response shape)
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p-1', amount: 200 },
+      data: { amount: 200 },
       error: null,
     })
-    // Piggy update RPC
-    piggy.updatePiggyBank.mockResolvedValueOnce(250)
+    savings.transferBudgetToPiggyBank.mockResolvedValueOnce({
+      from_savings: 50,
+      piggy_bank_amount: 250,
+    })
 
     const { POST } = await import('@/app/api/savings/transfer/route')
     const response = await POST(
@@ -290,61 +241,43 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
 
     expect(response.status).toBe(200)
     expect(json.success).toBe(true)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(1)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledWith('b-from', -50)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledTimes(1)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledWith({ profile_id: 'profile-1' }, 50)
-    expect(loggerMod.logger.error).not.toHaveBeenCalled()
-  })
-
-  it('INSERT happy path: budget debited + piggy_bank INSERT called (no existing row)', async () => {
-    const { supabase, savings, piggy, loggerMod } = await importMocks()
-
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
-      error: null,
-    })
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(50)
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null })
-    supabase.__mocks.insert.mockResolvedValueOnce({ error: null })
-
-    const { POST } = await import('@/app/api/savings/transfer/route')
-    const response = await POST(
-      buildRequest({
-        context: 'profile',
-        action: 'budget_to_piggy_bank',
-        from_budget_id: 'b-from',
-        amount: 50,
-      }),
+    expect(json.from_budget.new_savings).toBe(50)
+    expect(json.piggy_bank.old_amount).toBe(200)
+    expect(json.piggy_bank.new_amount).toBe(250)
+    expect(savings.transferBudgetToPiggyBank).toHaveBeenCalledTimes(1)
+    expect(savings.transferBudgetToPiggyBank).toHaveBeenCalledWith(
+      { profile_id: 'profile-1' },
+      { fromBudgetId: 'b-from', amount: 50 },
     )
-
-    expect(response.status).toBe(200)
+    // Encapsulated inside the composite RPC — handler does NOT touch
+    // piggy_bank directly anymore.
     expect(piggy.updatePiggyBank).not.toHaveBeenCalled()
-    expect(supabase.__mocks.insert).toHaveBeenCalledTimes(1)
-    expect(supabase.__mocks.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ profile_id: 'profile-1', group_id: null, amount: 50 }),
-    )
+    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
 
-  it('CRITIQUE L321: piggy UPDATE fail + rollback fail → logger.error fires (regression-guard)', async () => {
+  it('PIN ATOMIC CONTRACT: single call site, no manual UPDATE/INSERT on failure', async () => {
+    // PIN — pre-Sprint Atomicity-Savings (Sprint Refactor-Test-Coverage),
+    // 4 cases regression-guarded the UPDATE vs INSERT branch in the
+    // handler + 2 cleanup-attempts at L321 + L337. Post-fix, both paths
+    // collapse into transferBudgetToPiggyBank (UPSERT inside the RPC).
+    // This case pins:
+    //   1. Exactly ONE call to transferBudgetToPiggyBank
+    //   2. Status 500 propagates the throw
+    //   3. logger.error fires with the new generic message
+    //   4. No piggy_bank.update / piggy_bank.insert in the handler —
+    //      atomicity proven by gated tests.
     const { supabase, savings, piggy, loggerMod } = await importMocks()
 
     supabase.__mocks.single.mockResolvedValueOnce({
       data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
       error: null,
     })
-    // Debit budget succeeds
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(50)
-    // Existing piggy
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { id: 'p-1', amount: 200 },
+      data: { amount: 200 },
       error: null,
     })
-    // Piggy update RPC throws
-    piggy.updatePiggyBank.mockRejectedValueOnce(new Error('piggy update fail'))
-    // Rollback RPC throws too
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('rollback fail'))
+    savings.transferBudgetToPiggyBank.mockRejectedValueOnce(new Error('atomic RPC fail'))
 
     const { POST } = await import('@/app/api/savings/transfer/route')
     const response = await POST(
@@ -357,48 +290,16 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
     )
 
     expect(response.status).toBe(500)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(2)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenNthCalledWith(2, 'b-from', 50)
-    // Regression-guard: route.ts:322 logger.error('❌ Rollback budget impossible:', ...)
+    // ATOMIC INVARIANT — single call site, no compensating ceremony
+    expect(savings.transferBudgetToPiggyBank).toHaveBeenCalledTimes(1)
+    expect(piggy.updatePiggyBank).not.toHaveBeenCalled()
+    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
     const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
     expect(errorMessages).toEqual(
-      expect.arrayContaining([expect.stringMatching(/Rollback budget impossible/)]),
+      expect.arrayContaining([expect.stringMatching(/Erreur transfert budget/)]),
     )
-  })
-
-  it('CRITIQUE L337: piggy INSERT fail + rollback fail → logger.error fires (regression-guard)', async () => {
-    const { supabase, savings, loggerMod } = await importMocks()
-
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
-      error: null,
-    })
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(50)
-    // No existing piggy
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: null, error: null })
-    // INSERT fails
-    supabase.__mocks.insert.mockResolvedValueOnce({
-      error: { message: 'simulated FK violation' },
-    })
-    // Rollback throws
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('rollback fail'))
-
-    const { POST } = await import('@/app/api/savings/transfer/route')
-    const response = await POST(
-      buildRequest({
-        context: 'profile',
-        action: 'budget_to_piggy_bank',
-        from_budget_id: 'b-from',
-        amount: 50,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(2)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenNthCalledWith(2, 'b-from', 50)
-    // Regression-guard: route.ts:338 logger.error('❌ Rollback budget impossible:', ...)
-    const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
-    expect(errorMessages).toEqual(
+    // Old L321/L337 rollback logs must NOT fire (cleanup-attempts gone)
+    expect(errorMessages).not.toEqual(
       expect.arrayContaining([expect.stringMatching(/Rollback budget impossible/)]),
     )
   })
