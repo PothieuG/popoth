@@ -133,20 +133,3 @@ export function formatPercentage(percentage: number): string {
   }).format(percentage / 100)
 }
 
-/**
- * Calculates the minimum salary needed to cover a given contribution
- */
-export function calculateMinimumSalary(contribution: number, safetyMargin: number = 1.1): number {
-  return Math.ceil(contribution * safetyMargin)
-}
-
-/**
- * Calculates the maximum group budget for given member salaries
- */
-export function calculateMaximumGroupBudget(
-  memberSalaries: number[],
-  safetyMargin: number = 0.9,
-): number {
-  const totalSalaries = memberSalaries.reduce((sum, salary) => sum + salary, 0)
-  return Math.floor(totalSalaries * safetyMargin)
-}
