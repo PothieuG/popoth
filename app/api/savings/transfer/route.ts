@@ -1,15 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { updatePiggyBank } from '@/lib/finance/piggy-bank'
-import {
-  transferBudgetToPiggyBank,
-  transferSavingsBetweenBudgets,
-} from '@/lib/finance/savings'
+import { transferBudgetToPiggyBank, transferSavingsBetweenBudgets } from '@/lib/finance/savings'
 import { withAuthAndProfile, type AuthedProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 
 /**
- * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
+ * API Transfer Savings Between Budgets OR Budget → Piggy Bank
  * POST /api/savings/transfer
  *
  * Body for budget transfer: {
@@ -19,9 +15,10 @@ import { logger } from '@/lib/logger'
  *   amount: number
  * }
  *
- * Body for piggy bank actions: {
+ * Body for budget → piggy bank: {
  *   context: 'profile' | 'group',
- *   action: 'set_piggy_bank' | 'add_to_piggy_bank' | 'remove_from_piggy_bank',
+ *   action: 'budget_to_piggy_bank',
+ *   from_budget_id: string,
  *   amount: number
  * }
  */
@@ -29,14 +26,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
     const body = await request.json()
     const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
-
-    // Si c'est une action tirelire, déléguer à la fonction appropriée
-    if (
-      action &&
-      ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)
-    ) {
-      return handlePiggyBankAction(profile, context, action, amount)
-    }
 
     // Transfert budget → tirelire
     if (action === 'budget_to_piggy_bank') {
@@ -116,10 +105,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       to_savings = result.to_savings
     } catch (transferError) {
       logger.error('❌ Erreur transfert entre budgets:', transferError)
-      return NextResponse.json(
-        { error: 'Erreur lors du transfert entre budgets' },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: 'Erreur lors du transfert entre budgets' }, { status: 500 })
     }
 
     return NextResponse.json({
@@ -142,106 +128,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     return NextResponse.json({ error: 'Erreur serveur lors du transfert' }, { status: 500 })
   }
 })
-
-/**
- * Handle Piggy Bank Actions (set, add, remove)
- *
- * TODO Sprint Atomicity-Savings v2: this function still does a manual
- * SELECT-then-UPDATE/INSERT sequence (L195-207 switch + updatePiggyBank
- * OR direct INSERT). It is NOT atomic across the read+write. Wire onto
- * the existing `transferFromPiggyToBudget` RPC OR introduce a new RPC
- * (`set_piggy_bank_amount`?) that handles the 3 action types in one tx.
- * Out of scope this sprint (single-target focus on the 3 cleanup-attempts).
- */
-async function handlePiggyBankAction(
-  profile: AuthedProfile,
-  context: string,
-  action: string,
-  amount: number,
-) {
-  if (typeof amount !== 'number' || isNaN(amount)) {
-    return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
-  }
-
-  // Determine context filter
-  const contextFilter =
-    context === 'group' && profile.group_id
-      ? { group_id: profile.group_id, profile_id: null }
-      : { profile_id: profile.id, group_id: null }
-
-  const matchFilter =
-    context === 'group' && profile.group_id
-      ? { group_id: profile.group_id }
-      : { profile_id: profile.id }
-
-  // Get current piggy bank
-  const { data: currentPiggyBank, error: getPiggyError } = await supabaseServer
-    .from('piggy_bank')
-    .select('id, amount')
-    .match(matchFilter)
-    .maybeSingle()
-
-  if (getPiggyError) {
-    return NextResponse.json(
-      { error: 'Erreur lors de la récupération de la tirelire' },
-      { status: 500 },
-    )
-  }
-
-  const currentAmount = currentPiggyBank?.amount || 0
-
-  let newAmount: number
-
-  switch (action) {
-    case 'set_piggy_bank':
-      newAmount = Math.max(0, amount)
-      break
-    case 'add_to_piggy_bank':
-      newAmount = currentAmount + Math.max(0, amount)
-      break
-    case 'remove_from_piggy_bank':
-      newAmount = Math.max(0, currentAmount - Math.max(0, amount))
-      break
-    default:
-      return NextResponse.json({ error: `Action inconnue: ${action}` }, { status: 400 })
-  }
-
-  // Update or insert piggy bank (RPC atomique sur le delta)
-  if (currentPiggyBank) {
-    try {
-      const delta = newAmount - currentAmount
-      newAmount = await updatePiggyBank(matchFilter as Parameters<typeof updatePiggyBank>[0], delta)
-    } catch {
-      return NextResponse.json(
-        { error: 'Erreur lors de la mise à jour de la tirelire' },
-        { status: 500 },
-      )
-    }
-  } else {
-    // Insert new
-    const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
-      ...contextFilter,
-      amount: newAmount,
-      last_updated: new Date().toISOString(),
-    })
-
-    if (insertError) {
-      return NextResponse.json(
-        { error: 'Erreur lors de la création de la tirelire' },
-        { status: 500 },
-      )
-    }
-  }
-
-  return NextResponse.json({
-    success: true,
-    action,
-    previous_amount: currentAmount,
-    new_amount: newAmount,
-    difference: newAmount - currentAmount,
-    context,
-  })
-}
 
 /**
  * Handle Budget → Piggy Bank Transfer
