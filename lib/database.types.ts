@@ -703,6 +703,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_expense_with_breakdown: {
+        Args: {
+          p_amount: number
+          p_amount_from_budget: number
+          p_amount_from_budget_savings: number
+          p_amount_from_piggy_bank: number
+          p_description: string
+          p_estimated_budget_id: string
+          p_expense_date: string
+          p_group_id?: string
+          p_profile_id?: string
+        }
+        Returns: Json
+      }
       calculate_group_contributions: {
         Args: { group_id_param: string }
         Returns: undefined
