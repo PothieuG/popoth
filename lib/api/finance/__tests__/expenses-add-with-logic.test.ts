@@ -1,17 +1,23 @@
 /**
- * Mocked unit tests for POST /api/finance/expenses/add-with-logic —
- * Sprint Refactor-Test-Coverage.
+ * Mocked unit tests for POST /api/finance/expenses/add-with-logic.
  *
- * Pins the smart-allocation orchestration (piggy → savings → budget) and
- * REGRESSION-GUARDS the atomicity gap: when the final INSERT real_expenses
- * fails, piggy + cumulated_savings are already debited and the route has
- * NO compensating action. This test pins the current behavior — if a future
- * sprint adds rollback, this test breaks and forces an explicit update.
+ * Updated by Sprint Atomicity-Expenses: the smart-allocation path now
+ * delegates piggy debit + savings debit + INSERT real_expenses to the
+ * composite atomic RPC `add_expense_with_breakdown` via
+ * `addExpenseWithBreakdown` from @/lib/finance/expenses. The pre-fix
+ * REGRESSION-GUARD test (Cas 4) which pinned the atomicity gap is
+ * reformulated as Cas 3 PIN ATOMIC CONTRACT — it now asserts the
+ * handler trusts the RPC atomicity (single mutation entry point, no
+ * fallback to direct piggy/savings ops, no compensating action needed
+ * because Postgres rolls back the whole tx on overdraft / INSERT
+ * failure).
  *
  * Mock strategy mirrors lib/recap/__tests__/step1-persist.test.ts —
  * `vi.mock` hoisted with withAuth passthrough, dynamic `await import`
- * in test bodies. calculateBreakdown is kept REAL (pure-sync, ~62 LOC,
- * mocking adds complexity for zero coverage gain). @/lib/logger is mocked.
+ * in test bodies. `calculateBreakdown` is kept REAL (pure-sync, ~62 LOC,
+ * mocking adds complexity for zero coverage gain). @/lib/logger is
+ * mocked. @/lib/finance/piggy-bank and @/lib/finance/budget-savings
+ * are no longer mocked — the handler no longer calls them directly.
  */
 
 import type { NextRequest } from 'next/server'
@@ -59,8 +65,7 @@ vi.mock('@/lib/supabase-server', () => {
   chain.maybeSingle = maybeSingle
   // Thenable: enables `await chain.match(...)` returning the matchAwait queue.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arbitrary onResolve/onReject signatures
-  chain.then = (onResolve: any, onReject: any) =>
-    matchAwait().then(onResolve, onReject)
+  chain.then = (onResolve: any, onReject: any) => matchAwait().then(onResolve, onReject)
 
   const from = vi.fn(() => chain)
   return {
@@ -73,12 +78,8 @@ vi.mock('@/lib/finance', () => ({
   saveRemainingToLiveSnapshot: vi.fn(async () => true),
 }))
 
-vi.mock('@/lib/finance/piggy-bank', () => ({
-  updatePiggyBank: vi.fn(async () => 0),
-}))
-
-vi.mock('@/lib/finance/budget-savings', () => ({
-  updateBudgetCumulatedSavings: vi.fn(async () => 0),
+vi.mock('@/lib/finance/expenses', () => ({
+  addExpenseWithBreakdown: vi.fn(async () => ({ expense_id: 'rx-mock' })),
 }))
 
 afterEach(() => {
@@ -102,23 +103,21 @@ type SupabaseMocks = {
   }
 }
 
-type PiggyMocks = { updatePiggyBank: ReturnType<typeof vi.fn> }
-type SavingsMocks = { updateBudgetCumulatedSavings: ReturnType<typeof vi.fn> }
+type ExpensesMocks = { addExpenseWithBreakdown: ReturnType<typeof vi.fn> }
 type LoggerMocks = { logger: { error: ReturnType<typeof vi.fn> } }
 
 async function importMocks() {
   const supabase = (await import('@/lib/supabase-server')) as unknown as SupabaseMocks
-  const piggy = (await import('@/lib/finance/piggy-bank')) as unknown as PiggyMocks
-  const savings = (await import('@/lib/finance/budget-savings')) as unknown as SavingsMocks
+  const expensesMod = (await import('@/lib/finance/expenses')) as unknown as ExpensesMocks
   const loggerMod = (await import('@/lib/logger')) as unknown as LoggerMocks
-  return { supabase, piggy, savings, loggerMod }
+  return { supabase, expensesMod, loggerMod }
 }
 
 // Tests ----------------------------------------------------------------------
 
-describe('POST /api/finance/expenses/add-with-logic — smart allocation', () => {
-  it('happy path: piggy + savings + INSERT all succeed, 3 writes in order', async () => {
-    const { supabase, piggy, savings, loggerMod } = await importMocks()
+describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic)', () => {
+  it('happy path: atomic RPC called once with full breakdown, response shape preserved', async () => {
+    const { supabase, expensesMod, loggerMod } = await importMocks()
 
     // L129 piggy_bank fetch (maybeSingle)
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
@@ -132,9 +131,16 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation', () =>
     })
     // L153 real_expenses listing (awaited chain, no terminal)
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    // L221 INSERT result (single after insert+select)
+    // RPC resolves with the new expense id
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-1' })
+    // Re-fetch the inserted row + estimated_budget join
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'rx-1', amount: 150, description: 'Lunch' },
+      data: {
+        id: 'rx-1',
+        amount: 150,
+        description: 'Lunch',
+        estimated_budget: { name: 'Budget 1' },
+      },
       error: null,
     })
 
@@ -151,32 +157,39 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation', () =>
     const json = await response.json()
 
     expect(response.status).toBe(200)
-    expect(json.real_expense).toBeDefined()
+    expect(json.real_expense).toMatchObject({ id: 'rx-1', amount: 150 })
     expect(json.breakdown).toMatchObject({
       from_piggy_bank: 100,
       from_budget_savings: 30,
       from_budget: 20,
     })
-    // Piggy RPC called once with -100
-    expect(piggy.updatePiggyBank).toHaveBeenCalledTimes(1)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledWith({ profile_id: 'user-1' }, -100)
-    // Savings RPC called once with -30
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(1)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledWith('b-1', -30)
-    // INSERT real_expenses called once with full amount + breakdown breakdown
-    expect(supabase.__mocks.insert).toHaveBeenCalledWith(
+    // Single mutation entry point — atomic RPC called exactly once with the
+    // full breakdown (piggy debit + savings debit + INSERT all live inside).
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
       expect.objectContaining({
         amount: 150,
-        amount_from_piggy_bank: 100,
-        amount_from_budget_savings: 30,
-        amount_from_budget: 20,
+        description: 'Lunch',
+        estimatedBudgetId: 'b-1',
+        amountFromPiggyBank: 100,
+        amountFromBudgetSavings: 30,
+        amountFromBudget: 20,
       }),
     )
+    // The handler does NOT INSERT real_expenses directly — the INSERT lives
+    // inside the RPC (mocked here).
+    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
 
-  it('piggy RPC throws: fail-fast 500, savings + INSERT not called', async () => {
-    const { supabase, piggy, savings } = await importMocks()
+  it('atomic RPC throws (overdraft or INSERT failure): 500, no fallback ops', async () => {
+    // Consolidates the pre-fix Cas 2 ("piggy RPC throws") and Cas 3 ("savings
+    // RPC throws") — post-fix all overdraft / INSERT failures funnel through
+    // a single throw from addExpenseWithBreakdown, which the handler maps to
+    // a 500. There is no compensating action needed because the entire
+    // composite RPC rolled back as one Postgres tx.
+    const { supabase, expensesMod, loggerMod } = await importMocks()
 
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
       data: { amount: 100 },
@@ -187,7 +200,9 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation', () =>
       error: null,
     })
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    piggy.updatePiggyBank.mockRejectedValueOnce(new Error('piggy RPC fail'))
+    expensesMod.addExpenseWithBreakdown.mockRejectedValueOnce(
+      new Error('piggy_bank amount cannot become negative (current: -50)'),
+    )
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
     const response = await POST(
@@ -200,108 +215,70 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation', () =>
     )
 
     expect(response.status).toBe(500)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledTimes(1)
-    // Savings RPC NOT called (fail-fast)
-    expect(savings.updateBudgetCumulatedSavings).not.toHaveBeenCalled()
-    // INSERT NOT called
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
+    // No direct INSERT, no re-fetch — handler bails on the RPC throw.
     expect(supabase.__mocks.insert).not.toHaveBeenCalled()
-  })
-
-  it('savings RPC throws: piggy already debited, no compensating, INSERT not called', async () => {
-    const { supabase, piggy, savings } = await importMocks()
-
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
-      error: null,
-    })
-    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    // Piggy debit succeeds, savings throws
-    piggy.updatePiggyBank.mockResolvedValueOnce(0)
-    savings.updateBudgetCumulatedSavings.mockRejectedValueOnce(new Error('savings RPC fail'))
-
-    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    const response = await POST(
-      buildRequest({
-        amount: 150,
-        description: 'Lunch',
-        estimated_budget_id: 'b-1',
-        is_for_group: false,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    // Piggy called ONCE (debit). No compensating restore.
-    expect(piggy.updatePiggyBank).toHaveBeenCalledTimes(1)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledWith({ profile_id: 'user-1' }, -100)
-    // Savings called ONCE (debit attempt, threw)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(1)
-    // INSERT NOT called
-    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
-  })
-
-  it('REGRESSION-GUARD atomicity gap: INSERT real_expenses fails but piggy + savings already debited (no compensating action)', async () => {
-    // This test pins the CURRENT BEHAVIOR — not the desired one. The route
-    // debits piggy + cumulated_savings via atomic RPCs, then performs a
-    // direct INSERT real_expenses. If the INSERT fails, both debits stay
-    // committed and the user perceives a magic money loss on next refresh.
-    //
-    // When a future Sprint Atomicity-Expenses fixes this (e.g. via a
-    // composite RPC mirroring transfer_with_savings_debit from Sprint
-    // Refactor-I5-followup-v2, or via compensating logger.error +
-    // cleanup-attempt calls), this test will break — which is the signal
-    // to update both the test and CLAUDE.md §11.
-    const { supabase, piggy, savings, loggerMod } = await importMocks()
-
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
-      error: null,
-    })
-    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    // Piggy + savings debits succeed
-    piggy.updatePiggyBank.mockResolvedValueOnce(0)
-    savings.updateBudgetCumulatedSavings.mockResolvedValueOnce(0)
-    // INSERT fails (FK violation, NOT NULL violation, etc.)
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: null,
-      error: { message: 'simulated INSERT failure', code: '23505' },
-    })
-
-    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    const response = await POST(
-      buildRequest({
-        amount: 150,
-        description: 'Lunch',
-        estimated_budget_id: 'b-1',
-        is_for_group: false,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    // INSERT was attempted
-    expect(supabase.__mocks.insert).toHaveBeenCalledTimes(1)
-    // ATOMICITY GAP: piggy + savings were each called EXACTLY ONCE (debit only).
-    // No restore. No compensating action. Piggy/savings remain debited in DB.
-    expect(piggy.updatePiggyBank).toHaveBeenCalledTimes(1)
-    expect(piggy.updatePiggyBank).toHaveBeenCalledWith({ profile_id: 'user-1' }, -100)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledTimes(1)
-    expect(savings.updateBudgetCumulatedSavings).toHaveBeenCalledWith('b-1', -30)
-    // logger.error fired (L233 'Erreur création dépense')
+    // logger.error fired with the atomic-op message
     const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
     expect(errorMessages).toEqual(
-      expect.arrayContaining([expect.stringMatching(/Erreur création dépense/)]),
+      expect.arrayContaining([expect.stringMatching(/Erreur création dépense atomique/)]),
     )
   })
 
-  it('exceptional path (no estimated_budget_id): single INSERT, no piggy/savings RPC', async () => {
-    const { supabase, piggy, savings } = await importMocks()
+  it('PIN ATOMIC CONTRACT: single mutation entry point, no compensating action on failure', async () => {
+    // Was Cas 4 REGRESSION-GUARD pre-fix — pinned the atomicity gap (piggy +
+    // savings debited but INSERT failed with no rollback). Post-fix the gap
+    // is closed at the DB level: the composite RPC wraps all three ops in one
+    // Postgres tx, so a thrown RPC means nothing was committed.
+    //
+    // This test now PINS the architectural invariant: the handler exposes
+    // a single mutation call site (addExpenseWithBreakdown) and does not
+    // attempt any per-resource rollback / compensating action on failure.
+    // If a future refactor reintroduces split mutation paths (e.g. calling
+    // updatePiggyBank or updateBudgetCumulatedSavings directly again), this
+    // test will likely still pass — but the gated DB-level atomicity tests
+    // in lib/finance/__tests__/add-expense-with-breakdown.test.ts will fail
+    // by proving partial state can leak. Keep both layers.
+    const { supabase, expensesMod, loggerMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
+      data: { amount: 100 },
+      error: null,
+    })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    // Atomic RPC throws as if the INSERT (final step inside the RPC) failed.
+    // In production, this also rolls back any prior debits in the same tx.
+    expensesMod.addExpenseWithBreakdown.mockRejectedValueOnce(
+      new Error('insert or update on table "real_expenses" violates check constraint'),
+    )
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    const response = await POST(
+      buildRequest({
+        amount: 150,
+        description: 'Lunch',
+        estimated_budget_id: 'b-1',
+        is_for_group: false,
+      }),
+    )
+
+    expect(response.status).toBe(500)
+    // Single call site invariant
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
+    // No compensating actions: handler does NOT call any restore RPC nor a
+    // second mutation path. INSERT is not attempted directly.
+    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
+    // Single logger.error site (atomic-op label)
+    const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
+    expect(errorMessages.filter((m) => /atomique/.test(m))).toHaveLength(1)
+  })
+
+  it('exceptional path (no estimated_budget_id): single INSERT, atomic RPC not called', async () => {
+    const { supabase, expensesMod } = await importMocks()
 
     // Exceptional INSERT result (single after insert+select)
     supabase.__mocks.single.mockResolvedValueOnce({
@@ -323,13 +300,12 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation', () =>
     expect(response.status).toBe(200)
     expect(json.breakdown).toBeNull()
     expect(json.real_expense).toBeDefined()
-    // INSERT called once (the exceptional path)
+    // INSERT called once (the exceptional path — direct INSERT, no RPC)
     expect(supabase.__mocks.insert).toHaveBeenCalledTimes(1)
     expect(supabase.__mocks.insert).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 50, is_exceptional: true }),
     )
-    // No piggy/savings RPC for exceptional path
-    expect(piggy.updatePiggyBank).not.toHaveBeenCalled()
-    expect(savings.updateBudgetCumulatedSavings).not.toHaveBeenCalled()
+    // Atomic RPC NOT called for exceptional path
+    expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
   })
 })

@@ -3,8 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { calculateBreakdown } from '@/lib/expense-allocation'
-import { updatePiggyBank } from '@/lib/finance/piggy-bank'
-import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import { addExpenseWithBreakdown } from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
@@ -41,7 +40,13 @@ export interface ExpenseBreakdown {
  * 2. Then, deplete budget savings (cumulated_savings)
  * 3. Finally, use the budget itself
  *
- * Returns a detailed breakdown of how the expense was allocated
+ * Returns a detailed breakdown of how the expense was allocated.
+ *
+ * Atomic since Sprint Atomicity-Expenses: the piggy debit, savings
+ * debit and INSERT real_expenses live inside a single Postgres tx
+ * (composite RPC `add_expense_with_breakdown`). Overdraft or INSERT
+ * failure rolls back all three operations together — no partial
+ * state, no compensating action needed.
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
@@ -178,61 +183,48 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const savingsAfter = savingsBefore - fromBudgetSavings
     const budgetSpentAfter = budgetSpentBefore + fromBudget
 
-    // Step 5: Update piggy bank if needed (atomique via RPC)
-    if (fromPiggyBank > 0 && piggyBankData) {
-      try {
-        await updatePiggyBank(contextFilter as unknown as FinanceContextFilter, -fromPiggyBank)
-      } catch (piggyError) {
-        logger.error('Erreur mise à jour tirelire:', piggyError)
-        return NextResponse.json(
-          { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 },
-        )
-      }
+    // Step 5: Single atomic op — piggy debit + savings debit + INSERT
+    // real_expenses in one Postgres tx. Overdraft (piggy or savings
+    // would go negative) or INSERT failure rolls back everything.
+    const todayIso = new Date().toISOString().split('T')[0] as string
+    let expenseId: string
+    try {
+      const result = await addExpenseWithBreakdown(contextFilter as unknown as FinanceContextFilter, {
+        amount,
+        description: description.trim(),
+        expenseDate: expense_date || todayIso,
+        estimatedBudgetId: estimated_budget_id,
+        amountFromPiggyBank: fromPiggyBank,
+        amountFromBudgetSavings: fromBudgetSavings,
+        amountFromBudget: fromBudget,
+      })
+      expenseId = result.expense_id
+    } catch (rpcError) {
+      logger.error('Erreur création dépense atomique:', rpcError)
+      return NextResponse.json(
+        { error: 'Erreur lors de la création de la dépense' },
+        { status: 500 },
+      )
     }
 
-    // Step 6: Update budget savings if needed (atomique via RPC)
-    if (fromBudgetSavings > 0) {
-      try {
-        await updateBudgetCumulatedSavings(estimated_budget_id, -fromBudgetSavings)
-      } catch (savingsError) {
-        logger.error('Erreur mise à jour savings:', savingsError)
-        return NextResponse.json(
-          { error: 'Erreur lors de la mise à jour des économies' },
-          { status: 500 },
-        )
-      }
-    }
-
-    // Step 7: Create the real expense with FULL amount and breakdown tracking
-    // The expense always appears in the list, but we track where the money came from
-    const insertData: RealExpenseInsert = {
-      amount: amount, // Full amount for display
-      description: description.trim(),
-      expense_date: expense_date || new Date().toISOString().split('T')[0],
-      is_exceptional: false,
-      estimated_budget_id,
-      amount_from_piggy_bank: fromPiggyBank,
-      amount_from_budget_savings: fromBudgetSavings,
-      amount_from_budget: fromBudget,
-      ...contextFilter,
-    }
-
-    const { data: expenseData, error: expenseError } = await supabaseServer
+    // Step 6: Re-fetch the inserted row + estimated_budget relation to
+    // preserve the response shape (the RPC returns only expense_id;
+    // the join is cheaper as a follow-up SELECT than as plpgsql JSON).
+    const { data: expenseData, error: fetchError } = await supabaseServer
       .from('real_expenses')
-      .insert(insertData)
       .select(
         `
         *,
         estimated_budget:estimated_budgets(name)
       `,
       )
+      .eq('id', expenseId)
       .single()
 
-    if (expenseError) {
-      logger.error('Erreur création dépense:', expenseError)
+    if (fetchError || !expenseData) {
+      logger.error('Erreur récupération dépense créée:', fetchError)
       return NextResponse.json(
-        { error: 'Erreur lors de la création de la dépense' },
+        { error: 'Erreur lors de la récupération de la dépense créée' },
         { status: 500 },
       )
     }
