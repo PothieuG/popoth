@@ -721,12 +721,31 @@ export type Database = {
         Args: { group_id_param: string }
         Returns: undefined
       }
+      transfer_budget_to_piggy_bank: {
+        Args: {
+          p_amount: number
+          p_from_budget_id: string
+          p_group_id?: string
+          p_profile_id?: string
+        }
+        Returns: Json
+      }
       transfer_from_piggy_to_budget: {
         Args: {
           p_amount: number
           p_budget_id: string
           p_group_id?: string
           p_profile_id?: string
+        }
+        Returns: Json
+      }
+      transfer_savings_between_budgets: {
+        Args: {
+          p_amount: number
+          p_from_budget_id: string
+          p_group_id?: string
+          p_profile_id?: string
+          p_to_budget_id: string
         }
         Returns: Json
       }
