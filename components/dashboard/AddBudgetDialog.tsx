@@ -5,6 +5,7 @@ import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
@@ -160,18 +161,19 @@ export default function AddBudgetDialog({
               >
                 Nom du budget <span className="text-red-500">*</span>
               </label>
-              <input
+              <Input
                 id="add-budget-name"
                 type="text"
                 {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
+                disabled={isSubmitting}
                 aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
                 className={cn(
-                  'w-full rounded-xl border px-4 py-3 transition-colors focus:outline-none focus:ring-2',
+                  'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2',
                   fieldErrors.name
-                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                    : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
+                    ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                    : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
                 )}
               />
               {fieldErrors.name && (
