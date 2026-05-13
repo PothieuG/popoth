@@ -2,51 +2,29 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { transferBudgetToPiggyBank, transferSavingsBetweenBudgets } from '@/lib/finance/savings'
 import { withAuthAndProfile, type AuthedProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { isBudgetToPiggyBank, transferSavingsBodySchema } from '@/lib/schemas/savings'
+import type { Context } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
  * API Transfer Savings Between Budgets OR Budget → Piggy Bank
  * POST /api/savings/transfer
  *
- * Body for budget transfer: {
- *   context: 'profile' | 'group',
- *   from_budget_id: string,
- *   to_budget_id: string,
- *   amount: number
- * }
- *
- * Body for budget → piggy bank: {
- *   context: 'profile' | 'group',
- *   action: 'budget_to_piggy_bank',
- *   from_budget_id: string,
- *   amount: number
- * }
+ * Body shapes validated by `transferSavingsBodySchema` (lib/schemas/savings.ts).
+ * See CLAUDE.md §6 "Validation Zod (parseBody)" for the convention.
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
+    const body = await parseBody(request, transferSavingsBodySchema)
 
     // Transfert budget → tirelire
-    if (action === 'budget_to_piggy_bank') {
-      return handleBudgetToPiggyBank(profile, context, from_budget_id, amount)
+    if (isBudgetToPiggyBank(body)) {
+      return handleBudgetToPiggyBank(profile, body.context, body.from_budget_id, body.amount)
     }
 
-    // Sinon, c'est un transfert entre budgets
-    if (!context || !from_budget_id || !to_budget_id || !amount) {
-      return NextResponse.json({ error: 'Paramètres manquants' }, { status: 400 })
-    }
-
-    if (amount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
-    }
-
-    if (from_budget_id === to_budget_id) {
-      return NextResponse.json(
-        { error: 'Les budgets source et destination doivent être différents' },
-        { status: 400 },
-      )
-    }
+    // Transfert budget → budget (action absent, narrowed by union)
+    const { context, from_budget_id, to_budget_id, amount } = body
 
     // Determine context filter
     const contextFilter =
@@ -124,7 +102,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         new_savings: to_savings,
       },
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur serveur lors du transfert' }, { status: 500 })
   }
 })
@@ -138,14 +118,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
  */
 async function handleBudgetToPiggyBank(
   profile: AuthedProfile,
-  context: string,
+  context: Context,
   fromBudgetId: string,
   amount: number,
 ) {
-  if (!fromBudgetId || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
-    return NextResponse.json({ error: 'Paramètres manquants ou invalides' }, { status: 400 })
-  }
-
   const contextFilter =
     context === 'group' && profile.group_id
       ? { group_id: profile.group_id }

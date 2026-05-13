@@ -127,12 +127,12 @@ describe('POST /api/savings/transfer — budget→budget', () => {
 
     // FROM budget fetch
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
       error: null,
     })
     // TO budget fetch
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
+      data: { id: '22222222-2222-4222-8222-222222222222', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
       error: null,
     })
     savings.transferSavingsBetweenBudgets.mockResolvedValueOnce({
@@ -144,8 +144,8 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     const response = await POST(
       buildRequest({
         context: 'profile',
-        from_budget_id: 'b-from',
-        to_budget_id: 'b-to',
+        from_budget_id: '11111111-1111-4111-8111-111111111111',
+        to_budget_id: '22222222-2222-4222-8222-222222222222',
         amount: 30,
       }),
     )
@@ -158,7 +158,7 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledTimes(1)
     expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledWith(
       { profile_id: 'profile-1' },
-      { fromBudgetId: 'b-from', toBudgetId: 'b-to', amount: 30 },
+      { fromBudgetId: '11111111-1111-4111-8111-111111111111', toBudgetId: '22222222-2222-4222-8222-222222222222', amount: 30 },
     )
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
@@ -176,11 +176,11 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     const { supabase, savings, loggerMod } = await importMocks()
 
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
       error: null,
     })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-to', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
+      data: { id: '22222222-2222-4222-8222-222222222222', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
       error: null,
     })
     savings.transferSavingsBetweenBudgets.mockRejectedValueOnce(new Error('atomic RPC fail'))
@@ -189,8 +189,8 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     const response = await POST(
       buildRequest({
         context: 'profile',
-        from_budget_id: 'b-from',
-        to_budget_id: 'b-to',
+        from_budget_id: '11111111-1111-4111-8111-111111111111',
+        to_budget_id: '22222222-2222-4222-8222-222222222222',
         amount: 30,
       }),
     )
@@ -215,7 +215,7 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
 
     // FROM budget fetch
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', cumulated_savings: 100 },
       error: null,
     })
     // Pre-state piggy fetch (for response shape)
@@ -233,7 +233,7 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
       buildRequest({
         context: 'profile',
         action: 'budget_to_piggy_bank',
-        from_budget_id: 'b-from',
+        from_budget_id: '11111111-1111-4111-8111-111111111111',
         amount: 50,
       }),
     )
@@ -247,7 +247,7 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
     expect(savings.transferBudgetToPiggyBank).toHaveBeenCalledTimes(1)
     expect(savings.transferBudgetToPiggyBank).toHaveBeenCalledWith(
       { profile_id: 'profile-1' },
-      { fromBudgetId: 'b-from', amount: 50 },
+      { fromBudgetId: '11111111-1111-4111-8111-111111111111', amount: 50 },
     )
     // Encapsulated inside the composite RPC — handler does NOT touch
     // piggy_bank directly anymore.
@@ -270,7 +270,7 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
     const { supabase, savings, piggy, loggerMod } = await importMocks()
 
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-from', name: 'From', cumulated_savings: 100 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', cumulated_savings: 100 },
       error: null,
     })
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
@@ -284,7 +284,7 @@ describe('POST /api/savings/transfer — handleBudgetToPiggyBank', () => {
       buildRequest({
         context: 'profile',
         action: 'budget_to_piggy_bank',
-        from_budget_id: 'b-from',
+        from_budget_id: '11111111-1111-4111-8111-111111111111',
         amount: 50,
       }),
     )
