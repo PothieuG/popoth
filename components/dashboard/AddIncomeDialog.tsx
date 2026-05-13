@@ -112,7 +112,9 @@ export default function AddIncomeDialog({
                 </div>
               </div>
               <button
+                type="button"
                 onClick={handleClose}
+                aria-label="Fermer"
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
               >
                 <svg
@@ -120,6 +122,7 @@ export default function AddIncomeDialog({
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
