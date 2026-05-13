@@ -4,6 +4,11 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import {
+  createRealIncomeBodySchema,
+  updateRealIncomeBodySchema,
+} from '@/lib/schemas/income'
 import { logger } from '@/lib/logger'
 
 type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
@@ -121,22 +126,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const body: CreateRealIncomeEntryRequest = await request.json()
-    const { amount, description, entry_date, estimated_income_id, is_for_group = false } = body
+    const body = await parseBody(request, createRealIncomeBodySchema)
+    const { amount, description, entry_date, estimated_income_id } = body
+    const is_for_group = body.is_for_group ?? false
 
-    // Validation
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
-    }
-
-    if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
-    }
-
+    const todayIso = new Date().toISOString().split('T')[0] as string
     const insertData: RealIncomeInsert = {
       amount,
-      description: description.trim(),
-      entry_date: entry_date || new Date().toISOString().split('T')[0],
+      description,
+      entry_date: entry_date || todayIso,
       is_exceptional: !estimated_income_id,
     }
 
@@ -238,7 +236,9 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       real_income_entry: data,
       message: "Entrée d'argent créée avec succès",
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -248,40 +248,16 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const body = await request.json()
+    const body = await parseBody(request, updateRealIncomeBodySchema)
     const { id, amount, description, entry_date, estimated_income_id } = body
 
-    if (!id) {
-      return NextResponse.json({ error: "ID de l'entrée d'argent requis" }, { status: 400 })
-    }
-
     const updates: RealIncomeUpdate = {}
-
-    if (amount !== undefined) {
-      if (amount <= 0) {
-        return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
-      }
-      updates.amount = amount
-    }
-
-    if (description !== undefined) {
-      if (!description || description.trim().length === 0) {
-        return NextResponse.json({ error: 'La description ne peut pas être vide' }, { status: 400 })
-      }
-      updates.description = description.trim()
-    }
-
-    if (entry_date !== undefined) {
-      updates.entry_date = entry_date
-    }
-
+    if (amount !== undefined) updates.amount = amount
+    if (description !== undefined) updates.description = description
+    if (entry_date !== undefined) updates.entry_date = entry_date
     if (estimated_income_id !== undefined) {
       updates.estimated_income_id = estimated_income_id
       updates.is_exceptional = !estimated_income_id
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the real income entry
@@ -325,7 +301,9 @@ export const PUT = withAuth(async (request: NextRequest) => {
       real_income_entry: data,
       message: "Entrée d'argent mise à jour avec succès",
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

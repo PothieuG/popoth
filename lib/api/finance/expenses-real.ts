@@ -5,6 +5,11 @@ import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import {
+  createRealExpenseBodySchema,
+  updateRealExpenseBodySchema,
+} from '@/lib/schemas/expense'
 import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
@@ -143,22 +148,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const body: CreateRealExpenseRequest = await request.json()
-    const { amount, description, expense_date, estimated_budget_id, is_for_group = false } = body
+    const body = await parseBody(request, createRealExpenseBodySchema)
+    const { amount, description, expense_date, estimated_budget_id } = body
+    const is_for_group = body.is_for_group ?? false
 
-    // Validation
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
-    }
-
-    if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
-    }
-
+    const todayIso = new Date().toISOString().split('T')[0] as string
     const insertData: RealExpenseInsert = {
       amount,
-      description: description.trim(),
-      expense_date: expense_date || new Date().toISOString().split('T')[0],
+      description,
+      expense_date: expense_date || todayIso,
       is_exceptional: !estimated_budget_id,
     }
 
@@ -257,7 +255,9 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       real_expense: data,
       message: 'Dépense créée avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -267,40 +267,16 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const body = await request.json()
+    const body = await parseBody(request, updateRealExpenseBodySchema)
     const { id, amount, description, expense_date, estimated_budget_id } = body
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID de la dépense requis' }, { status: 400 })
-    }
-
     const updates: RealExpenseUpdate = {}
-
-    if (amount !== undefined) {
-      if (amount <= 0) {
-        return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
-      }
-      updates.amount = amount
-    }
-
-    if (description !== undefined) {
-      if (!description || description.trim().length === 0) {
-        return NextResponse.json({ error: 'La description ne peut pas être vide' }, { status: 400 })
-      }
-      updates.description = description.trim()
-    }
-
-    if (expense_date !== undefined) {
-      updates.expense_date = expense_date
-    }
-
+    if (amount !== undefined) updates.amount = amount
+    if (description !== undefined) updates.description = description
+    if (expense_date !== undefined) updates.expense_date = expense_date
     if (estimated_budget_id !== undefined) {
       updates.estimated_budget_id = estimated_budget_id
       updates.is_exceptional = !estimated_budget_id
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Si le montant change, recalculer l'allocation (tirelire -> economies -> budget)
@@ -372,7 +348,9 @@ export const PUT = withAuth(async (request: NextRequest) => {
       real_expense: data,
       message: 'Dépense mise à jour avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
