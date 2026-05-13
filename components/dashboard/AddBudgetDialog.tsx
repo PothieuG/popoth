@@ -5,6 +5,7 @@ import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
@@ -19,6 +20,10 @@ interface AddBudgetDialogProps {
 
 /**
  * Dialog pour ajouter un nouveau budget avec validation en temps réel
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
  *
  * Uses react-hook-form + zodResolver(makeBudgetClientSchema(...)). The
  * factory refine gates the balance check (newTotal <= totalEstimatedIncome)
@@ -88,52 +93,25 @@ export default function AddBudgetDialog({
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
 
-  if (!isOpen) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
+      handleClose()
+    }
+  }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
-        onClick={handleClose}
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-md sm:rounded-2xl"
       >
-        {/* Dialog */}
-        <div
-          className="w-full max-w-md scale-100 transform rounded-2xl bg-white shadow-2xl transition-all duration-200"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="border-b border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
-                  <svg
-                    className="h-4 w-4 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Nouveau Budget</h3>
-                  <p className="text-sm text-gray-600">Ajoutez une catégorie de dépense</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={handleClose}
-                aria-label="Fermer"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
-              >
+        {/* Header */}
+        <div className="border-b border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
                 <svg
-                  className="h-4 w-4 text-gray-600"
+                  className="h-4 w-4 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -143,14 +121,42 @@ export default function AddBudgetDialog({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                   />
                 </svg>
-              </button>
+              </div>
+              <div>
+                <DialogTitle asChild>
+                  <h3 className="text-lg font-bold text-gray-900">Nouveau Budget</h3>
+                </DialogTitle>
+                <p className="text-sm text-gray-600">Ajoutez une catégorie de dépense</p>
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Fermer"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
+            >
+              <svg
+                className="h-4 w-4 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
           </div>
+        </div>
 
-          {/* Form */}
+        {/* Form */}
           <form
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
             className="space-y-4 p-6"
@@ -331,8 +337,7 @@ export default function AddBudgetDialog({
               </div>
             </div>
           </form>
-        </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }
