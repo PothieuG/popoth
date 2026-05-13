@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { loginFormSchema, sessionActionBodySchema, signupBodySchema } from '@/lib/schemas/auth'
+import {
+  forgotPasswordFormSchema,
+  loginFormSchema,
+  resetPasswordFormSchema,
+  sessionActionBodySchema,
+  signupBodySchema,
+} from '@/lib/schemas/auth'
 
 describe('signupBodySchema', () => {
   it('accepts a valid signup body', () => {
@@ -43,9 +49,9 @@ describe('loginFormSchema', () => {
   })
 
   it('rejects malformed email and short password', () => {
-    expect(loginFormSchema.safeParse({ email: 'not-an-email', password: 'secret123' }).success).toBe(
-      false,
-    )
+    expect(
+      loginFormSchema.safeParse({ email: 'not-an-email', password: 'secret123' }).success,
+    ).toBe(false)
     expect(loginFormSchema.safeParse({ email: 'test@example.com', password: 'abc' }).success).toBe(
       false,
     )
@@ -82,5 +88,76 @@ describe('sessionActionBodySchema', () => {
   it('rejects unknown action discriminator', () => {
     expect(sessionActionBodySchema.safeParse({ action: 'foo' }).success).toBe(false)
     expect(sessionActionBodySchema.safeParse({}).success).toBe(false)
+  })
+})
+
+describe('forgotPasswordFormSchema', () => {
+  it('accepts a valid email', () => {
+    const result = forgotPasswordFormSchema.safeParse({ email: 'test@example.com' })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects empty email', () => {
+    const result = forgotPasswordFormSchema.safeParse({ email: '' })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'email')
+      expect(issue).toBeDefined()
+    }
+  })
+
+  it('rejects invalid email format', () => {
+    const result = forgotPasswordFormSchema.safeParse({ email: 'not-an-email' })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'email')
+      expect(issue?.message).toBe("Format d'email invalide")
+    }
+  })
+})
+
+describe('resetPasswordFormSchema', () => {
+  it('accepts matching passwords of length >= 6', () => {
+    const result = resetPasswordFormSchema.safeParse({
+      password: 'secret123',
+      confirmPassword: 'secret123',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects password shorter than 6 characters', () => {
+    const result = resetPasswordFormSchema.safeParse({
+      password: 'abc',
+      confirmPassword: 'abc',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'password')
+      expect(issue?.message).toBe('Le mot de passe doit contenir au moins 6 caractères')
+    }
+  })
+
+  it('rejects password/confirmPassword mismatch on the confirmPassword path', () => {
+    const result = resetPasswordFormSchema.safeParse({
+      password: 'secret123',
+      confirmPassword: 'different',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'confirmPassword')
+      expect(issue?.message).toBe('Les mots de passe ne correspondent pas')
+    }
+  })
+
+  it('rejects empty confirmPassword', () => {
+    const result = resetPasswordFormSchema.safeParse({
+      password: 'secret123',
+      confirmPassword: '',
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.join('.') === 'confirmPassword')
+      expect(issue).toBeDefined()
+    }
   })
 })

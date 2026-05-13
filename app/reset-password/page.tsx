@@ -2,9 +2,12 @@
 
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { resetPasswordFormSchema, type ResetPasswordForm } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
 
 export default function NouveauMotDePassePage() {
@@ -21,25 +24,38 @@ export default function NouveauMotDePassePage() {
   )
 }
 
+/**
+ * Reset password content. The token validation state-machine
+ * (validatingToken / isValidToken) runs in a useEffect on mount and is
+ * preserved verbatim from the pre-v4 implementation. Only the form
+ * submission branch was migrated to react-hook-form + zodResolver.
+ *
+ * Server-side Supabase errors (session_not_found / different-from-old /
+ * generic password keyword / fallback) are mapped into `serverError`
+ * (Pattern F) ; the same mapping is duplicated in the catch block to
+ * cover the cases where the SDK throws instead of returning an error.
+ */
 function NouveauMotDePasseContent() {
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState('')
+  const router = useRouter()
+  const [serverError, setServerError] = useState('')
+  const [tokenError, setTokenError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [validatingToken, setValidatingToken] = useState(true)
   const [isValidToken, setIsValidToken] = useState(false)
 
-  const router = useRouter()
+  const form = useForm<ResetPasswordForm>({
+    resolver: zodResolver(resetPasswordFormSchema),
+    defaultValues: { password: '', confirmPassword: '' },
+    mode: 'onSubmit',
+  })
 
   /**
-   * Validates the reset token from the URL parameters on component mount
-   * Checks if the user has a valid session from the email link
+   * Validates the reset token from the URL parameters on component mount.
+   * Checks if the user has a valid session from the email link.
    */
   useEffect(() => {
     const validateToken = async () => {
       try {
-        // Check if user has a valid session (from email link)
         const {
           data: { session },
           error: sessionError,
@@ -47,13 +63,13 @@ function NouveauMotDePasseContent() {
 
         if (sessionError) {
           logger.error('Session validation error:', sessionError)
-          setError('Lien de réinitialisation invalide ou expiré')
+          setTokenError('Lien de réinitialisation invalide ou expiré')
           setValidatingToken(false)
           return
         }
 
         if (!session) {
-          setError(
+          setTokenError(
             'Lien de réinitialisation invalide ou expiré. Veuillez demander un nouveau lien.',
           )
           setValidatingToken(false)
@@ -65,7 +81,7 @@ function NouveauMotDePasseContent() {
         setValidatingToken(false)
       } catch (error) {
         logger.error('Token validation error:', error)
-        setError('Erreur lors de la validation du lien. Veuillez réessayer.')
+        setTokenError('Erreur lors de la validation du lien. Veuillez réessayer.')
         setValidatingToken(false)
       }
     }
@@ -73,34 +89,10 @@ function NouveauMotDePasseContent() {
     validateToken()
   }, [])
 
-  /**
-   * Handles new password form submission
-   * Validates password fields and updates user password via Supabase
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    // Password validation
-    if (!password || !confirmPassword) {
-      setError('Veuillez remplir tous les champs')
-      return
-    }
-
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas')
-      return
-    }
-
-    setLoading(true)
+  const onValidSubmit = async ({ password }: ResetPasswordForm) => {
+    setServerError('')
 
     try {
-      // Update user password with Supabase
       const { error: updateError } = await supabase.auth.updateUser({
         password: password,
       })
@@ -108,17 +100,16 @@ function NouveauMotDePasseContent() {
       if (updateError) {
         // Handle specific update errors - prevent error from bubbling up
         if (updateError.message.includes('session_not_found')) {
-          setError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
+          setServerError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
         } else if (
           updateError.message.includes('New password should be different from the old password')
         ) {
-          setError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
+          setServerError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
         } else if (updateError.message.includes('password')) {
-          setError('Le mot de passe ne respecte pas les critères de sécurité')
+          setServerError('Le mot de passe ne respecte pas les critères de sécurité')
         } else {
-          setError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')
+          setServerError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')
         }
-        setLoading(false)
         return
       }
 
@@ -128,29 +119,21 @@ function NouveauMotDePasseContent() {
       // Handle specific catch errors as well
       const message = error instanceof Error ? error.message : ''
       if (message.includes('New password should be different from the old password')) {
-        setError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
+        setServerError("Le nouveau mot de passe doit être différent de l'ancien mot de passe.")
       } else if (message.includes('session_not_found')) {
-        setError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
+        setServerError('Session expirée. Veuillez demander un nouveau lien de réinitialisation.')
       } else if (message.includes('password')) {
-        setError('Le mot de passe ne respecte pas les critères de sécurité')
+        setServerError('Le mot de passe ne respecte pas les critères de sécurité')
       } else {
-        setError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')
+        setServerError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')
       }
-    } finally {
-      setLoading(false)
     }
   }
 
-  /**
-   * Navigates back to the login page after successful password reset
-   */
   const handleGoToLogin = () => {
     router.push('/connexion')
   }
 
-  /**
-   * Navigates back to forgot password page to request a new link
-   */
   const handleRequestNewLink = () => {
     router.push('/mot-de-passe-oublie')
   }
@@ -209,7 +192,7 @@ function NouveauMotDePasseContent() {
                 <h2 className="text-xl font-semibold text-gray-900">
                   Lien de réinitialisation invalide
                 </h2>
-                <p className="text-gray-600">{error}</p>
+                <p className="text-gray-600">{tokenError}</p>
               </div>
 
               {/* Request New Link Button */}
@@ -281,6 +264,9 @@ function NouveauMotDePasseContent() {
     )
   }
 
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
   // Main form state
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
@@ -295,7 +281,7 @@ function NouveauMotDePasseContent() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
             {/* Password Field */}
             <div className="space-y-2">
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
@@ -304,13 +290,16 @@ function NouveauMotDePasseContent() {
               <Input
                 id="password"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...form.register('password')}
                 placeholder="Votre nouveau mot de passe"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="new-password"
+                aria-invalid={fieldErrors.password ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
+              {fieldErrors.password && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.password.message}</p>
+              )}
             </div>
 
             {/* Confirm Password Field */}
@@ -324,13 +313,18 @@ function NouveauMotDePasseContent() {
               <Input
                 id="confirmPassword"
                 type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                {...form.register('confirmPassword')}
                 placeholder="Confirmez votre nouveau mot de passe"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="new-password"
+                aria-invalid={fieldErrors.confirmPassword ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
+              {fieldErrors.confirmPassword && (
+                <p className="text-sm font-medium text-red-600">
+                  {fieldErrors.confirmPassword.message}
+                </p>
+              )}
             </div>
 
             {/* Password Requirements */}
@@ -344,8 +338,8 @@ function NouveauMotDePasseContent() {
               </div>
             </div>
 
-            {/* Error Display */}
-            {error && (
+            {/* Server Error Display */}
+            {serverError && (
               <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -358,7 +352,7 @@ function NouveauMotDePasseContent() {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">{error}</p>
+                    <p className="font-medium text-red-800">{serverError}</p>
                   </div>
                 </div>
               </div>
@@ -368,9 +362,9 @@ function NouveauMotDePasseContent() {
             <Button
               type="submit"
               className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? 'Mise à jour en cours...' : 'Mettre à jour le mot de passe'}
+              {isSubmitting ? 'Mise à jour en cours...' : 'Mettre à jour le mot de passe'}
             </Button>
           </form>
         </div>

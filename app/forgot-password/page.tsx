@@ -2,56 +2,46 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { forgotPasswordFormSchema, type ForgotPasswordForm } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
 
 /**
- * Forgot password page allowing users to request a password reset email
- * Features clean cardless design with colorful shadcn/ui component variants and Roboto font
+ * Forgot password page allowing users to request a password reset email.
+ *
+ * Uses react-hook-form + zodResolver(forgotPasswordFormSchema). Per-field
+ * email errors appear inline ; server-side Supabase errors (rate limit,
+ * network) surface via a separate `serverError` state (Pattern F).
  */
 export default function MotDePasseOubliePage() {
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState(false)
-  const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [serverError, setServerError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [submittedEmail, setSubmittedEmail] = useState('')
 
-  /**
-   * Handles password reset form submission
-   * Validates email format and sends reset email via Supabase
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess(false)
+  const form = useForm<ForgotPasswordForm>({
+    resolver: zodResolver(forgotPasswordFormSchema),
+    defaultValues: { email: '' },
+    mode: 'onSubmit',
+  })
 
-    // Email validation
-    if (!email) {
-      setError('Veuillez entrer votre adresse email')
-      return
-    }
-
-    if (!email.includes('@') || !email.includes('.')) {
-      setError('Veuillez entrer une adresse email valide')
-      return
-    }
-
-    setLoading(true)
+  const onValidSubmit = async ({ email }: ForgotPasswordForm) => {
+    setServerError('')
 
     try {
-      // Send password reset email with Supabase
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })
 
       if (resetError) {
-        // Handle specific reset errors
         if (resetError.message.includes('rate limit')) {
-          setError('Trop de demandes. Veuillez patienter avant de réessayer.')
+          setServerError('Trop de demandes. Veuillez patienter avant de réessayer.')
         } else {
-          setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
+          setServerError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
         }
         logger.error('Password reset error:', resetError)
         return
@@ -59,21 +49,20 @@ export default function MotDePasseOubliePage() {
 
       // Success - show confirmation message
       // Note: Supabase always succeeds for security reasons, even if email doesn't exist
+      setSubmittedEmail(email)
       setSuccess(true)
     } catch (error) {
-      setError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
+      setServerError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
       logger.error('Password reset error:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
-  /**
-   * Navigates back to the login page
-   */
   const handleBackToLogin = () => {
     router.push('/connexion')
   }
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
 
   if (success) {
     return (
@@ -110,8 +99,8 @@ export default function MotDePasseOubliePage() {
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold text-gray-900">Demande traitée</h2>
                 <p className="text-gray-600">
-                  Si un compte existe avec l&apos;adresse <strong>{email}</strong>, vous recevrez un
-                  lien de réinitialisation.
+                  Si un compte existe avec l&apos;adresse <strong>{submittedEmail}</strong>, vous
+                  recevrez un lien de réinitialisation.
                 </p>
                 <div className="space-y-2 text-sm text-gray-500">
                   <p>• Vérifiez votre boîte de réception et votre dossier spam</p>
@@ -149,7 +138,7 @@ export default function MotDePasseOubliePage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
             {/* Email Field */}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -158,17 +147,20 @@ export default function MotDePasseOubliePage() {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                {...form.register('email')}
                 placeholder="votre@email.com"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="email"
+                aria-invalid={fieldErrors.email ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
+              {fieldErrors.email && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+              )}
             </div>
 
-            {/* Error Display */}
-            {error && (
+            {/* Server-side Error Display */}
+            {serverError && (
               <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -181,7 +173,7 @@ export default function MotDePasseOubliePage() {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">{error}</p>
+                    <p className="font-medium text-red-800">{serverError}</p>
                   </div>
                 </div>
               </div>
@@ -191,9 +183,9 @@ export default function MotDePasseOubliePage() {
             <Button
               type="submit"
               className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
+              {isSubmitting ? 'Envoi en cours...' : 'Envoyer le lien de réinitialisation'}
             </Button>
           </form>
 

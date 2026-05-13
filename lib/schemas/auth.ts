@@ -56,3 +56,31 @@ export const sessionActionBodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('logout') }),
 ])
 export type SessionActionBody = z.infer<typeof sessionActionBodySchema>
+
+/**
+ * Forgot password form schema — used client-side by app/forgot-password/page.tsx
+ * via react-hook-form + zodResolver (Sprint Zod-Rollout v4). Single email field
+ * matching the previous manual check `!email.includes('@') || !email.includes('.')`.
+ */
+export const forgotPasswordFormSchema = z.object({
+  email: z.string().trim().email("Format d'email invalide"),
+})
+export type ForgotPasswordForm = z.infer<typeof forgotPasswordFormSchema>
+
+/**
+ * Reset password form schema — used client-side by app/reset-password/page.tsx
+ * via react-hook-form + zodResolver (Sprint Zod-Rollout v4). Mirrors the password
+ * + confirmPassword pair from signupBodySchema (min 6 + refine match on confirm
+ * field path) but without email (the user is already authenticated via the email
+ * link token, validated separately in a useEffect state-machine).
+ */
+export const resetPasswordFormSchema = z
+  .object({
+    password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères'),
+    confirmPassword: z.string().min(1, 'Confirmation requise'),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Les mots de passe ne correspondent pas',
+    path: ['confirmPassword'],
+  })
+export type ResetPasswordForm = z.infer<typeof resetPasswordFormSchema>
