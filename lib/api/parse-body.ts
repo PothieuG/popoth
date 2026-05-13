@@ -49,3 +49,22 @@ export function handleBadRequest(error: unknown): NextResponse | null {
   }
   return null
 }
+
+/**
+ * Validate the request's URL query string against `schema`. Returns the
+ * parsed, typed query object on success. Throws `BadRequestError` on schema
+ * mismatch — let the route's outer `try/catch` funnel it through
+ * `handleBadRequest(error)`.
+ *
+ * Sync because there is no I/O — only URL parsing. Call sites do NOT need
+ * `await`. Schemas should use `z.coerce.number()` / `z.coerce.boolean()`
+ * since `URLSearchParams` returns strings.
+ */
+export function parseQuery<T>(request: NextRequest, schema: ZodType<T>): T {
+  const raw = Object.fromEntries(new URL(request.url).searchParams.entries())
+  const result = schema.safeParse(raw)
+  if (!result.success) {
+    throw new BadRequestError('Query invalide', result.error.issues)
+  }
+  return result.data
+}

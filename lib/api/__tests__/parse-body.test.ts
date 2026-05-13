@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 import type { NextRequest } from 'next/server'
-import { parseBody, BadRequestError, handleBadRequest } from '@/lib/api/parse-body'
+import { parseBody, parseQuery, BadRequestError, handleBadRequest } from '@/lib/api/parse-body'
 
 function makeRequest(body: string | object): NextRequest {
   const url = 'http://localhost/api/test'
@@ -14,6 +14,11 @@ function makeRequest(body: string | object): NextRequest {
           headers: { 'content-type': 'application/json' },
         }
   return new Request(url, init) as unknown as NextRequest
+}
+
+function makeGetRequest(query: string): NextRequest {
+  const url = `http://localhost/api/test${query}`
+  return new Request(url, { method: 'GET' }) as unknown as NextRequest
 }
 
 const schema = z.object({
@@ -70,5 +75,29 @@ describe('handleBadRequest', () => {
     expect(handleBadRequest(new Error('something else'))).toBeNull()
     expect(handleBadRequest('plain string')).toBeNull()
     expect(handleBadRequest(null)).toBeNull()
+  })
+})
+
+describe('parseQuery', () => {
+  const querySchema = z.object({
+    context: z.enum(['profile', 'group']).optional().default('profile'),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
+  })
+
+  it('returns parsed data with coerced types on valid query', () => {
+    const req = makeGetRequest('?context=group&limit=25')
+    const result = parseQuery(req, querySchema)
+    expect(result).toStrictEqual({ context: 'group', limit: 25 })
+  })
+
+  it('applies defaults when params absent', () => {
+    const req = makeGetRequest('')
+    const result = parseQuery(req, querySchema)
+    expect(result).toStrictEqual({ context: 'profile' })
+  })
+
+  it('throws BadRequestError when coercion fails (limit=abc)', () => {
+    const req = makeGetRequest('?limit=abc')
+    expect(() => parseQuery(req, querySchema)).toThrow(BadRequestError)
   })
 })
