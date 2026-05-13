@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { createProfileBodySchema, updateProfileBodySchema } from '@/lib/schemas/profile'
 import { logger } from '@/lib/logger'
 
 export interface ProfileData {
@@ -87,37 +89,17 @@ export const GET = withAuth(async (_request, { userId }) => {
  */
 export const POST = withAuth(async (request, { userId }) => {
   try {
-    // Parser les données de la requête
-    const body = (await request.json()) as CreateProfileRequest
-    const { first_name, last_name, salary } = body
+    const { first_name, last_name, salary } = await parseBody(request, createProfileBodySchema)
 
-    // Validation des données
-    if (!first_name || !last_name) {
-      return NextResponse.json({ error: 'Le prénom et le nom sont requis' }, { status: 400 })
-    }
-
-    if (first_name.trim().length < 1 || last_name.trim().length < 1) {
-      return NextResponse.json(
-        { error: 'Le prénom et le nom ne peuvent pas être vides' },
-        { status: 400 },
-      )
-    }
-
-    // Validation du salaire (requis)
-    if (salary !== undefined && (salary <= 0 || salary > 999999.99)) {
-      return NextResponse.json(
-        { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
-        { status: 400 },
-      )
-    }
-
-    // Créer le profil dans Supabase
+    // Créer le profil dans Supabase. The schema trims `first_name`/`last_name`
+    // and validates salary range; we keep the `salary || 1` runtime fallback
+    // for the case where salary is undefined (schema allows optional).
     const { data, error } = await supabaseServer
       .from('profiles')
       .insert({
         id: userId,
-        first_name: first_name.trim(),
-        last_name: last_name.trim(),
+        first_name,
+        last_name,
         salary: salary || 1,
       })
       .select()
@@ -154,6 +136,8 @@ export const POST = withAuth(async (request, { userId }) => {
       message: 'Profil créé avec succès',
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
       { status: 500 },
@@ -167,43 +151,16 @@ export const POST = withAuth(async (request, { userId }) => {
  */
 export const PUT = withAuth(async (request, { userId }) => {
   try {
-    // Parser les données de la requête
-    const body = await request.json()
-    const updates: Partial<CreateProfileRequest> = {}
+    const body = await parseBody(request, updateProfileBodySchema)
 
-    // Valider et préparer les mises à jour
-    if (body.first_name !== undefined) {
-      if (!body.first_name || body.first_name.trim().length < 1) {
-        return NextResponse.json({ error: 'Le prénom ne peut pas être vide' }, { status: 400 })
-      }
-      updates.first_name = body.first_name.trim()
-    }
-
-    if (body.last_name !== undefined) {
-      if (!body.last_name || body.last_name.trim().length < 1) {
-        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
-      }
-      updates.last_name = body.last_name.trim()
-    }
-
-    if (body.salary !== undefined) {
-      if (body.salary <= 0 || body.salary > 999999.99) {
-        return NextResponse.json(
-          { error: 'Le salaire doit être entre 1 et 999,999.99 €' },
-          { status: 400 },
-        )
-      }
-      updates.salary = body.salary
-    }
-
-    if (body.avatar_url !== undefined) {
-      updates.avatar_url = body.avatar_url
-    }
-
-    // Vérifier qu'il y a au moins une mise à jour
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
-    }
+    // Schema already trims names + validates salary range + enforces the
+    // "at least one field" refine. We just project to the DB row shape,
+    // skipping undefined fields so the DB keeps the existing values.
+    const updates: Record<string, unknown> = {}
+    if (body.first_name !== undefined) updates.first_name = body.first_name
+    if (body.last_name !== undefined) updates.last_name = body.last_name
+    if (body.salary !== undefined) updates.salary = body.salary
+    if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url
 
     // Mettre à jour le profil dans Supabase
     const { data, error } = await supabaseServer
@@ -250,7 +207,9 @@ export const PUT = withAuth(async (request, { userId }) => {
       profile: profileData,
       message: 'Profil mis à jour avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
