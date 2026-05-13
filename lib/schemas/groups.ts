@@ -1,4 +1,10 @@
 import { z } from 'zod'
+import { moneySchema } from './common'
+
+const groupNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Le nom du groupe doit contenir au moins 2 caractères')
 
 /**
  * Query schema for /api/groups/search GET. `q` is a trimmed string (the
@@ -11,3 +17,29 @@ export const searchGroupsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
 })
 export type SearchGroupsQuery = z.infer<typeof searchGroupsQuerySchema>
+
+/**
+ * POST /api/groups body — create a new group. The route enforces "user not
+ * already in a group" + 23505 uniqueness on name; both stay route-side
+ * post-Zod since they require runtime context.
+ */
+export const createGroupBodySchema = z.object({
+  name: groupNameSchema,
+  monthly_budget_estimate: moneySchema,
+})
+export type CreateGroupBody = z.infer<typeof createGroupBodySchema>
+
+/**
+ * PUT /api/groups/[id] body — partial update (name and/or monthly_budget_estimate).
+ * Refine at-least-one ensures the route doesn't bail with empty `updateData`.
+ * Creator-only check stays in the handler (needs runtime profile).
+ */
+export const updateGroupBodySchema = z
+  .object({
+    name: groupNameSchema.optional(),
+    monthly_budget_estimate: moneySchema.optional(),
+  })
+  .refine((d) => d.name !== undefined || d.monthly_budget_estimate !== undefined, {
+    message: 'Aucune donnée à mettre à jour',
+  })
+export type UpdateGroupBody = z.infer<typeof updateGroupBodySchema>
