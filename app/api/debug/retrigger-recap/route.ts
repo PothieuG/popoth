@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
+import { retriggerRecapBodySchema } from '@/lib/schemas/debug'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -21,16 +22,24 @@ export async function POST(request: NextRequest) {
 
     const userId = sessionData.userId
 
-    // Récupérer le contexte depuis le body (optionnel, défaut: profile)
-    let context = 'profile'
+    // Récupérer le contexte depuis le body (optionnel, défaut: profile).
+    // Le body peut être absent — on parse vers {} dans ce cas et le schema
+    // applique son default. parseBody n'est pas utilisé ici parce qu'il
+    // rejette les bodies vides, alors que cette route accepte no-body.
+    let rawBody: unknown = {}
     try {
-      const body = await request.json()
-      if (body.context === 'group') {
-        context = 'group'
-      }
+      rawBody = await request.json()
     } catch {
-      // Pas de body, on utilise le défaut
+      // No body or malformed → use schema defaults
     }
+    const parsed = retriggerRecapBodySchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Body invalide', issues: parsed.error.issues },
+        { status: 400 },
+      )
+    }
+    const { context } = parsed.data
 
     // Récupérer le profil
     const { data: profile, error: profileError } = await supabaseServer
