@@ -1,18 +1,26 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { editBalanceFormSchema, type EditBalanceForm } from '@/lib/schemas/bank-balance'
 import { logger } from '@/lib/logger'
 
 interface EditBalanceModalProps {
   isOpen: boolean
   currentBalance: number
-  onSubmit: (newBalance: number) => void
+  onSubmit: (newBalance: number) => void | Promise<void>
   onCancel: () => void
 }
+
+// z.coerce.number() schemas have a distinct input/output : input accepts
+// string|number, output is always number. useForm needs both shapes.
+type EditBalanceFormInput = z.input<typeof editBalanceFormSchema>
 
 /**
  * Modal pour éditer le solde disponible avec explications
@@ -24,32 +32,31 @@ export default function EditBalanceModal({
   onSubmit,
   onCancel,
 }: EditBalanceModalProps) {
-  const [balance, setBalance] = useState(currentBalance.toString())
-  const [isLoading, setIsLoading] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const form = useForm<EditBalanceFormInput, undefined, EditBalanceForm>({
+    resolver: zodResolver(editBalanceFormSchema),
+    defaultValues: { balance: currentBalance },
+    mode: 'onSubmit',
+  })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
+  const handleValidSubmit = async (data: EditBalanceForm) => {
+    setServerError(null)
     try {
-      const newBalance = parseFloat(balance)
-      if (isNaN(newBalance)) {
-        throw new Error('Montant invalide')
-      }
-
-      await onSubmit(newBalance)
+      await onSubmit(data.balance)
     } catch (error) {
       logger.error('Erreur lors de la mise à jour du solde:', error)
-      // Afficher l'erreur à l'utilisateur si nécessaire
-    } finally {
-      setIsLoading(false)
+      setServerError('Erreur lors de la mise à jour du solde')
     }
   }
 
   const handleCancel = () => {
-    setBalance(currentBalance.toString())
+    form.reset({ balance: currentBalance })
+    setServerError(null)
     onCancel()
   }
+
+  const balanceError = form.formState.errors.balance
+  const isSubmitting = form.formState.isSubmitting
 
   return (
     <Dialog open={isOpen} onOpenChange={handleCancel}>
@@ -60,7 +67,7 @@ export default function EditBalanceModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={form.handleSubmit(handleValidSubmit)} className="space-y-4" noValidate>
           {/* Explication */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
             <div className="flex items-start space-x-2">
@@ -96,27 +103,40 @@ export default function EditBalanceModal({
               Nouveau solde disponible
             </Label>
             <div className="relative mt-1">
-              <Input
-                id="balance"
-                type="text"
-                inputMode="decimal"
-                value={balance}
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (v === '' || /^-?\d*[.,]?\d*$/.test(v)) {
-                    setBalance(v.replace(',', '.'))
-                  }
-                }}
-                placeholder="0.00"
-                className="pr-8"
-                disabled={isLoading}
-                required
+              <Controller
+                control={form.control}
+                name="balance"
+                render={({ field }) => (
+                  <Input
+                    id="balance"
+                    type="text"
+                    inputMode="decimal"
+                    value={field.value == null ? '' : String(field.value)}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (v === '' || /^-?\d*[.,]?\d*$/.test(v)) {
+                        // Keep raw string so partial entries like "-" or "-1." work;
+                        // zodResolver runs z.coerce.number() at submit time.
+                        field.onChange(v.replace(',', '.'))
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="pr-8"
+                    disabled={isSubmitting}
+                    aria-invalid={balanceError ? 'true' : 'false'}
+                  />
+                )}
               />
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                 <span className="text-sm text-gray-500">€</span>
               </div>
             </div>
+            {balanceError && (
+              <p className="mt-1 text-xs text-red-600">{balanceError.message}</p>
+            )}
           </div>
+
+          {serverError && <p className="text-xs text-red-600">{serverError}</p>}
 
           {/* Boutons d'action */}
           <div className="flex space-x-3 pt-2">
@@ -125,12 +145,12 @@ export default function EditBalanceModal({
               variant="outline"
               onClick={handleCancel}
               className="flex-1"
-              disabled={isLoading}
+              disabled={isSubmitting}
             >
               Annuler
             </Button>
-            <Button type="submit" className="flex-1" disabled={isLoading}>
-              {isLoading ? (
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? (
                 <>
                   <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   Sauvegarde...

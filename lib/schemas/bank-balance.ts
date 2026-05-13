@@ -17,3 +17,19 @@ export const updateBankBalanceBodySchema = z.object({
 })
 
 export type UpdateBankBalanceBody = z.infer<typeof updateBankBalanceBodySchema>
+
+/**
+ * Client-side form schema for EditBalanceModal. Coerces the decimal-string
+ * input (comma already normalized to dot at onChange time) to a number;
+ * shares the same finite + 2-decimal contract as updateBankBalanceBodySchema.
+ * Allows negative values (overdraft).
+ */
+export const editBalanceFormSchema = z.object({
+  balance: z.coerce
+    .number()
+    .finite('Le solde doit être un nombre fini')
+    .refine((v) => Math.round(v * 100) === v * 100, {
+      message: 'Au maximum 2 décimales',
+    }),
+})
+export type EditBalanceForm = z.infer<typeof editBalanceFormSchema>
