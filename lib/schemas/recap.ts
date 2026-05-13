@@ -91,3 +91,77 @@ export const refreshRecapQuerySchema = z.object({
   session_id: z.string().min(1, 'session_id requis'),
 })
 export type RefreshRecapQuery = z.infer<typeof refreshRecapQuerySchema>
+
+/**
+ * POST /api/monthly-recap/initialize body — kicks off a new monthly recap
+ * for the current month. Defaults to profile context.
+ */
+export const initializeRecapBodySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+})
+export type InitializeRecapBody = z.infer<typeof initializeRecapBodySchema>
+
+/**
+ * POST /api/monthly-recap/recover body — restores a snapshot. `confirm` MUST
+ * be literal `true` (the existing route check `if (!confirm)` is preserved
+ * + tightened to reject any value other than `true`). `snapshot_id` optional
+ * — if absent, the route picks the most recent.
+ *
+ * NOTE: The POST handler has a CLEANUP-ATTEMPT CRITIQUE at L297-306
+ * (rollback partiel can leave snapshot active). Migration touches only
+ * the top of the function — that block stays verbatim.
+ */
+export const recoverRecapBodySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+  snapshot_id: uuidSchema.optional(),
+  confirm: z.literal(true, {
+    errorMap: () => ({
+      message: 'La confirmation est requise pour effectuer une récupération',
+    }),
+  }),
+})
+export type RecoverRecapBody = z.infer<typeof recoverRecapBodySchema>
+
+/**
+ * session_id format: `{context}_{contextId}_{month}_{year}_{ts}`
+ * (5 parts, ctx ∈ {profile,group}, month 1-12, year 4-digit, ts numeric).
+ * The route still does a runtime cross-check that sessionContext/Id match
+ * the current user/context (needs profile.id/group_id, out of schema reach).
+ */
+const sessionIdSchema = z
+  .string()
+  .min(1, 'session_id requis')
+  .refine(
+    (s) => {
+      const parts = s.split('_')
+      if (parts.length < 5) return false
+      const [ctx, , monthStr, yearStr, tsStr] = parts
+      if (ctx !== 'profile' && ctx !== 'group') return false
+      const month = Number(monthStr)
+      const year = Number(yearStr)
+      const ts = Number(tsStr)
+      return (
+        Number.isInteger(month) &&
+        month >= 1 &&
+        month <= 12 &&
+        Number.isInteger(year) &&
+        year >= 1900 &&
+        year <= 9999 &&
+        Number.isFinite(ts) &&
+        ts > 0
+      )
+    },
+    { message: 'Format de session_id invalide' },
+  )
+
+/**
+ * POST /api/monthly-recap/update-step body. current_step 1-3 (in-range
+ * mirror of the pre-Zod check). session_id structural check is tighter
+ * than the original (which only checked `.length < 5`).
+ */
+export const updateRecapStepBodySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+  session_id: sessionIdSchema,
+  current_step: z.number().int().min(1).max(3, 'current_step doit être entre 1 et 3'),
+})
+export type UpdateRecapStepBody = z.infer<typeof updateRecapStepBodySchema>
