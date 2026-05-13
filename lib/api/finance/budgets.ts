@@ -3,6 +3,8 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { createBudgetBodySchema, updateBudgetBodySchema } from '@/lib/schemas/budget'
 import { logger } from '@/lib/logger'
 
 /**
@@ -17,21 +19,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
-    const body = await request.json()
-
-    const { name, estimatedAmount } = body
-
-    // Validation des données
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      return NextResponse.json(
-        { error: 'Le nom du budget est requis (minimum 2 caractères)' },
-        { status: 400 },
-      )
-    }
-
-    if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
-    }
+    const { name, estimatedAmount } = await parseBody(request, createBudgetBodySchema)
 
     const supabase = supabaseServer
 
@@ -43,11 +31,11 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       )
     }
 
-    // Préparer les données du budget selon le contexte
+    // Préparer les données du budget selon le contexte (name déjà trimmé par le schema)
     let budgetData
     if (context === 'group') {
       budgetData = {
-        name: name.trim(),
+        name,
         estimated_amount: estimatedAmount,
         is_monthly_recurring: true,
         group_id: profile.group_id,
@@ -55,7 +43,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       }
     } else {
       budgetData = {
-        name: name.trim(),
+        name,
         estimated_amount: estimatedAmount,
         is_monthly_recurring: true,
         profile_id: userId,
@@ -87,7 +75,9 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     return NextResponse.json({ budget }, { status: 201 })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })
@@ -101,27 +91,13 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
       return NextResponse.json({ error: 'ID du budget requis' }, { status: 400 })
     }
 
-    const body = await request.json()
-
-    const { name, estimatedAmount } = body
-
-    // Validation des données
-    if (!name || typeof name !== 'string' || name.trim().length < 2) {
-      return NextResponse.json(
-        { error: 'Le nom du budget est requis (minimum 2 caractères)' },
-        { status: 400 },
-      )
-    }
-
-    if (!estimatedAmount || typeof estimatedAmount !== 'number' || estimatedAmount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
-    }
+    const { name, estimatedAmount } = await parseBody(request, updateBudgetBodySchema)
 
     const supabase = supabaseServer
 
-    // Préparer les données de mise à jour
+    // Préparer les données de mise à jour (name déjà trimmé par le schema)
     const updateData = {
-      name: name.trim(),
+      name,
       estimated_amount: estimatedAmount,
       updated_at: new Date().toISOString(),
     }
@@ -177,7 +153,9 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
     }
 
     return NextResponse.json({ budget })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })
