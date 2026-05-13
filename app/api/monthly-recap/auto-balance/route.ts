@@ -3,6 +3,8 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { autoBalanceBodySchema } from '@/lib/schemas/recap'
 
 /**
  * API POST /api/monthly-recap/auto-balance
@@ -77,16 +79,7 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile' } = body
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = await parseBody(request, autoBalanceBodySchema)
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
@@ -680,6 +673,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       remaining_deficit: remainingDeficit,
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     console.error('❌ Erreur lors de la répartition automatique:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { manualTransferBodySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 /**
@@ -37,34 +39,10 @@ import { logger } from '@/lib/logger'
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', from_budget_id, to_budget_id, amount, monthly_recap_id } = body
-
-    // Validations
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    if (!from_budget_id || !to_budget_id || !amount) {
-      return NextResponse.json(
-        { error: 'from_budget_id, to_budget_id et amount sont requis' },
-        { status: 400 },
-      )
-    }
-
-    if (from_budget_id === to_budget_id) {
-      return NextResponse.json(
-        { error: 'Les budgets source et destination doivent être différents' },
-        { status: 400 },
-      )
-    }
-
-    if (amount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être positif' }, { status: 400 })
-    }
+    const { context, from_budget_id, to_budget_id, amount, monthly_recap_id } = await parseBody(
+      request,
+      manualTransferBodySchema,
+    )
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
@@ -184,7 +162,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         amount,
       },
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

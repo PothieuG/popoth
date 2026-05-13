@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { accumulatePiggyBankBodySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 /**
@@ -24,21 +26,7 @@ import { logger } from '@/lib/logger'
  */
 export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', amount } = body
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    // Validation du montant
-    if (typeof amount !== 'number' || amount < 0) {
-      return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
-    }
+    const { context, amount } = await parseBody(request, accumulatePiggyBankBodySchema)
 
     // Déterminer le contexte (profile ou group)
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -115,7 +103,9 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       added_amount: amount,
       new_amount: newAmount,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import {
-  getProfileFinancialData,
-  getGroupFinancialData,
-  type FinancialData,
-} from '@/lib/finance'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { balanceBodySchema } from '@/lib/schemas/recap'
 
 /**
  * API POST /api/monthly-recap/balance
@@ -20,15 +18,7 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { context } = await request.json()
-
-    // Validation des paramètres
-    if (!context || !['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = await parseBody(request, balanceBodySchema)
 
     // Déterminer l'ID du contexte
     let contextId: string
@@ -468,6 +458,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       budget_stats: finalBudgetStats,
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     console.error("❌ [Balance API] Erreur lors de l'équilibrage proportionnel:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
