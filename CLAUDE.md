@@ -646,6 +646,7 @@ Voir [docs/audit/RLS-FINDINGS.md](docs/audit/RLS-FINDINGS.md) (état pré-Sprint
      - Supabase-js ≥2.105 security CVE → security PR **bloquée** par notre `versions: ">=2.105.0"` ❌
      - eslint-config-next ≥16 security CVE → security PR **bloquée** par notre `versions: ">=16.0.0"` ❌
      - Si un CVE critique tombe sur supabase-js 2.105+ ou eslint-config-next 16+, l'alerte Dependabot **arrivera quand même** (Dependabot alerts est désactivé par les `ignore` rules uniquement si on ajoute `dismissed-types`). Action manuelle requise : retirer temporairement le `ignore` rule pour laisser le security PR être créée, puis re-mettre.
+- **Pour tout nouveau form client** (Sprint Zod-Rollout v5 a11y pattern) : (a) ajouter `aria-describedby={fieldErrors.X ? 'form-X-error' : undefined}` sur l'`<Input>` + `id="form-X-error"` sur le `<p>` d'erreur (id-prefixé par form pour éviter collisions SPA — pattern `login-email-error` / `signup-confirmpassword-error`) ; (b) ajouter `role="alert"` sur le wrapper serverError. **Pour tout nouveau test RTL** (CLAUDE.md §9 patterns) : mock-per-site inline `vi.mock('@/lib/supabase-client'|'@/hooks/useX', ...)` ; UUIDs valides obligatoires dans les fixtures FK (uuidSchema.nullable() rejette silencieusement les ID style 'b-1') ; CustomDropdown mocké en `<select>` pour la testabilité.
 
 ### ❌ À ne pas faire
 
