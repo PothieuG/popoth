@@ -5,6 +5,7 @@ import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
@@ -432,26 +433,13 @@ export default function AddTransactionModal({
             <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
               Montant (€) <span className="text-red-500">*</span>
             </Label>
-            <Controller
+            <DecimalFormInput
               control={form.control}
               name="amount"
-              render={({ field }) => (
-                <Input
-                  id="amount"
-                  type="text"
-                  inputMode="decimal"
-                  value={field.value == null ? '' : String(field.value)}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      field.onChange(v.replace(',', '.'))
-                    }
-                  }}
-                  placeholder="0.00"
-                  aria-invalid={fieldErrors.amount ? 'true' : 'false'}
-                  className="w-full"
-                />
-              )}
+              id="amount"
+              placeholder="0.00"
+              className="w-full"
+              ariaInvalid={!!fieldErrors.amount}
             />
             {fieldErrors.amount && (
               <p className="text-sm text-red-600">{fieldErrors.amount.message}</p>

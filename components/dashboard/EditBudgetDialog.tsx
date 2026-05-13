@@ -1,10 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useForm, useWatch, Controller } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface EstimatedBudget {
@@ -170,27 +171,14 @@ export default function EditBudgetDialog({
                 Montant mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Controller
+                <DecimalFormInput
                   control={form.control}
                   name="estimatedAmount"
-                  render={({ field }) => (
-                    <input
-                      id="budget-amount"
-                      type="text"
-                      inputMode="decimal"
-                      value={field.value == null ? '' : String(field.value)}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                          field.onChange(v.replace(',', '.'))
-                        }
-                      }}
-                      placeholder="0.00"
-                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                      disabled={isSubmitting}
-                    />
-                  )}
+                  id="budget-amount"
+                  placeholder="0.00"
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  className="h-auto rounded-lg border-gray-300 px-3 py-2 pr-8 focus-visible:border-orange-500 focus-visible:ring-2 focus-visible:ring-orange-500"
+                  disabled={isSubmitting}
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className="text-sm text-gray-500">€</span>

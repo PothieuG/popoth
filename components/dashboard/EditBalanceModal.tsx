@@ -1,12 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { editBalanceFormSchema, type EditBalanceForm } from '@/lib/schemas/bank-balance'
 import { logger } from '@/lib/logger'
@@ -103,37 +103,21 @@ export default function EditBalanceModal({
               Nouveau solde disponible
             </Label>
             <div className="relative mt-1">
-              <Controller
+              <DecimalFormInput
                 control={form.control}
                 name="balance"
-                render={({ field }) => (
-                  <Input
-                    id="balance"
-                    type="text"
-                    inputMode="decimal"
-                    value={field.value == null ? '' : String(field.value)}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (v === '' || /^-?\d*[.,]?\d*$/.test(v)) {
-                        // Keep raw string so partial entries like "-" or "-1." work;
-                        // zodResolver runs z.coerce.number() at submit time.
-                        field.onChange(v.replace(',', '.'))
-                      }
-                    }}
-                    placeholder="0.00"
-                    className="pr-8"
-                    disabled={isSubmitting}
-                    aria-invalid={balanceError ? 'true' : 'false'}
-                  />
-                )}
+                id="balance"
+                placeholder="0.00"
+                className="pr-8"
+                disabled={isSubmitting}
+                allowNegative
+                ariaInvalid={!!balanceError}
               />
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                 <span className="text-sm text-gray-500">€</span>
               </div>
             </div>
-            {balanceError && (
-              <p className="mt-1 text-xs text-red-600">{balanceError.message}</p>
-            )}
+            {balanceError && <p className="mt-1 text-xs text-red-600">{balanceError.message}</p>}
           </div>
 
           {serverError && <p className="text-xs text-red-600">{serverError}</p>}

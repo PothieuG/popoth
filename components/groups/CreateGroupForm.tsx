@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import {
@@ -81,27 +82,14 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
             <Label htmlFor="monthlyBudget" className="text-sm font-medium text-gray-700">
               Budget mensuel estimé (€) *
             </Label>
-            <Controller
+            <DecimalFormInput
               control={form.control}
               name="monthly_budget_estimate"
-              render={({ field }) => (
-                <Input
-                  id="monthlyBudget"
-                  type="text"
-                  inputMode="decimal"
-                  value={field.value == null ? '' : String(field.value)}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      field.onChange(v.replace(',', '.'))
-                    }
-                  }}
-                  placeholder="Ex: 2500"
-                  className="w-full"
-                  disabled={isSubmitting}
-                  aria-invalid={fieldErrors.monthly_budget_estimate ? 'true' : 'false'}
-                />
-              )}
+              id="monthlyBudget"
+              placeholder="Ex: 2500"
+              className="w-full"
+              disabled={isSubmitting}
+              ariaInvalid={!!fieldErrors.monthly_budget_estimate}
             />
             {fieldErrors.monthly_budget_estimate && (
               <p className="text-sm text-red-600">{fieldErrors.monthly_budget_estimate.message}</p>

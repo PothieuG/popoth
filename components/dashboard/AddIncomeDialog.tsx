@@ -1,9 +1,10 @@
 'use client'
 
-import { useForm, useWatch, Controller } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 
 interface AddIncomeDialogProps {
@@ -168,29 +169,16 @@ export default function AddIncomeDialog({
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <Controller
+                <DecimalFormInput
                   control={form.control}
                   name="estimatedAmount"
-                  render={({ field }) => (
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={field.value == null ? '' : String(field.value)}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                          field.onChange(v.replace(',', '.'))
-                        }
-                      }}
-                      placeholder="0.00"
-                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
-                      className={cn(
-                        'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
-                        fieldErrors.estimatedAmount
-                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                          : 'border-gray-300 focus:border-green-500 focus:ring-green-500',
-                      )}
-                    />
+                  placeholder="0.00"
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  className={cn(
+                    'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:outline-none focus-visible:ring-2',
+                    fieldErrors.estimatedAmount
+                      ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                      : 'border-gray-300 focus-visible:border-green-500 focus-visible:ring-green-500',
                   )}
                 />
                 <span className="absolute right-4 top-3.5 text-sm font-medium text-gray-500">
