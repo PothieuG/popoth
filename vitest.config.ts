@@ -25,10 +25,29 @@ const env = loadDotEnv(path.resolve(__dirname, '.env.local'))
 
 export default defineConfig({
   test: {
-    environment: 'node',
-    include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules/**', '.next/**', 'dist/**'],
     env,
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          environment: 'node',
+          include: ['**/*.test.ts'],
+          exclude: ['node_modules/**', '.next/**', 'dist/**'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'client',
+          environment: 'jsdom',
+          include: ['**/*.test.tsx'],
+          exclude: ['node_modules/**', '.next/**', 'dist/**'],
+          setupFiles: ['./vitest.setup.ts'],
+        },
+      },
+    ],
   },
   resolve: {
     alias: {

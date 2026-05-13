@@ -51,6 +51,9 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@tanstack/react-query-devtools": "^5.100.9",
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
     "@types/node": "^20.19.14",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
@@ -61,6 +64,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-unused-imports": "^4",
     "husky": "^9.1.7",
+    "jsdom": "^25",
     "lint-staged": "^17.0.3",
     "postcss": "^8.5.14",
     "prettier": "^3.8.3",
@@ -99,6 +103,8 @@
       "picomatch@4": "^4.0.4",
       "playwright": "^1.55.1",
       "postcss": "^8.5.10",
+      "react": "19.1.1",
+      "react-dom": "19.1.1",
       "serialize-javascript": "^7.0.5",
       "yaml@2": "^2.8.3"
     }
