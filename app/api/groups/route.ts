@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { createGroupBodySchema } from '@/lib/schemas/groups'
 import { logger } from '@/lib/logger'
 
 // Group data types
@@ -79,24 +81,7 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
  */
 export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    const body: CreateGroupRequest = await request.json()
-    const { name, monthly_budget_estimate } = body
-
-    // Validation
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Le nom du groupe est requis' }, { status: 400 })
-    }
-
-    if (
-      !monthly_budget_estimate ||
-      typeof monthly_budget_estimate !== 'number' ||
-      monthly_budget_estimate <= 0
-    ) {
-      return NextResponse.json(
-        { error: "L'estimation du budget mensuel doit être un nombre positif" },
-        { status: 400 },
-      )
-    }
+    const { name, monthly_budget_estimate } = await parseBody(request, createGroupBodySchema)
 
     const supabase = supabaseServer
 
@@ -112,7 +97,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     const { data: group, error: createError } = await supabase
       .from('groups')
       .insert({
-        name: name.trim(),
+        name,
         monthly_budget_estimate,
         creator_id: userId,
       })
@@ -162,7 +147,9 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       group: groupData,
       message: 'Groupe créé avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

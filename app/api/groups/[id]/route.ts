@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { updateGroupBodySchema } from '@/lib/schemas/groups'
 import { logger } from '@/lib/logger'
 
 interface RouteParams {
@@ -19,23 +21,7 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
   try {
     const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
-    const body: UpdateGroupRequest = await request.json()
-    const { name, monthly_budget_estimate } = body
-
-    // Validation
-    if (name !== undefined && (typeof name !== 'string' || name.trim().length === 0)) {
-      return NextResponse.json({ error: 'Le nom du groupe ne peut pas être vide' }, { status: 400 })
-    }
-
-    if (
-      monthly_budget_estimate !== undefined &&
-      (typeof monthly_budget_estimate !== 'number' || monthly_budget_estimate <= 0)
-    ) {
-      return NextResponse.json(
-        { error: "L'estimation du budget mensuel doit être un nombre positif" },
-        { status: 400 },
-      )
-    }
+    const { name, monthly_budget_estimate } = await parseBody(request, updateGroupBodySchema)
 
     const supabase = supabaseServer
 
@@ -59,13 +45,9 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
 
     // Prepare update data
     const updateData: Partial<UpdateGroupRequest> = {}
-    if (name !== undefined) updateData.name = name.trim()
+    if (name !== undefined) updateData.name = name
     if (monthly_budget_estimate !== undefined)
       updateData.monthly_budget_estimate = monthly_budget_estimate
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
-    }
 
     // Update the group
     const { data: updatedGroup, error: updateError } = await supabase
@@ -92,7 +74,9 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
       group: updatedGroup,
       message: 'Groupe mis à jour avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
