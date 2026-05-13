@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useWatch, Controller } from 'react-hook-form'
+import {
+  useForm,
+  useWatch,
+  Controller,
+  type FieldErrors,
+  type FieldPath,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -244,6 +250,16 @@ export default function AddTransactionModal({
     }
   }
 
+  // Discriminated union : the error keys differ between expense/income
+  // branches. setFocus(firstErrorKey) handles this via permissive cast —
+  // RHF resolves the ref at runtime from the active branch.
+  const onInvalidSubmit = (errors: FieldErrors<AddTransactionFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<AddTransactionFormInput>)
+    }
+  }
+
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
 
@@ -289,7 +305,7 @@ export default function AddTransactionModal({
 
         {/* Form - Scrollable */}
         <form
-          onSubmit={form.handleSubmit(onValidSubmit)}
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
           className="flex-1 space-y-6 overflow-y-auto p-6"
           noValidate
         >

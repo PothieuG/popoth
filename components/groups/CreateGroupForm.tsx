@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -52,12 +52,23 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
     }
   }
 
+  const onInvalidSubmit = (errors: FieldErrors<CreateGroupFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<CreateGroupFormInput>)
+    }
+  }
+
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
 
   return (
     <Card className="border-blue-200 bg-blue-50 p-4">
-      <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4" noValidate>
+      <form
+        onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+        className="space-y-4"
+        noValidate
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Group Name */}
           <div className="space-y-2">

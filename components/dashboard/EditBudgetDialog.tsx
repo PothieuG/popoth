@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
@@ -68,6 +68,13 @@ export default function EditBudgetDialog({
 
     if (success) {
       onClose()
+    }
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<FormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<FormInput>)
     }
   }
 
@@ -142,7 +149,11 @@ export default function EditBudgetDialog({
           </div>
 
           {/* Form */}
-          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
+          <form
+            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            className="space-y-4 p-6"
+            noValidate
+          >
             {/* Nom du budget */}
             <div>
               <label htmlFor="budget-name" className="mb-1 block text-sm font-medium text-gray-700">

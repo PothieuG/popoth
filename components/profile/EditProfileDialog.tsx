@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
@@ -80,6 +80,13 @@ export default function EditProfileDialog({
     }
   }
 
+  const onInvalidSubmit = (errors: FieldErrors<ProfileNameFormFields>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<ProfileNameFormFields>)
+    }
+  }
+
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
   const hasChanges = form.formState.isDirty
@@ -100,7 +107,11 @@ export default function EditProfileDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          className="space-y-4"
+          noValidate
+        >
           {/* Prénom */}
           <div className="space-y-2">
             <Label htmlFor="editFirstName" className="text-sm font-medium">

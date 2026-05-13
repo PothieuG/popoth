@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -52,6 +52,13 @@ export default function EditIncomeDialog({
 
     if (success) {
       onClose()
+    }
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<UpdateIncomeFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<UpdateIncomeFormInput>)
     }
   }
 
@@ -124,7 +131,11 @@ export default function EditIncomeDialog({
           </div>
 
           {/* Form */}
-          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
+          <form
+            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            className="space-y-4 p-6"
+            noValidate
+          >
             {/* Nom du revenu */}
             <div>
               <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">

@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -127,6 +127,13 @@ function NouveauMotDePasseContent() {
       } else {
         setServerError('Erreur lors de la mise à jour du mot de passe. Veuillez réessayer.')
       }
+    }
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<ResetPasswordForm>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<ResetPasswordForm>)
     }
   }
 
@@ -281,7 +288,11 @@ function NouveauMotDePasseContent() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
+          <form
+            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            className="space-y-6"
+            noValidate
+          >
             {/* Password Field */}
             <div className="space-y-2">
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">

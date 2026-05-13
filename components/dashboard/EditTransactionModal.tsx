@@ -1,7 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useWatch, Controller } from 'react-hook-form'
+import {
+  useForm,
+  useWatch,
+  Controller,
+  type FieldErrors,
+  type FieldPath,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -185,6 +191,16 @@ export default function EditTransactionModal({
     }
   }
 
+  // transactionType is fixed at mount via prop — only one branch is active.
+  // setFocus uses permissive FieldPath cast since the keys differ between
+  // branches at the type level.
+  const onInvalidSubmit = (errors: FieldErrors<EditTransactionFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<EditTransactionFormInput>)
+    }
+  }
+
   if (!transaction) return null
 
   const fieldErrors = form.formState.errors
@@ -233,7 +249,7 @@ export default function EditTransactionModal({
 
         {/* Form */}
         <form
-          onSubmit={form.handleSubmit(onValidSubmit)}
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
           className="flex-1 space-y-6 overflow-y-auto p-6"
           noValidate
         >

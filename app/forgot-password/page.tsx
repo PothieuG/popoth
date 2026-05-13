@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,6 +54,13 @@ export default function MotDePasseOubliePage() {
     } catch (error) {
       setServerError("Erreur lors de l'envoi de l'email. Veuillez réessayer.")
       logger.error('Password reset error:', error)
+    }
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<ForgotPasswordForm>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<ForgotPasswordForm>)
     }
   }
 
@@ -138,7 +145,11 @@ export default function MotDePasseOubliePage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
+          <form
+            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            className="space-y-6"
+            noValidate
+          >
             {/* Email Field */}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">

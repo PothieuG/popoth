@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -55,6 +55,13 @@ export default function EditBalanceModal({
     onCancel()
   }
 
+  const onInvalidSubmit = (errors: FieldErrors<EditBalanceFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<EditBalanceFormInput>)
+    }
+  }
+
   const balanceError = form.formState.errors.balance
   const isSubmitting = form.formState.isSubmitting
 
@@ -67,7 +74,11 @@ export default function EditBalanceModal({
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={form.handleSubmit(handleValidSubmit)} className="space-y-4" noValidate>
+        <form
+          onSubmit={form.handleSubmit(handleValidSubmit, onInvalidSubmit)}
+          className="space-y-4"
+          noValidate
+        >
           {/* Explication */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
             <div className="flex items-start space-x-2">
