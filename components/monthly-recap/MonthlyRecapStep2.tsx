@@ -132,9 +132,6 @@ export default function MonthlyRecapStep2({
   const currentTotalSurplus = step2Data
     ? step2Data.budget_stats.reduce((sum, b) => sum + (b.surplus || 0), 0)
     : 0
-  const currentTotalDeficit = step2Data
-    ? step2Data.budget_stats.reduce((sum, b) => sum + (b.deficit || 0), 0)
-    : 0
 
   // Helper function to convert budget stats to dropdown options for transfer mode
   const getTransferDestinationOptions = (): DropdownOption[] => {
