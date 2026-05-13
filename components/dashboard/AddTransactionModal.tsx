@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +18,11 @@ import { useProgressData } from '@/hooks/useProgressData'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useRavValidation } from '@/hooks/useRavValidation'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import {
+  addTransactionFormSchema,
+  type AddTransactionFormInput,
+  type AddTransactionFormOutput,
+} from '@/lib/schemas/transactions'
 
 interface AddTransactionModalProps {
   onClose: () => void
@@ -25,26 +32,31 @@ interface AddTransactionModalProps {
 
 type TransactionType = 'expense' | 'income'
 
+const todayIso = (): string => {
+  const today = new Date().toISOString().split('T')[0]
+  return today as string
+}
+
 /**
- * Modal for adding new transactions (expenses or income)
- * Adaptive form based on transaction type and exceptional vs budgeted/estimated
+ * Modal for adding new transactions (expenses or income).
+ *
+ * Uses react-hook-form + zodResolver(addTransactionFormSchema)
+ * (discriminated union). transactionType is mutable via radio buttons —
+ * switching calls form.reset() with the right branch shape, preserving
+ * description/amount/date/is_exceptional but dropping the obsolete FK.
+ * Sprint Zod-Rollout v3.
+ *
+ * useRavValidation stays separate from the schema — it depends on
+ * reactive data (financialData, expenseProgress) that may refetch
+ * during typing. We consult it post-resolver in onValidSubmit (blocks
+ * the submit) and disable the submit button when blocked.
  */
 export default function AddTransactionModal({
   onClose,
   context,
   onTransactionAdded,
 }: AddTransactionModalProps) {
-  const [transactionType, setTransactionType] = useState<TransactionType>('expense')
-  const [isExceptional, setIsExceptional] = useState(false)
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
-    budgetId: '',
-    incomeId: '',
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
@@ -55,17 +67,44 @@ export default function AddTransactionModal({
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
 
-  // Calculer le montant pour le preview
-  const previewAmount = parseFloat(formData.amount) || 0
+  const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
+    resolver: zodResolver(addTransactionFormSchema),
+    defaultValues: {
+      transactionType: 'expense',
+      description: '',
+      amount: 0,
+      expense_date: todayIso(),
+      is_exceptional: false,
+      estimated_budget_id: null,
+    },
+    mode: 'onSubmit',
+  })
 
-  // Validation : vérifier si la dépense ferait passer le reste à vivre en négatif
+  // Watch reactive fields for previews + RAV validation
+  const watchedType = useWatch({ control: form.control, name: 'transactionType' })
+  const watchedExceptional = useWatch({ control: form.control, name: 'is_exceptional' })
+  const watchedAmount = useWatch({ control: form.control, name: 'amount' })
+  const watchedBudgetId = useWatch({ control: form.control, name: 'estimated_budget_id' })
+  const watchedIncomeId = useWatch({ control: form.control, name: 'estimated_income_id' })
+
+  const transactionType = (watchedType ?? 'expense') as TransactionType
+  const isExceptional = Boolean(watchedExceptional)
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const budgetId = (watchedBudgetId as string | null) ?? ''
+  const incomeId = (watchedIncomeId as string | null) ?? ''
+
+  // Validation : vérifier si la dépense ferait passer le reste à vivre en négatif.
+  // Le hook reste séparé du schema parce qu'il dépend de données async
+  // (financialData, expenseProgress) qui peuvent refetcher pendant la saisie.
   const ravValidation = useRavValidation({
     transactionType,
     isExceptional,
-    amount: previewAmount,
+    amount: previewSafe,
     remainingToLive: financialData?.remainingToLive,
-    budgetId: formData.budgetId,
-    budgetProgress: expenseProgress[formData.budgetId],
+    budgetId,
+    budgetProgress: expenseProgress[budgetId],
   })
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
@@ -74,7 +113,6 @@ export default function AddTransactionModal({
     return realExpenses
       .filter((expense) => expense.estimated_budget_id === budgetId)
       .reduce((sum, expense) => {
-        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         const amountFromBudget =
           expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
             ? expense.amount_from_budget
@@ -97,9 +135,9 @@ export default function AddTransactionModal({
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
+      spentAmount: realSpentAmount,
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.cumulated_savings || 0, // ✅ Utilise cumulated_savings depuis la base
+      economyAmount: budget.cumulated_savings || 0,
     }
   })
 
@@ -110,82 +148,89 @@ export default function AddTransactionModal({
       id: income.id,
       name: income.name,
       type: 'income' as const,
-      receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
+      receivedAmount: realReceivedAmount,
       estimatedAmount: income.estimated_amount,
-      bonusAmount: bonusAmount, // 🔥 Calcul en temps réel du bonus
+      bonusAmount: bonusAmount,
     }
   })
 
   /**
+   * Switch transactionType via radio. Preserves description/amount/date
+   * /is_exceptional and resets the FK to null in the new branch.
+   */
+  const handleSwitchType = (newType: TransactionType) => {
+    const current = form.getValues()
+    const currentDate =
+      current.transactionType === 'expense'
+        ? (current.expense_date ?? todayIso())
+        : (current.entry_date ?? todayIso())
+
+    if (newType === 'expense') {
+      form.reset({
+        transactionType: 'expense',
+        description: current.description ?? '',
+        amount: current.amount as never,
+        expense_date: currentDate,
+        is_exceptional: current.is_exceptional ?? false,
+        estimated_budget_id: null,
+      })
+    } else {
+      form.reset({
+        transactionType: 'income',
+        description: current.description ?? '',
+        amount: current.amount as never,
+        entry_date: currentDate,
+        is_exceptional: current.is_exceptional ?? false,
+        estimated_income_id: null,
+      })
+    }
+  }
+
+  /**
    * Handle form submission
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    // Validation
-    if (!formData.description.trim()) {
-      setError('La description est requise')
-      return
-    }
-
-    const amount = parseFloat(formData.amount)
-    if (isNaN(amount) || amount <= 0) {
-      setError('Le montant doit être un nombre positif')
-      return
-    }
-
-    if (!isExceptional) {
-      if (transactionType === 'expense' && !formData.budgetId) {
-        setError('Veuillez sélectionner un budget')
-        return
-      }
-      if (transactionType === 'income' && !formData.incomeId) {
-        setError('Veuillez sélectionner un revenu estimé')
-        return
-      }
-    }
+  const onValidSubmit = async (data: AddTransactionFormOutput) => {
+    setServerError(null)
 
     if (ravValidation.blocked) {
-      setError(
+      setServerError(
         "Impossible d'ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif. Réduisez le montant de la dépense.",
       )
       return
     }
 
-    setIsSubmitting(true)
-
     try {
       let success = false
 
-      if (transactionType === 'expense') {
+      if (data.transactionType === 'expense') {
         success = await addExpense({
-          description: formData.description.trim(),
-          amount,
-          expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId,
+          description: data.description,
+          amount: data.amount,
+          expense_date: data.expense_date,
+          estimated_budget_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_budget_id ?? undefined),
           is_for_group: context === 'group',
         })
       } else {
         success = await addIncome({
-          description: formData.description.trim(),
-          amount,
-          entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId,
+          description: data.description,
+          amount: data.amount,
+          entry_date: data.entry_date,
+          estimated_income_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_income_id ?? undefined),
           is_for_group: context === 'group',
         })
       }
 
       if (success) {
-        // Le rafraîchissement automatique se charge de la mise à jour
         onTransactionAdded?.()
         onClose()
       }
     } catch (err) {
       logger.error('Error adding transaction:', err)
-      setError("Erreur lors de l'ajout de la transaction")
-    } finally {
-      setIsSubmitting(false)
+      setServerError("Erreur lors de l'ajout de la transaction")
     }
   }
 
@@ -193,10 +238,22 @@ export default function AddTransactionModal({
    * Handle modal close
    */
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!form.formState.isSubmitting) {
       onClose()
     }
   }
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  // Discriminated union narrowing : .expense_date and .entry_date live in
+  // different branches. Index permissively based on the live transactionType.
+  const dateError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'expense_date' : 'entry_date'
+  ]
+  const fkError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'estimated_budget_id' : 'estimated_income_id'
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -230,14 +287,18 @@ export default function AddTransactionModal({
         </div>
 
         {/* Form - Scrollable */}
-        <form onSubmit={handleSubmit} className="flex-1 space-y-6 overflow-y-auto p-6">
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit)}
+          className="flex-1 space-y-6 overflow-y-auto p-6"
+          noValidate
+        >
           {/* Transaction Type Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium text-gray-900">Type de transaction</Label>
             <div className="flex space-x-3">
               <button
                 type="button"
-                onClick={() => setTransactionType('expense')}
+                onClick={() => handleSwitchType('expense')}
                 className={cn(
                   'flex-1 rounded-lg border p-4 text-sm font-medium transition-all',
                   transactionType === 'expense'
@@ -260,7 +321,7 @@ export default function AddTransactionModal({
 
               <button
                 type="button"
-                onClick={() => setTransactionType('income')}
+                onClick={() => handleSwitchType('income')}
                 className={cn(
                   'flex-1 rounded-lg border p-4 text-sm font-medium transition-all',
                   transactionType === 'income'
@@ -289,8 +350,7 @@ export default function AddTransactionModal({
               <input
                 type="checkbox"
                 id="exceptional"
-                checked={isExceptional}
-                onChange={(e) => setIsExceptional(e.target.checked)}
+                {...form.register('is_exceptional')}
                 className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-blue-500"
               />
               <Label
@@ -314,22 +374,36 @@ export default function AddTransactionModal({
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
                 <span className="ml-1 text-red-500">*</span>
               </Label>
-              <CustomDropdown
-                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
-                value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value,
-                  }))
-                }
-                placeholder={
-                  transactionType === 'expense'
-                    ? 'Sélectionner un budget'
-                    : 'Sélectionner un revenu estimé'
-                }
-                required={!isExceptional}
-              />
+              {transactionType === 'expense' ? (
+                <Controller
+                  control={form.control}
+                  name="estimated_budget_id"
+                  render={({ field }) => (
+                    <CustomDropdown
+                      options={budgetOptions}
+                      value={field.value ?? ''}
+                      onChange={(value) => field.onChange(value || null)}
+                      placeholder="Sélectionner un budget"
+                      required={!isExceptional}
+                    />
+                  )}
+                />
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="estimated_income_id"
+                  render={({ field }) => (
+                    <CustomDropdown
+                      options={incomeOptions}
+                      value={field.value ?? ''}
+                      onChange={(value) => field.onChange(value || null)}
+                      placeholder="Sélectionner un revenu estimé"
+                      required={!isExceptional}
+                    />
+                  )}
+                />
+              )}
+              {fkError && <p className="text-sm text-red-600">{fkError.message}</p>}
             </div>
           )}
 
@@ -341,14 +415,16 @@ export default function AddTransactionModal({
             <Input
               id="description"
               type="text"
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+              {...form.register('description')}
               placeholder={
                 transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
               }
-              required
+              aria-invalid={fieldErrors.description ? 'true' : 'false'}
               className="w-full"
             />
+            {fieldErrors.description && (
+              <p className="text-sm text-red-600">{fieldErrors.description.message}</p>
+            )}
           </div>
 
           {/* Amount */}
@@ -356,21 +432,30 @@ export default function AddTransactionModal({
             <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
               Montant (€) <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              value={formData.amount}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                  setFormData((prev) => ({ ...prev, amount: v.replace(',', '.') }))
-                }
-              }}
-              placeholder="0.00"
-              required
-              className="w-full"
+            <Controller
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <Input
+                  id="amount"
+                  type="text"
+                  inputMode="decimal"
+                  value={field.value == null ? '' : String(field.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      field.onChange(v.replace(',', '.'))
+                    }
+                  }}
+                  placeholder="0.00"
+                  aria-invalid={fieldErrors.amount ? 'true' : 'false'}
+                  className="w-full"
+                />
+              )}
             />
+            {fieldErrors.amount && (
+              <p className="text-sm text-red-600">{fieldErrors.amount.message}</p>
+            )}
           </div>
 
           {/* Date */}
@@ -379,14 +464,23 @@ export default function AddTransactionModal({
               Date <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-                required
-                className="w-full pl-10"
-              />
+              {transactionType === 'expense' ? (
+                <Input
+                  id="date"
+                  type="date"
+                  {...form.register('expense_date')}
+                  aria-invalid={dateError ? 'true' : 'false'}
+                  className="w-full pl-10"
+                />
+              ) : (
+                <Input
+                  id="date"
+                  type="date"
+                  {...form.register('entry_date')}
+                  aria-invalid={dateError ? 'true' : 'false'}
+                  className="w-full pl-10"
+                />
+              )}
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <svg
                   className="h-4 w-4 text-gray-500"
@@ -403,27 +497,21 @@ export default function AddTransactionModal({
                 </svg>
               </div>
             </div>
+            {dateError && <p className="text-sm text-red-600">{dateError.message}</p>}
           </div>
 
           {/* Preview for expenses - show breakdown */}
-          {previewAmount > 0 &&
-            transactionType === 'expense' &&
-            !isExceptional &&
-            formData.budgetId && (
-              <ExpenseBreakdownPreview
-                amount={previewAmount}
-                budgetId={formData.budgetId}
-                context={context}
-              />
-            )}
+          {previewSafe > 0 && transactionType === 'expense' && !isExceptional && budgetId && (
+            <ExpenseBreakdownPreview amount={previewSafe} budgetId={budgetId} context={context} />
+          )}
 
           {/* Preview for incomes or exceptional expenses - show remaining to live */}
-          {previewAmount > 0 && (transactionType === 'income' || isExceptional) && (
+          {previewSafe > 0 && (transactionType === 'income' || isExceptional) && (
             <RemainingToLivePreview
-              amount={previewAmount}
+              amount={previewSafe}
               type={transactionType}
               isExceptional={isExceptional}
-              selectedId={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
+              selectedId={transactionType === 'expense' ? budgetId : incomeId}
               context={context}
             />
           )}
@@ -442,10 +530,10 @@ export default function AddTransactionModal({
             </div>
           )}
 
-          {/* Error Display */}
-          {error && (
+          {/* Server-side error */}
+          {serverError && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700">{serverError}</p>
             </div>
           )}
 
