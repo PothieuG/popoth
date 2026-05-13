@@ -1,6 +1,12 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface ConfirmationDialogProps {
   isOpen: boolean
@@ -16,7 +22,12 @@ interface ConfirmationDialogProps {
 
 /**
  * Dialog de confirmation réutilisable
- * Utilisé pour confirmer des actions importantes comme la suppression
+ * Utilisé pour confirmer des actions importantes comme la suppression.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. No custom close X (compact design with
+ * Cancel + Confirm buttons at footer) — `hideCloseButton={true}` to preserve
+ * the original look without Radix's default top-right X.
  */
 export default function ConfirmationDialog({
   isOpen,
@@ -29,7 +40,11 @@ export default function ConfirmationDialog({
   variant = 'danger',
   loading = false,
 }: ConfirmationDialogProps) {
-  if (!isOpen) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !loading) {
+      onClose()
+    }
+  }
 
   const variantStyles = {
     danger: {
@@ -49,12 +64,13 @@ export default function ConfirmationDialog({
   const styles = variantStyles[variant]
 
   return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-        <div className="mx-4 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
-          {/* Header avec icône */}
-          <div className="p-6 text-center">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="overflow-hidden rounded-2xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-2xl"
+      >
+        {/* Header avec icône */}
+        <div className="p-6 text-center">
             <div
               className={cn(
                 'mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full',
@@ -112,12 +128,16 @@ export default function ConfirmationDialog({
               )}
             </div>
 
+          <DialogTitle asChild>
             <h3 className="mb-2 text-lg font-bold text-gray-900">{title}</h3>
+          </DialogTitle>
+          <DialogDescription asChild>
             <p className="text-sm text-gray-600">{message}</p>
-          </div>
+          </DialogDescription>
+        </div>
 
-          {/* Actions */}
-          <div className="flex space-x-3 px-6 pb-6">
+        {/* Actions */}
+        <div className="flex space-x-3 px-6 pb-6">
             <button
               onClick={onClose}
               disabled={loading}
@@ -140,8 +160,7 @@ export default function ConfirmationDialog({
               )}
             </button>
           </div>
-        </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

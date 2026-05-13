@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card } from '@/components/ui/card'
 import type { GroupData } from '@/app/api/groups/route'
 
 interface DeleteGroupModalProps {
@@ -15,8 +15,12 @@ interface DeleteGroupModalProps {
 }
 
 /**
- * Secure modal for group deletion with confirmation
- * Requires user to type "Delete [group_name]" to confirm
+ * Secure modal for group deletion with confirmation.
+ * Requires user to type "Delete [group_name]" to confirm.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
  */
 export default function DeleteGroupModal({
   group,
@@ -69,45 +73,48 @@ export default function DeleteGroupModal({
     onClose()
   }
 
-  if (!isOpen) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isDeleting) {
+      handleClose()
+    }
+  }
 
   return (
-    <>
-      {/* Overlay */}
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
-        onClick={handleClose}
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="overflow-hidden border-0 bg-white p-0 shadow-xl sm:max-w-md"
       >
-        {/* Modal Content */}
-        <Card className="w-full max-w-md bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
-          <div className="p-6">
-            {/* Header */}
-            <div className="mb-6 flex items-center justify-between">
+        <div className="p-6">
+          {/* Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <DialogTitle asChild>
               <h2 className="text-xl font-semibold text-red-600">Supprimer le groupe</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClose}
-                className="p-1"
-                disabled={isDeleting}
-                aria-label="Fermer"
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClose}
+              className="p-1"
+              disabled={isDeleting}
+              aria-label="Fermer"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </Button>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </Button>
+          </div>
 
             {/* Warning Content */}
             <div className="mb-6 space-y-4">
@@ -210,11 +217,10 @@ export default function DeleteGroupModal({
                 ) : (
                   'Supprimer définitivement'
                 )}
-              </Button>
-            </div>
+            </Button>
           </div>
-        </Card>
-      </div>
-    </>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
@@ -14,8 +15,12 @@ interface GroupMembersWithContributionsModalProps {
 }
 
 /**
- * Enhanced modal component for displaying group members with their contributions
- * Shows list of all members with their names, join dates, and contribution information
+ * Enhanced modal component for displaying group members with their contributions.
+ * Shows list of all members with their names, join dates, and contribution information.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
  */
 export default function GroupMembersWithContributionsModal({
   group,
@@ -77,54 +82,50 @@ export default function GroupMembersWithContributionsModal({
     return contributions.find((contrib) => contrib.profile_id === memberId)
   }
 
-  if (!isOpen) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
+  }
 
   const isLoading = membersLoading || contributionsLoading
   const hasError = membersError || contributionsError
   const error = membersError || contributionsError
 
   return (
-    <>
-      {/* Overlay */}
-      <div className="fixed inset-0 z-50 bg-black bg-opacity-50" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-lg bg-white shadow-xl">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 p-6">
-            <div>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl sm:max-w-2xl sm:rounded-lg"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 p-6">
+          <div>
+            <DialogTitle asChild>
               <h2 className="text-lg font-semibold text-gray-900">Membres et contributions</h2>
-              <p className="text-sm text-gray-500">{group.name}</p>
-              {groupInfo && (
-                <p className="mt-1 text-xs text-gray-400">
-                  Budget: {formatCurrency(groupInfo.monthly_budget_estimate)}/mois
-                </p>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              aria-label="Fermer"
-              className="p-2"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </Button>
+            </DialogTitle>
+            <p className="text-sm text-gray-500">{group.name}</p>
+            {groupInfo && (
+              <p className="mt-1 text-xs text-gray-400">
+                Budget: {formatCurrency(groupInfo.monthly_budget_estimate)}/mois
+              </p>
+            )}
           </div>
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Fermer" className="p-2">
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </Button>
+        </div>
 
           {/* Content */}
           <div className="max-h-96 overflow-y-auto p-6">
@@ -313,8 +314,7 @@ export default function GroupMembersWithContributionsModal({
               Fermer
             </Button>
           </div>
-        </div>
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }
