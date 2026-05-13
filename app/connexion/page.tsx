@@ -1,47 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLogin, useRequireGuest } from '@/hooks/useAuth'
+import { loginFormSchema, type LoginFormBody } from '@/lib/schemas/auth'
 
 /**
  * Login page allowing users to authenticate with email and password
  * Uses modern token management system with secure session cookies
  * Features clean cardless design with colorful shadcn/ui component variants and Roboto font
+ *
+ * Uses react-hook-form + zodResolver(loginFormSchema). Per-field errors
+ * appear inline under each input ; server-side auth errors (Supabase /
+ * useLogin hook) flow through the existing `error` exposed by useLogin
+ * — kept independent of `form.formState.errors`. The hook clears the
+ * error on each handleLogin() call (matches original UX).
  */
 export default function ConnexionPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const { handleLogin, isSubmitting, error, clearError } = useLogin()
+  const { handleLogin, isSubmitting, error } = useLogin()
 
   // Ensure only guests can access this page
   useRequireGuest()
 
-  /**
-   * Handles login form submission with modern token management
-   * Validates form fields and processes authentication using the new auth system
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    clearError()
+  const form = useForm<LoginFormBody>({
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: { email: '', password: '' },
+    mode: 'onSubmit',
+  })
 
-    // Field validation
-    if (!email || !password) {
-      return
-    }
-
-    if (!email.includes('@')) {
-      return
-    }
-
-    if (password.length < 6) {
-      return
-    }
-
-    // Use the new login system with token management
+  const onValidSubmit = async ({ email, password }: LoginFormBody) => {
     await handleLogin(email, password)
   }
+
+  const fieldErrors = form.formState.errors
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
@@ -56,7 +49,7 @@ export default function ConnexionPage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
             {/* Email Field */}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -65,13 +58,16 @@ export default function ConnexionPage() {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                {...form.register('email')}
                 placeholder="votre@email.com"
                 disabled={isSubmitting}
                 autoComplete="email"
+                aria-invalid={fieldErrors.email ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
+              {fieldErrors.email && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -82,16 +78,19 @@ export default function ConnexionPage() {
               <Input
                 id="motdepasse"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...form.register('password')}
                 placeholder="Votre mot de passe"
                 disabled={isSubmitting}
                 autoComplete="current-password"
+                aria-invalid={fieldErrors.password ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
+              {fieldErrors.password && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.password.message}</p>
+              )}
             </div>
 
-            {/* Error Display */}
+            {/* Server-side Error Display (from useLogin hook) */}
             {error && (
               <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">

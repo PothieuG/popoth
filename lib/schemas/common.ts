@@ -26,6 +26,23 @@ export const nonNegativeMoneySchema = z
   })
 
 /**
+ * Client-form variant of moneySchema. Uses z.coerce.number() so the input
+ * accepts string|number (form fields type="text" with inputMode="decimal"
+ * normalize comma→dot at onChange and let zodResolver coerce at submit).
+ * Same finite + positive + 2-decimal contract as moneySchema.
+ *
+ * Used by client forms via the dual-type pattern :
+ *   useForm<z.input<typeof schema>, undefined, z.output<typeof schema>>
+ */
+export const moneyFormSchema = z.coerce
+  .number()
+  .finite('Montant invalide')
+  .positive('Le montant doit être positif')
+  .refine((v) => Math.round(v * 100) === v * 100, {
+    message: 'Au maximum 2 décimales',
+  })
+
+/**
  * Query schema for GET routes that accept only an optional `context` param
  * (profile|group). Defaults to 'profile' when absent. Used by ~10 GET
  * routes under finance, savings, monthly-recap, bank-balance.

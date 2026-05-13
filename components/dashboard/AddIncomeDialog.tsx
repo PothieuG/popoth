@@ -1,7 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 
 interface AddIncomeDialogProps {
   isOpen: boolean
@@ -10,9 +13,14 @@ interface AddIncomeDialogProps {
   currentIncomesTotal: number
 }
 
+// z.coerce.number() schemas have a distinct input/output — see EditBalanceModal.
+type CreateIncomeFormInput = z.input<typeof createIncomeFormSchema>
+
 /**
  * Dialog pour ajouter un nouveau revenu estimé avec thème vert
- * Formulaire simplifié sans validation de balance complexe
+ *
+ * Uses react-hook-form + zodResolver(createIncomeFormSchema). Decimal field
+ * `estimatedAmount` via Controller dual-type pattern (Sprint Zod-Rollout v3).
  */
 export default function AddIncomeDialog({
   isOpen,
@@ -20,19 +28,11 @@ export default function AddIncomeDialog({
   onSave,
   currentIncomesTotal,
 }: AddIncomeDialogProps) {
-  const [incomeName, setIncomeName] = useState('')
-  const [incomeAmount, setIncomeAmount] = useState('')
-  const errors = useMemo(() => {
-    const newErrors: { name?: string; amount?: string } = {}
-    if (incomeName.trim() && incomeName.trim().length < 2) {
-      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
-    }
-    const amount = parseFloat(incomeAmount)
-    if (incomeAmount && (isNaN(amount) || amount <= 0)) {
-      newErrors.amount = 'Le montant doit être un nombre positif'
-    }
-    return newErrors
-  }, [incomeName, incomeAmount])
+  const form = useForm<CreateIncomeFormInput, undefined, CreateIncomeForm>({
+    resolver: zodResolver(createIncomeFormSchema),
+    defaultValues: { name: '', estimatedAmount: 0 },
+    mode: 'onSubmit',
+  })
 
   /**
    * Formate un montant en euros
@@ -45,51 +45,24 @@ export default function AddIncomeDialog({
     }).format(amount)
   }
 
-  /**
-   * Vérifie si le formulaire est valide pour la sauvegarde
-   */
-  const isFormValid = () => {
-    return (
-      incomeName.trim().length >= 2 &&
-      parseFloat(incomeAmount) > 0 &&
-      Object.keys(errors).length === 0
-    )
-  }
-
-  /**
-   * Gestion de la sauvegarde
-   */
-  const handleSave = () => {
-    if (!isFormValid()) return
-
-    onSave({
-      name: incomeName.trim(),
-      estimatedAmount: parseFloat(incomeAmount),
-    })
-
-    // Reset du formulaire et fermer le dialog
-    setIncomeName('')
-    setIncomeAmount('')
+  const onValidSubmit = (data: CreateIncomeForm) => {
+    onSave({ name: data.name, estimatedAmount: data.estimatedAmount })
+    form.reset({ name: '', estimatedAmount: 0 })
     onClose()
   }
 
-  /**
-   * Gestion de la fermeture
-   */
   const handleClose = () => {
-    setIncomeName('')
-    setIncomeAmount('')
+    form.reset({ name: '', estimatedAmount: 0 })
     onClose()
   }
 
-  /**
-   * Gestion de la soumission par Enter
-   */
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && isFormValid()) {
-      handleSave()
-    }
-  }
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const showPreview = !isNaN(previewAmount) && previewAmount > 0
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
 
   if (!isOpen) return null
 
@@ -151,7 +124,7 @@ export default function AddIncomeDialog({
           </div>
 
           {/* Form */}
-          <div className="space-y-4 p-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
             {/* Nom du revenu */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -159,18 +132,17 @@ export default function AddIncomeDialog({
               </label>
               <input
                 type="text"
-                value={incomeName}
-                onChange={(e) => setIncomeName(e.target.value)}
-                onKeyPress={handleKeyPress}
+                {...form.register('name')}
                 placeholder="Ex: Salaire, Freelance, Prime..."
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 className={cn(
                   'w-full rounded-xl border px-4 py-3 transition-colors focus:outline-none focus:ring-2',
-                  errors.name
+                  fieldErrors.name
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-300 focus:border-green-500 focus:ring-green-500',
                 )}
               />
-              {errors.name && (
+              {fieldErrors.name && (
                 <p className="mt-1 flex items-center text-sm text-red-600">
                   <svg
                     className="mr-1 h-4 w-4"
@@ -185,7 +157,7 @@ export default function AddIncomeDialog({
                       d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  {errors.name}
+                  {fieldErrors.name.message}
                 </p>
               )}
             </div>
@@ -196,30 +168,36 @@ export default function AddIncomeDialog({
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={incomeAmount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setIncomeAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  onKeyPress={handleKeyPress}
-                  placeholder="0.00"
-                  className={cn(
-                    'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
-                    errors.amount
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-green-500 focus:ring-green-500',
+                <Controller
+                  control={form.control}
+                  name="estimatedAmount"
+                  render={({ field }) => (
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={field.value == null ? '' : String(field.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          field.onChange(v.replace(',', '.'))
+                        }
+                      }}
+                      placeholder="0.00"
+                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
+                      className={cn(
+                        'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
+                        fieldErrors.estimatedAmount
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:border-green-500 focus:ring-green-500',
+                      )}
+                    />
                   )}
                 />
                 <span className="absolute right-4 top-3.5 text-sm font-medium text-gray-500">
                   €
                 </span>
               </div>
-              {errors.amount && (
+              {fieldErrors.estimatedAmount && (
                 <p className="mt-1 flex items-center text-sm text-red-600">
                   <svg
                     className="mr-1 h-4 w-4"
@@ -234,13 +212,13 @@ export default function AddIncomeDialog({
                       d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  {errors.amount}
+                  {fieldErrors.estimatedAmount.message}
                 </p>
               )}
             </div>
 
             {/* Aperçu du total avec nouveau revenu */}
-            {incomeAmount && parseFloat(incomeAmount) > 0 && !errors.amount && (
+            {showPreview && (
               <div className="rounded-xl border border-green-200 bg-green-50 p-4">
                 <h4 className="mb-2 text-sm font-medium text-green-900">
                   Calcul des revenus totaux
@@ -255,45 +233,42 @@ export default function AddIncomeDialog({
                   <div className="flex justify-between">
                     <span className="text-gray-600">Ce nouveau revenu:</span>
                     <span className="font-medium text-green-700">
-                      {formatAmount(parseFloat(incomeAmount))}
+                      {formatAmount(previewAmount)}
                     </span>
                   </div>
                   <div className="mt-2 border-t border-green-200 pt-1">
                     <div className="flex justify-between font-bold">
                       <span className="text-green-900">Total des revenus:</span>
                       <span className="text-green-700">
-                        {formatAmount(currentIncomesTotal + parseFloat(incomeAmount))}
+                        {formatAmount(currentIncomesTotal + previewAmount)}
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Actions */}
-          <div className="rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
-            <div className="flex space-x-3">
-              <button
-                onClick={handleClose}
-                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!isFormValid()}
-                className={cn(
-                  'flex-1 rounded-xl px-4 py-2 font-medium transition-colors',
-                  isFormValid()
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'cursor-not-allowed bg-gray-300 text-gray-500',
-                )}
-              >
-                Ajouter le revenu
-              </button>
+            {/* Actions */}
+            <div className="-mx-6 -mb-6 mt-6 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Ajouter le revenu
+                </button>
+              </div>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </>

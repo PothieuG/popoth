@@ -46,3 +46,17 @@ export const updateProfileBodySchema = z
 
 export type CreateProfileBody = z.infer<typeof createProfileBodySchema>
 export type UpdateProfileBody = z.infer<typeof updateProfileBodySchema>
+
+/**
+ * Client-form schemas for FirstTimeProfileDialog + EditProfileDialog.
+ * Stricter min(2) than the server `nameSchema.min(1)` to preserve the
+ * existing UX gate. Server stays lenient — the client is the stricter
+ * filter (matches the historical behavior of these dialogs).
+ */
+const profileNameFormSchema = z.string().trim().min(2, 'Au moins 2 caractères')
+
+export const profileNameFormFieldsSchema = z.object({
+  first_name: profileNameFormSchema,
+  last_name: profileNameFormSchema,
+})
+export type ProfileNameFormFields = z.infer<typeof profileNameFormFieldsSchema>

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { moneySchema } from './common'
+import { moneyFormSchema, moneySchema } from './common'
 
 const groupNameSchema = z
   .string()
@@ -43,3 +43,13 @@ export const updateGroupBodySchema = z
     message: 'Aucune donnée à mettre à jour',
   })
 export type UpdateGroupBody = z.infer<typeof updateGroupBodySchema>
+
+/**
+ * Client-form variant used by CreateGroupForm. Coerces
+ * monthly_budget_estimate from string|number at submit.
+ */
+export const createGroupFormSchema = z.object({
+  name: groupNameSchema,
+  monthly_budget_estimate: moneyFormSchema,
+})
+export type CreateGroupForm = z.infer<typeof createGroupFormSchema>

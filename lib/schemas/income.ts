@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema, moneySchema, uuidSchema } from './common'
+import { isoDateSchema, moneyFormSchema, moneySchema, uuidSchema } from './common'
 
 const incomeNameSchema = z
   .string()
@@ -22,6 +22,22 @@ export const updateIncomeBodySchema = z.object({
 
 export type CreateIncomeBody = z.infer<typeof createIncomeBodySchema>
 export type UpdateIncomeBody = z.infer<typeof updateIncomeBodySchema>
+
+/**
+ * Client-form variants used by AddIncomeDialog + EditIncomeDialog. Same
+ * shape as the server schemas but `estimatedAmount` is coerced from
+ * string|number (form input is text + inputMode="decimal").
+ */
+export const createIncomeFormSchema = z.object({
+  name: incomeNameSchema,
+  estimatedAmount: moneyFormSchema,
+})
+export const updateIncomeFormSchema = z.object({
+  name: incomeNameSchema,
+  estimatedAmount: moneyFormSchema,
+})
+export type CreateIncomeForm = z.infer<typeof createIncomeFormSchema>
+export type UpdateIncomeForm = z.infer<typeof updateIncomeFormSchema>
 
 const incomeDescriptionSchema = z.string().trim().min(1, 'La description est requise')
 

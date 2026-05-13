@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User } from 'lucide-react'
 import type { ProfileData } from '@/app/api/profile/route'
+import { profileNameFormFieldsSchema, type ProfileNameFormFields } from '@/lib/schemas/profile'
 
 interface EditProfileDialogProps {
   /** Indique si la dialog est ouverte */
@@ -30,6 +33,11 @@ interface EditProfileDialogProps {
 /**
  * Dialog pour modifier le profil utilisateur existant
  * Permet à l'utilisateur de modifier son prénom et son nom de famille
+ *
+ * Uses react-hook-form + zodResolver(profileNameFormFieldsSchema). Edit
+ * mode: defaultValues init from `profile` prop (parent must use
+ * `key={profile.id}` if the target can change at runtime). hasChanges
+ * derived from `form.formState.isDirty` (Sprint Zod-Rollout v3).
  */
 export default function EditProfileDialog({
   isOpen,
@@ -38,86 +46,43 @@ export default function EditProfileDialog({
   onSubmit,
   onError,
 }: EditProfileDialogProps) {
-  const [firstName, setFirstName] = useState(profile.first_name)
-  const [lastName, setLastName] = useState(profile.last_name)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [errors, setErrors] = useState<{
-    firstName?: string
-    lastName?: string
-    general?: string
-  }>({})
+  const [serverError, setServerError] = useState<string | null>(null)
 
-  /**
-   * Valide les champs du formulaire
-   */
-  const validateForm = () => {
-    const newErrors: typeof errors = {}
+  const form = useForm<ProfileNameFormFields>({
+    resolver: zodResolver(profileNameFormFieldsSchema),
+    defaultValues: { first_name: profile.first_name, last_name: profile.last_name },
+    mode: 'onSubmit',
+  })
 
-    if (!firstName.trim()) {
-      newErrors.firstName = 'Le prénom est requis'
-    } else if (firstName.trim().length < 2) {
-      newErrors.firstName = 'Le prénom doit contenir au moins 2 caractères'
-    }
-
-    if (!lastName.trim()) {
-      newErrors.lastName = 'Le nom est requis'
-    } else if (lastName.trim().length < 2) {
-      newErrors.lastName = 'Le nom doit contenir au moins 2 caractères'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  /**
-   * Gère la soumission du formulaire
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
-
-    setIsSubmitting(true)
-    setErrors({})
-
+  const onValidSubmit = async ({ first_name, last_name }: ProfileNameFormFields) => {
+    setServerError(null)
     try {
-      const success = await onSubmit(firstName.trim(), lastName.trim())
+      const success = await onSubmit(first_name, last_name)
 
       if (success) {
         onClose()
       } else {
-        setErrors({ general: 'Erreur lors de la mise à jour du profil' })
+        setServerError('Erreur lors de la mise à jour du profil')
         onError?.('Erreur lors de la mise à jour du profil')
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
-      setErrors({ general: errorMessage })
+      setServerError(errorMessage)
       onError?.(errorMessage)
-    } finally {
-      setIsSubmitting(false)
     }
   }
 
-  /**
-   * Gère la fermeture de la dialog
-   */
   const handleClose = () => {
-    if (!isSubmitting) {
-      // Réinitialiser les valeurs aux valeurs originales
-      setFirstName(profile.first_name)
-      setLastName(profile.last_name)
-      setErrors({})
+    if (!form.formState.isSubmitting) {
+      form.reset({ first_name: profile.first_name, last_name: profile.last_name })
+      setServerError(null)
       onClose()
     }
   }
 
-  /**
-   * Vérifie s'il y a des changements
-   */
-  const hasChanges =
-    firstName.trim() !== profile.first_name || lastName.trim() !== profile.last_name
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+  const hasChanges = form.formState.isDirty
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
@@ -135,7 +100,7 @@ export default function EditProfileDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4" noValidate>
           {/* Prénom */}
           <div className="space-y-2">
             <Label htmlFor="editFirstName" className="text-sm font-medium">
@@ -144,13 +109,15 @@ export default function EditProfileDialog({
             <Input
               id="editFirstName"
               type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
+              {...form.register('first_name')}
               placeholder="Votre prénom"
               disabled={isSubmitting}
-              className={errors.firstName ? 'border-red-500 focus:ring-red-500' : ''}
+              aria-invalid={fieldErrors.first_name ? 'true' : 'false'}
+              className={fieldErrors.first_name ? 'border-red-500 focus:ring-red-500' : ''}
             />
-            {errors.firstName && <p className="text-sm text-red-600">{errors.firstName}</p>}
+            {fieldErrors.first_name && (
+              <p className="text-sm text-red-600">{fieldErrors.first_name.message}</p>
+            )}
           </div>
 
           {/* Nom */}
@@ -161,19 +128,21 @@ export default function EditProfileDialog({
             <Input
               id="editLastName"
               type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              {...form.register('last_name')}
               placeholder="Votre nom de famille"
               disabled={isSubmitting}
-              className={errors.lastName ? 'border-red-500 focus:ring-red-500' : ''}
+              aria-invalid={fieldErrors.last_name ? 'true' : 'false'}
+              className={fieldErrors.last_name ? 'border-red-500 focus:ring-red-500' : ''}
             />
-            {errors.lastName && <p className="text-sm text-red-600">{errors.lastName}</p>}
+            {fieldErrors.last_name && (
+              <p className="text-sm text-red-600">{fieldErrors.last_name.message}</p>
+            )}
           </div>
 
           {/* Erreur générale */}
-          {errors.general && (
+          {serverError && (
             <div className="rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{errors.general}</p>
+              <p className="text-sm text-red-700">{serverError}</p>
             </div>
           )}
 

@@ -1,6 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
+import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
 
 interface EstimatedIncome {
   id: string
@@ -15,9 +18,15 @@ interface EditIncomeDialogProps {
   currentIncomesTotal: number
 }
 
+type UpdateIncomeFormInput = z.input<typeof updateIncomeFormSchema>
+
 /**
- * Dialog d'édition d'un revenu existant
- * Permet de modifier le nom et le montant d'un revenu
+ * Dialog d'édition d'un revenu existant.
+ *
+ * Uses react-hook-form + zodResolver(updateIncomeFormSchema). Edit mode:
+ * defaultValues init from the `income` prop (parent must use
+ * `key={income.id}` if the target can change). Decimal field via
+ * Controller dual-type pattern (Sprint Zod-Rollout v3).
  */
 export default function EditIncomeDialog({
   onClose,
@@ -25,37 +34,25 @@ export default function EditIncomeDialog({
   income,
   currentIncomesTotal,
 }: EditIncomeDialogProps) {
-  const [name, setName] = useState(() => income?.name ?? '')
-  const [amount, setAmount] = useState(() => income?.estimated_amount?.toString() ?? '')
-  const [isLoading, setIsLoading] = useState(false)
+  const form = useForm<UpdateIncomeFormInput, undefined, UpdateIncomeForm>({
+    resolver: zodResolver(updateIncomeFormSchema),
+    defaultValues: {
+      name: income?.name ?? '',
+      estimatedAmount: income?.estimated_amount ?? 0,
+    },
+    mode: 'onSubmit',
+  })
 
-  const validationError = useMemo(() => {
-    if (!name && !amount) return ''
-    const nameError = !name.trim() ? 'Le nom du revenu est requis' : ''
-    const amountNum = parseFloat(amount)
-    const amountError =
-      !amount || isNaN(amountNum) || amountNum <= 0 ? 'Le montant doit être supérieur à 0€' : ''
-    return nameError || amountError
-  }, [name, amount])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (validationError) return
-
-    setIsLoading(true)
+  const onValidSubmit = async (data: UpdateIncomeForm) => {
     const success = await onSave({
-      name: name.trim(),
-      estimatedAmount: parseFloat(amount),
+      name: data.name,
+      estimatedAmount: data.estimatedAmount,
     })
 
     if (success) {
       onClose()
     }
-    setIsLoading(false)
   }
-
-  if (!income) return null
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -64,6 +61,16 @@ export default function EditIncomeDialog({
       minimumFractionDigits: 2,
     }).format(amount)
   }
+
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  if (!income) return null
 
   return (
     <>
@@ -116,7 +123,7 @@ export default function EditIncomeDialog({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
             {/* Nom du revenu */}
             <div>
               <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">
@@ -125,12 +132,15 @@ export default function EditIncomeDialog({
               <input
                 id="income-name"
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                {...form.register('name')}
                 placeholder="Ex: Salaire, Freelance, Loyer..."
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
+              {fieldErrors.name && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.name.message}</p>
+              )}
             </div>
 
             {/* Montant */}
@@ -142,25 +152,35 @@ export default function EditIncomeDialog({
                 Montant mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  id="income-amount"
-                  type="text"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  disabled={isLoading}
+                <Controller
+                  control={form.control}
+                  name="estimatedAmount"
+                  render={({ field }) => (
+                    <input
+                      id="income-amount"
+                      type="text"
+                      inputMode="decimal"
+                      value={field.value == null ? '' : String(field.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          field.onChange(v.replace(',', '.'))
+                        }
+                      }}
+                      placeholder="0.00"
+                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      disabled={isSubmitting}
+                    />
+                  )}
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className="text-sm text-gray-500">€</span>
                 </div>
               </div>
+              {fieldErrors.estimatedAmount && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.estimatedAmount.message}</p>
+              )}
             </div>
 
             {/* Aperçu financier */}
@@ -169,52 +189,39 @@ export default function EditIncomeDialog({
                 <div className="flex justify-between">
                   <span className="text-gray-600">Autres revenus:</span>
                   <span className="font-medium text-gray-900">
-                    {formatAmount(currentIncomesTotal - (income?.estimated_amount || 0))}
+                    {formatAmount(currentIncomesTotal - income.estimated_amount)}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Ce revenu:</span>
-                  <span className="font-medium text-green-700">
-                    {amount ? formatAmount(parseFloat(amount) || 0) : formatAmount(0)}
-                  </span>
+                  <span className="font-medium text-green-700">{formatAmount(previewSafe)}</span>
                 </div>
                 <hr className="border-green-200" />
                 <div className="flex justify-between font-bold">
                   <span>Total des revenus:</span>
                   <span className="text-green-700">
-                    {formatAmount(
-                      currentIncomesTotal -
-                        (income?.estimated_amount || 0) +
-                        (parseFloat(amount) || 0),
-                    )}
+                    {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
                   </span>
                 </div>
               </div>
             </div>
-
-            {/* Message d'erreur */}
-            {validationError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-800">{validationError}</p>
-              </div>
-            )}
 
             {/* Actions */}
             <div className="flex space-x-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={isLoading || !!validationError || !name.trim() || !amount}
+                disabled={isSubmitting}
                 className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                 ) : (
                   'Sauvegarder'

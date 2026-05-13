@@ -1,63 +1,62 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
+import {
+  createGroupFormSchema,
+  type CreateGroupForm as CreateGroupFormOutput,
+} from '@/lib/schemas/groups'
 
 interface CreateGroupFormProps {
   onSubmit: (name: string, budget: number) => Promise<boolean>
   onCancel: () => void
 }
 
+// z.coerce.number() schemas have distinct input/output — input accepts
+// string|number, output is always number. useForm needs both shapes.
+type CreateGroupFormInput = z.input<typeof createGroupFormSchema>
+
 /**
- * Form component for creating a new group
+ * Form component for creating a new group.
+ *
+ * Uses react-hook-form + zodResolver(createGroupFormSchema). Decimal field
+ * `monthly_budget_estimate` via Controller dual-type pattern (Sprint
+ * Zod-Rollout v3). Server-side errors flow via `serverError` state,
+ * independent of `form.formState.errors`.
  */
 export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormProps) {
-  const [name, setName] = useState('')
-  const [budget, setBudget] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
 
-  /**
-   * Handles form submission
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const form = useForm<CreateGroupFormInput, undefined, CreateGroupFormOutput>({
+    resolver: zodResolver(createGroupFormSchema),
+    defaultValues: { name: '', monthly_budget_estimate: 0 },
+    mode: 'onSubmit',
+  })
 
-    // Validation
-    if (!name.trim()) {
-      setError('Le nom du groupe est requis')
-      return
-    }
-
-    const budgetNumber = parseFloat(budget)
-    if (!budget || isNaN(budgetNumber) || budgetNumber <= 0) {
-      setError('Veuillez entrer un budget valide (nombre positif)')
-      return
-    }
-
-    setIsSubmitting(true)
-    setError(null)
-
+  const onValidSubmit = async (data: CreateGroupFormOutput) => {
+    setServerError(null)
     try {
-      const success = await onSubmit(name.trim(), budgetNumber)
+      const success = await onSubmit(data.name, data.monthly_budget_estimate)
       if (success) {
-        // Reset form
-        setName('')
-        setBudget('')
+        form.reset({ name: '', monthly_budget_estimate: 0 })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la création')
-    } finally {
-      setIsSubmitting(false)
+      setServerError(err instanceof Error ? err.message : 'Erreur lors de la création')
     }
   }
 
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
   return (
     <Card className="border-blue-200 bg-blue-50 p-4">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4" noValidate>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {/* Group Name */}
           <div className="space-y-2">
@@ -67,16 +66,14 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
             <Input
               id="groupName"
               type="text"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                if (error) setError(null)
-              }}
+              {...form.register('name')}
               placeholder="Ex: Famille Dupont"
               className="w-full"
               disabled={isSubmitting}
               maxLength={100}
+              aria-invalid={fieldErrors.name ? 'true' : 'false'}
             />
+            {fieldErrors.name && <p className="text-sm text-red-600">{fieldErrors.name.message}</p>}
           </div>
 
           {/* Monthly Budget */}
@@ -84,27 +81,38 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
             <Label htmlFor="monthlyBudget" className="text-sm font-medium text-gray-700">
               Budget mensuel estimé (€) *
             </Label>
-            <Input
-              id="monthlyBudget"
-              type="number"
-              value={budget}
-              onChange={(e) => {
-                setBudget(e.target.value)
-                if (error) setError(null)
-              }}
-              placeholder="Ex: 2500"
-              className="w-full"
-              disabled={isSubmitting}
-              min="0"
-              step="0.01"
+            <Controller
+              control={form.control}
+              name="monthly_budget_estimate"
+              render={({ field }) => (
+                <Input
+                  id="monthlyBudget"
+                  type="text"
+                  inputMode="decimal"
+                  value={field.value == null ? '' : String(field.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      field.onChange(v.replace(',', '.'))
+                    }
+                  }}
+                  placeholder="Ex: 2500"
+                  className="w-full"
+                  disabled={isSubmitting}
+                  aria-invalid={fieldErrors.monthly_budget_estimate ? 'true' : 'false'}
+                />
+              )}
             />
+            {fieldErrors.monthly_budget_estimate && (
+              <p className="text-sm text-red-600">{fieldErrors.monthly_budget_estimate.message}</p>
+            )}
           </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
+        {/* Server-side error */}
+        {serverError && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-600">{error}</p>
+            <p className="text-sm text-red-600">{serverError}</p>
           </div>
         )}
 
@@ -115,7 +123,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || !name.trim() || !budget}
+            disabled={isSubmitting}
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
           >
             {isSubmitting ? 'Création...' : 'Créer le groupe'}
