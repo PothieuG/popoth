@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 
 /**
  * GET /api/finance/income/progress
@@ -9,9 +11,7 @@ import { withAuth } from '@/lib/api/with-auth'
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    // Récupérer le contexte depuis les paramètres URL
-    const { searchParams } = new URL(request.url)
-    const context = (searchParams.get('context') as 'profile' | 'group') || 'profile'
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     let incomes: { id: string; name: string; estimated_amount: number }[] = []
     let realIncomes: { amount: number; estimated_income_id: string | null }[] = []
@@ -84,7 +84,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     })
 
     return NextResponse.json(progressData)
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 })

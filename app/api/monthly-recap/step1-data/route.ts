@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import {
-  getProfileFinancialData,
-  getGroupFinancialData,
-  type FinancialData,
-} from '@/lib/finance'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 
 /**
  * API GET /api/monthly-recap/step1-data
@@ -25,16 +23,7 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
  */
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const url = new URL(request.url)
-    const context = url.searchParams.get('context') || 'profile'
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     // Déterminer l'ID du contexte
     let contextId: string
@@ -184,6 +173,8 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       timestamp: Date.now(), // Pour forcer le rafraîchissement
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
       { status: 500 },

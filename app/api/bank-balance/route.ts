@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { updateBankBalanceBodySchema } from '@/lib/schemas/bank-balance'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
@@ -10,9 +11,7 @@ import { logger } from '@/lib/logger'
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    // Récupérer le paramètre de contexte depuis l'URL
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' | null
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     let query
     if (context === 'group') {
@@ -74,6 +73,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     return NextResponse.json({ balance })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
       { status: 500 },

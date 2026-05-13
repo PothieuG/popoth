@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
@@ -10,12 +12,7 @@ import { logger } from '@/lib/logger'
  */
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' | null
-
-    if (!context || (context !== 'profile' && context !== 'group')) {
-      return NextResponse.json({ error: 'Contexte invalide' }, { status: 400 })
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     // Determine context filter
     const contextFilter =
@@ -74,7 +71,9 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
         total_savings: totalSavings,
       },
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: 'Erreur serveur lors de la récupération des données' },
       { status: 500 },

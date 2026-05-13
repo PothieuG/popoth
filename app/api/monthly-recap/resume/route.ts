@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { getProfileFinancialData, getGroupFinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
@@ -16,16 +18,7 @@ import { logger } from '@/lib/logger'
  */
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'profile'
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
@@ -199,7 +192,9 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       user_name: `${profile.first_name} ${profile.last_name}`,
       recap_id: existingRecap.id,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

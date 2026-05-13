@@ -3,11 +3,12 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import {
   createEstimatedIncomeBodySchema,
   updateEstimatedIncomeBodySchema,
 } from '@/lib/schemas/income'
+import { estimatedListQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
@@ -19,8 +20,7 @@ type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const url = new URL(request.url)
-    const forGroup = url.searchParams.get('group') === 'true'
+    const { group: forGroup } = parseQuery(request, estimatedListQuerySchema)
 
     let data, error
 
@@ -66,7 +66,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     return NextResponse.json({ estimated_incomes: data || [] })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
