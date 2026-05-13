@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSession, updateSession, deleteSession, getSession } from '@/lib/session-server'
 import { supabase } from '@/lib/supabase-client'
+import { parseBody, BadRequestError } from '@/lib/api/parse-body'
+import { sessionActionBodySchema } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
 
 /**
@@ -10,21 +12,14 @@ import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, email, password } = await request.json()
+    const body = await parseBody(request, sessionActionBodySchema)
 
-    switch (action) {
-      case 'login':
-        if (!email || !password) {
-          return NextResponse.json(
-            { success: false, error: 'Email et mot de passe requis' },
-            { status: 400 },
-          )
-        }
-
+    switch (body.action) {
+      case 'login': {
         // Use Supabase for real authentication
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: body.email,
+          password: body.password,
         })
 
         if (error) {
@@ -67,8 +62,9 @@ export async function POST(request: NextRequest) {
           { success: false, error: 'Erreur de connexion inattendue' },
           { status: 500 },
         )
+      }
 
-      case 'refresh':
+      case 'refresh': {
         const currentSession = await getSession()
         if (!currentSession) {
           return NextResponse.json(
@@ -87,15 +83,23 @@ export async function POST(request: NextRequest) {
             email: currentSession.email,
           },
         })
+      }
 
-      case 'logout':
+      case 'logout': {
         await deleteSession()
         return NextResponse.json({ success: true })
-
-      default:
-        return NextResponse.json({ success: false, error: 'Action non reconnue' }, { status: 400 })
+      }
     }
-  } catch {
+  } catch (error) {
+    // Risk #1 — auth/session uses { success, error } shape, not the v1
+    // { error, issues } convention. handleBadRequest is intercepted inline
+    // and re-emitted in the route's native shape to preserve client compat.
+    if (error instanceof BadRequestError) {
+      return NextResponse.json(
+        { success: false, error: error.message, issues: error.issues },
+        { status: 400 },
+      )
+    }
     return NextResponse.json({ success: false, error: 'Erreur serveur' }, { status: 500 })
   }
 }
