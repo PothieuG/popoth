@@ -315,10 +315,15 @@ export default function EditTransactionModal({
                 transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
               }
               aria-invalid={fieldErrors.description ? 'true' : 'false'}
+              aria-describedby={
+                fieldErrors.description ? 'edit-transaction-description-error' : undefined
+              }
               className="w-full"
             />
             {fieldErrors.description && (
-              <p className="text-sm text-red-600">{fieldErrors.description.message}</p>
+              <p id="edit-transaction-description-error" className="text-sm text-red-600">
+                {fieldErrors.description.message}
+              </p>
             )}
           </div>
 
@@ -334,9 +339,12 @@ export default function EditTransactionModal({
               placeholder="0.00"
               className="w-full"
               ariaInvalid={!!fieldErrors.amount}
+              ariaDescribedby={fieldErrors.amount ? 'edit-transaction-amount-error' : undefined}
             />
             {fieldErrors.amount && (
-              <p className="text-sm text-red-600">{fieldErrors.amount.message}</p>
+              <p id="edit-transaction-amount-error" className="text-sm text-red-600">
+                {fieldErrors.amount.message}
+              </p>
             )}
           </div>
 
@@ -352,6 +360,7 @@ export default function EditTransactionModal({
                   type="date"
                   {...form.register('expense_date')}
                   aria-invalid={dateError ? 'true' : 'false'}
+                  aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
                   className="w-full pl-10"
                 />
               ) : (
@@ -360,6 +369,7 @@ export default function EditTransactionModal({
                   type="date"
                   {...form.register('entry_date')}
                   aria-invalid={dateError ? 'true' : 'false'}
+                  aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
                   className="w-full pl-10"
                 />
               )}
@@ -379,7 +389,11 @@ export default function EditTransactionModal({
                 </svg>
               </div>
             </div>
-            {dateError && <p className="text-sm text-red-600">{dateError.message}</p>}
+            {dateError && (
+              <p id="edit-transaction-date-error" className="text-sm text-red-600">
+                {dateError.message}
+              </p>
+            )}
           </div>
 
           {/* Expense Breakdown Preview - only for budgeted expenses */}

@@ -11,6 +11,7 @@ interface DecimalFormInputProps<T extends FieldValues> {
   placeholder?: string
   disabled?: boolean
   ariaInvalid?: boolean
+  ariaDescribedby?: string
   allowNegative?: boolean
   className?: string
   autoComplete?: string
@@ -37,6 +38,7 @@ export function DecimalFormInput<T extends FieldValues>({
   placeholder = '0.00',
   disabled,
   ariaInvalid,
+  ariaDescribedby,
   allowNegative = false,
   className,
   autoComplete,
@@ -49,6 +51,7 @@ export function DecimalFormInput<T extends FieldValues>({
       render={({ field }) => (
         <Input
           id={id}
+          ref={field.ref}
           type="text"
           inputMode="decimal"
           value={field.value == null ? '' : String(field.value)}
@@ -58,9 +61,11 @@ export function DecimalFormInput<T extends FieldValues>({
               field.onChange(v.replace(',', '.'))
             }
           }}
+          onBlur={field.onBlur}
           placeholder={placeholder}
           disabled={disabled}
           aria-invalid={ariaInvalid ? 'true' : 'false'}
+          aria-describedby={ariaDescribedby}
           className={cn(className)}
           autoComplete={autoComplete}
         />

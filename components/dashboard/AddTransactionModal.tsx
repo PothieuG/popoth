@@ -404,7 +404,11 @@ export default function AddTransactionModal({
                   )}
                 />
               )}
-              {fkError && <p className="text-sm text-red-600">{fkError.message}</p>}
+              {fkError && (
+                <p id="add-transaction-fk-error" className="text-sm text-red-600">
+                  {fkError.message}
+                </p>
+              )}
             </div>
           )}
 
@@ -421,10 +425,15 @@ export default function AddTransactionModal({
                 transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
               }
               aria-invalid={fieldErrors.description ? 'true' : 'false'}
+              aria-describedby={
+                fieldErrors.description ? 'add-transaction-description-error' : undefined
+              }
               className="w-full"
             />
             {fieldErrors.description && (
-              <p className="text-sm text-red-600">{fieldErrors.description.message}</p>
+              <p id="add-transaction-description-error" className="text-sm text-red-600">
+                {fieldErrors.description.message}
+              </p>
             )}
           </div>
 
@@ -440,9 +449,12 @@ export default function AddTransactionModal({
               placeholder="0.00"
               className="w-full"
               ariaInvalid={!!fieldErrors.amount}
+              ariaDescribedby={fieldErrors.amount ? 'add-transaction-amount-error' : undefined}
             />
             {fieldErrors.amount && (
-              <p className="text-sm text-red-600">{fieldErrors.amount.message}</p>
+              <p id="add-transaction-amount-error" className="text-sm text-red-600">
+                {fieldErrors.amount.message}
+              </p>
             )}
           </div>
 
@@ -458,6 +470,7 @@ export default function AddTransactionModal({
                   type="date"
                   {...form.register('expense_date')}
                   aria-invalid={dateError ? 'true' : 'false'}
+                  aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
                   className="w-full pl-10"
                 />
               ) : (
@@ -466,6 +479,7 @@ export default function AddTransactionModal({
                   type="date"
                   {...form.register('entry_date')}
                   aria-invalid={dateError ? 'true' : 'false'}
+                  aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
                   className="w-full pl-10"
                 />
               )}
@@ -485,7 +499,11 @@ export default function AddTransactionModal({
                 </svg>
               </div>
             </div>
-            {dateError && <p className="text-sm text-red-600">{dateError.message}</p>}
+            {dateError && (
+              <p id="add-transaction-date-error" className="text-sm text-red-600">
+                {dateError.message}
+              </p>
+            )}
           </div>
 
           {/* Preview for expenses - show breakdown */}

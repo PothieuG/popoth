@@ -97,10 +97,13 @@ export default function FirstTimeProfileDialog({
               placeholder="Votre prénom"
               disabled={isSubmitting}
               aria-invalid={fieldErrors.first_name ? 'true' : 'false'}
+              aria-describedby={fieldErrors.first_name ? 'first-name-error' : undefined}
               className={fieldErrors.first_name ? 'border-red-500 focus:ring-red-500' : ''}
             />
             {fieldErrors.first_name && (
-              <p className="text-sm text-red-600">{fieldErrors.first_name.message}</p>
+              <p id="first-name-error" className="text-sm text-red-600">
+                {fieldErrors.first_name.message}
+              </p>
             )}
           </div>
 
@@ -116,10 +119,13 @@ export default function FirstTimeProfileDialog({
               placeholder="Votre nom de famille"
               disabled={isSubmitting}
               aria-invalid={fieldErrors.last_name ? 'true' : 'false'}
+              aria-describedby={fieldErrors.last_name ? 'last-name-error' : undefined}
               className={fieldErrors.last_name ? 'border-red-500 focus:ring-red-500' : ''}
             />
             {fieldErrors.last_name && (
-              <p className="text-sm text-red-600">{fieldErrors.last_name.message}</p>
+              <p id="last-name-error" className="text-sm text-red-600">
+                {fieldErrors.last_name.message}
+              </p>
             )}
           </div>
 

@@ -136,11 +136,14 @@ export default function EditIncomeDialog({
                 {...form.register('name')}
                 placeholder="Ex: Salaire, Freelance, Loyer..."
                 aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'edit-income-name-error' : undefined}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 disabled={isSubmitting}
               />
               {fieldErrors.name && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.name.message}</p>
+                <p id="edit-income-name-error" className="mt-1 text-sm text-red-600">
+                  {fieldErrors.name.message}
+                </p>
               )}
             </div>
 
@@ -159,6 +162,9 @@ export default function EditIncomeDialog({
                   id="income-amount"
                   placeholder="0.00"
                   ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'edit-income-amount-error' : undefined
+                  }
                   className="h-auto rounded-lg border-gray-300 px-3 py-2 pr-8 focus-visible:border-green-500 focus-visible:ring-2 focus-visible:ring-green-500"
                   disabled={isSubmitting}
                 />
@@ -167,7 +173,9 @@ export default function EditIncomeDialog({
                 </div>
               </div>
               {fieldErrors.estimatedAmount && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.estimatedAmount.message}</p>
+                <p id="edit-income-amount-error" className="mt-1 text-sm text-red-600">
+                  {fieldErrors.estimatedAmount.message}
+                </p>
               )}
             </div>
 

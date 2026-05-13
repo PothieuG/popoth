@@ -143,14 +143,19 @@ export default function AddBudgetDialog({
           <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
             {/* Nom du budget */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="add-budget-name"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Nom du budget <span className="text-red-500">*</span>
               </label>
               <input
+                id="add-budget-name"
                 type="text"
                 {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
                 aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
                 className={cn(
                   'w-full rounded-xl border px-4 py-3 transition-colors focus:outline-none focus:ring-2',
                   fieldErrors.name
@@ -159,7 +164,10 @@ export default function AddBudgetDialog({
                 )}
               />
               {fieldErrors.name && (
-                <p className="mt-1 flex items-center text-sm text-red-600">
+                <p
+                  id="add-budget-name-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
                   <svg
                     className="mr-1 h-4 w-4"
                     fill="none"
@@ -180,15 +188,22 @@ export default function AddBudgetDialog({
 
             {/* Montant estimé */}
             <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="add-budget-amount"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
                 <DecimalFormInput
                   control={form.control}
                   name="estimatedAmount"
+                  id="add-budget-amount"
                   placeholder="0.00"
                   ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
+                  }
                   className={cn(
                     'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:outline-none focus-visible:ring-2',
                     fieldErrors.estimatedAmount
@@ -201,7 +216,10 @@ export default function AddBudgetDialog({
                 </span>
               </div>
               {fieldErrors.estimatedAmount && (
-                <p className="mt-1 flex items-center text-sm text-red-600">
+                <p
+                  id="add-budget-amount-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
                   <svg
                     className="mr-1 h-4 w-4"
                     fill="none"

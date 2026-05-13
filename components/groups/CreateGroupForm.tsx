@@ -73,8 +73,13 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
               disabled={isSubmitting}
               maxLength={100}
               aria-invalid={fieldErrors.name ? 'true' : 'false'}
+              aria-describedby={fieldErrors.name ? 'group-name-error' : undefined}
             />
-            {fieldErrors.name && <p className="text-sm text-red-600">{fieldErrors.name.message}</p>}
+            {fieldErrors.name && (
+              <p id="group-name-error" className="text-sm text-red-600">
+                {fieldErrors.name.message}
+              </p>
+            )}
           </div>
 
           {/* Monthly Budget */}
@@ -90,9 +95,14 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
               className="w-full"
               disabled={isSubmitting}
               ariaInvalid={!!fieldErrors.monthly_budget_estimate}
+              ariaDescribedby={
+                fieldErrors.monthly_budget_estimate ? 'group-budget-error' : undefined
+              }
             />
             {fieldErrors.monthly_budget_estimate && (
-              <p className="text-sm text-red-600">{fieldErrors.monthly_budget_estimate.message}</p>
+              <p id="group-budget-error" className="text-sm text-red-600">
+                {fieldErrors.monthly_budget_estimate.message}
+              </p>
             )}
           </div>
         </div>

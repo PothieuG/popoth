@@ -112,12 +112,17 @@ export default function EditBalanceModal({
                 disabled={isSubmitting}
                 allowNegative
                 ariaInvalid={!!balanceError}
+                ariaDescribedby={balanceError ? 'balance-error' : undefined}
               />
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                 <span className="text-sm text-gray-500">€</span>
               </div>
             </div>
-            {balanceError && <p className="mt-1 text-xs text-red-600">{balanceError.message}</p>}
+            {balanceError && (
+              <p id="balance-error" className="mt-1 text-xs text-red-600">
+                {balanceError.message}
+              </p>
+            )}
           </div>
 
           {serverError && (
