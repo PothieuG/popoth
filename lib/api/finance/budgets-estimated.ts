@@ -8,7 +8,7 @@ import {
   createEstimatedBudgetBodySchema,
   updateEstimatedBudgetBodySchema,
 } from '@/lib/schemas/budget'
-import { estimatedListQuerySchema } from '@/lib/schemas/common'
+import { deleteByIdQuerySchema, estimatedListQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
@@ -251,12 +251,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
  */
 export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const url = new URL(request.url)
-    const id = url.searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID du budget estimé requis' }, { status: 400 })
-    }
+    const { id } = parseQuery(request, deleteByIdQuerySchema)
 
     // Delete the estimated budget (this will set estimated_budget_id to null in related expenses)
     const { error } = await supabaseServer.from('estimated_budgets').delete().eq('id', id)
@@ -272,7 +267,9 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     return NextResponse.json({
       message: 'Budget estimé supprimé avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

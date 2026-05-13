@@ -4,6 +4,7 @@ import {
   deleteByIdQuerySchema,
   estimatedListQuerySchema,
   moneySchema,
+  summaryQuerySchema,
 } from '@/lib/schemas/common'
 
 describe('moneySchema', () => {
@@ -72,5 +73,22 @@ describe('deleteByIdQuerySchema', () => {
   it('rejects malformed uuid or missing id', () => {
     expect(deleteByIdQuerySchema.safeParse({ id: 'not-a-uuid' }).success).toBe(false)
     expect(deleteByIdQuerySchema.safeParse({}).success).toBe(false)
+  })
+})
+
+describe('summaryQuerySchema', () => {
+  it('defaults: context=profile, recalculate=false', () => {
+    const result = summaryQuerySchema.safeParse({})
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.context).toBe('profile')
+      expect(result.data.recalculate).toBe(false)
+    }
+  })
+
+  it('coerces recalculate="true" to boolean true', () => {
+    const result = summaryQuerySchema.safeParse({ context: 'group', recalculate: 'true' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.recalculate).toBe(true)
   })
 })

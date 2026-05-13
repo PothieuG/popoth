@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { searchGroupsQuerySchema } from '@/lib/schemas/groups'
 import { logger } from '@/lib/logger'
 
 export interface SearchableGroup {
@@ -21,9 +23,7 @@ export interface SearchableGroup {
  */
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const query = searchParams.get('q')?.trim() || ''
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50)
+    const { q: query, limit } = parseQuery(request, searchGroupsQuerySchema)
 
     const supabase = supabaseServer
 
@@ -91,7 +91,9 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       total: searchableGroups.length,
       query: query || null,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

@@ -8,7 +8,7 @@ import {
   createEstimatedIncomeBodySchema,
   updateEstimatedIncomeBodySchema,
 } from '@/lib/schemas/income'
-import { estimatedListQuerySchema } from '@/lib/schemas/common'
+import { deleteByIdQuerySchema, estimatedListQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
@@ -187,12 +187,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
  */
 export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const url = new URL(request.url)
-    const id = url.searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID du revenu estimé requis' }, { status: 400 })
-    }
+    const { id } = parseQuery(request, deleteByIdQuerySchema)
 
     // Delete the estimated income
     const { error } = await supabaseServer.from('estimated_incomes').delete().eq('id', id)
@@ -208,7 +203,9 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     return NextResponse.json({
       message: 'Revenu estimé supprimé avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

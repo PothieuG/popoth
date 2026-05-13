@@ -4,11 +4,9 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
-import {
-  createRealIncomeBodySchema,
-  updateRealIncomeBodySchema,
-} from '@/lib/schemas/income'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { createRealIncomeBodySchema, updateRealIncomeBodySchema } from '@/lib/schemas/income'
+import { deleteByIdQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
@@ -313,12 +311,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
  */
 export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const url = new URL(request.url)
-    const id = url.searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json({ error: "ID de l'entrée d'argent requis" }, { status: 400 })
-    }
+    const { id } = parseQuery(request, deleteByIdQuerySchema)
 
     // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel ou associé
     const { data: incomeToDelete } = await supabaseServer

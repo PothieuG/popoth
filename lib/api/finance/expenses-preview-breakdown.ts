@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
 
 export interface ExpenseBreakdownPreview {
   total_amount: number
@@ -29,19 +31,12 @@ export interface ExpenseBreakdownPreview {
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const amount = parseFloat(searchParams.get('amount') || '0')
-    const budgetId = searchParams.get('budget_id')
-    const context = searchParams.get('context') || 'profile'
-    const expenseId = searchParams.get('expense_id') // Optionnel: pour le mode edition
-
-    if (!amount || amount <= 0) {
-      return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
-    }
-
-    if (!budgetId) {
-      return NextResponse.json({ error: 'Budget ID requis' }, { status: 400 })
-    }
+    const {
+      amount,
+      budget_id: budgetId,
+      context,
+      expense_id: expenseId,
+    } = parseQuery(request, previewBreakdownQuerySchema)
 
     // Determine context filter
     const isGroup = context === 'group'
@@ -175,7 +170,9 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     return NextResponse.json({ breakdown })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

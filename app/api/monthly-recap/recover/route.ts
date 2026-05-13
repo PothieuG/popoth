@@ -3,6 +3,8 @@ import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
 import { isSnapshotV2, type SnapshotPayload } from '@/lib/recap-snapshot.types'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 // Tables that the recovery flow restores from a snapshot blob. Restoration
@@ -316,15 +318,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
  */
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'profile'
-
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
@@ -392,6 +386,8 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       total_count: formattedSnapshots.length,
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     logger.error('❌ Erreur lors de la récupération des snapshots:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }

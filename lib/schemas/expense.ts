@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema, moneySchema, uuidSchema } from './common'
+import { contextSchema, isoDateSchema, moneySchema, uuidSchema } from './common'
 
 const descriptionSchema = z.string().trim().min(1, 'La description est requise')
 
@@ -50,3 +50,22 @@ export type UpdateRealExpenseBody = z.infer<typeof updateRealExpenseBodySchema>
  */
 export const addExpenseWithLogicBodySchema = createRealExpenseBodySchema
 export type AddExpenseWithLogicBody = CreateRealExpenseBody
+
+/**
+ * Query schema for /api/finance/expenses/preview-breakdown GET. Computes
+ * how an expense will be allocated without creating it. `expense_id`
+ * optional (edit-mode reverses the existing allocation first).
+ */
+export const previewBreakdownQuerySchema = z.object({
+  amount: z.coerce
+    .number()
+    .finite('Montant invalide')
+    .positive('Le montant doit être positif')
+    .refine((v) => Math.round(v * 100) === v * 100, {
+      message: 'Au maximum 2 décimales',
+    }),
+  budget_id: uuidSchema,
+  context: contextSchema.optional().default('profile'),
+  expense_id: uuidSchema.optional(),
+})
+export type PreviewBreakdownQuery = z.infer<typeof previewBreakdownQuerySchema>

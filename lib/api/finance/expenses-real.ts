@@ -5,11 +5,9 @@ import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
-import {
-  createRealExpenseBodySchema,
-  updateRealExpenseBodySchema,
-} from '@/lib/schemas/expense'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { createRealExpenseBodySchema, updateRealExpenseBodySchema } from '@/lib/schemas/expense'
+import { deleteByIdQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
@@ -360,12 +358,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
  */
 export const DELETE = withAuth(async (request: NextRequest) => {
   try {
-    const url = new URL(request.url)
-    const id = url.searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID de la dépense requis' }, { status: 400 })
-    }
+    const { id } = parseQuery(request, deleteByIdQuerySchema)
 
     // Recuperer les informations completes de la depense avant suppression
     const { data: expenseToDelete } = await supabaseServer

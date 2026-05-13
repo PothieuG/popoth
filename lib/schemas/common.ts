@@ -56,3 +56,16 @@ export const deleteByIdQuerySchema = z.object({
   id: uuidSchema,
 })
 export type DeleteByIdQuery = z.infer<typeof deleteByIdQuerySchema>
+
+/**
+ * Query schema for /api/finance/summary GET. Accepts optional `context`
+ * and `recalculate=true|false` (coerce string → boolean, defaults false).
+ */
+export const summaryQuerySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+  recalculate: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
+})
+export type SummaryQuery = z.infer<typeof summaryQuerySchema>

@@ -3,6 +3,7 @@ import {
   accumulatePiggyBankBodySchema,
   autoBalanceBodySchema,
   manualTransferBodySchema,
+  refreshRecapQuerySchema,
 } from '@/lib/schemas/recap'
 
 const validUuid = '11111111-1111-4111-8111-111111111111'
@@ -47,5 +48,27 @@ describe('manualTransferBodySchema', () => {
       monthly_recap_id: null,
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe('refreshRecapQuerySchema', () => {
+  it('accepts valid context + session_id', () => {
+    const result = refreshRecapQuerySchema.safeParse({
+      context: 'group',
+      session_id: 'profile_abc_5_2026_1234567',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.context).toBe('group')
+  })
+
+  it('defaults context to profile when absent', () => {
+    const result = refreshRecapQuerySchema.safeParse({ session_id: 'x' })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.context).toBe('profile')
+  })
+
+  it('rejects missing session_id', () => {
+    expect(refreshRecapQuerySchema.safeParse({ context: 'profile' }).success).toBe(false)
+    expect(refreshRecapQuerySchema.safeParse({ session_id: '' }).success).toBe(false)
   })
 })

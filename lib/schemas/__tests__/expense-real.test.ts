@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   createRealExpenseBodySchema,
+  previewBreakdownQuerySchema,
   updateRealExpenseBodySchema,
 } from '@/lib/schemas/expense'
 
@@ -28,5 +29,26 @@ describe('updateRealExpenseBodySchema', () => {
       )
       expect(refineIssue).toBeDefined()
     }
+  })
+})
+
+describe('previewBreakdownQuerySchema', () => {
+  it('coerces amount string to positive number and parses required uuid', () => {
+    const result = previewBreakdownQuerySchema.safeParse({
+      amount: '42.5',
+      budget_id: validUuid,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.amount).toBe(42.5)
+      expect(result.data.context).toBe('profile')
+    }
+  })
+
+  it('rejects zero/negative amount and missing budget_id', () => {
+    expect(
+      previewBreakdownQuerySchema.safeParse({ amount: '0', budget_id: validUuid }).success,
+    ).toBe(false)
+    expect(previewBreakdownQuerySchema.safeParse({ amount: '5' }).success).toBe(false)
   })
 })

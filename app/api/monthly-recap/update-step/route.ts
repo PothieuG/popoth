@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { refreshRecapQuerySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 /**
@@ -133,21 +135,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
 export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'profile'
-    const session_id = searchParams.get('session_id')
-
-    // Validation des paramètres
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    if (!session_id) {
-      return NextResponse.json({ error: 'session_id requis' }, { status: 400 })
-    }
+    const { context, session_id } = parseQuery(request, refreshRecapQuerySchema)
 
     // Déterminer le contexte ID
     let contextId: string
@@ -211,7 +199,9 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       is_completed: isCompleted,
       message: `Étape ${currentStep} récupérée depuis la base de données`,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

@@ -80,3 +80,14 @@ export const completeBodySchema = z.object({
 })
 
 export type CompleteBody = z.infer<typeof completeBodySchema>
+
+/**
+ * Query schema for /api/monthly-recap/refresh GET and /update-step GET.
+ * Both take `?context=` + `?session_id=` (string-min-1). Used as the
+ * baseline shape for the recap-with-session GET family.
+ */
+export const refreshRecapQuerySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+  session_id: z.string().min(1, 'session_id requis'),
+})
+export type RefreshRecapQuery = z.infer<typeof refreshRecapQuerySchema>

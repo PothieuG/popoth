@@ -7,6 +7,8 @@ import {
   type FinancialData,
 } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { summaryQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
@@ -20,10 +22,10 @@ import { logger } from '@/lib/logger'
 
 export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    // Récupérer les paramètres depuis l'URL
-    const { searchParams } = new URL(request.url)
-    const forceContext = searchParams.get('context') as 'profile' | 'group' | null
-    const shouldRecalculate = searchParams.get('recalculate') === 'true'
+    const { context: forceContext, recalculate: shouldRecalculate } = parseQuery(
+      request,
+      summaryQuerySchema,
+    )
 
     // Déterminer le contexte à utiliser
     let context: 'profile' | 'group'
@@ -73,6 +75,8 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
       timestamp: Date.now(),
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     logger.warn('Erreur dans GET /api/finance/summary — fallback sur données par défaut:', error)
 
     // En cas d'erreur, retourner des données par défaut pour éviter de casser l'UI

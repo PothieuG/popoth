@@ -3,8 +3,9 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createIncomeBodySchema, updateIncomeBodySchema } from '@/lib/schemas/income'
+import { deleteByIdQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
@@ -201,12 +202,7 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
 export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const incomeId = searchParams.get('id')
-
-    if (!incomeId) {
-      return NextResponse.json({ error: 'ID du revenu requis' }, { status: 400 })
-    }
+    const { id: incomeId } = parseQuery(request, deleteByIdQuerySchema)
 
     const supabase = supabaseServer
 
