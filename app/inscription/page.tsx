@@ -2,59 +2,38 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
+import { signupBodySchema, type SignupBody } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
 
 /**
  * Registration page allowing users to create a new account with email and password
  * Features clean cardless design with colorful shadcn/ui component variants and Roboto font
- * Includes password confirmation validation and Supabase integration
+ *
+ * Uses react-hook-form + zodResolver(signupBodySchema). The refine on
+ * password match places the error under the confirmPassword field via
+ * `path: ['confirmPassword']`. Server-side Supabase errors (already
+ * registered, weak password, signup disabled, etc.) surface via a
+ * separate `serverError` state — they fire after schema validation.
  */
 export default function InscriptionPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
   const router = useRouter()
+  const [serverError, setServerError] = useState('')
+  const [success, setSuccess] = useState(false)
 
-  /**
-   * Handles registration form submission
-   * Validates form fields, checks password confirmation, and processes user signup
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setSuccess(false)
+  const form = useForm<SignupBody>({
+    resolver: zodResolver(signupBodySchema),
+    defaultValues: { email: '', password: '', confirmPassword: '' },
+    mode: 'onSubmit',
+  })
 
-    // Field validation
-    if (!email || !password || !confirmPassword) {
-      setError('Veuillez remplir tous les champs')
-      return
-    }
-
-    if (!email.includes('@')) {
-      setError('Veuillez entrer une adresse email valide')
-      return
-    }
-
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas')
-      return
-    }
-
-    setLoading(true)
-
+  const onValidSubmit = async ({ email, password }: SignupBody) => {
+    setServerError('')
     try {
-      // Sign up user with Supabase
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -64,7 +43,6 @@ export default function InscriptionPage() {
       })
 
       if (signUpError) {
-        // Handle specific signup errors with better detection
         const errorMessage = signUpError.message.toLowerCase()
 
         if (
@@ -72,51 +50,46 @@ export default function InscriptionPage() {
           errorMessage.includes('user already registered') ||
           errorMessage.includes('email already exists')
         ) {
-          setError('Cette adresse email est déjà utilisée. Essayez de vous connecter.')
+          setServerError('Cette adresse email est déjà utilisée. Essayez de vous connecter.')
         } else if (
           errorMessage.includes('weak password') ||
           (errorMessage.includes('password') && errorMessage.includes('weak'))
         ) {
-          setError(
+          setServerError(
             'Le mot de passe est trop faible. Utilisez au moins 6 caractères avec des lettres et chiffres.',
           )
         } else if (
           errorMessage.includes('invalid email') ||
           (errorMessage.includes('email') && errorMessage.includes('invalid'))
         ) {
-          setError("Format d'email invalide")
+          setServerError("Format d'email invalide")
         } else if (errorMessage.includes('signup disabled')) {
-          setError('Les inscriptions sont temporairement désactivées')
+          setServerError('Les inscriptions sont temporairement désactivées')
         } else {
-          setError('Erreur lors de la création du compte. Veuillez réessayer.')
+          setServerError('Erreur lors de la création du compte. Veuillez réessayer.')
         }
 
-        // Log all signup errors for debugging (they're less common than login errors)
         logger.error('Signup error:', signUpError.message)
         return
       }
 
       if (data.user) {
         setSuccess(true)
-        // Auto-redirect to login after 3 seconds
         setTimeout(() => {
           router.push('/connexion')
         }, 3000)
       }
     } catch (error) {
-      setError('Erreur de connexion. Veuillez réessayer.')
+      setServerError('Erreur de connexion. Veuillez réessayer.')
       logger.error('Signup error:', error)
-    } finally {
-      setLoading(false)
     }
   }
 
-  /**
-   * Navigates to the login page
-   */
   const goToLogin = () => {
     router.push('/connexion')
   }
+
+  const isSubmitting = form.formState.isSubmitting
 
   if (success) {
     return (
@@ -151,6 +124,8 @@ export default function InscriptionPage() {
     )
   }
 
+  const fieldErrors = form.formState.errors
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-8">
@@ -164,7 +139,7 @@ export default function InscriptionPage() {
 
         {/* Form */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-6" noValidate>
             {/* Email Field */}
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
@@ -173,13 +148,16 @@ export default function InscriptionPage() {
               <Input
                 id="email"
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                {...form.register('email')}
                 placeholder="votre@email.com"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="email"
+                aria-invalid={fieldErrors.email ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
+              {fieldErrors.email && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -190,13 +168,16 @@ export default function InscriptionPage() {
               <Input
                 id="motdepasse"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...form.register('password')}
                 placeholder="Votre mot de passe"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="new-password"
+                aria-invalid={fieldErrors.password ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
+              {fieldErrors.password && (
+                <p className="text-sm font-medium text-red-600">{fieldErrors.password.message}</p>
+              )}
             </div>
 
             {/* Confirm Password Field */}
@@ -210,17 +191,22 @@ export default function InscriptionPage() {
               <Input
                 id="confirmmotdepasse"
                 type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                {...form.register('confirmPassword')}
                 placeholder="Confirmez votre mot de passe"
-                disabled={loading}
+                disabled={isSubmitting}
                 autoComplete="new-password"
+                aria-invalid={fieldErrors.confirmPassword ? 'true' : 'false'}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
+              {fieldErrors.confirmPassword && (
+                <p className="text-sm font-medium text-red-600">
+                  {fieldErrors.confirmPassword.message}
+                </p>
+              )}
             </div>
 
-            {/* Error Display */}
-            {error && (
+            {/* Server Error Display */}
+            {serverError && (
               <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -233,7 +219,7 @@ export default function InscriptionPage() {
                     </svg>
                   </div>
                   <div className="ml-3">
-                    <p className="font-medium text-red-800">{error}</p>
+                    <p className="font-medium text-red-800">{serverError}</p>
                   </div>
                 </div>
               </div>
@@ -243,9 +229,9 @@ export default function InscriptionPage() {
             <Button
               type="submit"
               className="h-12 w-full rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-purple-700 hover:to-blue-700 hover:shadow-xl"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? 'Création en cours...' : 'Créer mon compte'}
+              {isSubmitting ? 'Création en cours...' : 'Créer mon compte'}
             </Button>
           </form>
 
