@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { updateBankBalanceBodySchema } from '@/lib/schemas/bank-balance'
 import { logger } from '@/lib/logger'
 
 /**
@@ -88,12 +90,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const { searchParams } = new URL(request.url)
     const context = searchParams.get('context') as 'profile' | 'group' | null
 
-    const { balance } = await request.json()
-
-    if (typeof balance !== 'number' || isNaN(balance)) {
-      logger.warn('Solde invalide:', balance)
-      return NextResponse.json({ error: 'Le solde doit être un nombre valide' }, { status: 400 })
-    }
+    const { balance } = await parseBody(request, updateBankBalanceBodySchema)
 
     // Construire la requête selon le contexte
     let checkQuery, checkCondition, insertData
@@ -190,6 +187,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       message: 'Solde bancaire mis à jour avec succès',
     })
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: `Erreur interne: ${error instanceof Error ? error.message : 'Erreur inconnue'}` },
       { status: 500 },
