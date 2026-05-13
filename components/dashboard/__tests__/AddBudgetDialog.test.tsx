@@ -103,4 +103,36 @@ describe('AddBudgetDialog', () => {
       expect(onSave).not.toHaveBeenCalled()
     })
   })
+
+  // Sprint Zod-Rollout v6 / Axe 3 — regression-guards for Axe 1 (a11y
+  // attribute linkage) + Axe 2 (setFocus on invalid submit).
+  it('aria-describedby + aria-invalid + setFocus on invalid empty name (Axe 1 + 2)', async () => {
+    const onSave = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <AddBudgetDialog
+        isOpen={true}
+        onClose={vi.fn()}
+        onSave={onSave}
+        currentBudgetsTotal={500}
+        totalEstimatedIncome={2000}
+      />,
+    )
+    // Submit with empty name (amount = 300 to bypass the amount field error)
+    await user.type(screen.getByPlaceholderText('0.00'), '300')
+    await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))
+    // Wait for validation
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Le nom du budget est requis \(minimum 2 caractères\)/i),
+      ).toBeInTheDocument()
+    })
+    const nameInput = screen.getByLabelText(/nom du budget/i)
+    expect(nameInput).toHaveAttribute('aria-describedby', 'add-budget-name-error')
+    expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+    const errorBox = document.getElementById('add-budget-name-error')
+    expect(errorBox).toHaveTextContent(/Le nom du budget est requis/)
+    // Axe 2 setFocus assertion : focus moved to first faulty field
+    expect(nameInput).toHaveFocus()
+  })
 })

@@ -64,4 +64,31 @@ describe('EditIncomeDialog', () => {
     })
     expect(onClose).toHaveBeenCalled()
   })
+
+  // Sprint Zod-Rollout v6 / Axe 3 — regression-guards for Axe 1 (a11y
+  // attribute linkage) + Axe 2 (setFocus on invalid submit).
+  it('aria-describedby + aria-invalid + setFocus on invalid name (Axe 1 + 2)', async () => {
+    const onSave = vi.fn(async () => true)
+    const user = userEvent.setup()
+    render(
+      <EditIncomeDialog
+        onClose={vi.fn()}
+        onSave={onSave}
+        income={baseIncome}
+        currentIncomesTotal={3000}
+      />,
+    )
+    const nameInput = screen.getByLabelText(/nom du revenu/i)
+    await user.clear(nameInput)
+    await user.type(nameInput, 'A')
+    await user.click(screen.getByRole('button', { name: /sauvegarder/i }))
+    await waitFor(() => {
+      expect(nameInput).toHaveAttribute('aria-describedby', 'edit-income-name-error')
+      expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+    })
+    const errorBox = document.getElementById('edit-income-name-error')
+    expect(errorBox).toHaveTextContent(/Le nom du revenu est requis/)
+    // Axe 2 setFocus assertion : focus moved to first faulty field
+    expect(nameInput).toHaveFocus()
+  })
 })

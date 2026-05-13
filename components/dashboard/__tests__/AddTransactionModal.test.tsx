@@ -170,4 +170,23 @@ describe('AddTransactionModal', () => {
       )
     })
   })
+
+  // Sprint Zod-Rollout v6 / Axe 3 — regression-guards for Axe 1 (a11y
+  // attribute linkage) + Axe 2 (setFocus on invalid submit).
+  it('aria-describedby + aria-invalid + setFocus on invalid description (Axe 1 + 2)', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    // Submit empty form — description (min 1) is the first failing field
+    await user.click(screen.getByRole('button', { name: /^Ajouter (la dépense|le revenu)$/i }))
+    const descInput = screen.getByLabelText(/description/i)
+    await waitFor(() => {
+      expect(descInput).toHaveAttribute('aria-invalid', 'true')
+      expect(descInput).toHaveAttribute('aria-describedby', 'add-transaction-description-error')
+    })
+    const errorBox = document.getElementById('add-transaction-description-error')
+    expect(errorBox).toBeTruthy()
+    // Axe 2 setFocus assertion : focus moved to the first faulty field
+    expect(descInput).toHaveFocus()
+    expect(addExpense).not.toHaveBeenCalled()
+  })
 })
