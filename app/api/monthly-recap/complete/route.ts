@@ -3,19 +3,21 @@ import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert, Database } from '@/lib/database.types'
 import type { FinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { completeBodySchema } from '@/lib/schemas/recap'
 
 type MonthlyRecapInsert = Database['public']['Tables']['monthly_recaps']['Insert']
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var carryoverUpdates:
     | Array<{ budget_id: string; budget_name: string; carryover_amount: number }>
     | undefined
-  // eslint-disable-next-line no-var
+   
   var preTransferBudgetDeficit: number | undefined
-  // eslint-disable-next-line no-var
+   
   var postTransferBudgetDeficit: number | undefined
-  // eslint-disable-next-line no-var
+   
   var exceptionalExpenseToInsert: TablesInsert<'real_expenses'> | undefined
 }
 
@@ -40,43 +42,14 @@ declare global {
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', session_id, remaining_to_live_choice } = body
-
-    // Validations
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    if (!session_id || !remaining_to_live_choice) {
-      return NextResponse.json(
-        { error: 'session_id et remaining_to_live_choice sont requis' },
-        { status: 400 },
-      )
-    }
-
-    const { action, budget_id, final_amount } = remaining_to_live_choice
-
-    if (!['carry_forward', 'deduct_from_budget'].includes(action)) {
-      return NextResponse.json(
-        { error: 'Action invalide. Utilisez "carry_forward" ou "deduct_from_budget"' },
-        { status: 400 },
-      )
-    }
-
-    if (action === 'deduct_from_budget' && !budget_id) {
-      return NextResponse.json(
-        { error: 'budget_id requis pour l\'action "deduct_from_budget"' },
-        { status: 400 },
-      )
-    }
-
-    if (typeof final_amount !== 'number') {
-      return NextResponse.json({ error: 'final_amount doit être un nombre' }, { status: 400 })
-    }
+    const body = await parseBody(request, completeBodySchema)
+    const { context, session_id, remaining_to_live_choice } = body
+    const { action, final_amount } = remaining_to_live_choice
+    // Narrowed by discriminatedUnion: budget_id is defined iff action === 'deduct_from_budget'
+    const budget_id =
+      remaining_to_live_choice.action === 'deduct_from_budget'
+        ? remaining_to_live_choice.budget_id
+        : undefined
 
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
@@ -723,6 +696,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       )
     }
   } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     console.error('❌ Erreur lors de la finalisation du récap mensuel:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
