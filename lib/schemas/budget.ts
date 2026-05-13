@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { moneySchema, uuidSchema } from './common'
+import { moneyFormSchema, moneySchema, uuidSchema } from './common'
 
 const budgetNameSchema = z
   .string()
@@ -61,3 +61,39 @@ export const updateEstimatedBudgetBodySchema = z
 
 export type CreateEstimatedBudgetBody = z.infer<typeof createEstimatedBudgetBodySchema>
 export type UpdateEstimatedBudgetBody = z.infer<typeof updateEstimatedBudgetBodySchema>
+
+/**
+ * Client-side factory for AddBudgetDialog + EditBudgetDialog. The refine
+ * gate "newBudgetsTotal <= totalEstimatedIncome" depends on parent props
+ * (currentBudgetsTotal, totalEstimatedIncome) so the schema must be built
+ * at render time. Memoize the result via useMemo on the calling component
+ * to keep the resolver identity stable across renders.
+ *
+ * Add case  : currentBudgetAmount = 0
+ * Edit case : currentBudgetAmount = editing.estimated_amount (so the
+ *             current value is subtracted from the running total before
+ *             adding the new one — net delta is what matters)
+ */
+export function makeBudgetClientSchema(opts: {
+  currentBudgetsTotal: number
+  totalEstimatedIncome: number
+  currentBudgetAmount?: number
+}) {
+  const { currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount = 0 } = opts
+  return z
+    .object({
+      name: budgetNameSchema,
+      estimatedAmount: moneyFormSchema,
+    })
+    .refine(
+      (d) => {
+        const newTotal = currentBudgetsTotal - currentBudgetAmount + d.estimatedAmount
+        return totalEstimatedIncome - newTotal >= 0
+      },
+      {
+        message:
+          'Impossible : le reste à vivre (sans économies) deviendrait négatif. Réduisez le montant ou ajoutez des revenus.',
+        path: ['estimatedAmount'],
+      },
+    )
+}

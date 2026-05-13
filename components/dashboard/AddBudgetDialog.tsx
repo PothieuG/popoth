@@ -1,7 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface AddBudgetDialogProps {
   isOpen: boolean
@@ -13,7 +17,13 @@ interface AddBudgetDialogProps {
 
 /**
  * Dialog pour ajouter un nouveau budget avec validation en temps réel
- * Empêche la création si le total des budgets dépasse les revenus estimés
+ *
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema(...)). The
+ * factory refine gates the balance check (newTotal <= totalEstimatedIncome)
+ * — schema rebuilt on prop change via useMemo (Sprint Zod-Rollout v3).
+ *
+ * useWatch for the live preview avoids the form.watch react-compiler
+ * incompatibility warning.
  */
 export default function AddBudgetDialog({
   isOpen,
@@ -22,8 +32,19 @@ export default function AddBudgetDialog({
   currentBudgetsTotal,
   totalEstimatedIncome,
 }: AddBudgetDialogProps) {
-  const [budgetName, setBudgetName] = useState('')
-  const [budgetAmount, setBudgetAmount] = useState('')
+  const schema = useMemo(
+    () => makeBudgetClientSchema({ currentBudgetsTotal, totalEstimatedIncome }),
+    [currentBudgetsTotal, totalEstimatedIncome],
+  )
+  type FormInput = z.input<typeof schema>
+  type FormOutput = z.output<typeof schema>
+
+  const form = useForm<FormInput, undefined, FormOutput>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: '', estimatedAmount: 0 },
+    mode: 'onSubmit',
+  })
+
   /**
    * Formate un montant en euros
    */
@@ -35,75 +56,28 @@ export default function AddBudgetDialog({
     }).format(amount)
   }
 
-  const newBudgetsTotal = currentBudgetsTotal + (parseFloat(budgetAmount) || 0)
+  const onValidSubmit = (data: FormOutput) => {
+    onSave({ name: data.name, estimatedAmount: data.estimatedAmount })
+    form.reset({ name: '', estimatedAmount: 0 })
+    onClose()
+  }
+
+  const handleClose = () => {
+    form.reset({ name: '', estimatedAmount: 0 })
+    onClose()
+  }
+
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const newBudgetsTotal = currentBudgetsTotal + previewSafe
   const resultingBalance = totalEstimatedIncome - newBudgetsTotal
   const willBeNegative = resultingBalance < 0
+  const showPreview = previewSafe > 0
 
-  const errors = useMemo(() => {
-    const newErrors: { name?: string; amount?: string; balance?: string } = {}
-    if (budgetName.trim() && budgetName.trim().length < 2) {
-      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
-    }
-    const amount = parseFloat(budgetAmount)
-    if (budgetAmount && (isNaN(amount) || amount <= 0)) {
-      newErrors.amount = 'Le montant doit être un nombre positif'
-    }
-    if (budgetAmount && amount > 0 && willBeNegative) {
-      newErrors.balance = `Impossible d'ajouter ce budget : votre reste à vivre (sans économies) deviendrait négatif de ${formatAmount(Math.abs(resultingBalance))}. Réduisez le montant ou ajoutez des revenus.`
-    }
-    return newErrors
-  }, [budgetName, budgetAmount, resultingBalance, willBeNegative])
-
-  /**
-   * Vérifie si le formulaire est valide pour la sauvegarde
-   */
-  const isFormValid = () => {
-    return (
-      budgetName.trim().length >= 2 &&
-      parseFloat(budgetAmount) > 0 &&
-      !willBeNegative &&
-      Object.keys(errors).length === 0
-    )
-  }
-
-  /**
-   * Gestion de la sauvegarde
-   */
-  const handleSave = () => {
-    if (!isFormValid()) {
-      return
-    }
-
-    const budgetData = {
-      name: budgetName.trim(),
-      estimatedAmount: parseFloat(budgetAmount),
-    }
-
-    onSave(budgetData)
-
-    // Reset du formulaire et fermer le dialog
-    setBudgetName('')
-    setBudgetAmount('')
-    onClose()
-  }
-
-  /**
-   * Gestion de la fermeture
-   */
-  const handleClose = () => {
-    setBudgetName('')
-    setBudgetAmount('')
-    onClose()
-  }
-
-  /**
-   * Gestion de la soumission par Enter
-   */
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && isFormValid()) {
-      handleSave()
-    }
-  }
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
 
   if (!isOpen) return null
 
@@ -165,7 +139,7 @@ export default function AddBudgetDialog({
           </div>
 
           {/* Form */}
-          <div className="space-y-4 p-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
             {/* Nom du budget */}
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -173,18 +147,17 @@ export default function AddBudgetDialog({
               </label>
               <input
                 type="text"
-                value={budgetName}
-                onChange={(e) => setBudgetName(e.target.value)}
-                onKeyPress={handleKeyPress}
+                {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 className={cn(
                   'w-full rounded-xl border px-4 py-3 transition-colors focus:outline-none focus:ring-2',
-                  errors.name
+                  fieldErrors.name
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
                 )}
               />
-              {errors.name && (
+              {fieldErrors.name && (
                 <p className="mt-1 flex items-center text-sm text-red-600">
                   <svg
                     className="mr-1 h-4 w-4"
@@ -199,7 +172,7 @@ export default function AddBudgetDialog({
                       d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  {errors.name}
+                  {fieldErrors.name.message}
                 </p>
               )}
             </div>
@@ -210,30 +183,36 @@ export default function AddBudgetDialog({
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={budgetAmount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setBudgetAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  onKeyPress={handleKeyPress}
-                  placeholder="0.00"
-                  className={cn(
-                    'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
-                    errors.amount
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                      : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
+                <Controller
+                  control={form.control}
+                  name="estimatedAmount"
+                  render={({ field }) => (
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={field.value == null ? '' : String(field.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          field.onChange(v.replace(',', '.'))
+                        }
+                      }}
+                      placeholder="0.00"
+                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
+                      className={cn(
+                        'w-full rounded-xl border px-4 py-3 pr-12 transition-colors focus:outline-none focus:ring-2',
+                        fieldErrors.estimatedAmount
+                          ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                          : 'border-gray-300 focus:border-orange-500 focus:ring-orange-500',
+                      )}
+                    />
                   )}
                 />
                 <span className="absolute right-4 top-3.5 text-sm font-medium text-gray-500">
                   €
                 </span>
               </div>
-              {errors.amount && (
+              {fieldErrors.estimatedAmount && (
                 <p className="mt-1 flex items-center text-sm text-red-600">
                   <svg
                     className="mr-1 h-4 w-4"
@@ -248,13 +227,13 @@ export default function AddBudgetDialog({
                       d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  {errors.amount}
+                  {fieldErrors.estimatedAmount.message}
                 </p>
               )}
             </div>
 
             {/* Calcul en temps réel */}
-            {budgetAmount && parseFloat(budgetAmount) > 0 && (
+            {showPreview && (
               <div
                 className={cn(
                   'rounded-xl border p-4',
@@ -284,9 +263,7 @@ export default function AddBudgetDialog({
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Ce nouveau budget:</span>
-                    <span className="font-medium text-orange-700">
-                      {formatAmount(parseFloat(budgetAmount))}
-                    </span>
+                    <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
                   </div>
                   <div className="mt-2 border-t border-gray-300 pt-1">
                     <div className="flex justify-between font-bold">
@@ -311,58 +288,27 @@ export default function AddBudgetDialog({
               </div>
             )}
 
-            {/* Message d'erreur de balance */}
-            {errors.balance && (
-              <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                <p className="flex items-start text-sm font-medium text-red-800">
-                  <svg
-                    className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  <span>
-                    {errors.balance}
-                    <br />
-                    <span className="mt-1 block text-xs text-red-600">
-                      Ajustez le montant ou ajoutez des revenus pour équilibrer votre budget.
-                    </span>
-                  </span>
-                </p>
+            {/* Actions */}
+            <div className="-mx-6 -mb-6 mt-6 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  disabled={isSubmitting}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 rounded-xl bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Ajouter le budget
+                </button>
               </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
-            <div className="flex space-x-3">
-              <button
-                onClick={handleClose}
-                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!isFormValid()}
-                className={cn(
-                  'flex-1 rounded-xl px-4 py-2 font-medium transition-colors',
-                  isFormValid()
-                    ? 'bg-orange-600 text-white hover:bg-orange-700'
-                    : 'cursor-not-allowed bg-gray-300 text-gray-500',
-                )}
-              >
-                Ajouter le budget
-              </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </>

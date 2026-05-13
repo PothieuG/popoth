@@ -1,7 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface EstimatedBudget {
   id: string
@@ -18,8 +22,13 @@ interface EditBudgetDialogProps {
 }
 
 /**
- * Dialog d'édition d'un budget existant
- * Permet de modifier le nom et le montant d'un budget
+ * Dialog d'édition d'un budget existant.
+ *
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema({
+ *   currentBudgetAmount: budget.estimated_amount  // for delta calc
+ * })). Schema rebuilt on prop change via useMemo. Edit mode :
+ * defaultValues init from `budget` prop ; parent must use
+ * `key={budget.id}` to remount on target change.
  */
 export default function EditBudgetDialog({
   onClose,
@@ -28,44 +37,38 @@ export default function EditBudgetDialog({
   currentBudgetsTotal,
   totalEstimatedIncome,
 }: EditBudgetDialogProps) {
-  const [name, setName] = useState(() => budget?.name ?? '')
-  const [amount, setAmount] = useState(() => budget?.estimated_amount?.toString() ?? '')
-  const [isLoading, setIsLoading] = useState(false)
+  const currentBudgetAmount = budget?.estimated_amount ?? 0
+  const schema = useMemo(
+    () =>
+      makeBudgetClientSchema({
+        currentBudgetsTotal,
+        totalEstimatedIncome,
+        currentBudgetAmount,
+      }),
+    [currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount],
+  )
+  type FormInput = z.input<typeof schema>
+  type FormOutput = z.output<typeof schema>
 
-  const validationError = useMemo(() => {
-    if (!name && !amount) return ''
-    const nameError = !name.trim() ? 'Le nom du budget est requis' : ''
-    const amountNum = parseFloat(amount)
-    const amountError =
-      !amount || isNaN(amountNum) || amountNum <= 0 ? 'Le montant doit être supérieur à 0€' : ''
-    const budgetDifference = amountNum - (budget?.estimated_amount || 0)
-    const newBudgetsTotal = currentBudgetsTotal + budgetDifference
-    const newBalance = totalEstimatedIncome - newBudgetsTotal
-    const balanceError =
-      newBalance < 0
-        ? `Cette modification créerait un déficit de ${Math.abs(newBalance).toFixed(2)}€`
-        : ''
-    return nameError || amountError || balanceError
-  }, [name, amount, currentBudgetsTotal, totalEstimatedIncome, budget])
+  const form = useForm<FormInput, undefined, FormOutput>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: budget?.name ?? '',
+      estimatedAmount: budget?.estimated_amount ?? 0,
+    },
+    mode: 'onSubmit',
+  })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (validationError) return
-
-    setIsLoading(true)
+  const onValidSubmit = async (data: FormOutput) => {
     const success = await onSave({
-      name: name.trim(),
-      estimatedAmount: parseFloat(amount),
+      name: data.name,
+      estimatedAmount: data.estimatedAmount,
     })
 
     if (success) {
       onClose()
     }
-    setIsLoading(false)
   }
-
-  if (!budget) return null
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -74,6 +77,18 @@ export default function EditBudgetDialog({
       minimumFractionDigits: 2,
     }).format(amount)
   }
+
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const otherBudgets = currentBudgetsTotal - currentBudgetAmount
+  const newBalance = totalEstimatedIncome - otherBudgets - previewSafe
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  if (!budget) return null
 
   return (
     <>
@@ -126,7 +141,7 @@ export default function EditBudgetDialog({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <form onSubmit={form.handleSubmit(onValidSubmit)} className="space-y-4 p-6" noValidate>
             {/* Nom du budget */}
             <div>
               <label htmlFor="budget-name" className="mb-1 block text-sm font-medium text-gray-700">
@@ -135,12 +150,15 @@ export default function EditBudgetDialog({
               <input
                 id="budget-name"
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport..."
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
+              {fieldErrors.name && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.name.message}</p>
+              )}
             </div>
 
             {/* Montant */}
@@ -152,25 +170,35 @@ export default function EditBudgetDialog({
                 Montant mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  id="budget-amount"
-                  type="text"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                  disabled={isLoading}
+                <Controller
+                  control={form.control}
+                  name="estimatedAmount"
+                  render={({ field }) => (
+                    <input
+                      id="budget-amount"
+                      type="text"
+                      inputMode="decimal"
+                      value={field.value == null ? '' : String(field.value)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                          field.onChange(v.replace(',', '.'))
+                        }
+                      }}
+                      placeholder="0.00"
+                      aria-invalid={fieldErrors.estimatedAmount ? 'true' : 'false'}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-8 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                      disabled={isSubmitting}
+                    />
+                  )}
                 />
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className="text-sm text-gray-500">€</span>
                 </div>
               </div>
+              {fieldErrors.estimatedAmount && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.estimatedAmount.message}</p>
+              )}
             </div>
 
             {/* Aperçu financier */}
@@ -184,64 +212,38 @@ export default function EditBudgetDialog({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Autres budgets:</span>
-                  <span className="font-medium text-gray-900">
-                    {formatAmount(currentBudgetsTotal - (budget?.estimated_amount || 0))}
-                  </span>
+                  <span className="font-medium text-gray-900">{formatAmount(otherBudgets)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Ce budget:</span>
-                  <span className="font-medium text-orange-700">
-                    {amount ? formatAmount(parseFloat(amount) || 0) : formatAmount(0)}
-                  </span>
+                  <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
                 </div>
                 <hr className="border-orange-200" />
                 <div className="flex justify-between font-bold">
                   <span>Reste disponible:</span>
-                  <span
-                    className={cn(
-                      totalEstimatedIncome -
-                        currentBudgetsTotal +
-                        (budget?.estimated_amount || 0) -
-                        (parseFloat(amount) || 0) >=
-                        0
-                        ? 'text-green-700'
-                        : 'text-red-700',
-                    )}
-                  >
-                    {formatAmount(
-                      totalEstimatedIncome -
-                        currentBudgetsTotal +
-                        (budget?.estimated_amount || 0) -
-                        (parseFloat(amount) || 0),
-                    )}
+                  <span className={cn(newBalance >= 0 ? 'text-green-700' : 'text-red-700')}>
+                    {formatAmount(newBalance)}
                   </span>
                 </div>
               </div>
             </div>
-
-            {/* Message d'erreur */}
-            {validationError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-800">{validationError}</p>
-              </div>
-            )}
 
             {/* Actions */}
             <div className="flex space-x-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={isLoading || !!validationError || !name.trim() || !amount}
+                disabled={isSubmitting}
                 className="flex flex-1 items-center justify-center rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                 ) : (
                   'Sauvegarder'

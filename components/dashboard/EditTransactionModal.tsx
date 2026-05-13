@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm, useWatch, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +16,11 @@ import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import {
+  editTransactionFormSchema,
+  type EditTransactionFormInput,
+  type EditTransactionFormOutput,
+} from '@/lib/schemas/transactions'
 
 interface EditTransactionModalProps {
   onClose: () => void
@@ -24,8 +31,14 @@ interface EditTransactionModalProps {
 }
 
 /**
- * Modal for editing existing transactions (expenses or income)
- * Pre-fills form with existing transaction data
+ * Modal for editing existing transactions (expenses or income).
+ *
+ * Uses react-hook-form + zodResolver(editTransactionFormSchema)
+ * (discriminated union on transactionType). transactionType is fixed at
+ * mount via prop — the form's defaultValues lock the branch ; the budget/
+ * income dropdown is read-only by design (post-creation FK changes are
+ * disallowed). Parent must use `key={transaction.id}` to remount the
+ * modal on target change. Sprint Zod-Rollout v3.
  */
 export default function EditTransactionModal({
   onClose,
@@ -34,27 +47,7 @@ export default function EditTransactionModal({
   context,
   onTransactionUpdated,
 }: EditTransactionModalProps) {
-  const [formData, setFormData] = useState(() => {
-    if (!transaction) {
-      return { description: '', amount: '', date: '', budgetId: '', incomeId: '' }
-    }
-    const dateField =
-      transactionType === 'expense'
-        ? (transaction as RealExpense).expense_date
-        : (transaction as RealIncome).entry_date
-    return {
-      description: transaction.description || '',
-      amount: transaction.amount.toString(),
-      date: dateField,
-      budgetId:
-        transactionType === 'expense' ? (transaction as RealExpense).estimated_budget_id || '' : '',
-      incomeId:
-        transactionType === 'income' ? (transaction as RealIncome).estimated_income_id || '' : '',
-    }
-  })
-  const [isExceptional, setIsExceptional] = useState(() => transaction?.is_exceptional ?? false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
 
   // Hooks for managing data
   const { updateExpense, expenses: realExpenses } = useRealExpenses(context)
@@ -63,8 +56,32 @@ export default function EditTransactionModal({
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
 
-  // Calculer le montant pour le preview
-  const previewAmount = parseFloat(formData.amount) || 0
+  const isOriginallyExceptional = transaction?.is_exceptional ?? false
+
+  // defaultValues built from the existing transaction. The discriminated
+  // union picks the right branch based on `transactionType`.
+  const form = useForm<EditTransactionFormInput, undefined, EditTransactionFormOutput>({
+    resolver: zodResolver(editTransactionFormSchema),
+    defaultValues:
+      transactionType === 'expense'
+        ? {
+            transactionType: 'expense',
+            description: transaction?.description ?? '',
+            amount: transaction?.amount ?? 0,
+            expense_date: (transaction as RealExpense | null)?.expense_date ?? '',
+            is_exceptional: isOriginallyExceptional,
+            estimated_budget_id: (transaction as RealExpense | null)?.estimated_budget_id ?? null,
+          }
+        : {
+            transactionType: 'income',
+            description: transaction?.description ?? '',
+            amount: transaction?.amount ?? 0,
+            entry_date: (transaction as RealIncome | null)?.entry_date ?? '',
+            is_exceptional: isOriginallyExceptional,
+            estimated_income_id: (transaction as RealIncome | null)?.estimated_income_id ?? null,
+          },
+    mode: 'onSubmit',
+  })
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   const calculateRealSpentAmount = (budgetId: string): number => {
@@ -87,7 +104,7 @@ export default function EditTransactionModal({
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
+      spentAmount: realSpentAmount,
       estimatedAmount: budget.estimated_amount,
       economyAmount: budget.cumulated_savings || 0,
     }
@@ -100,80 +117,61 @@ export default function EditTransactionModal({
       id: income.id,
       name: income.name,
       type: 'income' as const,
-      receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
+      receivedAmount: realReceivedAmount,
       estimatedAmount: income.estimated_amount,
-      bonusAmount: bonusAmount, // 🔥 Calcul en temps réel du bonus
+      bonusAmount: bonusAmount,
     }
   })
 
-  // Vérifier si c'est une transaction exceptionnelle originale
-  const isOriginallyExceptional = transaction?.is_exceptional || false
+  // Read the FK dropdown value for the ExpenseBreakdownPreview (expense only)
+  const watchedBudgetId = useWatch({
+    control: form.control,
+    name: 'estimated_budget_id' as const,
+  })
+  const watchedAmount = useWatch({ control: form.control, name: 'amount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
 
   /**
    * Handle form submission
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
+  const onValidSubmit = async (data: EditTransactionFormOutput) => {
     if (!transaction) return
-
-    // Validation
-    if (!formData.description.trim()) {
-      setError('La description est requise')
-      return
-    }
-
-    const amount = parseFloat(formData.amount)
-    if (isNaN(amount) || amount <= 0) {
-      setError('Le montant doit être un nombre positif')
-      return
-    }
-
-    if (!isExceptional) {
-      if (transactionType === 'expense' && !formData.budgetId) {
-        setError('Veuillez sélectionner un budget')
-        return
-      }
-      if (transactionType === 'income' && !formData.incomeId) {
-        setError('Veuillez sélectionner un revenu estimé')
-        return
-      }
-    }
-
-    setIsSubmitting(true)
+    setServerError(null)
 
     try {
       let success = false
 
-      if (transactionType === 'expense') {
+      if (data.transactionType === 'expense') {
         success = await updateExpense({
           id: transaction.id,
-          description: formData.description.trim(),
-          amount,
-          expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId,
+          description: data.description,
+          amount: data.amount,
+          expense_date: data.expense_date,
+          estimated_budget_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_budget_id ?? undefined),
         })
       } else {
         success = await updateIncome({
           id: transaction.id,
-          description: formData.description.trim(),
-          amount,
-          entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId,
+          description: data.description,
+          amount: data.amount,
+          entry_date: data.entry_date,
+          estimated_income_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_income_id ?? undefined),
         })
       }
 
       if (success) {
-        // Le rafraîchissement automatique se charge de la mise à jour
         onTransactionUpdated?.()
         onClose()
       }
     } catch (err) {
       logger.error('Error updating transaction:', err)
-      setError('Erreur lors de la mise à jour de la transaction')
-    } finally {
-      setIsSubmitting(false)
+      setServerError('Erreur lors de la mise à jour de la transaction')
     }
   }
 
@@ -181,12 +179,23 @@ export default function EditTransactionModal({
    * Handle modal close
    */
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!form.formState.isSubmitting) {
       onClose()
     }
   }
 
   if (!transaction) return null
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  // Discriminated union narrowing : fieldErrors.expense_date and
+  // .entry_date are only present in one branch each. We know which branch
+  // is active via the transactionType prop — index permissively so TS
+  // stops complaining about the absent key.
+  const dateError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'expense_date' : 'entry_date'
+  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -222,7 +231,11 @@ export default function EditTransactionModal({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="flex-1 space-y-6 overflow-y-auto p-6">
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit)}
+          className="flex-1 space-y-6 overflow-y-auto p-6"
+          noValidate
+        >
           {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
           {isOriginallyExceptional && (
             <div className="flex flex-col items-center space-y-3">
@@ -230,8 +243,8 @@ export default function EditTransactionModal({
                 <input
                   type="checkbox"
                   id="exceptional"
-                  checked={isExceptional}
-                  disabled={true} // Always readonly for originally exceptional
+                  checked={true}
+                  disabled={true}
                   className="h-4 w-4 cursor-not-allowed rounded border-gray-300 bg-gray-100 text-blue-600 opacity-50"
                 />
                 <Label
@@ -248,29 +261,43 @@ export default function EditTransactionModal({
           )}
 
           {/* Budget/Income Selection - Only shown if not exceptional */}
-          {!isExceptional && (
+          {!isOriginallyExceptional && (
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-900">
                 {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
                 <span className="ml-2 text-xs text-gray-500">(non modifiable)</span>
               </Label>
-              <CustomDropdown
-                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
-                value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(value) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value,
-                  }))
-                }
-                placeholder={
-                  transactionType === 'expense'
-                    ? 'Sélectionner un budget'
-                    : 'Sélectionner un revenu estimé'
-                }
-                required={!isExceptional}
-                disabled={true} // En modification, le budget/revenu associé est readonly
-              />
+              {transactionType === 'expense' ? (
+                <Controller
+                  control={form.control}
+                  name="estimated_budget_id"
+                  render={({ field }) => (
+                    <CustomDropdown
+                      options={budgetOptions}
+                      value={field.value ?? ''}
+                      onChange={(value) => field.onChange(value || null)}
+                      placeholder="Sélectionner un budget"
+                      required={true}
+                      disabled={true}
+                    />
+                  )}
+                />
+              ) : (
+                <Controller
+                  control={form.control}
+                  name="estimated_income_id"
+                  render={({ field }) => (
+                    <CustomDropdown
+                      options={incomeOptions}
+                      value={field.value ?? ''}
+                      onChange={(value) => field.onChange(value || null)}
+                      placeholder="Sélectionner un revenu estimé"
+                      required={true}
+                      disabled={true}
+                    />
+                  )}
+                />
+              )}
             </div>
           )}
 
@@ -282,14 +309,16 @@ export default function EditTransactionModal({
             <Input
               id="description"
               type="text"
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+              {...form.register('description')}
               placeholder={
                 transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
               }
-              required
+              aria-invalid={fieldErrors.description ? 'true' : 'false'}
               className="w-full"
             />
+            {fieldErrors.description && (
+              <p className="text-sm text-red-600">{fieldErrors.description.message}</p>
+            )}
           </div>
 
           {/* Amount */}
@@ -297,21 +326,30 @@ export default function EditTransactionModal({
             <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
               Montant (€) <span className="text-red-500">*</span>
             </Label>
-            <Input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              value={formData.amount}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                  setFormData((prev) => ({ ...prev, amount: v.replace(',', '.') }))
-                }
-              }}
-              placeholder="0.00"
-              required
-              className="w-full"
+            <Controller
+              control={form.control}
+              name="amount"
+              render={({ field }) => (
+                <Input
+                  id="amount"
+                  type="text"
+                  inputMode="decimal"
+                  value={field.value == null ? '' : String(field.value)}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                      field.onChange(v.replace(',', '.'))
+                    }
+                  }}
+                  placeholder="0.00"
+                  aria-invalid={fieldErrors.amount ? 'true' : 'false'}
+                  className="w-full"
+                />
+              )}
             />
+            {fieldErrors.amount && (
+              <p className="text-sm text-red-600">{fieldErrors.amount.message}</p>
+            )}
           </div>
 
           {/* Date */}
@@ -320,14 +358,23 @@ export default function EditTransactionModal({
               Date <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-                required
-                className="w-full pl-10"
-              />
+              {transactionType === 'expense' ? (
+                <Input
+                  id="date"
+                  type="date"
+                  {...form.register('expense_date')}
+                  aria-invalid={dateError ? 'true' : 'false'}
+                  className="w-full pl-10"
+                />
+              ) : (
+                <Input
+                  id="date"
+                  type="date"
+                  {...form.register('entry_date')}
+                  aria-invalid={dateError ? 'true' : 'false'}
+                  className="w-full pl-10"
+                />
+              )}
               <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                 <svg
                   className="h-4 w-4 text-gray-500"
@@ -344,26 +391,27 @@ export default function EditTransactionModal({
                 </svg>
               </div>
             </div>
+            {dateError && <p className="text-sm text-red-600">{dateError.message}</p>}
           </div>
 
           {/* Expense Breakdown Preview - only for budgeted expenses */}
           {transactionType === 'expense' &&
-            previewAmount > 0 &&
-            !isExceptional &&
-            formData.budgetId &&
+            previewSafe > 0 &&
+            !isOriginallyExceptional &&
+            watchedBudgetId &&
             transaction && (
               <ExpenseBreakdownPreview
-                amount={previewAmount}
-                budgetId={formData.budgetId}
+                amount={previewSafe}
+                budgetId={String(watchedBudgetId)}
                 context={context}
                 expenseId={transaction.id}
               />
             )}
 
-          {/* Error Display */}
-          {error && (
+          {/* Server-side error */}
+          {serverError && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{error}</p>
+              <p className="text-sm text-red-700">{serverError}</p>
             </div>
           )}
 
