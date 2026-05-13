@@ -61,3 +61,41 @@ export const updateRealIncomeBodySchema = z
 
 export type CreateRealIncomeBody = z.infer<typeof createRealIncomeBodySchema>
 export type UpdateRealIncomeBody = z.infer<typeof updateRealIncomeBodySchema>
+
+/**
+ * Estimated income create body. Snake_case because the handler at
+ * `lib/api/finance/income-estimated.ts` writes verbatim to
+ * `estimated_incomes`. Mirrors `createEstimatedBudgetBodySchema` in
+ * `./budget`.
+ *
+ * `is_monthly_recurring` defaults to `true` and `is_for_group` to `false`
+ * at the route level (preserved verbatim in the handler destructure).
+ */
+export const createEstimatedIncomeBodySchema = z.object({
+  name: incomeNameSchema,
+  estimated_amount: moneySchema,
+  is_monthly_recurring: z.boolean().optional(),
+  is_for_group: z.boolean().optional(),
+})
+
+/**
+ * Estimated income update body. `id` required, every other field optional.
+ * Refine: at least one update field must be provided.
+ */
+export const updateEstimatedIncomeBodySchema = z
+  .object({
+    id: uuidSchema,
+    name: incomeNameSchema.optional(),
+    estimated_amount: moneySchema.optional(),
+    is_monthly_recurring: z.boolean().optional(),
+  })
+  .refine(
+    (d) =>
+      d.name !== undefined ||
+      d.estimated_amount !== undefined ||
+      d.is_monthly_recurring !== undefined,
+    { message: 'Aucune donnée à mettre à jour' },
+  )
+
+export type CreateEstimatedIncomeBody = z.infer<typeof createEstimatedIncomeBodySchema>
+export type UpdateEstimatedIncomeBody = z.infer<typeof updateEstimatedIncomeBodySchema>
