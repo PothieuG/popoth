@@ -115,9 +115,7 @@ export const recoverRecapBodySchema = z.object({
   context: contextSchema.optional().default('profile'),
   snapshot_id: uuidSchema.optional(),
   confirm: z.literal(true, {
-    errorMap: () => ({
-      message: 'La confirmation est requise pour effectuer une récupération',
-    }),
+    message: 'La confirmation est requise pour effectuer une récupération',
   }),
 })
 export type RecoverRecapBody = z.infer<typeof recoverRecapBodySchema>

@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import {
-  getProfileFinancialData,
-  getGroupFinancialData,
-  type FinancialData,
-} from '@/lib/finance'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
 import { createFullDatabaseSnapshot } from '@/lib/database-snapshot'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { initializeRecapBodySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 /**
@@ -21,16 +19,7 @@ import { logger } from '@/lib/logger'
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile' } = body
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
+    const { context } = await parseBody(request, initializeRecapBodySchema)
 
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
@@ -205,7 +194,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

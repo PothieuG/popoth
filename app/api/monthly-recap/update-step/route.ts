@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
-import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
-import { refreshRecapQuerySchema } from '@/lib/schemas/recap'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { refreshRecapQuerySchema, updateRecapStepBodySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 /**
@@ -14,24 +14,10 @@ import { logger } from '@/lib/logger'
 
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', session_id, current_step } = body
-
-    // Validation des paramètres
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    if (!session_id) {
-      return NextResponse.json({ error: 'session_id requis' }, { status: 400 })
-    }
-
-    if (!current_step || current_step < 1 || current_step > 3) {
-      return NextResponse.json({ error: 'current_step doit être entre 1 et 3' }, { status: 400 })
-    }
+    const { context, session_id, current_step } = await parseBody(
+      request,
+      updateRecapStepBodySchema,
+    )
 
     // Déterminer le contexte ID
     let contextId: string
@@ -47,12 +33,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       contextId = profile.group_id
     }
 
-    // Extraire les informations du session_id
+    // Extraire les informations du session_id (format validé par la refine du schema)
     const sessionParts = session_id.split('_')
-    if (sessionParts.length < 5) {
-      return NextResponse.json({ error: 'Format de session_id invalide' }, { status: 400 })
-    }
-
     const sessionContext = sessionParts[0]
     const sessionContextId = sessionParts[1]
     const sessionMonth = parseInt(sessionParts[2] ?? '')
@@ -128,7 +110,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       current_step,
       message: `Étape ${current_step} sauvegardée en base de données`,
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

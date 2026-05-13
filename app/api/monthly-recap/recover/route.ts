@@ -3,8 +3,9 @@ import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
 import { isSnapshotV2, type SnapshotPayload } from '@/lib/recap-snapshot.types'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
-import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { contextOnlyQuerySchema } from '@/lib/schemas/common'
+import { recoverRecapBodySchema } from '@/lib/schemas/recap'
 import { logger } from '@/lib/logger'
 
 // Tables that the recovery flow restores from a snapshot blob. Restoration
@@ -33,23 +34,10 @@ type RestorableTable =
  */
 export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const body = await request.json()
-    const { context = 'profile', snapshot_id, confirm = false } = body
-
-    // Validations
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 },
-      )
-    }
-
-    if (!confirm) {
-      return NextResponse.json(
-        { error: 'La confirmation est requise pour effectuer une récupération' },
-        { status: 400 },
-      )
-    }
+    const { context, snapshot_id } = await parseBody(request, recoverRecapBodySchema)
+    // PRESERVED: L297-306 cleanup-attempt CRITIQUE — rollback partiel can
+    // leave the snapshot active. Migration only swaps body parsing at the
+    // top; the inner restoreTable + recovery error handling stay verbatim.
 
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
@@ -306,7 +294,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         { status: 500 },
       )
     }
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
