@@ -3,28 +3,15 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import {
+  createEstimatedIncomeBodySchema,
+  updateEstimatedIncomeBodySchema,
+} from '@/lib/schemas/income'
 import { logger } from '@/lib/logger'
 
 type EstimatedIncomeInsert = Database['public']['Tables']['estimated_incomes']['Insert']
 type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['Update']
-
-export interface EstimatedIncomeData {
-  id: string
-  profile_id?: string
-  group_id?: string
-  name: string
-  estimated_amount: number
-  is_monthly_recurring: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface CreateEstimatedIncomeRequest {
-  name: string
-  estimated_amount: number
-  is_monthly_recurring?: boolean
-  is_for_group?: boolean
-}
 
 /**
  * GET /api/finance/income/estimated - Récupère les revenus estimés
@@ -89,23 +76,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const body: CreateEstimatedIncomeRequest = await request.json()
+    const body = await parseBody(request, createEstimatedIncomeBodySchema)
     const { name, estimated_amount, is_monthly_recurring = true, is_for_group = false } = body
 
-    // Validation
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Le nom du revenu est requis' }, { status: 400 })
-    }
-
-    if (!estimated_amount || typeof estimated_amount !== 'number' || estimated_amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant estimé doit être un nombre positif' },
-        { status: 400 },
-      )
-    }
-
     const insertData: EstimatedIncomeInsert = {
-      name: name.trim(),
+      name,
       estimated_amount,
       is_monthly_recurring,
     }
@@ -149,7 +124,9 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       estimated_income: data,
       message: 'Revenu estimé créé avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -159,35 +136,21 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const body = await request.json()
+    const body = await parseBody(request, updateEstimatedIncomeBodySchema)
     const { id, name, estimated_amount, is_monthly_recurring } = body
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID du revenu estimé requis' }, { status: 400 })
-    }
 
     const updates: EstimatedIncomeUpdate = {}
 
     if (name !== undefined) {
-      if (!name || name.trim().length === 0) {
-        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
-      }
-      updates.name = name.trim()
+      updates.name = name
     }
 
     if (estimated_amount !== undefined) {
-      if (estimated_amount <= 0) {
-        return NextResponse.json({ error: 'Le montant estimé doit être positif' }, { status: 400 })
-      }
       updates.estimated_amount = estimated_amount
     }
 
     if (is_monthly_recurring !== undefined) {
       updates.is_monthly_recurring = is_monthly_recurring
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the estimated income
@@ -210,7 +173,9 @@ export const PUT = withAuth(async (request: NextRequest) => {
       estimated_income: data,
       message: 'Revenu estimé mis à jour avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

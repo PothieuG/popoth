@@ -3,32 +3,16 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import {
+  createEstimatedBudgetBodySchema,
+  updateEstimatedBudgetBodySchema,
+} from '@/lib/schemas/budget'
 import { logger } from '@/lib/logger'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
 type EstimatedBudgetInsert = Database['public']['Tables']['estimated_budgets']['Insert']
 type EstimatedBudgetUpdate = Database['public']['Tables']['estimated_budgets']['Update']
-
-export interface EstimatedBudgetData {
-  id: string
-  profile_id?: string
-  group_id?: string
-  name: string
-  estimated_amount: number
-  is_monthly_recurring: boolean
-  created_at: string
-  updated_at: string
-  spent_this_month?: number
-  cumulated_savings?: number
-  last_savings_update?: string
-}
-
-export interface CreateEstimatedBudgetRequest {
-  name: string
-  estimated_amount: number
-  is_monthly_recurring?: boolean
-  is_for_group?: boolean
-}
 
 /**
  * GET /api/finance/budgets/estimated - Récupère les budgets estimés
@@ -133,23 +117,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const body: CreateEstimatedBudgetRequest = await request.json()
+    const body = await parseBody(request, createEstimatedBudgetBodySchema)
     const { name, estimated_amount, is_monthly_recurring = true, is_for_group = false } = body
 
-    // Validation
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return NextResponse.json({ error: 'Le nom du budget est requis' }, { status: 400 })
-    }
-
-    if (!estimated_amount || typeof estimated_amount !== 'number' || estimated_amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant estimé doit être un nombre positif' },
-        { status: 400 },
-      )
-    }
-
     const insertData: EstimatedBudgetInsert = {
-      name: name.trim(),
+      name,
       estimated_amount,
       is_monthly_recurring,
       // current_savings calculated dynamically in application
@@ -194,7 +166,9 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       estimated_budget: { ...data, spent_this_month: 0 },
       message: 'Budget estimé créé avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
@@ -204,36 +178,22 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
  */
 export const PUT = withAuth(async (request: NextRequest) => {
   try {
-    const body = await request.json()
+    const body = await parseBody(request, updateEstimatedBudgetBodySchema)
     const { id, name, estimated_amount, is_monthly_recurring } = body
-
-    if (!id) {
-      return NextResponse.json({ error: 'ID du budget estimé requis' }, { status: 400 })
-    }
 
     const updates: EstimatedBudgetUpdate = {}
 
     if (name !== undefined) {
-      if (!name || name.trim().length === 0) {
-        return NextResponse.json({ error: 'Le nom ne peut pas être vide' }, { status: 400 })
-      }
-      updates.name = name.trim()
+      updates.name = name
     }
 
     if (estimated_amount !== undefined) {
-      if (estimated_amount <= 0) {
-        return NextResponse.json({ error: 'Le montant estimé doit être positif' }, { status: 400 })
-      }
       updates.estimated_amount = estimated_amount
       // current_savings calculated dynamically in application, not stored
     }
 
     if (is_monthly_recurring !== undefined) {
       updates.is_monthly_recurring = is_monthly_recurring
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Aucune donnée à mettre à jour' }, { status: 400 })
     }
 
     // Update the estimated budget
@@ -277,7 +237,9 @@ export const PUT = withAuth(async (request: NextRequest) => {
       estimated_budget: { ...data, spent_this_month: spentThisMonth },
       message: 'Budget estimé mis à jour avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
