@@ -126,7 +126,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     })
     // L138 estimated_budgets fetch (single)
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
       error: null,
     })
     // L153 real_expenses listing (awaited chain, no terminal)
@@ -150,7 +150,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       buildRequest({
         amount: 150,
         description: 'Lunch',
-        estimated_budget_id: 'b-1',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
       }),
     )
@@ -171,7 +171,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       expect.objectContaining({
         amount: 150,
         description: 'Lunch',
-        estimatedBudgetId: 'b-1',
+        estimatedBudgetId: '11111111-1111-4111-8111-111111111111',
         amountFromPiggyBank: 100,
         amountFromBudgetSavings: 30,
         amountFromBudget: 20,
@@ -196,7 +196,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       error: null,
     })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
       error: null,
     })
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
@@ -209,7 +209,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       buildRequest({
         amount: 150,
         description: 'Lunch',
-        estimated_budget_id: 'b-1',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
       }),
     )
@@ -246,7 +246,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       error: null,
     })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'b-1', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      data: { id: '11111111-1111-4111-8111-111111111111', name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
       error: null,
     })
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
@@ -261,7 +261,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       buildRequest({
         amount: 150,
         description: 'Lunch',
-        estimated_budget_id: 'b-1',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
       }),
     )

@@ -7,6 +7,8 @@ import { addExpenseWithBreakdown } from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { addExpenseWithLogicBodySchema } from '@/lib/schemas/expense'
 import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
@@ -50,17 +52,9 @@ export interface ExpenseBreakdown {
  */
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const body: AddExpenseWithLogicRequest = await request.json()
-    const { amount, description, expense_date, estimated_budget_id, is_for_group = false } = body
-
-    // Validation
-    if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json({ error: 'Le montant doit être un nombre positif' }, { status: 400 })
-    }
-
-    if (!description || typeof description !== 'string' || description.trim().length === 0) {
-      return NextResponse.json({ error: 'La description est requise' }, { status: 400 })
-    }
+    const body = await parseBody(request, addExpenseWithLogicBodySchema)
+    const { amount, description, expense_date, estimated_budget_id } = body
+    const is_for_group = body.is_for_group ?? false
 
     // Determine profile_id or group_id
     let profile_id: string | undefined = undefined
@@ -88,10 +82,11 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     // If exceptional (no budget), just create the expense directly
     if (!estimated_budget_id) {
+      const todayIsoExceptional = new Date().toISOString().split('T')[0] as string
       const insertData: RealExpenseInsert = {
         amount,
-        description: description.trim(),
-        expense_date: expense_date || new Date().toISOString().split('T')[0],
+        description,
+        expense_date: expense_date || todayIsoExceptional,
         is_exceptional: true,
         ...contextFilter,
       }
@@ -189,15 +184,18 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const todayIso = new Date().toISOString().split('T')[0] as string
     let expenseId: string
     try {
-      const result = await addExpenseWithBreakdown(contextFilter as unknown as FinanceContextFilter, {
-        amount,
-        description: description.trim(),
-        expenseDate: expense_date || todayIso,
-        estimatedBudgetId: estimated_budget_id,
-        amountFromPiggyBank: fromPiggyBank,
-        amountFromBudgetSavings: fromBudgetSavings,
-        amountFromBudget: fromBudget,
-      })
+      const result = await addExpenseWithBreakdown(
+        contextFilter as unknown as FinanceContextFilter,
+        {
+          amount,
+          description,
+          expenseDate: expense_date || todayIso,
+          estimatedBudgetId: estimated_budget_id,
+          amountFromPiggyBank: fromPiggyBank,
+          amountFromBudgetSavings: fromBudgetSavings,
+          amountFromBudget: fromBudget,
+        },
+      )
       expenseId = result.expense_id
     } catch (rpcError) {
       logger.error('Erreur création dépense atomique:', rpcError)
@@ -247,7 +245,9 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       breakdown,
       message: 'Dépense créée avec succès',
     })
-  } catch {
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })

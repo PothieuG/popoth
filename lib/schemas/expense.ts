@@ -40,3 +40,13 @@ export const updateRealExpenseBodySchema = z
 
 export type CreateRealExpenseBody = z.infer<typeof createRealExpenseBodySchema>
 export type UpdateRealExpenseBody = z.infer<typeof updateRealExpenseBodySchema>
+
+/**
+ * Smart-allocation expense body. Same shape as createRealExpenseBodySchema —
+ * the route dispatches on `estimated_budget_id` presence (absent =
+ * exceptional path with direct INSERT; present = atomic RPC with piggy →
+ * savings → budget breakdown). The dispatch is route-internal, not a
+ * schema concern.
+ */
+export const addExpenseWithLogicBodySchema = createRealExpenseBodySchema
+export type AddExpenseWithLogicBody = CreateRealExpenseBody
