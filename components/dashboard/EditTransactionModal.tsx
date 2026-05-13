@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -24,6 +25,7 @@ import {
 } from '@/lib/schemas/transactions'
 
 interface EditTransactionModalProps {
+  isOpen?: boolean
   onClose: () => void
   transaction: RealExpense | RealIncome | null
   transactionType: 'expense' | 'income'
@@ -34,14 +36,24 @@ interface EditTransactionModalProps {
 /**
  * Modal for editing existing transactions (expenses or income).
  *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close
+ * + return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent. Sprint v8 also drops the parent's
+ * `key={transaction.id}` pattern — Radix unmount-on-close (when isOpen flips
+ * false AND editingTransaction nulls in the parent's onClose handler) replaces
+ * the force-reset.
+ *
  * Uses react-hook-form + zodResolver(editTransactionFormSchema)
  * (discriminated union on transactionType). transactionType is fixed at
  * mount via prop — the form's defaultValues lock the branch ; the budget/
  * income dropdown is read-only by design (post-creation FK changes are
- * disallowed). Parent must use `key={transaction.id}` to remount the
- * modal on target change. Sprint Zod-Rollout v3.
+ * disallowed). Sprint Zod-Rollout v3.
+ *
+ * `isOpen` defaults to `true` to preserve the legacy parent pattern
+ * `{isOpen && editing && <Modal />}` (dashboard/page.tsx).
  */
 export default function EditTransactionModal({
+  isOpen = true,
   onClose,
   transaction,
   transactionType,
@@ -185,6 +197,12 @@ export default function EditTransactionModal({
     }
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose()
+    }
+  }
+
   // transactionType is fixed at mount via prop — only one branch is active.
   // setFocus uses permissive FieldPath cast since the keys differ between
   // branches at the type level.
@@ -209,20 +227,18 @@ export default function EditTransactionModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={handleClose}
-      />
-
-      {/* Modal */}
-      <div className="relative mx-4 flex max-h-[80vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="flex max-h-[80vh] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-xl"
+      >
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
-          </h2>
+          <DialogTitle asChild>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
+            </h2>
+          </DialogTitle>
           <Button
             variant="ghost"
             size="sm"
@@ -466,7 +482,7 @@ export default function EditTransactionModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

@@ -400,11 +400,12 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Edit Transaction Modal — key on transaction.id remounts the
-         modal when the user switches edit targets. */}
+      {/* Edit Transaction Modal — Sprint v8: Radix Dialog manages unmount-on-close,
+         so the Sprint 1.5 `key={editingTransaction.id}` force-remount is no longer
+         needed. The `editingTransaction &&` guard ensures the modal is only
+         rendered when there's a transaction to edit ; onClose nulls it. */}
       {isEditTransactionModalOpen && editingTransaction && (
         <EditTransactionModal
-          key={editingTransaction.id}
           onClose={() => {
             setIsEditTransactionModalOpen(false)
             setEditingTransaction(null)

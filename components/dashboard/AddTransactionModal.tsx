@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -26,6 +27,7 @@ import {
 } from '@/lib/schemas/transactions'
 
 interface AddTransactionModalProps {
+  isOpen?: boolean
   onClose: () => void
   context?: 'profile' | 'group'
   onTransactionAdded?: () => void
@@ -41,6 +43,10 @@ const todayIso = (): string => {
 /**
  * Modal for adding new transactions (expenses or income).
  *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
+ *
  * Uses react-hook-form + zodResolver(addTransactionFormSchema)
  * (discriminated union). transactionType is mutable via radio buttons —
  * switching calls form.reset() with the right branch shape, preserving
@@ -51,8 +57,12 @@ const todayIso = (): string => {
  * reactive data (financialData, expenseProgress) that may refetch
  * during typing. We consult it post-resolver in onValidSubmit (blocks
  * the submit) and disable the submit button when blocked.
+ *
+ * `isOpen` defaults to `true` to preserve the legacy parent pattern
+ * `{isOpen && <Modal />}` (dashboard + group-dashboard pages).
  */
 export default function AddTransactionModal({
+  isOpen = true,
   onClose,
   context,
   onTransactionAdded,
@@ -244,6 +254,12 @@ export default function AddTransactionModal({
     }
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose()
+    }
+  }
+
   // Discriminated union : the error keys differ between expense/income
   // branches. setFocus(firstErrorKey) handles this via permissive cast —
   // RHF resolves the ref at runtime from the active branch.
@@ -267,18 +283,16 @@ export default function AddTransactionModal({
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={handleClose}
-      />
-
-      {/* Modal */}
-      <div className="relative mx-4 flex max-h-[80vh] w-full max-w-md flex-col rounded-xl bg-white shadow-xl">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
+        className="flex max-h-[80vh] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-xl"
+      >
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900">Ajouter une transaction</h2>
+          <DialogTitle asChild>
+            <h2 className="text-xl font-semibold text-gray-900">Ajouter une transaction</h2>
+          </DialogTitle>
           <Button
             variant="ghost"
             size="sm"
@@ -592,7 +606,7 @@ export default function AddTransactionModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }
