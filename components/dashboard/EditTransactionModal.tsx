@@ -1,13 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  useForm,
-  useWatch,
-  Controller,
-  type FieldErrors,
-  type FieldPath,
-} from 'react-hook-form'
+import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -234,9 +228,16 @@ export default function EditTransactionModal({
             size="sm"
             onClick={handleClose}
             disabled={isSubmitting}
+            aria-label="Fermer"
             className="p-2"
           >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

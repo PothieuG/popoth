@@ -44,8 +44,20 @@ export default function GroupMembersModal({ group, isOpen, onClose }: GroupMembe
               <h2 className="text-lg font-semibold text-gray-900">Membres du groupe</h2>
               <p className="text-sm text-gray-500">{group.name}</p>
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="p-2">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              aria-label="Fermer"
+              className="p-2"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

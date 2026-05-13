@@ -102,8 +102,20 @@ export default function GroupMembersWithContributionsModal({
                 </p>
               )}
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="p-2">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              aria-label="Fermer"
+              className="p-2"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
