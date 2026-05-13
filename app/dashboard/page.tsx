@@ -38,7 +38,6 @@ export default function DashboardPage() {
     financialData,
     loading: financialLoading,
     error: financialError,
-    context,
     refreshFinancialData,
   } = useFinancialData()
   const { balance: bankBalance, updateBankBalance } = useBankBalance('profile')

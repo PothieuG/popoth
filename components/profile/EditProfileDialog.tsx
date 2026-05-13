@@ -141,7 +141,7 @@ export default function EditProfileDialog({
 
           {/* Erreur générale */}
           {serverError && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3">
+            <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-700">{serverError}</p>
             </div>
           )}

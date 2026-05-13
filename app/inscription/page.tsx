@@ -153,10 +153,13 @@ export default function InscriptionPage() {
                 disabled={isSubmitting}
                 autoComplete="email"
                 aria-invalid={fieldErrors.email ? 'true' : 'false'}
+                aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
               {fieldErrors.email && (
-                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+                <p id="signup-email-error" className="text-sm font-medium text-red-600">
+                  {fieldErrors.email.message}
+                </p>
               )}
             </div>
 
@@ -173,10 +176,13 @@ export default function InscriptionPage() {
                 disabled={isSubmitting}
                 autoComplete="new-password"
                 aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
               {fieldErrors.password && (
-                <p className="text-sm font-medium text-red-600">{fieldErrors.password.message}</p>
+                <p id="signup-password-error" className="text-sm font-medium text-red-600">
+                  {fieldErrors.password.message}
+                </p>
               )}
             </div>
 
@@ -196,10 +202,13 @@ export default function InscriptionPage() {
                 disabled={isSubmitting}
                 autoComplete="new-password"
                 aria-invalid={fieldErrors.confirmPassword ? 'true' : 'false'}
+                aria-describedby={
+                  fieldErrors.confirmPassword ? 'signup-confirmpassword-error' : undefined
+                }
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
               />
               {fieldErrors.confirmPassword && (
-                <p className="text-sm font-medium text-red-600">
+                <p id="signup-confirmpassword-error" className="text-sm font-medium text-red-600">
                   {fieldErrors.confirmPassword.message}
                 </p>
               )}
@@ -207,7 +216,7 @@ export default function InscriptionPage() {
 
             {/* Server Error Display */}
             {serverError && (
-              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
+              <div role="alert" className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">

@@ -120,7 +120,11 @@ export default function EditBalanceModal({
             {balanceError && <p className="mt-1 text-xs text-red-600">{balanceError.message}</p>}
           </div>
 
-          {serverError && <p className="text-xs text-red-600">{serverError}</p>}
+          {serverError && (
+            <p role="alert" className="text-xs text-red-600">
+              {serverError}
+            </p>
+          )}
 
           {/* Boutons d'action */}
           <div className="flex space-x-3 pt-2">

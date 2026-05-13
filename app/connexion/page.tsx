@@ -63,10 +63,13 @@ export default function ConnexionPage() {
                 disabled={isSubmitting}
                 autoComplete="email"
                 aria-invalid={fieldErrors.email ? 'true' : 'false'}
+                aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
               {fieldErrors.email && (
-                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+                <p id="login-email-error" className="text-sm font-medium text-red-600">
+                  {fieldErrors.email.message}
+                </p>
               )}
             </div>
 
@@ -83,16 +86,19 @@ export default function ConnexionPage() {
                 disabled={isSubmitting}
                 autoComplete="current-password"
                 aria-invalid={fieldErrors.password ? 'true' : 'false'}
+                aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
               {fieldErrors.password && (
-                <p className="text-sm font-medium text-red-600">{fieldErrors.password.message}</p>
+                <p id="login-password-error" className="text-sm font-medium text-red-600">
+                  {fieldErrors.password.message}
+                </p>
               )}
             </div>
 
             {/* Server-side Error Display (from useLogin hook) */}
             {error && (
-              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
+              <div role="alert" className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">

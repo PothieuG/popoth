@@ -14,8 +14,7 @@ const resetPasswordForEmail = vi.fn(
 vi.mock('@/lib/supabase-client', () => ({
   supabase: {
     auth: {
-      resetPasswordForEmail: (email: string, opts: unknown) =>
-        resetPasswordForEmail(email, opts),
+      resetPasswordForEmail: (email: string, opts: unknown) => resetPasswordForEmail(email, opts),
     },
   },
 }))
@@ -32,12 +31,16 @@ describe('forgot-password page', () => {
     resetPasswordForEmail.mockResolvedValue({ error: null })
   })
 
-  it('shows inline error when email is empty', async () => {
+  it('shows inline error when email is empty + a11y aria-describedby linkage', async () => {
     const user = userEvent.setup()
     render(<MotDePasseOubliePage />)
     await user.click(screen.getByRole('button', { name: /envoyer le lien/i }))
     expect(await screen.findByText("Format d'email invalide")).toBeInTheDocument()
     expect(resetPasswordForEmail).not.toHaveBeenCalled()
+    // a11y (Axe 5): input is linked to its error message via aria-describedby
+    const input = screen.getByLabelText(/adresse email/i)
+    expect(input).toHaveAttribute('aria-describedby', 'email-error')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('shows inline error when email format is invalid', async () => {
@@ -61,7 +64,7 @@ describe('forgot-password page', () => {
     expect(resetPasswordForEmail).toHaveBeenCalledWith('foo@bar.com', expect.any(Object))
   })
 
-  it('maps rate-limit Supabase error to specific serverError', async () => {
+  it('maps rate-limit Supabase error to specific serverError + a11y role="alert"', async () => {
     resetPasswordForEmail.mockResolvedValueOnce({
       error: { message: 'email rate limit exceeded' },
     })
@@ -69,9 +72,10 @@ describe('forgot-password page', () => {
     render(<MotDePasseOubliePage />)
     await user.type(screen.getByLabelText(/adresse email/i), 'foo@bar.com')
     await user.click(screen.getByRole('button', { name: /envoyer le lien/i }))
-    await waitFor(() => {
-      expect(screen.getByText(/Trop de demandes/)).toBeInTheDocument()
-    })
+    // The role="alert" wrapper is announced by screen readers as soon as it
+    // mounts — assert it surfaces alongside the mapped message (Axe 5).
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/Trop de demandes/)
   })
 
   it('maps generic Supabase error to fallback serverError', async () => {

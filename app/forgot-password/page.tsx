@@ -152,16 +152,19 @@ export default function MotDePasseOubliePage() {
                 disabled={isSubmitting}
                 autoComplete="email"
                 aria-invalid={fieldErrors.email ? 'true' : 'false'}
+                aria-describedby={fieldErrors.email ? 'email-error' : undefined}
                 className="h-12 rounded-lg border-2 border-gray-300 text-gray-900 transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
               />
               {fieldErrors.email && (
-                <p className="text-sm font-medium text-red-600">{fieldErrors.email.message}</p>
+                <p id="email-error" className="text-sm font-medium text-red-600">
+                  {fieldErrors.email.message}
+                </p>
               )}
             </div>
 
             {/* Server-side Error Display */}
             {serverError && (
-              <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
+              <div role="alert" className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">

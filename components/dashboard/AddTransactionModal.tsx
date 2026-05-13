@@ -520,7 +520,7 @@ export default function AddTransactionModal({
 
           {/* Server-side error */}
           {serverError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-700">{serverError}</p>
             </div>
           )}

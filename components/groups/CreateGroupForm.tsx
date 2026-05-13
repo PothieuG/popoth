@@ -99,7 +99,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
 
         {/* Server-side error */}
         {serverError && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3">
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
             <p className="text-sm text-red-600">{serverError}</p>
           </div>
         )}
