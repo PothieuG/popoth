@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { axe } from 'jest-axe'
+import { expectEscClose } from './a11y-helpers'
 import EditBudgetDialog from '@/components/dashboard/EditBudgetDialog'
 
 // Sprint Zod-Rollout v6 / Axe 5 — automated a11y audit via axe-core ruleset.
@@ -303,8 +304,7 @@ describe('axe-core a11y audit (regression-guard)', () => {
 describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
   it('EditBudgetDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(
+    await expectEscClose(
       <EditBudgetDialog
         isOpen
         onClose={onClose}
@@ -313,32 +313,25 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         currentBudgetsTotal={500}
         totalEstimatedIncome={2000}
       />,
+      onClose,
+      'Modifier le budget',
     )
-    // Wait for Radix Dialog content to mount + initial focus to settle
-    await waitFor(() => {
-      expect(screen.getByText('Modifier le budget')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('AddTransactionModal: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(<AddTransactionModal onClose={onClose} />)
-    await waitFor(() => {
-      expect(screen.getByText('Ajouter une transaction')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
+    await expectEscClose(
+      <AddTransactionModal onClose={onClose} />,
+      onClose,
+      'Ajouter une transaction',
+    )
   })
 
   // ─── Sprint v9 / Axe 1 — extended focus-trap coverage for remaining v8 modals ──
 
   it('AddBudgetDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(
+    await expectEscClose(
       <AddBudgetDialog
         isOpen
         onClose={onClose}
@@ -346,30 +339,27 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         currentBudgetsTotal={500}
         totalEstimatedIncome={2000}
       />,
+      onClose,
+      'Nouveau Budget',
     )
-    await waitFor(() => {
-      expect(screen.getByText('Nouveau Budget')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('AddIncomeDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <AddIncomeDialog isOpen onClose={onClose} onSave={async () => true} currentIncomesTotal={1500} />,
+    await expectEscClose(
+      <AddIncomeDialog
+        isOpen
+        onClose={onClose}
+        onSave={async () => true}
+        currentIncomesTotal={1500}
+      />,
+      onClose,
+      'Nouveau Revenu',
     )
-    await waitFor(() => {
-      expect(screen.getByText('Nouveau Revenu')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('EditIncomeDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
     const income = {
       id: INCOME_UUID,
       name: 'Salaire',
@@ -378,7 +368,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     }
-    render(
+    await expectEscClose(
       <EditIncomeDialog
         isOpen
         onClose={onClose}
@@ -386,12 +376,9 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         income={income}
         currentIncomesTotal={1500}
       />,
+      onClose,
+      'Modifier le revenu',
     )
-    await waitFor(() => {
-      expect(screen.getByText('Modifier le revenu')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('EditTransactionModal: Esc keydown invokes onClose', async () => {
@@ -417,7 +404,9 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
     // Title "Modifier la dépense" appears in both the H2 heading and the submit
     // button. Target the heading specifically (level 2) to disambiguate.
     await waitFor(() => {
-      expect(screen.getByRole('heading', { level: 2, name: /Modifier la dépense/i })).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', { level: 2, name: /Modifier la dépense/i }),
+      ).toBeInTheDocument()
     })
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
@@ -426,8 +415,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
   it('ConfirmationDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
     const onConfirm = vi.fn()
-    const user = userEvent.setup()
-    render(
+    await expectEscClose(
       <ConfirmationDialog
         isOpen
         onClose={onClose}
@@ -435,18 +423,14 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         title="Confirmer l'action"
         message="Êtes-vous sûr ?"
       />,
+      onClose,
+      "Confirmer l'action",
     )
-    await waitFor(() => {
-      expect(screen.getByText("Confirmer l'action")).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
   })
 
   it('DeleteGroupModal: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
     const onConfirm = vi.fn(async () => true)
-    const user = userEvent.setup()
     const group: GroupData = {
       id: '44444444-4444-4444-8444-444444444444',
       name: 'Mon groupe',
@@ -455,17 +439,15 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     }
-    render(<DeleteGroupModal group={group} isOpen onClose={onClose} onConfirm={onConfirm} />)
-    await waitFor(() => {
-      expect(screen.getByText('Supprimer le groupe')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
+    await expectEscClose(
+      <DeleteGroupModal group={group} isOpen onClose={onClose} onConfirm={onConfirm} />,
+      onClose,
+      'Supprimer le groupe',
+    )
   })
 
   it('GroupMembersWithContributionsModal: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
     const group: GroupData = {
       id: '44444444-4444-4444-8444-444444444444',
       name: 'Mon groupe',
@@ -474,34 +456,29 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
       created_at: '2026-01-01T00:00:00Z',
       updated_at: '2026-01-01T00:00:00Z',
     }
-    render(<GroupMembersWithContributionsModal group={group} isOpen onClose={onClose} />)
-    await waitFor(() => {
-      expect(screen.getByText('Membres et contributions')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
+    await expectEscClose(
+      <GroupMembersWithContributionsModal group={group} isOpen onClose={onClose} />,
+      onClose,
+      'Membres et contributions',
+    )
   })
 
   it('PlanningDrawer: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(<PlanningDrawer isOpen onClose={onClose} />)
-    await waitFor(() => {
-      expect(screen.getByText('Planification Financière')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
+    await expectEscClose(
+      <PlanningDrawer isOpen onClose={onClose} />,
+      onClose,
+      'Planification Financière',
+    )
   })
 
   it('SavingsDistributionDrawer: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
-    const user = userEvent.setup()
-    render(<SavingsDistributionDrawer isOpen onClose={onClose} />)
-    await waitFor(() => {
-      expect(screen.getByText('Répartition des Économies')).toBeInTheDocument()
-    })
-    await user.keyboard('{Escape}')
-    expect(onClose).toHaveBeenCalled()
+    await expectEscClose(
+      <SavingsDistributionDrawer isOpen onClose={onClose} />,
+      onClose,
+      'Répartition des Économies',
+    )
   })
 
   it('PlanningDrawer with AddBudget child: Esc closes child first, then drawer', async () => {
