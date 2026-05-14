@@ -8,12 +8,6 @@
 
 Ajouter une option de switch par semaine ou par jour sur l'affichage budgets / dépenses.
 
-## P2 — RAV calculé sans économies de budget
-
-**Domaine** : finances / RAV calc
-
-Le RAV (Reste À Vivre) doit être calculé **sans inclure** les économies cumulées des budgets — actuellement le calcul les inclut, ce qui gonfle artificiellement le RAV affiché.
-
 ## P3 — Recalcul RAV sur validation revenu
 
 **Domaine** : finances / RAV calc
@@ -69,3 +63,4 @@ Enlever l'entrée "Se déconnecter" dans les options "Mon groupe" — la déconn
 ## Livrés
 
 - **P10 — Fix flicker page d'accueil** ✅ livré 2026-05-14 (Sprint P10-Fix-Home-Flicker, cf. [CLAUDE.md §11](CLAUDE.md))
+- **P2 — RAV calculé sans économies de budget** ✅ closed-by-pre-existing-fix 2026-05-15 (Sprint P2-Closeout-Administrative — bug n'existait pas dans le code actuel, formule RAV dans `lib/finance/calc-rtl.ts` n'inclut pas `cumulated_savings` depuis fix antérieur silencieux ; `totalSavings` exposé séparément + UI conforme. Cf. [CLAUDE.md §11](CLAUDE.md))

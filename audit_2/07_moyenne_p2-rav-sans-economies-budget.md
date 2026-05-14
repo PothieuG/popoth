@@ -1,3 +1,5 @@
+> ⚠️ **STALE — closed-by-pre-existing-fix (2026-05-15, Sprint P2-Closeout-Administrative)** : ce chantier a été triagé comme closeout administratif. Le bug user-perçu n'existe pas dans le code actuel — la formule RAV dans [`lib/finance/calc-rtl.ts`](../lib/finance/calc-rtl.ts) n'inclut pas les `cumulated_savings` (fix antérieur silencieux, JSDoc L16-17 le confirme : "Les économies cumulées ont été SUPPRIMÉES de la formule RAV à la demande utilisateur"). Le `totalSavings` est calculé séparément dans `FinancialData` ([`lib/finance/financial-data.ts:122-129`](../lib/finance/financial-data.ts)) et affiché distinctement par [`components/dashboard/FinancialIndicators.tsx:165-199`](../components/dashboard/FinancialIndicators.tsx). Step1 algorithm consomme `cumulated_savings` directement (pas via le RAV) → 0 impact. Voir [CLAUDE.md §11](../CLAUDE.md) pour le détail. Ce fichier est conservé comme trace historique de l'audit.
+
 # 07 — P2 : RAV calculé sans inclure les économies de budget
 
 ## En-tête
