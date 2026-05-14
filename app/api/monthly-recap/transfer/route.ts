@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { manualTransferBodySchema } from '@/lib/schemas/recap'
@@ -111,15 +112,21 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     // Enregistrer le transfert dans la table budget_transfers
     // Cela nous permet de calculer les ajustements sans modifier real_expenses
-    const { error: transferInsertError } = await supabaseServer.from('budget_transfers').insert({
-      [ownerField]: contextId,
+    const transferBase = {
       from_budget_id,
       to_budget_id,
       transfer_amount: amount,
       transfer_reason: 'Manual transfer via monthly recap',
-      transfer_date: new Date().toISOString().split('T')[0],
+      transfer_date: new Date().toISOString().split('T')[0]!,
       monthly_recap_id: monthly_recap_id || null,
-    })
+    }
+    const transferPayload: TablesInsert<'budget_transfers'> =
+      context === 'profile'
+        ? { ...transferBase, profile_id: contextId }
+        : { ...transferBase, group_id: contextId }
+    const { error: transferInsertError } = await supabaseServer
+      .from('budget_transfers')
+      .insert(transferPayload)
 
     if (transferInsertError) {
       logger.error("Erreur lors de l'enregistrement du transfert:", transferInsertError)

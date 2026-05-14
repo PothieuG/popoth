@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesUpdate } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { createProfileBodySchema, updateProfileBodySchema } from '@/lib/schemas/profile'
@@ -156,7 +157,7 @@ export const PUT = withAuth(async (request, { userId }) => {
     // Schema already trims names + validates salary range + enforces the
     // "at least one field" refine. We just project to the DB row shape,
     // skipping undefined fields so the DB keeps the existing values.
-    const updates: Record<string, unknown> = {}
+    const updates: TablesUpdate<'profiles'> = {}
     if (body.first_name !== undefined) updates.first_name = body.first_name
     if (body.last_name !== undefined) updates.last_name = body.last_name
     if (body.salary !== undefined) updates.salary = body.salary

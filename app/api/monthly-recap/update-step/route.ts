@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { refreshRecapQuerySchema, updateRecapStepBodySchema } from '@/lib/schemas/recap'
@@ -84,8 +85,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       }
     } else {
       // Créer un nouvel enregistrement en cours (pas encore complété)
-      const insertData = {
-        [ownerField]: contextId,
+      const insertBase = {
         recap_month: sessionMonth,
         recap_year: sessionYear,
         current_step,
@@ -93,6 +93,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         final_remaining_to_live: 0, // Sera mis à jour lors de la completion
         completed_at: null, // Pas encore complété
       }
+      const insertData: TablesInsert<'monthly_recaps'> =
+        context === 'profile'
+          ? { ...insertBase, profile_id: contextId }
+          : { ...insertBase, group_id: contextId }
 
       const { error: insertError } = await supabaseServer.from('monthly_recaps').insert(insertData)
 

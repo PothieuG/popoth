@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
@@ -82,10 +83,11 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       }
     } else {
       // Créer une nouvelle entrée (RPC ne crée pas la ligne)
-      const { error: insertError } = await supabaseServer.from('piggy_bank').insert({
-        [ownerField]: contextId,
-        amount: newAmount,
-      })
+      const insertPayload: TablesInsert<'piggy_bank'> =
+        context === 'profile'
+          ? { profile_id: contextId, amount: newAmount }
+          : { group_id: contextId, amount: newAmount }
+      const { error: insertError } = await supabaseServer.from('piggy_bank').insert(insertPayload)
 
       if (insertError) {
         logger.error('[Accumulate Piggy Bank] Erreur lors de la création:', insertError)

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
@@ -564,14 +565,20 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       // 2. Créer des budget_transfers pour chaque budget qui reçoit de l'argent de la tirelire
       // IMPORTANT: from_budget_id = null représente la tirelire
       // Ces transferts seront comptés dans transfersTo pour réduire le déficit
-      const piggyBankTransfers = transfersFromPiggyBank.map((transfer) => ({
-        [ownerField]: contextId,
-        from_budget_id: null, // null = tirelire (revenus exceptionnels)
-        to_budget_id: transfer.to_budget_id,
-        transfer_amount: transfer.amount,
-        transfer_reason: `Tirelire → ${transfer.to_budget_name} (auto-balance récap)`,
-        transfer_date: new Date().toISOString().split('T')[0],
-      }))
+      const piggyBankTransfers: TablesInsert<'budget_transfers'>[] = transfersFromPiggyBank.map(
+        (transfer) => {
+          const base = {
+            from_budget_id: null, // null = tirelire (revenus exceptionnels)
+            to_budget_id: transfer.to_budget_id,
+            transfer_amount: transfer.amount,
+            transfer_reason: `Tirelire → ${transfer.to_budget_name} (auto-balance récap)`,
+            transfer_date: new Date().toISOString().split('T')[0]!,
+          }
+          return context === 'profile'
+            ? { ...base, profile_id: contextId }
+            : { ...base, group_id: contextId }
+        },
+      )
 
       const { error: transferError } = await supabaseServer
         .from('budget_transfers')
@@ -599,17 +606,23 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         `⚖️ [Auto Balance] Enregistrement de ${transfersWithBudget.length} transferts entre budgets`,
       )
 
-      const transferInserts = transfersWithBudget.map((transfer) => ({
-        [ownerField]: contextId,
-        from_budget_id: transfer.from_budget_id,
-        to_budget_id: transfer.to_budget_id,
-        transfer_amount: transfer.amount,
-        transfer_reason:
-          transfer.source === 'savings'
-            ? 'Auto-balance via monthly recap (économies cumulées)'
-            : 'Auto-balance via monthly recap (surplus mensuel)',
-        transfer_date: new Date().toISOString().split('T')[0],
-      }))
+      const transferInserts: TablesInsert<'budget_transfers'>[] = transfersWithBudget.map(
+        (transfer) => {
+          const base = {
+            from_budget_id: transfer.from_budget_id,
+            to_budget_id: transfer.to_budget_id,
+            transfer_amount: transfer.amount,
+            transfer_reason:
+              transfer.source === 'savings'
+                ? 'Auto-balance via monthly recap (économies cumulées)'
+                : 'Auto-balance via monthly recap (surplus mensuel)',
+            transfer_date: new Date().toISOString().split('T')[0]!,
+          }
+          return context === 'profile'
+            ? { ...base, profile_id: contextId }
+            : { ...base, group_id: contextId }
+        },
+      )
 
       const { error: insertError } = await supabaseServer
         .from('budget_transfers')
