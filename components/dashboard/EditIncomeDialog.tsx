@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
 
 interface EstimatedIncome {
@@ -130,136 +131,113 @@ export default function EditIncomeDialog({
                 <p className="text-sm text-gray-600">Mettez à jour les informations</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fermer"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
-            >
-              <svg
-                className="h-4 w-4 text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+            <ModalCloseX onClose={onClose} variant="circle" />
           </div>
         </div>
 
         {/* Form */}
-          <form
-            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-            className="space-y-4 p-6"
-            noValidate
-          >
-            {/* Nom du revenu */}
-            <div>
-              <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">
-                Nom du revenu <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="income-name"
-                type="text"
-                {...form.register('name')}
-                placeholder="Ex: Salaire, Freelance, Loyer..."
-                aria-invalid={fieldErrors.name ? 'true' : 'false'}
-                aria-describedby={fieldErrors.name ? 'edit-income-name-error' : undefined}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          className="space-y-4 p-6"
+          noValidate
+        >
+          {/* Nom du revenu */}
+          <div>
+            <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">
+              Nom du revenu <span className="text-red-500">*</span>
+            </label>
+            <input
+              id="income-name"
+              type="text"
+              {...form.register('name')}
+              placeholder="Ex: Salaire, Freelance, Loyer..."
+              aria-invalid={fieldErrors.name ? 'true' : 'false'}
+              aria-describedby={fieldErrors.name ? 'edit-income-name-error' : undefined}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={isSubmitting}
+            />
+            {fieldErrors.name && (
+              <p id="edit-income-name-error" className="mt-1 text-sm text-red-600">
+                {fieldErrors.name.message}
+              </p>
+            )}
+          </div>
+
+          {/* Montant */}
+          <div>
+            <label htmlFor="income-amount" className="mb-1 block text-sm font-medium text-gray-700">
+              Montant mensuel <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <DecimalFormInput
+                control={form.control}
+                name="estimatedAmount"
+                id="income-amount"
+                placeholder="0.00"
+                ariaInvalid={!!fieldErrors.estimatedAmount}
+                ariaDescribedby={
+                  fieldErrors.estimatedAmount ? 'edit-income-amount-error' : undefined
+                }
+                className="h-auto rounded-lg border-gray-300 px-3 py-2 pr-8 focus-visible:border-green-500 focus-visible:ring-2 focus-visible:ring-green-500"
                 disabled={isSubmitting}
               />
-              {fieldErrors.name && (
-                <p id="edit-income-name-error" className="mt-1 text-sm text-red-600">
-                  {fieldErrors.name.message}
-                </p>
-              )}
-            </div>
-
-            {/* Montant */}
-            <div>
-              <label
-                htmlFor="income-amount"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Montant mensuel <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <DecimalFormInput
-                  control={form.control}
-                  name="estimatedAmount"
-                  id="income-amount"
-                  placeholder="0.00"
-                  ariaInvalid={!!fieldErrors.estimatedAmount}
-                  ariaDescribedby={
-                    fieldErrors.estimatedAmount ? 'edit-income-amount-error' : undefined
-                  }
-                  className="h-auto rounded-lg border-gray-300 px-3 py-2 pr-8 focus-visible:border-green-500 focus-visible:ring-2 focus-visible:ring-green-500"
-                  disabled={isSubmitting}
-                />
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-                  <span className="text-sm text-gray-500">€</span>
-                </div>
-              </div>
-              {fieldErrors.estimatedAmount && (
-                <p id="edit-income-amount-error" className="mt-1 text-sm text-red-600">
-                  {fieldErrors.estimatedAmount.message}
-                </p>
-              )}
-            </div>
-
-            {/* Aperçu financier */}
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Autres revenus:</span>
-                  <span className="font-medium text-gray-900">
-                    {formatAmount(currentIncomesTotal - income.estimated_amount)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ce revenu:</span>
-                  <span className="font-medium text-green-700">{formatAmount(previewSafe)}</span>
-                </div>
-                <hr className="border-green-200" />
-                <div className="flex justify-between font-bold">
-                  <span>Total des revenus:</span>
-                  <span className="text-green-700">
-                    {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
-                  </span>
-                </div>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                <span className="text-sm text-gray-500">€</span>
               </div>
             </div>
+            {fieldErrors.estimatedAmount && (
+              <p id="edit-income-amount-error" className="mt-1 text-sm text-red-600">
+                {fieldErrors.estimatedAmount.message}
+              </p>
+            )}
+          </div>
 
-            {/* Actions */}
-            <div className="flex space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
-              >
-                Annuler
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                ) : (
-                  'Sauvegarder'
-                )}
-              </button>
+          {/* Aperçu financier */}
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Autres revenus:</span>
+                <span className="font-medium text-gray-900">
+                  {formatAmount(currentIncomesTotal - income.estimated_amount)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Ce revenu:</span>
+                <span className="font-medium text-green-700">{formatAmount(previewSafe)}</span>
+              </div>
+              <hr className="border-green-200" />
+              <div className="flex justify-between font-bold">
+                <span>Total des revenus:</span>
+                <span className="text-green-700">
+                  {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
+                </span>
+              </div>
             </div>
-          </form>
+          </div>
+
+          {/* Actions */}
+          <div className="flex space-x-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex flex-1 items-center justify-center rounded-lg bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+              ) : (
+                'Sauvegarder'
+              )}
+            </button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   )

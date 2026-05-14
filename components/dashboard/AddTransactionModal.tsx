@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
@@ -293,29 +294,7 @@ export default function AddTransactionModal({
           <DialogTitle asChild>
             <h2 className="text-xl font-semibold text-gray-900">Ajouter une transaction</h2>
           </DialogTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            aria-label="Fermer"
-            className="p-2"
-          >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </Button>
+          <ModalCloseX onClose={handleClose} disabled={isSubmitting} variant="ghost" />
         </div>
 
         {/* Form - Scrollable */}
