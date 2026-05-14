@@ -34,8 +34,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       contextId = profile.group_id
     }
 
-    console.log(`🎯 [Balance API] Début équilibrage PROPORTIONNEL pour ${context}:${contextId}`)
-
     // 1. Calculer le reste à vivre actuel et budgétaire
     let financialData: FinancialData
     if (context === 'profile') {
@@ -47,19 +45,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const initialRAV = financialData.remainingToLive
     const budgetaryRAV = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
 
-    console.log(`💰 [Balance API] RAV initial: ${initialRAV}€`)
-    console.log(`💰 [Balance API] RAV budgétaire (CIBLE): ${budgetaryRAV}€`)
-
     // Calculer l'écart à combler
     const gap = budgetaryRAV - initialRAV
-    console.log(`📊 [Balance API] Écart à combler: ${gap}€`)
 
     // Si gap <= 0, pas d'équilibrage nécessaire (RAV >= RAV budgétaire)
     if (gap <= 0) {
       const surplus = Math.abs(gap)
-      console.log(
-        `✅ [Balance API] Pas d'équilibrage nécessaire. Surplus de ${surplus}€ disponible pour la tirelire.`,
-      )
       return NextResponse.json(
         {
           success: true,
@@ -74,7 +65,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     }
 
     const deficit = gap
-    console.log(`📉 [Balance API] Déficit à combler pour atteindre le RAV budgétaire: ${deficit}€`)
 
     // 2. Récupérer la tirelire
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -85,7 +75,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       .single()
 
     const piggyBankAmount = piggyBank?.amount || 0
-    console.log(`🐷 [Balance API] Tirelire disponible: ${piggyBankAmount}€`)
 
     // 3. Récupérer les budgets et calculer économies/excédents disponibles
     const { data: budgets, error: budgetsError } = await supabaseServer
@@ -157,18 +146,9 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         })
         totalSurplusAvailable += surplus
       }
-
-      console.log(
-        `📊 [Balance API] Budget "${budget.name}": ${savings}€ économies, ${surplus}€ excédent`,
-      )
     }
 
-    console.log(`🐷 [Balance API] Tirelire disponible: ${piggyBankAmount}€`)
-    console.log(`💎 [Balance API] Total économies disponibles: ${totalSavingsAvailable}€`)
-    console.log(`📊 [Balance API] Total excédents disponibles: ${totalSurplusAvailable}€`)
-
     const totalAvailable = piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable
-    console.log(`💰 [Balance API] Total disponible: ${totalAvailable}€`)
 
     if (totalAvailable === 0) {
       return NextResponse.json(
@@ -191,12 +171,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     // PHASE 1: Utiliser la TIRELIRE en premier (montant complet si nécessaire)
     if (piggyBankAmount > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 1: Utilisation de la tirelire`)
-
       const amountToUseFromPiggyBank = Math.min(remainingDeficit, piggyBankAmount)
-      console.log(
-        `🐷 [Balance API] Montant à utiliser de la tirelire: ${amountToUseFromPiggyBank}€ sur ${piggyBankAmount}€ disponibles`,
-      )
 
       totalUsedFromPiggyBank = amountToUseFromPiggyBank
       remainingDeficit -= amountToUseFromPiggyBank
@@ -205,18 +180,11 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         type: 'piggy_bank',
         amount_used: amountToUseFromPiggyBank,
       })
-
-      console.log(`  🐷 Tirelire: -${amountToUseFromPiggyBank.toFixed(2)}€`)
     }
 
     // PHASE 2: Utiliser les économies de manière PROPORTIONNELLE
     if (totalSavingsAvailable > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 2: Utilisation proportionnelle des économies`)
-
       const amountToUseFromSavings = Math.min(remainingDeficit, totalSavingsAvailable)
-      console.log(
-        `💎 [Balance API] Montant à utiliser des économies: ${amountToUseFromSavings}€ sur ${totalSavingsAvailable}€ disponibles`,
-      )
 
       for (const budget of budgetsWithSavings) {
         // Calculer la proportion de ce budget par rapport au total
@@ -232,21 +200,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           type: 'savings',
           amount_used: amountToUse,
         })
-
-        console.log(
-          `  💎 ${budget.name}: -${amountToUse.toFixed(2)}€ économies (${(proportion * 100).toFixed(1)}% du total)`,
-        )
       }
     }
 
     // PHASE 3: Utiliser les excédents de manière PROPORTIONNELLE
     if (totalSurplusAvailable > 0 && remainingDeficit > 0) {
-      console.log(`🔄 [Balance API] Phase 3: Utilisation proportionnelle des excédents`)
-
       const amountToUseFromSurplus = Math.min(remainingDeficit, totalSurplusAvailable)
-      console.log(
-        `📊 [Balance API] Montant à utiliser des excédents: ${amountToUseFromSurplus}€ sur ${totalSurplusAvailable}€ disponibles`,
-      )
 
       for (const budget of budgetsWithSurplus) {
         // Calculer la proportion de ce budget par rapport au total
@@ -262,17 +221,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           type: 'surplus',
           amount_used: amountToUse,
         })
-
-        console.log(
-          `  📊 ${budget.name}: -${amountToUse.toFixed(2)}€ excédent (${(proportion * 100).toFixed(1)}% du total)`,
-        )
       }
     }
 
     const totalUsed = totalUsedFromPiggyBank + totalUsedFromSavings + totalUsedFromSurplus
-    console.log(
-      `✅ [Balance API] Total récupéré: ${totalUsed.toFixed(2)}€ (${totalUsedFromPiggyBank.toFixed(2)}€ tirelire + ${totalUsedFromSavings.toFixed(2)}€ économies + ${totalUsedFromSurplus.toFixed(2)}€ excédents)`,
-    )
 
     // Vérifier si l'équilibrage est complet ou partiel
     const remainingGap = deficit - totalUsed
@@ -281,18 +233,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     if (!isFullyBalanced) {
       deficitMessage = `⚠️ Équilibrage partiel : il manque ${remainingGap.toFixed(2)}€ pour atteindre le RAV budgétaire`
-      console.log(`⚠️ [Balance API] ${deficitMessage}`)
-    } else {
-      console.log(`✅ [Balance API] Équilibrage complet : le RAV budgétaire sera atteint`)
     }
 
     // 5. NE PAS créer de revenu exceptionnel !
     // L'équilibrage consiste à consommer les économies/excédents, pas à créer de nouveaux revenus
     // Le RAV sera automatiquement ajusté par la réduction des économies et la création de dépenses
-    console.log(`💾 [Balance API] Application des changements sans création de revenu exceptionnel`)
 
-    // 5.1. Récupérer le solde bancaire actuel pour les logs (SANS le modifier)
-    const { data: currentBankBalance, error: bankError } = await supabaseServer
+    // 5.1. Vérifier que le solde bancaire est lisible (sans le modifier)
+    const { error: bankError } = await supabaseServer
       .from('bank_balances')
       .select('balance')
       .eq(context === 'profile' ? 'profile_id' : 'group_id', contextId)
@@ -302,19 +250,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       throw new Error(`Erreur récupération solde bancaire: ${bankError.message}`)
     }
 
-    const currentBalance = currentBankBalance?.balance || 0
-
-    console.log(
-      `💰 [Balance API] Solde bancaire reste inchangé: ${currentBalance}€ (pas de création de faux revenus)`,
-    )
-
     // 6. Appliquer les changements proportionnels
-    console.log(`🔄 [Balance API] Application des changements proportionnels`)
 
     // 6.1. Mettre à jour la tirelire si nécessaire (atomique via RPC)
     if (totalUsedFromPiggyBank > 0) {
-      const newPiggyBankAmount = piggyBankAmount - totalUsedFromPiggyBank
-
       try {
         const filter =
           ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
@@ -324,19 +263,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           `Erreur mise à jour tirelire: ${piggyBankUpdateError instanceof Error ? piggyBankUpdateError.message : String(piggyBankUpdateError)}`,
         )
       }
-
-      console.log(
-        `✅ Tirelire mise à jour: ${piggyBankAmount}€ → ${newPiggyBankAmount.toFixed(2)}€`,
-      )
     }
 
     // 6.2. Mettre à jour les budgets (atomique via RPC)
     for (const change of changes) {
       if (change.type === 'savings') {
         // Réduire les économies proportionnellement
-        const originalBudget = budgetsWithSavings.find((b) => b.id === change.budget_id)!
-        const newSavings = originalBudget.savings - change.amount_used
-
         try {
           await updateBudgetCumulatedSavings(change.budget_id!, -change.amount_used)
         } catch (savingsError) {
@@ -344,22 +276,11 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             `Erreur mise à jour économies ${change.budget_name}: ${savingsError instanceof Error ? savingsError.message : String(savingsError)}`,
           )
         }
-
-        console.log(
-          `✅ Économies réduites pour ${change.budget_name}: ${originalBudget.savings}€ → ${newSavings.toFixed(2)}€`,
-        )
-      } else {
-        // NE PAS créer de dépense pour consommer l'excédent !
-        // Les excédents (budget estimé - dépensé) ne peuvent PAS être "consommés" pour équilibrer le RAV
-        // car ils font déjà partie du RAV budgétaire (revenus estimés - budgets estimés)
-        // Si on crée une dépense, on réduit artificiellement le RAV, ce qui crée un cercle vicieux
-
-        // À la place, on note simplement que cet excédent ne peut pas combler le déficit
-        console.log(
-          `⚠️ Excédent de ${change.budget_name} (${change.amount_used.toFixed(2)}€) ne peut PAS être utilisé pour équilibrer le RAV`,
-        )
-        console.log(`   Raison: Les excédents font déjà partie du calcul du RAV budgétaire`)
       }
+      // NE PAS créer de dépense pour consommer l'excédent !
+      // Les excédents (budget estimé - dépensé) ne peuvent PAS être "consommés" pour équilibrer le RAV
+      // car ils font déjà partie du RAV budgétaire (revenus estimés - budgets estimés)
+      // Si on crée une dépense, on réduit artificiellement le RAV, ce qui crée un cercle vicieux
     }
 
     // 7. Vérification finale avec les nouvelles données
@@ -371,40 +292,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     }
 
     const finalRAV = finalFinancialData.remainingToLive
-
-    console.log(``)
-    console.log(`🔄🔄🔄 ========================================================`)
-    console.log(`🔄🔄🔄 APRÈS RÉÉQUILIBRAGE - RESTE À VIVRE`)
-    console.log(`🔄🔄🔄 ========================================================`)
-    console.log(`🔄 CONTEXTE: ${context.toUpperCase()}`)
-    console.log(`🔄 ID: ${contextId}`)
-    console.log(`🔄 TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(``)
-    console.log(`💰 RESTE À VIVRE INITIAL: ${initialRAV}€`)
-    console.log(`💰 RESTE À VIVRE APRÈS RÉÉQUILIBRAGE: ${finalRAV}€`)
-    console.log(`💰 RAV BUDGÉTAIRE (OBJECTIF): ${budgetaryRAV}€`)
-    console.log(
-      `📈 CHANGEMENT RAV: ${finalRAV - initialRAV > 0 ? '+' : ''}${(finalRAV - initialRAV).toFixed(2)}€`,
-    )
-    console.log(``)
-    console.log(`💵 RESSOURCES CONSOMMÉES:`)
-    console.log(`   - Tirelire utilisée: ${totalUsedFromPiggyBank.toFixed(2)}€`)
-    console.log(`   - Économies utilisées: ${totalUsedFromSavings.toFixed(2)}€`)
-    console.log(`   - Excédents utilisés: ${totalUsedFromSurplus.toFixed(2)}€`)
-    console.log(`   - TOTAL CONSOMMÉ: ${totalUsed.toFixed(2)}€`)
-    console.log(``)
-    console.log(`🏦 SOLDE BANCAIRE:`)
-    console.log(`   - Reste inchangé: ${currentBalance}€ (pas de création de faux revenus)`)
-    console.log(``)
-    console.log(`✅ VÉRIFICATION MATHÉMATIQUE:`)
-    console.log(`   - RAV Attendu: ${budgetaryRAV}€`)
-    console.log(`   - RAV Réel: ${finalRAV}€`)
-    console.log(`   - Écart résiduel: ${(budgetaryRAV - finalRAV).toFixed(2)}€`)
-    console.log(
-      `   - Match: ${Math.abs(budgetaryRAV - finalRAV) < 0.01 ? '✅ OUI (équilibrage complet)' : `⚠️ NON (il manque ${(budgetaryRAV - finalRAV).toFixed(2)}€)`}`,
-    )
-    console.log(`🔄🔄🔄 ========================================================`)
-    console.log(``)
 
     // Construire les budgetStats finaux pour l'affichage
     const finalBudgetStats = []
@@ -434,10 +321,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       })
     }
 
-    console.log(`✅ [Balance API] Équilibrage proportionnel terminé avec succès`)
-
     // Attente pour garantir la cohérence de la base de données
-    console.log(`🔄 [Balance API] Attente pour garantir la cohérence de la base de données...`)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     return NextResponse.json({
@@ -460,7 +344,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
   } catch (error) {
     const handled = handleBadRequest(error)
     if (handled) return handled
-    console.error("❌ [Balance API] Erreur lors de l'équilibrage proportionnel:", error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
       { status: 500 },
