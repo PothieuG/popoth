@@ -61,9 +61,9 @@ export function ServiceWorkerRegistration() {
   if (!showBanner) return null
 
   return (
-    <div className="animate-in slide-in-from-bottom-4 fixed bottom-4 left-4 right-4 z-50 duration-300">
+    <div className="animate-in slide-in-from-bottom-4 fixed right-4 bottom-4 left-4 z-50 duration-300">
       <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-indigo-100 bg-white p-4 shadow-lg">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-blue-600 to-purple-600">
           <span className="text-lg font-bold text-white">P</span>
         </div>
         <div className="min-w-0 flex-1">
@@ -72,13 +72,13 @@ export function ServiceWorkerRegistration() {
         </div>
         <button
           onClick={handleInstall}
-          className="flex-shrink-0 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-3 py-1.5 text-sm font-medium text-white transition-all hover:from-blue-700 hover:to-purple-700"
+          className="shrink-0 rounded-lg bg-linear-to-r from-blue-600 to-purple-600 px-3 py-1.5 text-sm font-medium text-white transition-all hover:from-blue-700 hover:to-purple-700"
         >
           Installer
         </button>
         <button
           onClick={handleDismiss}
-          className="flex-shrink-0 p-1 text-gray-400 transition-colors hover:text-gray-600"
+          className="shrink-0 p-1 text-gray-400 transition-colors hover:text-gray-600"
           aria-label="Fermer"
         >
           <svg

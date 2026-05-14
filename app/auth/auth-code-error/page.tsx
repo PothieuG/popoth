@@ -83,7 +83,7 @@ function AuthCodeErrorContent() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="space-y-3 text-center">
-          <h1 className="bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
+          <h1 className="bg-linear-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
             {errorInfo.title}
           </h1>
         </div>
@@ -117,7 +117,7 @@ function AuthCodeErrorContent() {
             <div className="space-y-3">
               <Button
                 onClick={handleRequestNewLink}
-                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+                className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Demander un nouveau lien
               </Button>

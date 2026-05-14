@@ -349,7 +349,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                   placeholder="Ex: 2500"
                   className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 transform text-sm text-gray-500">
+                <span className="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm text-gray-500">
                   €
                 </span>
               </div>
@@ -360,7 +360,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                 <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3">
                   <div className="flex items-start">
                     <svg
-                      className="mr-2 mt-0.5 h-5 w-5 flex-shrink-0 text-red-400"
+                      className="mt-0.5 mr-2 h-5 w-5 shrink-0 text-red-400"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -455,7 +455,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
             <Button
               onClick={handleSave}
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? 'Enregistrement...' : 'Enregistrer'}
             </Button>

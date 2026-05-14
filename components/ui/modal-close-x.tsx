@@ -44,7 +44,7 @@ export function ModalCloseX({
   const baseClasses =
     variant === 'circle'
       ? 'flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200'
-      : 'inline-flex h-8 w-8 items-center justify-center rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
+      : 'inline-flex h-8 w-8 items-center justify-center rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring'
   return (
     <button
       type="button"

@@ -328,7 +328,7 @@ export default function PlanningDrawer({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
         {/* Drag Handle (decorative) */}
-        <div className="flex justify-center pb-2 pt-3">
+        <div className="flex justify-center pt-3 pb-2">
           <div className="h-1 w-12 rounded-full bg-gray-300"></div>
         </div>
 
@@ -371,7 +371,7 @@ export default function PlanningDrawer({
               className={cn(
                 'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
                 activeTab === 'budgets'
-                  ? 'bg-white text-orange-700 shadow-sm'
+                  ? 'bg-white text-orange-700 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900',
               )}
             >
@@ -392,7 +392,7 @@ export default function PlanningDrawer({
               className={cn(
                 'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
                 activeTab === 'revenus'
-                  ? 'bg-white text-green-700 shadow-sm'
+                  ? 'bg-white text-green-700 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900',
               )}
             >

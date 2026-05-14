@@ -82,7 +82,7 @@ export default function GroupDashboardPage() {
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
-      <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+      <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
         <div className="flex items-center justify-between p-4">
           <GroupInfoNavbar profile={profile} members={members} />
           <UserAvatar profile={profile} onClick={() => setIsMenuOpen(true)} size="md" />
@@ -128,7 +128,7 @@ export default function GroupDashboardPage() {
               </div>
             ) : (
               <>
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <FinancialIndicators
                     availableBalance={financialData?.availableBalance || 0}
                     remainingToLive={financialData?.remainingToLive || 0}
@@ -154,7 +154,7 @@ export default function GroupDashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-200 bg-white">
+      <footer className="shrink-0 border-t border-gray-200 bg-white">
         <div className="grid grid-cols-3">
           {/* Personal Finance Tab */}
           <button
@@ -222,7 +222,7 @@ export default function GroupDashboardPage() {
         {/* Overlay */}
         <div
           className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'visible bg-opacity-50' : 'invisible bg-opacity-0'
+            isMenuOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
           }`}
           onClick={() => setIsMenuOpen(false)}
         />

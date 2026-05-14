@@ -68,7 +68,7 @@ export default function UserAvatar({
     <button
       onClick={onClick}
       style={style}
-      className={` ${sizeClasses[size]} ${hasCustomAvatar ? 'bg-gray-200' : getAvatarColor()} flex items-center justify-center overflow-hidden rounded-full font-semibold text-white shadow-sm transition-all duration-200 ${onClick ? 'hover:scale-105 hover:shadow-md active:scale-95' : ''} ${className} `}
+      className={` ${sizeClasses[size]} ${hasCustomAvatar ? 'bg-gray-200' : getAvatarColor()} flex items-center justify-center overflow-hidden rounded-full font-semibold text-white shadow-xs transition-all duration-200 ${onClick ? 'hover:scale-105 hover:shadow-md active:scale-95' : ''} ${className} `}
       disabled={!onClick}
     >
       {hasCustomAvatar ? (

@@ -297,7 +297,7 @@ export default function MonthlyRecapStep2({
   // État de chargement
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
           <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
           <h2 className="mb-2 text-xl font-semibold text-gray-900">Récupération des données</h2>
@@ -310,7 +310,7 @@ export default function MonthlyRecapStep2({
   // État d'erreur
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
         <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
           <div className="mb-4 text-red-600">
             <svg
@@ -348,9 +348,9 @@ export default function MonthlyRecapStep2({
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="flex h-dvh flex-col bg-linear-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white p-4 shadow-sm">
+      <div className="border-b border-gray-200 bg-white p-4 shadow-xs">
         <div className="text-center">
           <h1 className="text-xl font-bold text-gray-900">
             Récapitulatif {currentMonthName} {step2Data.year}

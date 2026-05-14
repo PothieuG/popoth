@@ -57,7 +57,7 @@ export default function BudgetProgressIndicator({
   return (
     <div className={cn('flex w-full flex-col', className)}>
       {/* Montant dépensé/total sur toute la largeur */}
-      <div className="mb-2 flex w-full items-center text-base font-black leading-tight">
+      <div className="mb-2 flex w-full items-center text-base leading-tight font-black">
         <span className={cn('mr-1 font-black', textColorClass)}>
           {formatAmount(progress.spentAmount).split(' ')[0]}
         </span>
@@ -71,7 +71,7 @@ export default function BudgetProgressIndicator({
       <div className="flex w-full flex-1 items-stretch">
         {/* Pourcentage avec code couleur - prend toute la hauteur restante */}
         <div
-          className={cn('mr-3 flex items-center text-lg font-bold leading-tight', textColorClass)}
+          className={cn('mr-3 flex items-center text-lg leading-tight font-bold', textColorClass)}
         >
           {Math.round(progress.percentage)}%
         </div>

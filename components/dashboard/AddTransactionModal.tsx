@@ -290,7 +290,7 @@ export default function AddTransactionModal({
         className="flex max-h-[80vh] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-xl"
       >
         {/* Header */}
-        <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 p-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-6">
           <DialogTitle asChild>
             <h2 className="text-xl font-semibold text-gray-900">Ajouter une transaction</h2>
           </DialogTitle>

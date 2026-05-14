@@ -136,7 +136,7 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
                 <Button
                   onClick={() => handleJoinGroup(group.id)}
                   disabled={joiningGroup === group.id}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                  className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
                 >
                   {joiningGroup === group.id ? 'Adhésion...' : 'Rejoindre'}
                 </Button>

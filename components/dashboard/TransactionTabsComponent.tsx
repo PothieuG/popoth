@@ -254,8 +254,8 @@ export default function TransactionTabsComponent({
       )}
     >
       {/* Tab Navigation */}
-      <div className="flex-shrink-0 border-b border-gray-200 p-3">
-        <div className="flex space-x-2 rounded-lg bg-gray-50/100 p-1">
+      <div className="shrink-0 border-b border-gray-200 p-3">
+        <div className="flex space-x-2 rounded-lg bg-gray-50 p-1">
           <button
             onClick={() => setActiveTab('expenses')}
             className={getTabButtonClass('expenses')}

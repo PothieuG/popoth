@@ -98,7 +98,7 @@ export default function ExpenseBreakdownPreview({
   }
 
   return (
-    <Card className="border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50 p-4">
+    <Card className="border-blue-200 bg-linear-to-br from-blue-50 to-purple-50 p-4">
       <div className="space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-blue-200 pb-2">

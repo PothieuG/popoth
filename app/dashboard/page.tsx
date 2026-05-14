@@ -125,7 +125,7 @@ export default function DashboardPage() {
   // Attendre que le profil soit chargé avant de décider quoi afficher
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100">
         <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
       </div>
     )
@@ -135,7 +135,7 @@ export default function DashboardPage() {
   if (!hasProfile) {
     return (
       <>
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100" />
+        <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100" />
         <FirstTimeProfileDialog
           isOpen={true}
           onSubmit={handleProfileSubmit}
@@ -149,7 +149,7 @@ export default function DashboardPage() {
   return (
     <div className="fixed inset-0 flex flex-col bg-blue-50/50">
       {/* Sticky Navbar */}
-      <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+      <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
         <div className="flex items-center justify-between p-4">
           <UserInfoNavbar
             profile={profile}
@@ -169,7 +169,7 @@ export default function DashboardPage() {
           <div className="flex min-h-0 flex-1 flex-col space-y-4">
             {/* Financial Indicators */}
             {financialError ? (
-              <div className="flex-shrink-0 rounded-xl border border-red-200 bg-red-50 p-4">
+              <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 p-4">
                 <div className="flex items-center space-x-2">
                   <svg
                     className="h-5 w-5 text-red-600"
@@ -194,7 +194,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                <div className="flex-shrink-0">
+                <div className="shrink-0">
                   <FinancialIndicators
                     availableBalance={financialData?.availableBalance || 0}
                     remainingToLive={financialData?.remainingToLive || 0}
@@ -221,7 +221,7 @@ export default function DashboardPage() {
       )}
 
       {/* Navigation Footer */}
-      <footer className="flex-shrink-0 border-t border-gray-200 bg-white">
+      <footer className="shrink-0 border-t border-gray-200 bg-white">
         <div className="grid grid-cols-3">
           {/* Personal Finance Tab - Active state */}
           <button className="flex flex-col items-center justify-center border-r border-gray-200 bg-orange-50 p-3 transition-colors duration-200">
@@ -303,7 +303,7 @@ export default function DashboardPage() {
         {/* Overlay */}
         <div
           className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'visible bg-opacity-50' : 'invisible bg-opacity-0'
+            isMenuOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
           }`}
           onClick={() => setIsMenuOpen(false)}
         />

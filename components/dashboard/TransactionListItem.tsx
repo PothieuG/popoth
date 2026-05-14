@@ -153,7 +153,7 @@ export default function TransactionListItem({
           <div className="flex min-w-0 flex-1 items-center space-x-3">
             {/* Avatar for group transactions */}
             {context === 'group' && (
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 <UserAvatar profile={userProfile} size="sm" />
               </div>
             )}
@@ -206,7 +206,7 @@ export default function TransactionListItem({
           </div>
 
           {/* Actions dropdown - Bigger and centered */}
-          <div className="ml-2 flex min-h-full flex-shrink-0 items-center">
+          <div className="ml-2 flex min-h-full shrink-0 items-center">
             <DropdownMenu
               items={getDropdownItems()}
               buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"

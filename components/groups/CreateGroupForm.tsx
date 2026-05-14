@@ -133,7 +133,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
             {isSubmitting ? 'Création...' : 'Créer le groupe'}
           </Button>

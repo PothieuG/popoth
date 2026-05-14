@@ -68,7 +68,7 @@ export default function DropdownMenu({
 
       {/* Menu dropdown */}
       {isOpen && (
-        <div className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+        <div className="absolute top-full right-0 z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
           {items.map((item, index) => (
             <button
               key={index}
@@ -87,7 +87,7 @@ export default function DropdownMenu({
                     : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <span className="flex-shrink-0">{item.icon}</span>
+              <span className="shrink-0">{item.icon}</span>
               <span className="text-sm font-medium">{item.label}</span>
             </button>
           ))}
