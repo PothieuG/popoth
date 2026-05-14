@@ -8,15 +8,15 @@
 
 ## En-tête
 
-| Champ | Valeur |
-|-------|--------|
+| Champ               | Valeur                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **Source primaire** | `components/groups/UserGroupsList.tsx:107` (view members handler) + `:132` (leave group handler) — **non documenté CLAUDE.md** |
-| **Type** | feature incomplète |
-| **Priorité** | Haute |
-| **Effort estimé** | S (1-2h) |
-| **Statut** | Non commencé |
-| **Dépendances** | Aucune (infrastructure entièrement en place) |
-| **Bloque** | — |
+| **Type**            | feature incomplète                                                                                                             |
+| **Priorité**        | Haute                                                                                                                          |
+| **Effort estimé**   | S (1-2h)                                                                                                                       |
+| **Statut**          | Non commencé                                                                                                                   |
+| **Dépendances**     | Aucune (infrastructure entièrement en place)                                                                                   |
+| **Bloque**          | —                                                                                                                              |
 
 ## Contexte
 
@@ -24,8 +24,10 @@ Phase 1 audit a trouvé les **2 seuls TODO concrets non documentés** de tout le
 
 ```tsx
 // components/groups/UserGroupsList.tsx:101-111
-{/* View Members Button */}
-<Button
+{
+  /* View Members Button */
+}
+;<Button
   variant="outline"
   size="sm"
   className="w-full"
@@ -39,22 +41,27 @@ Phase 1 audit a trouvé les **2 seuls TODO concrets non documentés** de tout le
 
 ```tsx
 // components/groups/UserGroupsList.tsx:125-137
-{/* Leave Button (only for non-creators) */}
-{!group.is_creator && (
-  <Button
-    variant="outline"
-    size="sm"
-    className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50"
-    onClick={() => {
-      // TODO: Implement leave group functionality
-    }}
-  >
-    Quitter
-  </Button>
-)}
+{
+  /* Leave Button (only for non-creators) */
+}
+{
+  !group.is_creator && (
+    <Button
+      variant="outline"
+      size="sm"
+      className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50"
+      onClick={() => {
+        // TODO: Implement leave group functionality
+      }}
+    >
+      Quitter
+    </Button>
+  )
+}
 ```
 
 Ces 2 boutons sont **rendus dans l'UI** mais leurs handlers sont vides — le clic ne fait rien (effet "bouton mort"). Quick win UX :
+
 - L'infrastructure est entièrement en place
 - `useGroups()` expose `leaveGroup` mutation (Sprint 1.5 + 2-followup-v2 cascade invalidation `['profile']` + financials)
 - `GroupMembersWithContributionsModal` existe et est migré Sprint Zod-Rollout v8 (Radix Dialog + focus trap + close X via `<ModalCloseX>`)
@@ -72,16 +79,19 @@ Implémenter les 2 handlers `onClick` actuellement vides dans `components/groups
 ### 2. Contexte technique
 
 **Fichiers concernés** :
+
 - `components/groups/UserGroupsList.tsx` — fichier principal (refactor handlers + ajout state pour les 2 modals)
 - `components/groups/__tests__/UserGroupsList.test.tsx` — **à créer** si pas existant (suivre pattern `components/dashboard/__tests__/`)
 
 **Fichiers à consulter** (read-only contexte) :
+
 - `components/groups/GroupMembersWithContributionsModal.tsx` — props attendus : `{ isOpen, onClose, groupId, groupName }` (à confirmer par Read)
 - `components/ui/ConfirmationDialog.tsx` — props attendus : `{ isOpen, onClose, title, message, onConfirm, loading? }` (à confirmer par Read)
 - `hooks/useGroups.ts` — exposer `leaveGroup` mutation : signature attendue `leaveGroup({ id }) → Promise<void>` ou similaire (CLAUDE.md §11 entrée Sprint 2-followup-v2 confirme l'invalidation cascade)
 - `app/groups/page.tsx` ou wherever `<UserGroupsList />` est consommé — pour vérifier que la page parent re-fetch `useGroups()` après leaveGroup (TanStack Query invalidation devrait gérer)
 
 **État actuel** :
+
 - 2 handlers `onClick={() => { /* TODO */ }}` vides (L107, L132)
 - 0 state local lié à modals dans le composant
 - Le composant est `'use client'` et reçoit `groups: GroupData[]` + `isLoading: boolean` + `onDeleteGroup: (group: GroupData) => void` en props (delete déjà implémenté)
@@ -89,11 +99,13 @@ Implémenter les 2 handlers `onClick` actuellement vides dans `components/groups
 - Le bouton "Quitter" est visible **uniquement non-creator** (le creator a "Supprimer" à la place)
 
 **Tests existants pertinents** :
+
 - `components/groups/__tests__/CreateGroupForm.test.tsx` — pattern RTL pour les groups components (Sprint Zod-Rollout v5)
 - `components/dashboard/__tests__/ConfirmationDialog.*.test.tsx` — pattern usage ConfirmationDialog (si existe)
 - `hooks/useGroups.ts` — hooks 5 mutations CRUD, tests pas direct mais comportement bien documenté CLAUDE.md §11
 
 **Précédents codebase** :
+
 - Sprint 1.5 — `useGroups` migré TanStack Query avec optimistic updates
 - Sprint 2-followup-v2 — invalidation cascade `['profile']` + `invalidateFinancialRefreshes(qc)` ajoutée pour `joinGroup`/`leaveGroup`/`createGroup`/`deleteGroup`
 - Sprint Zod-Rollout v8 — `GroupMembersWithContributionsModal` + `ConfirmationDialog` + `DeleteGroupModal` migrés Radix Dialog
@@ -101,12 +113,14 @@ Implémenter les 2 handlers `onClick` actuellement vides dans `components/groups
 ### 3. Spécifications fonctionnelles attendues
 
 **Cas nominal — View Members** :
+
 - Click sur "Voir membres" → ouvre `<GroupMembersWithContributionsModal isOpen onClose groupId={group.id} groupName={group.name} />`
 - L'utilisateur voit la liste des membres + leurs contributions (UI gérée par le modal lui-même)
 - Click sur close X (Esc, click outside, click X) → ferme le modal
 - Aucun side effect DB
 
 **Cas nominal — Leave Group** :
+
 - Click sur "Quitter" → ouvre `<ConfirmationDialog isOpen onClose title="Quitter le groupe" message="Êtes-vous sûr de vouloir quitter le groupe '{group.name}' ? Cette action ne peut pas être annulée." onConfirm={...} loading={isLeaving} />`
 - Click sur "Confirmer" → appelle `leaveGroup({ id: group.id })` (ou signature équivalente exposée par useGroups)
 - Pendant la mutation : `loading: true` désactive les boutons + close X
@@ -114,11 +128,13 @@ Implémenter les 2 handlers `onClick` actuellement vides dans `components/groups
 - Mutation error : ferme le confirmation, affiche un toast/error inline (à voir si toast system existant — sinon `alert()` temporaire ou state `error` dans le composant)
 
 **Cas edge** :
+
 - Click "Quitter" puis Esc avant confirm → ferme sans appel mutation
 - Mutation timeout réseau → error path (le hook retry 1× via TanStack Query default config)
 - Group supprimé entre-temps (race) → mutation 404 → afficher erreur
 
 **Cas erreur** :
+
 - `leaveGroup` API retourne 403 (non-membre) → afficher erreur générique
 - `leaveGroup` API retourne 409 (creator ne peut pas quitter, doit supprimer) → afficher erreur métier (mais le bouton "Quitter" n'est rendu que si `!group.is_creator` donc improbable côté UI)
 
