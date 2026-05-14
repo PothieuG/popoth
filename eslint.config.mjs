@@ -87,6 +87,12 @@ const eslintConfig = [
       'lib/recap/complete-algorithm.ts',
       'lib/recap/complete-persist.ts',
       'lib/recap/complete-types.ts',
+      // Sprint Cleanup-I8 / Lot 6 (2026-05-14) — sweep final monthly-recap
+      // stateful routes. balance + auto-balance migrated to logger.* (5
+      // KEEP+migrate consolidated in auto-balance, 0 KEEP in balance).
+      // Closes the chantier console.log cleanup multi-sprint.
+      'app/api/monthly-recap/balance/**',
+      'app/api/monthly-recap/auto-balance/**',
     ],
     rules: { 'no-console': 'error' },
   },
