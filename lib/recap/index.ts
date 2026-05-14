@@ -18,3 +18,16 @@ export type {
   ProcessStep1Output,
   ProcessStep1Snapshot,
 } from './types'
+
+// Sprint Refactor-I6 (2026-05-14)
+export { decideCompleteAllocation } from './complete-algorithm'
+export { processComplete } from './complete-persist'
+export { RecapBudgetNotFoundError, RecapContextError } from './complete-types'
+export type {
+  AllocationOperation as CompleteAllocationOperation,
+  BudgetSnapshot as CompleteBudgetSnapshot,
+  ProcessCompleteDecision,
+  ProcessCompleteInput,
+  ProcessCompleteOutput,
+  ProcessCompleteSnapshot,
+} from './complete-types'

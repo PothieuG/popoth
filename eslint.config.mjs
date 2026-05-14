@@ -78,6 +78,15 @@ const eslintConfig = [
       'lib/recap/index.ts',
       'lib/api/parse-body.ts',
       'lib/schemas/**',
+      // Sprint Refactor-I6 (2026-05-14) — complete god file extraction.
+      // Same scoping rationale as I5: escalate only the migrated scope so
+      // any future console.* regression sorts the PR red. The remaining
+      // hors-scope monthly-recap routes (balance, auto-balance) stay out
+      // of this glob until their respective extraction sprint.
+      'app/api/monthly-recap/complete/**',
+      'lib/recap/complete-algorithm.ts',
+      'lib/recap/complete-persist.ts',
+      'lib/recap/complete-types.ts',
     ],
     rules: { 'no-console': 'error' },
   },
