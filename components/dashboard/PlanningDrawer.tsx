@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import DropdownMenu from '../ui/DropdownMenu'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
@@ -28,8 +29,19 @@ interface PlanningDrawerProps {
 type TabType = 'budgets' | 'revenus'
 
 /**
- * Drawer de planification financière qui s'ouvre du bas vers le haut
- * Contient deux tabs : budgets estimés et revenus estimés
+ * Drawer de planification financière qui s'ouvre du bas vers le haut.
+ * Contient deux tabs : budgets estimés et revenus estimés.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) with heavy className override
+ * on `<DialogContent>` to preserve the bottom-up drawer feel : fullscreen sizing,
+ * border-less + radius-less + shadow-less, slide-from-bottom animation via
+ * `data-[state=open]:slide-in-from-bottom`. Native focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal acquis.
+ *
+ * Lazy-loaded child modals (Add/Edit Budget/Income, ConfirmationDialog) are
+ * themselves Radix Dialog instances ; Radix supports nested dialogs natively
+ * via portal stacking (Tab cycle confined to the topmost dialog, Esc closes
+ * the topmost first).
  */
 export default function PlanningDrawer({
   isOpen,
@@ -306,24 +318,29 @@ export default function PlanningDrawer({
     setIsDeleting(false)
   }
 
-  return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 transition-opacity duration-300"
-          onClick={onClose}
-        />
-      )}
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
+  }
 
-      {/* Drawer */}
-      <div
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
         className={cn(
-          'fixed inset-0 z-50 flex flex-col bg-white transition-transform duration-300 ease-out',
-          isOpen ? 'translate-y-0' : 'translate-y-full',
+          // Override default centered modal sizing → fullscreen drawer
+          'inset-0 left-0 top-0 h-screen w-screen max-h-screen max-w-none translate-x-0 translate-y-0',
+          'sm:inset-0 sm:left-0 sm:max-w-none sm:translate-x-0',
+          // Drop centered-modal chrome
+          'rounded-none border-0 p-0 shadow-none sm:rounded-none',
+          // Drawer body
+          'flex flex-col gap-0 bg-white',
+          // Override animations: slide from bottom (mirror current translate-y behavior)
+          'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
+          'data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100',
+          'duration-300',
         )}
       >
-        {/* Drag Handle */}
+        {/* Drag Handle (decorative) */}
         <div className="flex justify-center pb-2 pt-3">
           <div className="h-1 w-12 rounded-full bg-gray-300"></div>
         </div>
@@ -338,6 +355,7 @@ export default function PlanningDrawer({
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -348,7 +366,9 @@ export default function PlanningDrawer({
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Planification Financière</h2>
+                <DialogTitle asChild>
+                  <h2 className="text-lg font-bold text-gray-900">Planification Financière</h2>
+                </DialogTitle>
                 <p className="text-sm text-gray-600">Gérez vos budgets et revenus</p>
               </div>
             </div>
@@ -824,7 +844,7 @@ export default function PlanningDrawer({
           variant="info"
           loading={false}
         />
-      </div>
-    </>
+      </DialogContent>
+    </Dialog>
   )
 }

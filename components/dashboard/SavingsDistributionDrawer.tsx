@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
@@ -39,9 +40,16 @@ interface SavingsDistributionDrawerProps {
 }
 
 /**
- * Drawer de distribution des économies
- * Permet de transférer les économies cumulées entre budgets estimés
- * Interface similaire au MonthlyRecapStep2
+ * Drawer de distribution des économies.
+ * Permet de transférer les économies cumulées entre budgets estimés.
+ * Interface similaire au MonthlyRecapStep2.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) with heavy className override
+ * on `<DialogContent>` to preserve the bottom-up drawer feel : fullscreen sizing
+ * + slide-from-bottom animation. The nested transfer modal (rendered when
+ * `isTransferModalOpen && selectedFromBudget`) is also a Radix Dialog (centered
+ * modal, not drawer) ; Radix natively supports nested dialogs via Portal
+ * stacking (Tab cycle confined to topmost dialog, Esc closes topmost first).
  */
 export default function SavingsDistributionDrawer({
   isOpen,
@@ -184,21 +192,32 @@ export default function SavingsDistributionDrawer({
   const budgetsWithoutSavings =
     savingsData?.budgets.filter((b) => (b.cumulated_savings || 0) === 0) || []
 
-  return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 transition-opacity duration-300"
-          onClick={onClose}
-        />
-      )}
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
+  }
 
-      {/* Drawer - Full screen */}
-      <div
+  const handleTransferModalOpenChange = (open: boolean) => {
+    if (!open && !isProcessing) {
+      setIsTransferModalOpen(false)
+    }
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        hideCloseButton
         className={cn(
-          'fixed inset-0 z-50 flex flex-col bg-white transition-transform duration-300 ease-out',
-          isOpen ? 'translate-y-0' : 'translate-y-full',
+          // Override default centered modal sizing → fullscreen drawer
+          'inset-0 left-0 top-0 h-screen w-screen max-h-screen max-w-none translate-x-0 translate-y-0',
+          'sm:inset-0 sm:left-0 sm:max-w-none sm:translate-x-0',
+          // Drop centered-modal chrome
+          'rounded-none border-0 p-0 shadow-none sm:rounded-none',
+          // Drawer body
+          'flex flex-col gap-0 bg-white',
+          // Override animations: slide from bottom
+          'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
+          'data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100',
+          'duration-300',
         )}
       >
         {/* Header - Sticky */}
@@ -211,6 +230,7 @@ export default function SavingsDistributionDrawer({
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -221,7 +241,9 @@ export default function SavingsDistributionDrawer({
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Répartition des Économies</h2>
+                <DialogTitle asChild>
+                  <h2 className="text-xl font-bold text-gray-900">Répartition des Économies</h2>
+                </DialogTitle>
                 <p className="text-sm text-gray-600">Transférez vos économies entre budgets</p>
               </div>
             </div>
@@ -419,44 +441,44 @@ export default function SavingsDistributionDrawer({
             </div>
           ) : null}
         </div>
-      </div>
+      </DialogContent>
 
-      {/* Modal de transfert */}
-      {isTransferModalOpen && selectedFromBudget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-          {/* Overlay */}
-          <div
-            className="absolute inset-0 bg-black/60"
-            onClick={() => !isProcessing && setIsTransferModalOpen(false)}
-          />
-
-          {/* Contenu */}
-          <div className="relative flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-100 p-4">
+      {/* Modal de transfert — nested Radix Dialog (centered modal, not drawer) */}
+      <Dialog
+        open={isTransferModalOpen && !!selectedFromBudget}
+        onOpenChange={handleTransferModalOpenChange}
+      >
+        <DialogContent
+          hideCloseButton
+          className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-2xl"
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-gray-100 p-4">
+            <DialogTitle asChild>
               <h3 className="text-lg font-semibold text-gray-900">Transférer des économies</h3>
-              <button
-                type="button"
-                onClick={() => !isProcessing && setIsTransferModalOpen(false)}
-                aria-label="Fermer"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
+            </DialogTitle>
+            <button
+              type="button"
+              onClick={() => !isProcessing && setIsTransferModalOpen(false)}
+              aria-label="Fermer"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 transition-colors hover:bg-gray-200"
+            >
+              <svg
+                className="h-4 w-4 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                <svg
-                  className="h-4 w-4 text-gray-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
 
             {/* Body - scrollable */}
             <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -466,10 +488,10 @@ export default function SavingsDistributionDrawer({
                   Budget source
                 </p>
                 <p className="mt-1 text-sm font-semibold text-purple-900">
-                  {selectedFromBudget.name}
+                  {selectedFromBudget?.name}
                 </p>
                 <p className="text-sm font-medium text-purple-600">
-                  {formatCurrency(selectedFromBudget.cumulated_savings || 0)} disponibles
+                  {formatCurrency(selectedFromBudget?.cumulated_savings || 0)} disponibles
                 </p>
               </div>
 
@@ -492,7 +514,7 @@ export default function SavingsDistributionDrawer({
                   className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  Maximum: {formatCurrency(selectedFromBudget.cumulated_savings || 0)}
+                  Maximum: {formatCurrency(selectedFromBudget?.cumulated_savings || 0)}
                 </p>
               </div>
 
@@ -607,9 +629,8 @@ export default function SavingsDistributionDrawer({
                 {isProcessing ? 'Transfert...' : 'Confirmer'}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+        </DialogContent>
+      </Dialog>
+    </Dialog>
   )
 }
