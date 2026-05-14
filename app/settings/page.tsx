@@ -490,7 +490,7 @@ export default function SettingsPage() {
 
       {/* Loading Overlay for Group Operations */}
       {isOperationLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
           <div className="rounded-lg bg-white p-6 text-center shadow-xl">
             <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
             <p className="font-medium text-gray-700">Opération en cours...</p>

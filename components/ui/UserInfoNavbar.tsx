@@ -50,11 +50,11 @@ export default function UserInfoNavbar({ profile, userContribution }: UserInfoNa
             <div className="truncate text-xs text-gray-600">
               Contribution au groupe {profile.group_name} :
             </div>
-            <div className="whitespace-nowrap text-xs font-semibold text-purple-600">
+            <div className="text-xs font-semibold whitespace-nowrap text-purple-600">
               {formatContribution(userContribution.contribution_amount)}
             </div>
             {getContributionPercentage() && (
-              <div className="whitespace-nowrap text-xs text-gray-500">
+              <div className="text-xs whitespace-nowrap text-gray-500">
                 ({getContributionPercentage()}%)
               </div>
             )}

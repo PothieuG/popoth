@@ -439,7 +439,7 @@ export default function SavingsDistributionDrawer({
               <div className="flex-1 space-y-4 overflow-y-auto p-4">
                 {/* 1. Budget source */}
                 <div className="rounded-xl bg-purple-50 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-purple-500">
+                  <p className="text-xs font-medium tracking-wide text-purple-500 uppercase">
                     Budget source
                   </p>
                   <p className="mt-1 text-sm font-semibold text-purple-900">

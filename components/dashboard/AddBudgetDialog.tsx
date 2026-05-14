@@ -160,7 +160,7 @@ export default function AddBudgetDialog({
               aria-invalid={fieldErrors.name ? 'true' : 'false'}
               aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
               className={cn(
-                'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:outline-hidden focus-visible:ring-2',
+                'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
                 fieldErrors.name
                   ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
                   : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
@@ -200,13 +200,13 @@ export default function AddBudgetDialog({
                   fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
                 }
                 className={cn(
-                  'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:outline-hidden focus-visible:ring-2',
+                  'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
                   fieldErrors.estimatedAmount
                     ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
                     : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
                 )}
               />
-              <span className="absolute right-4 top-3.5 text-sm font-medium text-gray-500">€</span>
+              <span className="absolute top-3.5 right-4 text-sm font-medium text-gray-500">€</span>
             </div>
             {fieldErrors.estimatedAmount && (
               <p
@@ -283,7 +283,7 @@ export default function AddBudgetDialog({
           )}
 
           {/* Actions */}
-          <div className="-mx-6 -mb-6 mt-6 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
+          <div className="-mx-6 mt-6 -mb-6 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
             <div className="flex space-x-3">
               <button
                 type="button"

@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full overflow-hidden">
       <body
-        className={`${roboto.variable} h-full overflow-hidden font-roboto`}
+        className={`${roboto.variable} font-roboto h-full overflow-hidden`}
         suppressHydrationWarning={true}
       >
         <ServiceWorkerRegistration />

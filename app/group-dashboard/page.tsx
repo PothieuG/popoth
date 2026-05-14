@@ -222,7 +222,7 @@ export default function GroupDashboardPage() {
         {/* Overlay */}
         <div
           className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'visible bg-opacity-50' : 'invisible bg-opacity-0'
+            isMenuOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
           }`}
           onClick={() => setIsMenuOpen(false)}
         />
