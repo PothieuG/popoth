@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { axe } from 'jest-axe'
+import EditBudgetDialog from '@/components/dashboard/EditBudgetDialog'
 
 // Sprint Zod-Rollout v6 / Axe 5 — automated a11y audit via axe-core ruleset.
 // Sprint v7 / Axe 2 — extended from 2 → 7 surfaces (3 auth pages + 2 client
@@ -203,12 +205,7 @@ describe('axe-core a11y audit (regression-guard)', () => {
 
   it('AddIncomeDialog has no critical a11y violations', async () => {
     const { container } = render(
-      <AddIncomeDialog
-        isOpen
-        onClose={() => {}}
-        onSave={() => {}}
-        currentIncomesTotal={1500}
-      />,
+      <AddIncomeDialog isOpen onClose={() => {}} onSave={() => {}} currentIncomesTotal={1500} />,
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])
@@ -218,5 +215,45 @@ describe('axe-core a11y audit (regression-guard)', () => {
     const { container } = render(<AddTransactionModal onClose={() => {}} />)
     const results = await axe(container)
     expect(results.violations).toEqual([])
+  })
+})
+
+// Sprint Zod-Rollout v8 / Commit 6 — focus-trap + Esc-to-close regression-guards.
+// Pin the Radix Dialog contract on representative surfaces : EditBudget (simple
+// centered form modal) + AddTransactionModal (heavy 6-hook surface). Esc closing
+// proves that Radix's onEscapeKeyDown wiring fires through to our onOpenChange
+// handler which calls onClose. If a future migration breaks this (e.g. wrap a
+// modal in raw `<div>` again), these tests will catch it before merge.
+describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
+  it('EditBudgetDialog: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <EditBudgetDialog
+        isOpen
+        onClose={onClose}
+        onSave={async () => true}
+        budget={{ id: 'b-1', name: 'Alimentation', estimated_amount: 500 }}
+        currentBudgetsTotal={500}
+        totalEstimatedIncome={2000}
+      />,
+    )
+    // Wait for Radix Dialog content to mount + initial focus to settle
+    await waitFor(() => {
+      expect(screen.getByText('Modifier le budget')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AddTransactionModal: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={onClose} />)
+    await waitFor(() => {
+      expect(screen.getByText('Ajouter une transaction')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
   })
 })
