@@ -70,13 +70,13 @@ export default function FinancialIndicators({
         {/* Available Balance Card */}
         <div
           className={cn(
-            'rounded-xl border p-2 shadow-sm transition-all duration-200',
+            'rounded-xl border p-2 shadow-xs transition-all duration-200',
             getBackgroundColorClass(availableBalance),
           )}
         >
           <div className="flex flex-col items-center space-y-1 text-center">
             {/* Bank Account Icon */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <div
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-full',
@@ -118,13 +118,13 @@ export default function FinancialIndicators({
         {/* Remaining to Live Card */}
         <div
           className={cn(
-            'rounded-xl border p-2 shadow-sm transition-all duration-200',
+            'rounded-xl border p-2 shadow-xs transition-all duration-200',
             getBackgroundColorClass(remainingToLive),
           )}
         >
           <div className="flex flex-col items-center space-y-1 text-center">
             {/* Calculator/Budget Icon */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <div
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-full',
@@ -165,12 +165,12 @@ export default function FinancialIndicators({
       {/* Total Savings Card */}
       <button
         onClick={() => setIsSavingsOpen(true)}
-        className="hover:to-purple-150 w-full cursor-pointer rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50 to-purple-100 p-2 shadow-sm transition-all duration-200 hover:from-purple-100"
+        className="hover:to-purple-150 w-full cursor-pointer rounded-xl border border-purple-200 bg-linear-to-r from-purple-50 to-purple-100 p-2 shadow-xs transition-all duration-200 hover:from-purple-100"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {/* Information Icon */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600">
                 <svg
                   className="h-3 w-3 text-white"
@@ -201,12 +201,12 @@ export default function FinancialIndicators({
       {/* Planning Button Card */}
       <button
         onClick={() => setIsPlanningOpen(true)}
-        className="hover:to-blue-150 w-full cursor-pointer rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 p-2 shadow-sm transition-all duration-200 hover:from-blue-100"
+        className="hover:to-blue-150 w-full cursor-pointer rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-blue-100 p-2 shadow-xs transition-all duration-200 hover:from-blue-100"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             {/* Planning Icon */}
-            <div className="flex-shrink-0">
+            <div className="shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600">
                 <svg
                   className="h-3 w-3 text-white"

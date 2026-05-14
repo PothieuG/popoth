@@ -208,7 +208,7 @@ export default function SavingsDistributionDrawer({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
         {/* Header - Sticky */}
-        <div className="flex-shrink-0 border-b border-gray-200 bg-purple-50/30 px-4 py-4">
+        <div className="shrink-0 border-b border-gray-200 bg-purple-50/30 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600">
@@ -466,7 +466,7 @@ export default function SavingsDistributionDrawer({
                       }
                     }}
                     placeholder="0.00"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-base outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500"
+                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-base outline-hidden focus:border-purple-500 focus:ring-2 focus:ring-purple-500"
                   />
                   <p className="mt-1 text-xs text-gray-500">
                     Maximum: {formatCurrency(selectedFromBudget.cumulated_savings || 0)}
@@ -493,7 +493,7 @@ export default function SavingsDistributionDrawer({
                       )}
                     >
                       <svg
-                        className="h-5 w-5 flex-shrink-0"
+                        className="h-5 w-5 shrink-0"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -518,7 +518,7 @@ export default function SavingsDistributionDrawer({
                       )}
                     >
                       <svg
-                        className="h-5 w-5 flex-shrink-0"
+                        className="h-5 w-5 shrink-0"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"

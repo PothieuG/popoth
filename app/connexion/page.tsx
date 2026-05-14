@@ -48,7 +48,7 @@ export default function ConnexionPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="space-y-3 text-center">
-          <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
+          <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Popoth
           </h1>
           <p className="text-lg text-gray-600">Connectez-vous à votre compte</p>
@@ -111,7 +111,7 @@ export default function ConnexionPage() {
             {error && (
               <div role="alert" className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                       <path
                         fillRule="evenodd"
@@ -130,7 +130,7 @@ export default function ConnexionPage() {
             {/* Login Button */}
             <Button
               type="submit"
-              className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+              className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}

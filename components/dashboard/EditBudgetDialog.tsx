@@ -171,7 +171,7 @@ export default function EditBudgetDialog({
               placeholder="Ex: Alimentation, Transport..."
               aria-invalid={fieldErrors.name ? 'true' : 'false'}
               aria-describedby={fieldErrors.name ? 'edit-budget-name-error' : undefined}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500"
               disabled={isSubmitting}
             />
             {fieldErrors.name && (

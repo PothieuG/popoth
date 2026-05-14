@@ -29,7 +29,7 @@ export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFl
   // Gestion des erreurs globales du hook (très rare car chaque étape gère ses erreurs)
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-red-50 to-red-100 p-4">
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
         <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
           <div className="mb-4 text-red-600">
             <svg

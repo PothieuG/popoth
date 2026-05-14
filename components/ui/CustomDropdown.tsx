@@ -174,7 +174,7 @@ export default function CustomDropdown({
                   setIsOpen(false)
                 }}
                 className={cn(
-                  'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none',
+                  'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-hidden',
                   value === option.id && 'bg-blue-50',
                 )}
               >

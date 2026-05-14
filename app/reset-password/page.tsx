@@ -151,7 +151,7 @@ function NouveauMotDePasseContent() {
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-8">
           <div className="space-y-3 text-center">
-            <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
               Validation en cours...
             </h1>
             <div className="flex justify-center">
@@ -170,7 +170,7 @@ function NouveauMotDePasseContent() {
         <div className="w-full max-w-md space-y-8">
           {/* Header */}
           <div className="space-y-3 text-center">
-            <h1 className="bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-linear-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
               Lien invalide
             </h1>
           </div>
@@ -205,7 +205,7 @@ function NouveauMotDePasseContent() {
               {/* Request New Link Button */}
               <Button
                 onClick={handleRequestNewLink}
-                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+                className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Demander un nouveau lien
               </Button>
@@ -223,7 +223,7 @@ function NouveauMotDePasseContent() {
         <div className="w-full max-w-md space-y-8">
           {/* Header */}
           <div className="space-y-3 text-center">
-            <h1 className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-linear-to-r from-green-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
               Mot de passe mis à jour !
             </h1>
           </div>
@@ -260,7 +260,7 @@ function NouveauMotDePasseContent() {
               {/* Go to Login Button */}
               <Button
                 onClick={handleGoToLogin}
-                className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+                className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               >
                 Se connecter
               </Button>
@@ -280,7 +280,7 @@ function NouveauMotDePasseContent() {
       <div className="w-full max-w-md space-y-8">
         {/* Header */}
         <div className="space-y-3 text-center">
-          <h1 className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
+          <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Nouveau mot de passe
           </h1>
           <p className="text-lg text-gray-600">Choisissez un nouveau mot de passe sécurisé</p>
@@ -357,7 +357,7 @@ function NouveauMotDePasseContent() {
             {serverError && (
               <div role="alert" className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0">
+                  <div className="shrink-0">
                     <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
                       <path
                         fillRule="evenodd"
@@ -376,7 +376,7 @@ function NouveauMotDePasseContent() {
             {/* Update Button */}
             <Button
               type="submit"
-              className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+              className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Mise à jour en cours...' : 'Mettre à jour le mot de passe'}

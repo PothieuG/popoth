@@ -87,7 +87,7 @@ export default function DropdownMenu({
                     : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <span className="flex-shrink-0">{item.icon}</span>
+              <span className="shrink-0">{item.icon}</span>
               <span className="text-sm font-medium">{item.label}</span>
             </button>
           ))}

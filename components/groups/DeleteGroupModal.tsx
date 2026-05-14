@@ -103,7 +103,7 @@ export default function DeleteGroupModal({
           {/* Warning Content */}
           <div className="mb-6 space-y-4">
             <div className="flex items-start space-x-3 rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 <svg
                   className="h-6 w-6 text-red-500"
                   fill="none"

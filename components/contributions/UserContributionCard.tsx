@@ -199,7 +199,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
           <Button
             onClick={recalculateContributions}
             disabled={isRecalculating}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
             {isRecalculating ? 'Calcul en cours...' : 'Calculer maintenant'}
           </Button>

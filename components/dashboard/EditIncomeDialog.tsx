@@ -153,7 +153,7 @@ export default function EditIncomeDialog({
               placeholder="Ex: Salaire, Freelance, Loyer..."
               aria-invalid={fieldErrors.name ? 'true' : 'false'}
               aria-describedby={fieldErrors.name ? 'edit-income-name-error' : undefined}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-500 focus:outline-hidden focus:ring-2 focus:ring-green-500"
               disabled={isSubmitting}
             />
             {fieldErrors.name && (

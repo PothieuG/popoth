@@ -146,7 +146,7 @@ export default function GroupMembersWithContributionsModal({
                   fetchGroupMembers(group.id)
                   fetchContributions()
                 }}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
               >
                 Réessayer
               </Button>
@@ -196,7 +196,7 @@ export default function GroupMembersWithContributionsModal({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           {/* Avatar */}
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-medium text-white">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-purple-600 text-sm font-medium text-white">
                             {member.first_name.charAt(0)}
                             {member.last_name.charAt(0)}
                           </div>

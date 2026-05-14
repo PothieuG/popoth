@@ -160,7 +160,7 @@ export default function AddBudgetDialog({
               aria-invalid={fieldErrors.name ? 'true' : 'false'}
               aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
               className={cn(
-                'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:outline-none focus-visible:ring-2',
+                'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:outline-hidden focus-visible:ring-2',
                 fieldErrors.name
                   ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
                   : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
@@ -200,7 +200,7 @@ export default function AddBudgetDialog({
                   fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
                 }
                 className={cn(
-                  'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:outline-none focus-visible:ring-2',
+                  'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:outline-hidden focus-visible:ring-2',
                   fieldErrors.estimatedAmount
                     ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
                     : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',

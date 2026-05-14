@@ -22,7 +22,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <div className="w-full max-w-md rounded-xl bg-white p-8 text-center shadow-lg">
         {/* Header */}
         <div className="mb-6">
@@ -36,7 +36,7 @@ export default function HomePage() {
         <div className="space-y-3">
           <Button
             onClick={() => (window.location.href = '/connexion')}
-            className="h-12 w-full rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
+            className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
           >
             Se connecter
           </Button>

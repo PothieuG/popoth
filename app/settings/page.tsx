@@ -149,9 +149,9 @@ export default function SettingsPage() {
   // Show loading screen while fetching group data
   if (groupsLoading && !hasGroup && !currentGroup) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
         {/* Header */}
-        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center space-x-3">
               <Button
@@ -195,9 +195,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="relative min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-sm">
+      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center space-x-3">
             <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="p-2">
@@ -232,7 +232,7 @@ export default function SettingsPage() {
             {!hasGroup && (
               <Button
                 onClick={() => setShowCreateForm(!showCreateForm)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
               >
                 {showCreateForm ? 'Annuler' : 'Créer un groupe'}
               </Button>
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                 <Button
                   onClick={handleSearch}
                   disabled={searchLoading}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                  className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
                 >
                   {searchLoading ? 'Recherche...' : 'Rechercher'}
                 </Button>
@@ -440,7 +440,7 @@ export default function SettingsPage() {
         {hasGroup && (
           <Card className="border-blue-200 bg-blue-50 p-6">
             <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
+              <div className="shrink-0">
                 <svg
                   className="h-6 w-6 text-blue-500"
                   fill="none"
