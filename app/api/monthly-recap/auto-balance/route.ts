@@ -6,6 +6,7 @@ import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { autoBalanceBodySchema } from '@/lib/schemas/recap'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/auto-balance
@@ -178,22 +179,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     if (piggyBankData && !piggyBankError) {
       piggyBank = piggyBankData.amount || 0
     } else if (piggyBankError) {
-      console.error(
-        '⚠️ [Auto Balance] Erreur lors de la récupération de la tirelire:',
-        piggyBankError,
-      )
+      logger.warn('[Auto Balance] Erreur récupération tirelire (fail-soft)', piggyBankError)
     }
 
     // Séparer les budgets par catégorie
     const budgetsWithSavings = budgetsWithStats.filter((b) => b.cumulated_savings > 0)
     const budgetsWithSurplus = budgetsWithStats.filter((b) => b.monthly_surplus > 0)
     const budgetsWithDeficit = budgetsWithStats.filter((b) => b.monthly_deficit > 0)
-
-    console.log(`⚖️ [Auto Balance] Démarrage pour ${context}:${contextId}`)
-    console.log(`⚖️ [Auto Balance] Tirelire disponible: ${piggyBank}€`)
-    console.log(`⚖️ [Auto Balance] Budgets avec économies: ${budgetsWithSavings.length}`)
-    console.log(`⚖️ [Auto Balance] Budgets avec surplus: ${budgetsWithSurplus.length}`)
-    console.log(`⚖️ [Auto Balance] Budgets avec déficit: ${budgetsWithDeficit.length}`)
 
     if (budgetsWithDeficit.length === 0) {
       return NextResponse.json({
@@ -213,11 +205,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const totalSavings = budgetsWithSavings.reduce((sum, b) => sum + b.cumulated_savings, 0)
     const totalSurplus = budgetsWithSurplus.reduce((sum, b) => sum + b.monthly_surplus, 0)
     const totalDeficit = budgetsWithDeficit.reduce((sum, b) => sum + b.monthly_deficit, 0)
-
-    console.log(`⚖️ [Auto Balance] Tirelire totale: ${piggyBank}€`)
-    console.log(`⚖️ [Auto Balance] Économies totales: ${totalSavings}€`)
-    console.log(`⚖️ [Auto Balance] Surplus total: ${totalSurplus}€`)
-    console.log(`⚖️ [Auto Balance] Déficit total: ${totalDeficit}€`)
 
     // Stratégie de répartition équilibrée en 3 phases:
     // PHASE 0: Utiliser la tirelire en priorité
@@ -241,12 +228,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
 
     // PHASE 0: Utiliser la TIRELIRE en PRIORITÉ ABSOLUE
     if (piggyBank > 0 && remainingDeficitToCover > 0) {
-      console.log(
-        `⚖️ [Auto Balance] === PHASE 0: Utilisation de la TIRELIRE (PRIORITÉ ABSOLUE) ===`,
-      )
-      console.log(`⚖️ [Auto Balance] Tirelire disponible: ${piggyBank}€`)
-      console.log(`⚖️ [Auto Balance] Déficit total à couvrir: ${totalDeficit}€`)
-
       // Répartition proportionnelle de la tirelire entre tous les déficits
       // Chaque budget en déficit reçoit : (Déficit / Total_Déficits) × Min(Tirelire, Total_Déficits)
       const amountToDistribute = Math.min(piggyBank, totalDeficit)
@@ -266,31 +247,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           })
 
           totalPiggyBankUsed += contributionAmount
-
-          console.log(
-            `  🐷 Tirelire (${(deficitProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
-          )
         }
       }
 
-      console.log(
-        `⚖️ [Auto Balance] Total tirelire utilisée: ${totalPiggyBankUsed.toFixed(2)}€ sur ${piggyBank}€ disponible`,
-      )
-
       remainingDeficitToCover = Math.max(0, totalDeficit - totalPiggyBankUsed)
-      console.log(
-        `⚖️ [Auto Balance] Déficit restant après Phase 0: ${remainingDeficitToCover.toFixed(2)}€`,
-      )
     }
 
     // PHASE 1: Utiliser TOUTES les économies disponibles de manière proportionnelle et équitable (si déficit restant)
     if (totalSavings > 0 && remainingDeficitToCover > 0) {
-      console.log(`⚖️ [Auto Balance] === PHASE 1: Utilisation de TOUTES les économies cumulées ===`)
-      console.log(`⚖️ [Auto Balance] Économies totales disponibles: ${totalSavings}€`)
-      console.log(
-        `⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`,
-      )
-
       // Calculer les déficits restants après Phase 0
       const remainingDeficitsPhase1 = budgetsWithDeficit
         .map((b) => {
@@ -320,15 +284,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           totalSavings * deficitProportion,
         )
 
-        console.log(
-          `⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`,
-        )
-
         // Chaque budget avec savings contribue proportionnellement à ce déficit
         for (const savingsBudget of budgetsWithSavings) {
           // IMPORTANT: Un budget ne peut pas se transférer à lui-même
           if (savingsBudget.id === deficitBudget.id) {
-            console.log(`  💎 ${savingsBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`)
             continue
           }
 
@@ -349,10 +308,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             })
 
             totalSavingsUsed += contributionAmount
-
-            console.log(
-              `  💎 ${savingsBudget.name} (${(savingsProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
-            )
           }
         }
       }
@@ -371,32 +326,13 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           old_savings: savingsBudget.cumulated_savings,
           new_savings: newSavings,
         })
-
-        console.log(
-          `  💎 ${savingsBudget.name}: ${savingsBudget.cumulated_savings}€ → ${newSavings.toFixed(2)}€ (utilisé: ${totalUsedFromThisBudget.toFixed(2)}€)`,
-        )
       }
 
-      console.log(
-        `⚖️ [Auto Balance] Total économies utilisées: ${totalSavingsUsed.toFixed(2)}€ sur ${totalSavings}€ disponibles`,
-      )
-
       remainingDeficitToCover = Math.max(0, totalDeficit - totalSavingsUsed)
-      console.log(
-        `⚖️ [Auto Balance] Déficit restant après Phase 1: ${remainingDeficitToCover.toFixed(2)}€`,
-      )
     }
 
     // PHASE 2: Utiliser les surplus SEULEMENT si déficit restant après Phase 0 et Phase 1
     if (totalSurplus > 0 && remainingDeficitToCover > 0) {
-      console.log(
-        `⚖️ [Auto Balance] === PHASE 2: Utilisation des surplus mensuels (déficit restant détecté) ===`,
-      )
-      console.log(`⚖️ [Auto Balance] Surplus totaux disponibles: ${totalSurplus}€`)
-      console.log(
-        `⚖️ [Auto Balance] Déficit restant à couvrir: ${remainingDeficitToCover.toFixed(2)}€`,
-      )
-
       // Calculer les déficits restants après Phase 0 et Phase 1
       const remainingDeficits = budgetsWithDeficit
         .map((b) => {
@@ -421,11 +357,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         0,
       )
 
-      if (remainingDeficits.length === 0) {
-        console.log(`⚖️ [Auto Balance] ✅ Aucun déficit restant, Phase 2 non nécessaire`)
-      } else {
-        console.log(`⚖️ [Auto Balance] Budgets avec déficit restant: ${remainingDeficits.length}`)
-
+      if (remainingDeficits.length > 0) {
         // Répartition proportionnelle des surplus sur les déficits restants
         // Transfert(A→C) = (Surplus_A / Total_Surplus) × Déficit_Restant_C
 
@@ -437,17 +369,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
             totalSurplus * deficitProportion,
           )
 
-          console.log(
-            `⚖️ [Auto Balance] Budget "${deficitBudget.name}": ${deficitBudget.remaining_deficit}€ de déficit restant, recevra ${amountNeededForThisDeficit.toFixed(2)}€`,
-          )
-
           // Chaque budget avec surplus contribue proportionnellement à ce déficit
           for (const surplusBudget of budgetsWithSurplus) {
             // IMPORTANT: Un budget ne peut pas se transférer à lui-même
             if (surplusBudget.id === deficitBudget.id) {
-              console.log(
-                `  📊 ${surplusBudget.name} → ${deficitBudget.name}: IGNORÉ (même budget)`,
-              )
               continue
             }
 
@@ -468,20 +393,10 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
               })
 
               totalSurplusUsed += contributionAmount
-
-              console.log(
-                `  📊 ${surplusBudget.name} (${(surplusProportion * 100).toFixed(1)}%) → ${deficitBudget.name}: ${contributionAmount}€`,
-              )
             }
           }
         }
-
-        console.log(`⚖️ [Auto Balance] Total surplus utilisés: ${totalSurplusUsed.toFixed(2)}€`)
       }
-    } else if (remainingDeficitToCover === 0) {
-      console.log(
-        `⚖️ [Auto Balance] ✅ Tous les déficits ont été couverts par la tirelire et les économies, Phase 2 NON déclenchée`,
-      )
     }
 
     if (transfers.length === 0) {
@@ -491,30 +406,22 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       })
     }
 
-    // Exécuter tous les transferts planifiés et les mises à jour
-    console.log(`⚖️ [Auto Balance] Exécution de ${transfers.length} transferts`)
-    console.log(`⚖️ [Auto Balance]   - Tirelire utilisée: ${totalPiggyBankUsed}€`)
-    console.log(`⚖️ [Auto Balance]   - Économies utilisées: ${totalSavingsUsed}€`)
-    console.log(`⚖️ [Auto Balance]   - Surplus utilisés: ${totalSurplusUsed}€`)
-    console.log(`⚖️ [Auto Balance] Mises à jour d'économies: ${savingsUpdates.length} budgets`)
-
     // 1. Mettre à jour les économies cumulées pour les budgets qui ont contribué depuis leurs économies
     //    (atomique via RPC update_budget_cumulated_savings)
     for (const update of savingsUpdates) {
       const safeNewSavings = Math.max(0, Math.round(update.new_savings * 100) / 100)
       const delta = safeNewSavings - update.old_savings
-      console.log(
-        `💎 Mise à jour économies: ${update.old_savings}€ → ${safeNewSavings}€ (delta=${delta}€)`,
-      )
 
       try {
         await updateBudgetCumulatedSavings(update.budget_id, delta)
       } catch (updateError) {
-        console.error('❌ Erreur lors de la mise à jour des économies:', updateError)
-        console.error('❌ Budget ID:', update.budget_id)
-        console.error('❌ Ancienne valeur:', update.old_savings)
-        console.error('❌ Nouvelle valeur tentée:', update.new_savings)
-        console.error('❌ Valeur safe:', safeNewSavings)
+        logger.error('[Auto Balance] Erreur mise à jour économies', {
+          budgetId: update.budget_id,
+          oldSavings: update.old_savings,
+          attemptedNewSavings: update.new_savings,
+          safeNewSavings,
+          error: updateError,
+        })
         return NextResponse.json(
           {
             error: 'Erreur lors de la mise à jour des économies',
@@ -537,10 +444,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const transfersFromPiggyBank = transfers.filter((t) => t.from_budget_id === null)
 
     if (transfersFromPiggyBank.length > 0 && totalPiggyBankUsed > 0) {
-      console.log(
-        `⚖️ [Auto Balance] Traitement de ${transfersFromPiggyBank.length} transferts depuis la tirelire (${totalPiggyBankUsed}€)`,
-      )
-
       // 1. Déduire le montant utilisé de la tirelire (atomique via RPC)
       const newPiggyBankAmount = Math.max(0, piggyBank - totalPiggyBankUsed)
       const piggyDelta = newPiggyBankAmount - piggyBank
@@ -550,17 +453,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
         await updatePiggyBank(filter, piggyDelta)
       } catch (updateError) {
-        console.error(
-          '❌ [Auto Balance] Erreur lors de la mise à jour de la tirelire:',
-          updateError,
-        )
+        logger.error('[Auto Balance] Erreur mise à jour tirelire', updateError)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
           { status: 500 },
         )
       }
-
-      console.log(`✅ Tirelire mise à jour: ${piggyBank}€ → ${newPiggyBankAmount}€`)
 
       // 2. Créer des budget_transfers pour chaque budget qui reçoit de l'argent de la tirelire
       // IMPORTANT: from_budget_id = null représente la tirelire
@@ -585,8 +483,8 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(piggyBankTransfers)
 
       if (transferError) {
-        console.error(
-          '❌ [Auto Balance] Erreur lors de la création des transferts depuis tirelire:',
+        logger.error(
+          '[Auto Balance] Erreur création transferts depuis tirelire',
           transferError,
         )
         return NextResponse.json(
@@ -594,18 +492,12 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           { status: 500 },
         )
       }
-
-      console.log(`✅ ${transfersFromPiggyBank.length} transferts créés depuis la tirelire`)
     }
 
     // 2b. Insérer les transferts entre budgets dans budget_transfers
     const transfersWithBudget = transfers.filter((t) => t.from_budget_id !== null)
 
     if (transfersWithBudget.length > 0) {
-      console.log(
-        `⚖️ [Auto Balance] Enregistrement de ${transfersWithBudget.length} transferts entre budgets`,
-      )
-
       const transferInserts: TablesInsert<'budget_transfers'>[] = transfersWithBudget.map(
         (transfer) => {
           const base = {
@@ -629,10 +521,11 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(transferInserts)
 
       if (insertError) {
-        console.error("❌ Erreur lors de l'enregistrement des transferts:", insertError)
-        console.error('❌ Nombre de transferts tentés:', transferInserts.length)
-        console.error('❌ Détails des transferts:', JSON.stringify(transferInserts, null, 2))
-        console.error("❌ Détails de l'erreur Supabase:", JSON.stringify(insertError, null, 2))
+        logger.error('[Auto Balance] Erreur enregistrement transferts entre budgets', {
+          transfersAttempted: transferInserts.length,
+          transfers: transferInserts,
+          error: insertError,
+        })
         return NextResponse.json(
           {
             error: "Erreur lors de l'enregistrement des transferts",
@@ -642,8 +535,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
           { status: 500 },
         )
       }
-
-      console.log(`✅ ${transfersWithBudget.length} transferts entre budgets enregistrés`)
     }
 
     const totalTransferred = totalPiggyBankUsed + totalSavingsUsed + totalSurplusUsed
@@ -653,17 +544,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
     const remainingSavings = Math.max(0, totalSavings - totalSavingsUsed)
     const remainingSurplus = Math.max(0, totalSurplus - totalSurplusUsed)
     const remainingPiggyBank = Math.max(0, piggyBank - totalPiggyBankUsed)
-
-    console.log(
-      `✅ [Auto Balance] Répartition automatique terminée: ${totalTransferred}€ répartis en ${transfers.length} transferts`,
-    )
-    console.log(`✅ [Auto Balance]   - Tirelire utilisée: ${totalPiggyBankUsed}€`)
-    console.log(`✅ [Auto Balance]   - Économies utilisées: ${totalSavingsUsed}€`)
-    console.log(`✅ [Auto Balance]   - Surplus utilisés: ${totalSurplusUsed}€`)
-    console.log(`✅ [Auto Balance] Tirelire restante: ${remainingPiggyBank}€`)
-    console.log(`✅ [Auto Balance] Économies restantes: ${remainingSavings}€`)
-    console.log(`✅ [Auto Balance] Surplus restant: ${remainingSurplus}€`)
-    console.log(`✅ [Auto Balance] Déficit restant: ${remainingDeficit}€`)
 
     // Construire le message en fonction de ce qui a été utilisé
     const messageParts = []
@@ -688,7 +568,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
   } catch (error) {
     const handled = handleBadRequest(error)
     if (handled) return handled
-    console.error('❌ Erreur lors de la répartition automatique:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
 })
