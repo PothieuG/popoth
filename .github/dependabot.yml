@@ -55,14 +55,6 @@ updates:
       - dependency-name: 'tailwindcss'
         update-types:
           - 'version-update:semver-major'
-      # @supabase/supabase-js >=2.105 — introduced RejectExcessProperties
-      # strict typing that breaks 5 typechecks in app/api/monthly-recap/*
-      # (legacy code with [x: string]: any index signatures). Reverted
-      # 2026-05-07. Defer to dedicated Sprint Supabase-Strict-Types
-      # (couplé chantier I5 — extraction logique métier process-step1).
-      - dependency-name: '@supabase/supabase-js'
-        versions:
-          - '>=2.105.0'
       # eslint-config-next 16+ — pinned to 15.0.0 (CLAUDE.md §2). v16
       # requires ESLint 9 + flat config migration (Sprint 1 territory).
       - dependency-name: 'eslint-config-next'
