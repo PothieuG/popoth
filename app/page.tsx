@@ -1,24 +1,41 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAuthUser } from '@/contexts/AuthContext'
 
 /**
  * HomePage component - main landing page of the application
- * Redirects to dashboard if logged in, shows login/register buttons otherwise
+ *
+ * Sprint P10-Fix-Home-Flicker: waits on AuthContext.loading before deciding
+ * what to render. Without the loading guard, the initial render shows the
+ * guest welcome page before INIT_SUCCESS fires (~50-300ms), then flashes to
+ * /dashboard for authenticated users via full page reload.
  */
 export default function HomePage() {
-  const { isLoggedIn } = useAuthUser()
+  const { loading, isLoggedIn } = useAuthUser()
+  const router = useRouter()
 
   useEffect(() => {
-    if (isLoggedIn) {
-      window.location.href = '/dashboard'
+    if (!loading && isLoggedIn) {
+      router.replace('/dashboard')
     }
-  }, [isLoggedIn])
+  }, [loading, isLoggedIn, router])
 
-  if (isLoggedIn) {
-    return null
+  if (loading || isLoggedIn) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4"
+      >
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <span className="sr-only">Chargement</span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -35,13 +52,13 @@ export default function HomePage() {
         {/* Action Buttons */}
         <div className="space-y-3">
           <Button
-            onClick={() => (window.location.href = '/connexion')}
+            onClick={() => router.push('/connexion')}
             className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"
           >
             Se connecter
           </Button>
           <Button
-            onClick={() => (window.location.href = '/inscription')}
+            onClick={() => router.push('/inscription')}
             variant="outline"
             className="h-12 w-full rounded-lg border-purple-300 text-lg font-semibold text-purple-600 transition-all duration-300 hover:border-purple-400 hover:bg-purple-50"
           >
