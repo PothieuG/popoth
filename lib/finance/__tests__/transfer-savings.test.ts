@@ -62,9 +62,7 @@ describe.skipIf(!ENABLED)('savings transfer RPCs (Sprint Atomicity-Savings)', ()
         .eq('profile_id', testUserId)
       if (error) throw error
     } else {
-      const { error } = await admin
-        .from('piggy_bank')
-        .insert({ profile_id: testUserId, amount })
+      const { error } = await admin.from('piggy_bank').insert({ profile_id: testUserId, amount })
       if (error) throw error
     }
   }
@@ -319,10 +317,7 @@ describe.skipIf(!ENABLED)('savings transfer RPCs (Sprint Atomicity-Savings)', ()
       Array.from(
         { length: 100 },
         () => () =>
-          transferBudgetToPiggyBank(
-            { profile_id: testUserId },
-            { fromBudgetId, amount: 1 },
-          ).then(
+          transferBudgetToPiggyBank({ profile_id: testUserId }, { fromBudgetId, amount: 1 }).then(
             () => 'ok' as const,
             (err: unknown) => ({ err: err instanceof Error ? err.message : String(err) }),
           ),

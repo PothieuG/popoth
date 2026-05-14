@@ -111,10 +111,7 @@ export async function POST(request: NextRequest) {
       .insert(testExpenses)
 
     if (insertExpensesError) {
-      logger.error(
-        "[Reset Budgets] Erreur lors de l'insertion des dépenses:",
-        insertExpensesError,
-      )
+      logger.error("[Reset Budgets] Erreur lors de l'insertion des dépenses:", insertExpensesError)
       return NextResponse.json(
         { error: "Erreur lors de l'insertion des dépenses" },
         { status: 500 },

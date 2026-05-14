@@ -66,9 +66,7 @@ describe('reset-password page', () => {
     await user.click(screen.getByRole('button', { name: /mettre à jour/i }))
     // Match the field error message specifically — the helper bullet list also
     // contains "Au moins 6 caractères" which would create ambiguity.
-    expect(
-      await screen.findByText(/Le mot de passe doit contenir au moins 6/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/Le mot de passe doit contenir au moins 6/i)).toBeInTheDocument()
     expect(updateUser).not.toHaveBeenCalled()
   })
 

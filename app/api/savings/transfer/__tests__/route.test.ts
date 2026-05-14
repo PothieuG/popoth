@@ -127,12 +127,22 @@ describe('POST /api/savings/transfer — budget→budget', () => {
 
     // FROM budget fetch
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'From',
+        estimated_amount: 200,
+        cumulated_savings: 100,
+      },
       error: null,
     })
     // TO budget fetch
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: '22222222-2222-4222-8222-222222222222', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
+      data: {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'To',
+        estimated_amount: 300,
+        cumulated_savings: 50,
+      },
       error: null,
     })
     savings.transferSavingsBetweenBudgets.mockResolvedValueOnce({
@@ -158,7 +168,11 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledTimes(1)
     expect(savings.transferSavingsBetweenBudgets).toHaveBeenCalledWith(
       { profile_id: 'profile-1' },
-      { fromBudgetId: '11111111-1111-4111-8111-111111111111', toBudgetId: '22222222-2222-4222-8222-222222222222', amount: 30 },
+      {
+        fromBudgetId: '11111111-1111-4111-8111-111111111111',
+        toBudgetId: '22222222-2222-4222-8222-222222222222',
+        amount: 30,
+      },
     )
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
@@ -176,11 +190,21 @@ describe('POST /api/savings/transfer — budget→budget', () => {
     const { supabase, savings, loggerMod } = await importMocks()
 
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: '11111111-1111-4111-8111-111111111111', name: 'From', estimated_amount: 200, cumulated_savings: 100 },
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'From',
+        estimated_amount: 200,
+        cumulated_savings: 100,
+      },
       error: null,
     })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: '22222222-2222-4222-8222-222222222222', name: 'To', estimated_amount: 300, cumulated_savings: 50 },
+      data: {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'To',
+        estimated_amount: 300,
+        cumulated_savings: 50,
+      },
       error: null,
     })
     savings.transferSavingsBetweenBudgets.mockRejectedValueOnce(new Error('atomic RPC fail'))

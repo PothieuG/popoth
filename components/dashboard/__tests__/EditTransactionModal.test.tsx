@@ -64,11 +64,7 @@ describe('EditTransactionModal', () => {
 
   it('renders nothing when transaction prop is null', () => {
     const { container } = render(
-      <EditTransactionModal
-        onClose={vi.fn()}
-        transaction={null}
-        transactionType="expense"
-      />,
+      <EditTransactionModal onClose={vi.fn()} transaction={null} transactionType="expense" />,
     )
     expect(container.querySelector('input[name="description"]')).toBeNull()
   })

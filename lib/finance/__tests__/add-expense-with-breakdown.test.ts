@@ -30,10 +30,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
   const testPassword = `expense-${randomUUID()}`
 
   async function resetPiggy(amount: number) {
-    const { error } = await admin
-      .from('piggy_bank')
-      .update({ amount })
-      .eq('profile_id', testUserId)
+    const { error } = await admin.from('piggy_bank').update({ amount }).eq('profile_id', testUserId)
     if (error) throw error
   }
 

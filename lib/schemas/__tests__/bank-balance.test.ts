@@ -10,7 +10,9 @@ describe('updateBankBalanceBodySchema', () => {
 
   it('rejects NaN, Infinity, missing balance, and non-number types', () => {
     expect(updateBankBalanceBodySchema.safeParse({ balance: Number.NaN }).success).toBe(false)
-    expect(updateBankBalanceBodySchema.safeParse({ balance: Number.POSITIVE_INFINITY }).success).toBe(false)
+    expect(
+      updateBankBalanceBodySchema.safeParse({ balance: Number.POSITIVE_INFINITY }).success,
+    ).toBe(false)
     expect(updateBankBalanceBodySchema.safeParse({ balance: '100' }).success).toBe(false)
     expect(updateBankBalanceBodySchema.safeParse({}).success).toBe(false)
   })

@@ -483,10 +483,7 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(piggyBankTransfers)
 
       if (transferError) {
-        logger.error(
-          '[Auto Balance] Erreur création transferts depuis tirelire',
-          transferError,
-        )
+        logger.error('[Auto Balance] Erreur création transferts depuis tirelire', transferError)
         return NextResponse.json(
           { error: "Erreur lors de l'application de la tirelire" },
           { status: 500 },

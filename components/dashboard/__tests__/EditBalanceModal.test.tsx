@@ -33,12 +33,7 @@ describe('EditBalanceModal', () => {
     const onSubmit = vi.fn(async () => undefined)
     const user = userEvent.setup()
     render(
-      <EditBalanceModal
-        isOpen={true}
-        currentBalance={0}
-        onSubmit={onSubmit}
-        onCancel={vi.fn()}
-      />,
+      <EditBalanceModal isOpen={true} currentBalance={0} onSubmit={onSubmit} onCancel={vi.fn()} />,
     )
     const balance = screen.getByLabelText(/Nouveau solde disponible/i) as HTMLInputElement
     await user.clear(balance)
@@ -55,12 +50,7 @@ describe('EditBalanceModal', () => {
     })
     const user = userEvent.setup()
     render(
-      <EditBalanceModal
-        isOpen={true}
-        currentBalance={0}
-        onSubmit={onSubmit}
-        onCancel={vi.fn()}
-      />,
+      <EditBalanceModal isOpen={true} currentBalance={0} onSubmit={onSubmit} onCancel={vi.fn()} />,
     )
     const balance = screen.getByLabelText(/Nouveau solde disponible/i) as HTMLInputElement
     await user.clear(balance)

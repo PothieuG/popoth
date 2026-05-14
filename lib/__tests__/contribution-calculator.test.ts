@@ -9,7 +9,10 @@ describe('calculateUserContribution', () => {
   it('happy path: proportional split between members with non-zero salaries', () => {
     // userSalary 1000 in a group of 3 members with total salaries 2000 → 50%
     // share of a 300€ budget → 150€ contribution, percentage = 15% of own salary.
-    const result = calculateUserContribution(1000, 300, [{ id: 'b', salary: 500 }, { id: 'c', salary: 500 }])
+    const result = calculateUserContribution(1000, 300, [
+      { id: 'b', salary: 500 },
+      { id: 'c', salary: 500 },
+    ])
     expect(result.isValid).toBe(true)
     expect(result.userContribution).toBe(150)
     expect(result.userPercentage).toBe(15)

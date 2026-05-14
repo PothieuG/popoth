@@ -132,4 +132,3 @@ export function formatPercentage(percentage: number): string {
     maximumFractionDigits: 1,
   }).format(percentage / 100)
 }
-
