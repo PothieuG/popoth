@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import DropdownMenu from '../ui/DropdownMenu'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
@@ -324,22 +325,7 @@ export default function PlanningDrawer({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className={cn(
-          // Override default centered modal sizing → fullscreen drawer
-          'inset-0 left-0 top-0 h-screen w-screen max-h-screen max-w-none translate-x-0 translate-y-0',
-          'sm:inset-0 sm:left-0 sm:max-w-none sm:translate-x-0',
-          // Drop centered-modal chrome
-          'rounded-none border-0 p-0 shadow-none sm:rounded-none',
-          // Drawer body
-          'flex flex-col gap-0 bg-white',
-          // Override animations: slide from bottom (mirror current translate-y behavior)
-          'data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom',
-          'data-[state=open]:zoom-in-100 data-[state=closed]:zoom-out-100',
-          'duration-300',
-        )}
-      >
+      <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
         {/* Drag Handle (decorative) */}
         <div className="flex justify-center pb-2 pt-3">
           <div className="h-1 w-12 rounded-full bg-gray-300"></div>
