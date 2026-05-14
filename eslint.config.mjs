@@ -26,7 +26,11 @@ const eslintConfig = [
       'unused-imports': unusedImports,
     },
     rules: {
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // Sprint Cleanup-I8 / Lot 6 (2026-05-14) — activation globale après
+      // sweep final des 3 routes monthly-recap stateful. console.warn/error
+      // restent allow-listés (intentional ad-hoc logging), tout autre
+      // console.* est désormais une error globale.
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       'unused-imports/no-unused-imports': 'error',
