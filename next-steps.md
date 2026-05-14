@@ -64,8 +64,8 @@ Dans le menu du groupe (settings) :
 
 Enlever l'entrée "Se déconnecter" dans les options "Mon groupe" — la déconnexion n'a rien à faire ici, elle est dans le menu utilisateur global.
 
-## P10 — Fix flicker page d'accueil
+---
 
-**Domaine** : auth / UX
+## Livrés
 
-Régler le flicker de la page d'information visible quand on arrive sur le site. Probablement lié au flow `useAuthUser()` initial render avant validation de session ([contexts/AuthContext.tsx](contexts/AuthContext.tsx) `INIT_START` → `INIT_SUCCESS`).
+- **P10 — Fix flicker page d'accueil** ✅ livré 2026-05-14 (Sprint P10-Fix-Home-Flicker, cf. [CLAUDE.md §11](CLAUDE.md))
