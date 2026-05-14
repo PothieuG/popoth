@@ -81,18 +81,42 @@ vi.mock('@/hooks/useBudgets', () => ({
     budgets: [
       { id: BUDGET_UUID, name: 'Alimentation', estimated_amount: 500, cumulated_savings: 0 },
     ],
+    loading: false,
+    error: null,
+    addBudget: vi.fn(async () => true),
+    updateBudget: vi.fn(async () => true),
+    deleteBudget: vi.fn(async () => true),
+    refreshBudgets: vi.fn(),
+    totalBudgets: 500,
   }),
 }))
 vi.mock('@/hooks/useIncomes', () => ({
   useIncomes: () => ({
     incomes: [{ id: INCOME_UUID, name: 'Salaire', estimated_amount: 1500 }],
+    loading: false,
+    error: null,
+    addIncome: vi.fn(async () => true),
+    updateIncome: vi.fn(async () => true),
+    deleteIncome: vi.fn(async () => true),
+    refreshIncomes: vi.fn(),
+    totalIncomes: 1500,
   }),
 }))
 vi.mock('@/hooks/useRealExpenses', () => ({
-  useRealExpenses: () => ({ addExpense, expenses: [] }),
+  useRealExpenses: () => ({
+    addExpense,
+    updateExpense: vi.fn(async () => true),
+    deleteExpense: vi.fn(async () => true),
+    expenses: [],
+  }),
 }))
 vi.mock('@/hooks/useRealIncomes', () => ({
-  useRealIncomes: () => ({ addIncome, incomes: [] }),
+  useRealIncomes: () => ({
+    addIncome,
+    updateIncome: vi.fn(async () => true),
+    deleteIncome: vi.fn(async () => true),
+    incomes: [],
+  }),
 }))
 vi.mock('@/hooks/useProgressData', () => ({
   useProgressData: () => ({ expenseProgress: {} }),
@@ -137,6 +161,49 @@ vi.mock('@/components/ui/CustomDropdown', () => ({
   ),
 }))
 
+// ─── Sprint v9 mocks (PlanningDrawer + SavingsDistribution + Group modals) ───
+
+vi.mock('@/hooks/useBudgetProgress', () => ({
+  useBudgetProgress: () => ({
+    budgetProgresses: [],
+    loading: false,
+    error: null,
+    refreshProgress: vi.fn(),
+  }),
+}))
+vi.mock('@/hooks/useIncomeProgress', () => ({
+  useIncomeProgress: () => ({
+    incomeProgresses: [],
+    loading: false,
+    error: null,
+    refreshProgress: vi.fn(),
+  }),
+}))
+vi.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: { id: 'u1', group_id: null } }),
+}))
+vi.mock('@/hooks/useGroupMembers', () => ({
+  useGroupMembers: () => ({
+    members: [],
+    isLoading: false,
+    error: null,
+    fetchGroupMembers: vi.fn(),
+    clearMembers: vi.fn(),
+  }),
+}))
+vi.mock('@/hooks/useGroupContributions', () => ({
+  useGroupContributions: () => ({
+    contributions: [],
+    groupInfo: null,
+    isLoading: false,
+    error: null,
+    fetchContributions: vi.fn(),
+  }),
+}))
+vi.mock('@tanstack/react-query', () => ({
+  useQuery: () => ({ data: undefined, isLoading: false, error: null }),
+}))
+
 // ─── Imports (after mocks) ──────────────────────────────────────────────
 
 import ConnexionPage from '@/app/connexion/page'
@@ -146,6 +213,15 @@ import NouveauMotDePassePage from '@/app/reset-password/page'
 import InscriptionPage from '@/app/inscription/page'
 import AddIncomeDialog from '@/components/dashboard/AddIncomeDialog'
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
+import EditIncomeDialog from '@/components/dashboard/EditIncomeDialog'
+import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
+import GroupMembersWithContributionsModal from '@/components/groups/GroupMembersWithContributionsModal'
+import DeleteGroupModal from '@/components/groups/DeleteGroupModal'
+import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
+import PlanningDrawer from '@/components/dashboard/PlanningDrawer'
+import SavingsDistributionDrawer from '@/components/dashboard/SavingsDistributionDrawer'
+import type { GroupData } from '@/app/api/groups/route'
+import type { RealExpense } from '@/hooks/useRealExpenses'
 
 describe('axe-core a11y audit (regression-guard)', () => {
   beforeEach(() => {
@@ -253,6 +329,209 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
     await waitFor(() => {
       expect(screen.getByText('Ajouter une transaction')).toBeInTheDocument()
     })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  // ─── Sprint v9 / Axe 1 — extended focus-trap coverage for remaining v8 modals ──
+
+  it('AddBudgetDialog: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <AddBudgetDialog
+        isOpen
+        onClose={onClose}
+        onSave={async () => true}
+        currentBudgetsTotal={500}
+        totalEstimatedIncome={2000}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Nouveau Budget')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('AddIncomeDialog: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <AddIncomeDialog isOpen onClose={onClose} onSave={async () => true} currentIncomesTotal={1500} />,
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Nouveau Revenu')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('EditIncomeDialog: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    const income = {
+      id: INCOME_UUID,
+      name: 'Salaire',
+      estimated_amount: 1500,
+      is_monthly_recurring: true,
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
+    render(
+      <EditIncomeDialog
+        isOpen
+        onClose={onClose}
+        onSave={async () => true}
+        income={income}
+        currentIncomesTotal={1500}
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByText('Modifier le revenu')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('EditTransactionModal: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    const transaction: RealExpense = {
+      id: '33333333-3333-4333-8333-333333333333',
+      amount: 50,
+      description: 'Test expense',
+      expense_date: '2026-05-14',
+      is_exceptional: false,
+      created_at: '2026-05-14T00:00:00Z',
+      estimated_budget_id: BUDGET_UUID,
+    }
+    render(
+      <EditTransactionModal
+        isOpen
+        onClose={onClose}
+        transaction={transaction}
+        transactionType="expense"
+      />,
+    )
+    // Title "Modifier la dépense" appears in both the H2 heading and the submit
+    // button. Target the heading specifically (level 2) to disambiguate.
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: /Modifier la dépense/i })).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('ConfirmationDialog: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const onConfirm = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <ConfirmationDialog
+        isOpen
+        onClose={onClose}
+        onConfirm={onConfirm}
+        title="Confirmer l'action"
+        message="Êtes-vous sûr ?"
+      />,
+    )
+    await waitFor(() => {
+      expect(screen.getByText("Confirmer l'action")).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('DeleteGroupModal: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const onConfirm = vi.fn(async () => true)
+    const user = userEvent.setup()
+    const group: GroupData = {
+      id: '44444444-4444-4444-8444-444444444444',
+      name: 'Mon groupe',
+      monthly_budget_estimate: 2000,
+      creator_id: 'u1',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
+    render(<DeleteGroupModal group={group} isOpen onClose={onClose} onConfirm={onConfirm} />)
+    await waitFor(() => {
+      expect(screen.getByText('Supprimer le groupe')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('GroupMembersWithContributionsModal: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    const group: GroupData = {
+      id: '44444444-4444-4444-8444-444444444444',
+      name: 'Mon groupe',
+      monthly_budget_estimate: 2000,
+      creator_id: 'u1',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    }
+    render(<GroupMembersWithContributionsModal group={group} isOpen onClose={onClose} />)
+    await waitFor(() => {
+      expect(screen.getByText('Membres et contributions')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('PlanningDrawer: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<PlanningDrawer isOpen onClose={onClose} />)
+    await waitFor(() => {
+      expect(screen.getByText('Planification Financière')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('SavingsDistributionDrawer: Esc keydown invokes onClose', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<SavingsDistributionDrawer isOpen onClose={onClose} />)
+    await waitFor(() => {
+      expect(screen.getByText('Répartition des Économies')).toBeInTheDocument()
+    })
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('PlanningDrawer with AddBudget child: Esc closes child first, then drawer', async () => {
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<PlanningDrawer isOpen onClose={onClose} />)
+    await waitFor(() => {
+      expect(screen.getByText('Planification Financière')).toBeInTheDocument()
+    })
+
+    // Open child via the "Ajouter un budget" button (PlanningDrawer.tsx L468-473)
+    const addBudgetBtn = screen.getByRole('button', { name: /ajouter un budget/i })
+    await user.click(addBudgetBtn)
+
+    // Wait for lazy-loaded AddBudgetDialog (next/dynamic ssr:false)
+    await waitFor(
+      () => {
+        expect(screen.getByText('Nouveau Budget')).toBeInTheDocument()
+      },
+      { timeout: 3000 },
+    )
+
+    // First Esc — closes the child (Radix portal stacking)
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByText('Nouveau Budget')).not.toBeInTheDocument()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+
+    // Second Esc — closes the parent drawer
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
   })
