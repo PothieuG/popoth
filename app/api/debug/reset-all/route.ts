@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { blockInProduction } from '@/lib/debug-guard'
+import { resetAllBodySchema } from '@/lib/schemas/debug'
 import { logger } from '@/lib/logger'
 
 /**
@@ -18,6 +19,22 @@ export async function POST(request: NextRequest) {
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
+    }
+
+    // Body validation — schema vide, pattern miroir retrigger-recap pour
+    // accepter un body absent ou {} sans rejeter.
+    let rawBody: unknown = {}
+    try {
+      rawBody = await request.json()
+    } catch {
+      // No body or malformed → use empty default
+    }
+    const parsed = resetAllBodySchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Body invalide', issues: parsed.error.issues },
+        { status: 400 },
+      )
     }
 
     const userId = sessionData.userId
