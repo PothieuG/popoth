@@ -262,6 +262,62 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     )
   })
 
+  it('P5 toggle use_savings=true: savings consumed first, then budget', async () => {
+    // Sprint P4-P5-P6 / P5 — when the user opts in to drawing from savings
+    // (toggle on), the breakdown reverses priority: savings first, budget
+    // second. Same RPC, different breakdown shape.
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
+      data: { amount: 100 },
+      error: null,
+    })
+    // budgetRemaining will be 200 - 0 = 200, savings = 30
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Budget 1',
+        estimated_amount: 200,
+        cumulated_savings: 30,
+      },
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-3' })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: 'rx-3', amount: 100, description: 'Lunch', estimated_budget: { name: 'B' } },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    // amount=100, savings=30, budget=200, use_savings=true → savings 30 first, budget 70
+    const response = await POST(
+      buildRequest({
+        amount: 100,
+        description: 'Lunch',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+        use_savings: true,
+      }),
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.breakdown).toMatchObject({
+      from_piggy_bank: 0,
+      from_budget_savings: 30,
+      from_budget: 70,
+    })
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amountFromPiggyBank: 0,
+        amountFromBudgetSavings: 30,
+        amountFromBudget: 70,
+      }),
+    )
+  })
+
   it('atomic RPC throws (overdraft or INSERT failure): 500, no fallback ops', async () => {
     // Consolidates the pre-fix Cas 2 ("piggy RPC throws") and Cas 3 ("savings
     // RPC throws") — post-fix all overdraft / INSERT failures funnel through

@@ -19,6 +19,10 @@ export interface AddExpenseWithLogicRequest {
   expense_date?: string
   estimated_budget_id?: string
   is_for_group?: boolean
+  /** Sprint P4-P5-P6 / P5 toggle — see `addExpenseWithLogicBodySchema`. */
+  use_savings?: boolean
+  /** Sprint P4-P5-P6 / P4 Phase 2 — see `addExpenseWithLogicBodySchema`. */
+  cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
 }
 
 export interface ExpenseBreakdown {
@@ -53,7 +57,7 @@ export interface ExpenseBreakdown {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
-    const { amount, description, expense_date, estimated_budget_id } = body
+    const { amount, description, expense_date, estimated_budget_id, use_savings } = body
     const is_for_group = body.is_for_group ?? false
 
     // Determine profile_id or group_id
@@ -167,13 +171,15 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         )
       }, 0) || 0
 
-    // Step 4: Calculate the breakdown (P4 strict — budget first, savings cascade
-    // only on overflow; piggy never auto-debited).
+    // Step 4: Calculate the breakdown. P5 toggle (use_savings) opts in to
+    // savings-first ; otherwise P4 strict (budget first, savings cascade
+    // on overflow). Piggy never auto-debited in either mode.
     const budgetRemaining = (budgetData.estimated_amount || 0) - budgetSpentBefore
     const { fromPiggyBank, fromBudgetSavings, fromBudget, overflow } = calculateBreakdown(
       amount,
       budgetRemaining,
       savingsBefore,
+      { useSavingsToggle: use_savings },
     )
 
     // Overflow > 0 = amount > budgetRemaining + savings. Without cross-budget

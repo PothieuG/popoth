@@ -37,6 +37,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budget_id: budgetId,
       context,
       expense_id: expenseId,
+      use_savings: useSavings,
     } = parseQuery(request, previewBreakdownQuerySchema)
 
     // Determine context filter
@@ -133,11 +134,14 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     // Calculate breakdown via shared P4-strict algorithm (DRY with the
-    // POST handler). Overflow > 0 is absorbed into fromBudget as overshoot
-    // (same semantic as the POST handler). Phase 2 cross-budget will swap
-    // this for an explicit cross-budget array param.
+    // POST handler). P5 toggle (use_savings) opts in to savings-first.
+    // Overflow > 0 is absorbed into fromBudget as overshoot (same semantic
+    // as the POST handler). Phase 2 cross-budget will swap this for an
+    // explicit cross-budget array param.
     const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
-    const allocation = calculateBreakdown(amount, budgetRemaining, savingsBefore)
+    const allocation = calculateBreakdown(amount, budgetRemaining, savingsBefore, {
+      useSavingsToggle: useSavings,
+    })
     const fromPiggyBank = allocation.fromPiggyBank
     const fromBudgetSavings = allocation.fromBudgetSavings
     const fromBudget = allocation.fromBudget + allocation.overflow
