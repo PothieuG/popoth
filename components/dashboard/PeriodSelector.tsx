@@ -47,9 +47,7 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
             className={cn(
               'rounded-sm px-3 py-1 text-sm font-medium transition-colors',
               'focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-hidden',
-              isChecked
-                ? 'bg-white text-gray-900 shadow-xs'
-                : 'text-gray-600 hover:text-gray-900',
+              isChecked ? 'bg-white text-gray-900 shadow-xs' : 'text-gray-600 hover:text-gray-900',
             )}
           >
             {opt.label}

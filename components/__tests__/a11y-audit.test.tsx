@@ -17,7 +17,9 @@ import EditBudgetDialog from '@/components/dashboard/EditBudgetDialog'
 // ─── Shared mocks (hoisted) ─────────────────────────────────────────────
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => '/dashboard',
 }))
 
 vi.mock('@/hooks/useAuth', () => ({

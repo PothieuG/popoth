@@ -852,7 +852,8 @@ export default function AddTransactionModal({
                           <span>
                             <span className="font-medium">{b.name}</span>
                             <span className="ml-2 text-xs text-orange-700">
-                              ({savings.toLocaleString('fr-FR', {
+                              (
+                              {savings.toLocaleString('fr-FR', {
                                 style: 'currency',
                                 currency: 'EUR',
                               })}{' '}

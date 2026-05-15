@@ -58,10 +58,7 @@ export default function TransactionTabsComponent({
   } = useRealIncomes(context)
 
   // Sprint P1 — filter CSR by period. Range null = no filter applied.
-  const dateRange = useMemo(
-    () => (period ? computePeriodDateRange(period) : null),
-    [period],
-  )
+  const dateRange = useMemo(() => (period ? computePeriodDateRange(period) : null), [period])
   const filteredExpenses = useMemo(() => {
     if (!dateRange) return expenses
     return expenses.filter(
