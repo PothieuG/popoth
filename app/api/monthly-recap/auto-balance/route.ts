@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
-import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { transferPiggyToBudgetWithInsert } from '@/lib/finance/piggy-bank'
 import { transferWithSavingsDebit } from '@/lib/finance/budget-transfers'
 import { asContextFilter } from '@/lib/finance/context'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
@@ -424,58 +424,30 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       }
     }
 
-    // 2a. Traiter les transferts depuis la tirelire
-    // La tirelire est stockée dans la table piggy_bank.
-    // Quand on l'utilise, on doit:
-    // 1. Déduire le montant utilisé de piggy_bank.amount
-    // 2. Créer des budget_transfers avec from_budget_id = null pour représenter la tirelire
-    //    Cela permet aux budgets déficitaires de voir leur transfersTo augmenter
-    //    et donc de réduire leur déficit ajusté
+    // 2a. Apply piggy transfers atomically per (NULL, to) pair via composite RPC.
+    //     Each call composes update_piggy_bank_amount(-amount) + INSERT
+    //     budget_transfers (from_budget_id=NULL) into a single Postgres
+    //     transaction — Sprint Auto-Balance-Atomic-Phase-B (mirror commit 1).
+    //     Pre-refactor this was the reversed pattern (aggregate piggy debit,
+    //     then batched INSERT): an INSERT failure after the debit succeeded
+    //     left piggy debited with no audit-trail row to reconcile. Fail-soft
+    //     on any individual transfer — the Postgres tx rolls back atomically,
+    //     no risk of half-applied state for that pair (cohérent PHASE 1
+    //     savings fail-soft adopté Sprint Auto-Balance-Atomic).
     const transfersFromPiggyBank = transfers.filter((t) => t.from_budget_id === null)
-
-    if (transfersFromPiggyBank.length > 0 && totalPiggyBankUsed > 0) {
-      // 1. Déduire le montant utilisé de la tirelire (atomique via RPC)
-      const newPiggyBankAmount = Math.max(0, piggyBank - totalPiggyBankUsed)
-      const piggyDelta = newPiggyBankAmount - piggyBank
-
+    for (const transfer of transfersFromPiggyBank) {
       try {
-        await updatePiggyBank(filter, piggyDelta)
-      } catch (updateError) {
-        logger.error('[Auto Balance] Erreur mise à jour tirelire', updateError)
-        return NextResponse.json(
-          { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 },
-        )
-      }
-
-      // 2. Créer des budget_transfers pour chaque budget qui reçoit de l'argent de la tirelire
-      // IMPORTANT: from_budget_id = null représente la tirelire
-      // Ces transferts seront comptés dans transfersTo pour réduire le déficit
-      const piggyBankTransfers: TablesInsert<'budget_transfers'>[] = transfersFromPiggyBank.map(
-        (transfer) => {
-          const base = {
-            from_budget_id: null, // null = tirelire (revenus exceptionnels)
-            to_budget_id: transfer.to_budget_id,
-            transfer_amount: transfer.amount,
-            transfer_reason: `Tirelire → ${transfer.to_budget_name} (auto-balance récap)`,
-            transfer_date: new Date().toISOString().split('T')[0]!,
-          }
-          return context === 'profile'
-            ? { ...base, profile_id: contextId }
-            : { ...base, group_id: contextId }
-        },
-      )
-
-      const { error: transferError } = await supabaseServer
-        .from('budget_transfers')
-        .insert(piggyBankTransfers)
-
-      if (transferError) {
-        logger.error('[Auto Balance] Erreur création transferts depuis tirelire', transferError)
-        return NextResponse.json(
-          { error: "Erreur lors de l'application de la tirelire" },
-          { status: 500 },
-        )
+        await transferPiggyToBudgetWithInsert(filter, {
+          toBudgetId: transfer.to_budget_id,
+          amount: transfer.amount,
+          reason: `Tirelire → ${transfer.to_budget_name} (auto-balance récap)`,
+        })
+      } catch (error) {
+        logger.warn('[Auto Balance] transferPiggyToBudgetWithInsert failed (fail-soft)', {
+          toBudgetId: transfer.to_budget_id,
+          amount: transfer.amount,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
 
