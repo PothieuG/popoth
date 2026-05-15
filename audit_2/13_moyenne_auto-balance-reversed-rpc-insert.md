@@ -1,5 +1,7 @@
 # 13 — auto-balance reversed RPC→INSERT pattern (bug latent atomicité)
 
+> ⚠️ **Prompt DONE 2026-05-15 — STALE, ne plus exécuter.** Livré via Sprint Auto-Balance-Atomic (commit refactor `b5c2158` + closeout CLAUDE.md). Pattern A (savings) fermé via `transferWithSavingsDebit` per-pair (mirror step1-persist.ts step 2.4.2). Pattern B (piggy reversed) reste documenté hors scope — fix nécessite nouvelle composite RPC `transfer_piggy_to_budget_with_insert`, sprint séparé. Voir CLAUDE.md §11 entrée Sprint Auto-Balance-Atomic pour le détail.
+
 ## En-tête
 
 | Champ | Valeur |
