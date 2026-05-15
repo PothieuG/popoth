@@ -3,21 +3,18 @@ import { updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { asContextFilter } from '@/lib/finance/context'
 import { logger } from '@/lib/logger'
+import {
+  calculateBreakdown,
+  type AllocationBreakdown,
+  type CalculateBreakdownOptions,
+} from './expense-breakdown'
 
-export interface AllocationBreakdown {
-  fromPiggyBank: number
-  fromBudgetSavings: number
-  fromBudget: number
-  /**
-   * Amount remaining after all local cascades (budget + local savings).
-   * `overflow > 0` signals that Phase 2 cross-budget cascade is needed
-   * (handled separately by the route handler / UI step). The consumer
-   * MUST handle non-zero overflow explicitly — leaving it unhandled
-   * means the breakdown doesn't sum to `amount` and downstream RPCs
-   * will reject the insert.
-   */
-  overflow: number
-}
+// Re-export the pure algorithm + types so existing consumers (route handlers,
+// tests) keep their `@/lib/expense-allocation` import path unchanged.
+// Client-side hooks should prefer importing directly from `./expense-breakdown`
+// to avoid pulling in `supabase-server` (and its service_role client).
+export { calculateBreakdown }
+export type { AllocationBreakdown, CalculateBreakdownOptions }
 
 export interface ApplyAllocationResult extends AllocationBreakdown {
   piggyBankBefore: number
@@ -35,77 +32,6 @@ interface ExpenseWithBreakdown {
   amount_from_budget_savings?: number | null
   amount_from_budget?: number | null
   estimated_budget_id?: string | null
-}
-
-export interface CalculateBreakdownOptions {
-  /**
-   * P5 opt-in toggle "Utiliser les économies de ce budget" — when true,
-   * the user actively chose to draw from the budget's local savings even
-   * if the budget still has room. Savings consumed BEFORE the budget.
-   *
-   * When false (default): P4 strict — budget consumed first, savings
-   * cascade only on overflow (budget remaining < amount).
-   */
-  useSavingsToggle?: boolean
-}
-
-/**
- * Calcule la répartition d'un montant sur les sources disponibles selon le mode P4 strict.
- *
- * **P4 strict default (toggle off)** :
- * - Priorité 1: budget (jusqu'à budgetRemaining)
- * - Priorité 2 (cascade overflow): économies du budget (jusqu'à savingsAvailable)
- * - Tirelire : JAMAIS auto-débitée (`fromPiggyBank` toujours 0)
- *
- * **P5 opt-in (toggle on)** :
- * - Priorité 1: économies du budget (jusqu'à savingsAvailable)
- * - Priorité 2: budget (jusqu'à budgetRemaining)
- *
- * Si après les 2 priorités il reste un montant non alloué, `overflow > 0`
- * signale qu'une cascade cross-budget (Phase 2) est nécessaire — la
- * couche supérieure (route handler / UI step) doit proposer le user-choice
- * et soumettre via la composite RPC `add_expense_with_cross_budget_cascade`.
- *
- * **Note historique** : avant Sprint P4-P5-P6, la signature était
- * `calculateBreakdown(amount, piggyBankAvailable, savingsAvailable)` et la
- * priorité 1 était la tirelire (cascade aggressive). Le comportement actuel
- * matche la spec next-steps.md P4 : "si un budget dépasse son enveloppe …".
- */
-export function calculateBreakdown(
-  amount: number,
-  budgetRemaining: number,
-  savingsAvailable: number,
-  options: CalculateBreakdownOptions = {},
-): AllocationBreakdown {
-  const { useSavingsToggle = false } = options
-  let remaining = amount
-  let fromBudget = 0
-  let fromBudgetSavings = 0
-  const fromPiggyBank = 0 // P4 strict: tirelire jamais auto-débitée
-
-  if (useSavingsToggle) {
-    // P5 opt-in: savings d'abord, budget ensuite
-    if (savingsAvailable > 0) {
-      fromBudgetSavings = Math.min(remaining, savingsAvailable)
-      remaining -= fromBudgetSavings
-    }
-    if (remaining > 0 && budgetRemaining > 0) {
-      fromBudget = Math.min(remaining, budgetRemaining)
-      remaining -= fromBudget
-    }
-  } else {
-    // P4 strict default: budget d'abord, savings cascade overflow
-    if (budgetRemaining > 0) {
-      fromBudget = Math.min(remaining, budgetRemaining)
-      remaining -= fromBudget
-    }
-    if (remaining > 0 && savingsAvailable > 0) {
-      fromBudgetSavings = Math.min(remaining, savingsAvailable)
-      remaining -= fromBudgetSavings
-    }
-  }
-
-  return { fromPiggyBank, fromBudgetSavings, fromBudget, overflow: remaining }
 }
 
 /**
