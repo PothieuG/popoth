@@ -322,11 +322,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
     // Sprint P4-P5-P6 / B1 — wizard refactored. Step 1 title is now
     // "Type de transaction" (was "Ajouter une transaction" pre-wizard).
     const onClose = vi.fn()
-    await expectEscClose(
-      <AddTransactionModal onClose={onClose} />,
-      onClose,
-      'Type de transaction',
-    )
+    await expectEscClose(<AddTransactionModal onClose={onClose} />, onClose, 'Type de transaction')
   })
 
   // ─── Sprint v9 / Axe 1 — extended focus-trap coverage for remaining v8 modals ──

@@ -1,4 +1,5 @@
 import { supabaseServer } from '@/lib/supabase-server'
+import type { Json } from '@/lib/database.types'
 
 import { resolveContextIds, type ContextFilter } from './context'
 
@@ -93,7 +94,11 @@ export async function addExpenseWithCrossBudgetCascade(
     p_amount_from_piggy_bank: args.amountFromPiggyBank,
     p_amount_from_local_savings: args.amountFromLocalSavings,
     p_amount_from_budget: args.amountFromBudget,
-    p_cross_budget_debits: args.crossBudgetDebits,
+    // The RPC's jsonb param is typed `Json` in the generated types; our
+    // structured CrossBudgetDebit[] lacks the index signature `[key: string]:
+    // Json | undefined` so a cast via unknown is the standard supabase-js
+    // workaround (also see budget-transfers.ts pattern).
+    p_cross_budget_debits: args.crossBudgetDebits as unknown as Json,
     p_profile_id: profile_id,
     p_group_id: group_id,
   })

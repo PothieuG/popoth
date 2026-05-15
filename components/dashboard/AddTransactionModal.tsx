@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -20,6 +20,7 @@ import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPrev
 import { useProgressData } from '@/hooks/useProgressData'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useRavValidation } from '@/hooks/useRavValidation'
+import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import {
   addTransactionFormSchema,
@@ -82,6 +83,10 @@ export default function AddTransactionModal({
   const [serverError, setServerError] = useState<string | null>(null)
   const [wizardStep, setWizardStep] = useState<WizardStep>('select-type')
   const [useSavings, setUseSavings] = useState(false)
+  // P4 Phase 2 — ordered list of budget IDs the user selected to source
+  // cross-budget savings from. Drained first-fit in selection order to
+  // cover the overflow (each entry takes min(remaining, its savings)).
+  const [crossBudgetSelected, setCrossBudgetSelected] = useState<string[]>([])
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
@@ -134,6 +139,60 @@ export default function AddTransactionModal({
     savingsAvailable,
     useSavingsToggle: useSavings,
   })
+
+  // P4 Phase 2 — compute the overflow (amount not covered by destination
+  // budget + its local savings). When > 0, the user is offered to draw
+  // from OTHER budgets' savings (cross-budget cascade). The list of
+  // currently-selected sources is allocated first-fit in selection order.
+  const budgetProgress = expenseProgress[budgetId]
+  const budgetRemainingLocal = budgetProgress
+    ? budgetProgress.estimatedAmount - budgetProgress.spentAmount
+    : 0
+  const localBreakdown =
+    transactionType === 'expense' && !isExceptional && budgetId
+      ? calculateBreakdown(previewSafe, budgetRemainingLocal, savingsAvailable, {
+          useSavingsToggle: useSavings,
+        })
+      : null
+  const overflow = localBreakdown?.overflow ?? 0
+
+  const { crossBudgetAllocations, crossBudgetTotal, remainingOvershoot } = useMemo(() => {
+    if (overflow <= 0) {
+      return { crossBudgetAllocations: [], crossBudgetTotal: 0, remainingOvershoot: 0 }
+    }
+    const allocations: Array<{ budget_id: string; amount: number }> = []
+    let remaining = overflow
+    for (const id of crossBudgetSelected) {
+      if (remaining <= 0) break
+      const b = budgets.find((x) => x.id === id)
+      const available = b?.cumulated_savings ?? 0
+      const take = Math.min(remaining, available)
+      if (take > 0) {
+        allocations.push({ budget_id: id, amount: take })
+        remaining -= take
+      }
+    }
+    const total = allocations.reduce((s, a) => s + a.amount, 0)
+    return {
+      crossBudgetAllocations: allocations,
+      crossBudgetTotal: total,
+      remainingOvershoot: Math.max(0, overflow - total),
+    }
+  }, [overflow, crossBudgetSelected, budgets])
+
+  const availableCrossBudgets = budgets.filter(
+    (b) => b.id !== budgetId && (b.cumulated_savings ?? 0) > 0,
+  )
+
+  const toggleCrossBudget = (id: string) => {
+    setCrossBudgetSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  // Reset cross-budget selection when key fields change (avoid stale state)
+  // when user changes the destination budget or the amount.
+  const resetCrossBudget = () => setCrossBudgetSelected([])
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
@@ -263,6 +322,8 @@ export default function AddTransactionModal({
             : (data.estimated_budget_id ?? undefined),
           is_for_group: context === 'group',
           use_savings: useSavings,
+          cross_budget_cascade:
+            crossBudgetAllocations.length > 0 ? crossBudgetAllocations : undefined,
         })
       } else {
         success = await addIncome({
@@ -350,9 +411,7 @@ export default function AddTransactionModal({
         {/* Step 1: select transaction type */}
         {wizardStep === 'select-type' && (
           <div className="flex-1 space-y-4 overflow-y-auto p-6">
-            <p className="text-sm text-gray-600">
-              Choisissez le type de transaction à ajouter.
-            </p>
+            <p className="text-sm text-gray-600">Choisissez le type de transaction à ajouter.</p>
             <div className="flex flex-col space-y-3">
               <button
                 type="button"
@@ -511,7 +570,9 @@ export default function AddTransactionModal({
                   </svg>
                   <div>
                     <p className="font-medium text-orange-700">Exceptionnelle</p>
-                    <p className="text-xs text-orange-600">Hors budget (impacte directement le RAV)</p>
+                    <p className="text-xs text-orange-600">
+                      Hors budget (impacte directement le RAV)
+                    </p>
                   </div>
                 </div>
               </button>
@@ -714,32 +775,113 @@ export default function AddTransactionModal({
 
             {/* P5: "Utiliser les économies" toggle — only for budgeted expense
                 with a selected budget that has savings */}
-            {transactionType === 'expense' && !isExceptional && budgetId && savingsAvailable > 0 && (
-              <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                <div className="flex items-start space-x-3">
-                  <input
-                    type="checkbox"
-                    id="use-savings"
-                    checked={useSavings}
-                    onChange={(e) => setUseSavings(e.target.checked)}
-                    disabled={isSubmitting}
-                    className="mt-1 h-4 w-4 rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
-                  />
-                  <div className="flex-1">
-                    <Label
-                      htmlFor="use-savings"
-                      className="cursor-pointer text-sm font-medium text-purple-900"
-                    >
-                      Utiliser les économies de ce budget
-                    </Label>
-                    <p className="mt-0.5 text-xs text-purple-700">
-                      {savingsAvailable.toLocaleString('fr-FR', {
+            {transactionType === 'expense' &&
+              !isExceptional &&
+              budgetId &&
+              savingsAvailable > 0 && (
+                <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                  <div className="flex items-start space-x-3">
+                    <input
+                      type="checkbox"
+                      id="use-savings"
+                      checked={useSavings}
+                      onChange={(e) => setUseSavings(e.target.checked)}
+                      disabled={isSubmitting}
+                      className="mt-1 h-4 w-4 rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
+                    />
+                    <div className="flex-1">
+                      <Label
+                        htmlFor="use-savings"
+                        className="cursor-pointer text-sm font-medium text-purple-900"
+                      >
+                        Utiliser les économies de ce budget
+                      </Label>
+                      <p className="mt-0.5 text-xs text-purple-700">
+                        {savingsAvailable.toLocaleString('fr-FR', {
+                          style: 'currency',
+                          currency: 'EUR',
+                        })}{' '}
+                        disponibles. Activer pour puiser dans les économies avant le budget.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
+            {overflow > 0 && availableCrossBudgets.length > 0 && (
+              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-orange-900">
+                    Dépassement de{' '}
+                    {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={resetCrossBudget}
+                    disabled={isSubmitting || crossBudgetSelected.length === 0}
+                    className="text-xs text-orange-700 underline disabled:opacity-50"
+                  >
+                    Réinitialiser
+                  </button>
+                </div>
+                <p className="text-xs text-orange-800">
+                  Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
+                  dépassement.
+                </p>
+                <ul className="space-y-2">
+                  {availableCrossBudgets.map((b) => {
+                    const isSelected = crossBudgetSelected.includes(b.id)
+                    const savings = b.cumulated_savings ?? 0
+                    return (
+                      <li key={b.id}>
+                        <button
+                          type="button"
+                          onClick={() => toggleCrossBudget(b.id)}
+                          disabled={isSubmitting}
+                          className={cn(
+                            'flex w-full items-center justify-between rounded-md border p-2 text-left text-sm transition-all disabled:opacity-50',
+                            isSelected
+                              ? 'border-orange-400 bg-orange-100 text-orange-900'
+                              : 'border-orange-200 bg-white hover:bg-orange-50',
+                          )}
+                          aria-pressed={isSelected}
+                        >
+                          <span>
+                            <span className="font-medium">{b.name}</span>
+                            <span className="ml-2 text-xs text-orange-700">
+                              ({savings.toLocaleString('fr-FR', {
+                                style: 'currency',
+                                currency: 'EUR',
+                              })}{' '}
+                              dispo)
+                            </span>
+                          </span>
+                          {isSelected && (
+                            <span className="text-xs font-medium text-orange-700">✓</span>
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <div className="flex items-center justify-between rounded bg-white/60 p-2 text-xs">
+                  <span className="text-orange-900">
+                    Couvert :{' '}
+                    {crossBudgetTotal.toLocaleString('fr-FR', {
+                      style: 'currency',
+                      currency: 'EUR',
+                    })}
+                  </span>
+                  {remainingOvershoot > 0 && (
+                    <span className="font-medium text-red-700">
+                      Reste à découvert :{' '}
+                      {remainingOvershoot.toLocaleString('fr-FR', {
                         style: 'currency',
                         currency: 'EUR',
-                      })}{' '}
-                      disponibles. Activer pour puiser dans les économies avant le budget.
-                    </p>
-                  </div>
+                      })}
+                    </span>
+                  )}
                 </div>
               </div>
             )}

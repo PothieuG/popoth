@@ -3,7 +3,10 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { calculateBreakdown } from '@/lib/expense-allocation'
-import { addExpenseWithBreakdown } from '@/lib/finance/expenses'
+import {
+  addExpenseWithBreakdown,
+  addExpenseWithCrossBudgetCascade,
+} from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
@@ -57,7 +60,14 @@ export interface ExpenseBreakdown {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
-    const { amount, description, expense_date, estimated_budget_id, use_savings } = body
+    const {
+      amount,
+      description,
+      expense_date,
+      estimated_budget_id,
+      use_savings,
+      cross_budget_cascade,
+    } = body
     const is_for_group = body.is_for_group ?? false
 
     // Determine profile_id or group_id
@@ -182,36 +192,58 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       { useSavingsToggle: use_savings },
     )
 
-    // Overflow > 0 = amount > budgetRemaining + savings. Without cross-budget
-    // cascade (Phase 2 — not yet wired in this commit), we absorb the overflow
-    // as additional fromBudget (the budget goes into deficit). RAV impact is
-    // visible via budgetDeficits in the dashboard / RAV formula. User can
-    // cancel and reduce the amount if they don't want the overshoot.
-    const fromBudgetWithOverflow = fromBudget + overflow
+    // Cross-budget cascade (P4 Phase 2): if the client provided sources to
+    // draw from, dispatch to the multi-budget composite RPC. The cross-budget
+    // total covers part of the overflow; any remainder is absorbed as
+    // additional fromBudget (budget deficit, RAV impact). Without
+    // cross-budget cascade, all overflow goes to fromBudget.
+    const crossBudgetTotal = (cross_budget_cascade ?? []).reduce((s, x) => s + x.amount, 0)
+    const uncoveredOverflow = Math.max(0, overflow - crossBudgetTotal)
+    const fromBudgetWithOverflow = fromBudget + uncoveredOverflow
 
     const piggyBankAfter = piggyBankBefore - fromPiggyBank
     const savingsAfter = savingsBefore - fromBudgetSavings
     const budgetSpentAfter = budgetSpentBefore + fromBudgetWithOverflow
 
-    // Step 5: Single atomic op — piggy debit + savings debit + INSERT
-    // real_expenses in one Postgres tx. Overdraft (piggy or savings
-    // would go negative) or INSERT failure rolls back everything.
+    // Step 5: Single atomic op. Two paths depending on whether the client
+    // provided a cross-budget cascade:
+    //   - With cross-budget: `add_expense_with_cross_budget_cascade` debits
+    //     local savings + each cross-budget source + INSERTs in one tx.
+    //   - Without: `add_expense_with_breakdown` debits piggy + local savings
+    //     + INSERTs in one tx (piggy always 0 in P4 strict).
     const todayIso = new Date().toISOString().split('T')[0] as string
     let expenseId: string
     try {
-      const result = await addExpenseWithBreakdown(
-        contextFilter as unknown as FinanceContextFilter,
-        {
-          amount,
-          description,
-          expenseDate: expense_date || todayIso,
-          estimatedBudgetId: estimated_budget_id,
-          amountFromPiggyBank: fromPiggyBank,
-          amountFromBudgetSavings: fromBudgetSavings,
-          amountFromBudget: fromBudgetWithOverflow,
-        },
-      )
-      expenseId = result.expense_id
+      if (cross_budget_cascade && cross_budget_cascade.length > 0) {
+        const result = await addExpenseWithCrossBudgetCascade(
+          contextFilter as unknown as FinanceContextFilter,
+          {
+            amount,
+            description,
+            expenseDate: expense_date || todayIso,
+            estimatedBudgetId: estimated_budget_id,
+            amountFromPiggyBank: fromPiggyBank,
+            amountFromLocalSavings: fromBudgetSavings,
+            amountFromBudget: fromBudgetWithOverflow,
+            crossBudgetDebits: cross_budget_cascade,
+          },
+        )
+        expenseId = result.expense_id
+      } else {
+        const result = await addExpenseWithBreakdown(
+          contextFilter as unknown as FinanceContextFilter,
+          {
+            amount,
+            description,
+            expenseDate: expense_date || todayIso,
+            estimatedBudgetId: estimated_budget_id,
+            amountFromPiggyBank: fromPiggyBank,
+            amountFromBudgetSavings: fromBudgetSavings,
+            amountFromBudget: fromBudgetWithOverflow,
+          },
+        )
+        expenseId = result.expense_id
+      }
     } catch (rpcError) {
       logger.error('Erreur création dépense atomique:', rpcError)
       return NextResponse.json(
