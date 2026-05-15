@@ -4,15 +4,15 @@
 
 ## En-tête
 
-| Champ | Valeur |
-|-------|--------|
+| Champ               | Valeur                                                                                                                  |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **Source primaire** | [CLAUDE.md §11](../CLAUDE.md) entrée Sprint Atomicity-Expenses **Hors scope** + Sprint Atomicity-Savings **Hors scope** |
-| **Type** | bug latent |
-| **Priorité** | Moyenne |
-| **Effort estimé** | M (demi-journée) |
-| **Statut** | **Bloqué par chantier 01** (couplé I6) |
-| **Dépendances** | 01 (I6) — l'extraction du domaine monthly-recap stateful crée le contexte propre pour fixer ce pattern |
-| **Bloque** | — |
+| **Type**            | bug latent                                                                                                              |
+| **Priorité**        | Moyenne                                                                                                                 |
+| **Effort estimé**   | M (demi-journée)                                                                                                        |
+| **Statut**          | **Bloqué par chantier 01** (couplé I6)                                                                                  |
+| **Dépendances**     | 01 (I6) — l'extraction du domaine monthly-recap stateful crée le contexte propre pour fixer ce pattern                  |
+| **Bloque**          | —                                                                                                                       |
 
 ## Contexte
 
@@ -25,6 +25,7 @@ CLAUDE.md §11 entrée Sprint Atomicity-Savings (Hors scope) :
 > **Hors scope** (documenté dans le plan) : ... (b) `auto-balance/route.ts` reversed RPC→INSERT pattern → couplé I6.
 
 **Compréhension** : `app/api/monthly-recap/auto-balance/route.ts` contient **un pattern reversed** par rapport à process-step1 :
+
 - Dans process-step1 (Sprint Refactor-I5) : pattern correct = INSERT budget_transfers d'abord, puis debit cumulated_savings (corrigé Sprint Refactor-I5-followup-v2 via composite RPC `transfer_with_savings_debit`)
 - Dans auto-balance : pattern inverse = debit RPC d'abord, puis INSERT budget_transfers **séparément** (à confirmer Phase 1 par Read sur lines L517 vs L583/L621 mentionnées dans le code historique)
 
@@ -43,23 +44,28 @@ Identifier le pattern reversed `RPC → INSERT` dans `auto-balance/route.ts` (ou
 ### 2. Contexte technique
 
 **Fichier concerné** :
+
 - Pré-I6 : `app/api/monthly-recap/auto-balance/route.ts` (~700+ LOC, 53 console.log)
 - Post-I6 : si I6 a extrait auto-balance aussi (probable bundling), `lib/recap/auto-balance-persist.ts` ou similaire
 
 **État actuel à confirmer Phase 1** :
+
 - Read `app/api/monthly-recap/auto-balance/route.ts` lines ~517 + ~583/~621 mentionnées CLAUDE.md
 - Identifier les call sites `supabase.rpc('update_budget_cumulated_savings', ...)` suivis de `supabase.from('budget_transfers').insert(...)`
 - Confirmer que c'est bien le pattern reversed (RPC d'abord, INSERT après)
 
 **Composite RPC existante à reprendre** :
+
 - `transfer_with_savings_debit` (Sprint Refactor-I5-followup-v2) : INSERT budget_transfers + debit cumulated_savings en 1 tx Postgres
 - Helper TS `transferWithSavingsDebit` dans `lib/finance/budget-transfers.ts`
 
 **Tests existants pertinents** :
+
 - `lib/__tests__/api-regressions.test.ts` couvre auto-balance partiellement (gated `SUPABASE_API_TESTS=1`)
 - 4 cas gated `transfer-with-savings.test.ts` (Sprint Refactor-I5-followup-v2) — atomicity prouvée pour la composite RPC
 
 **Précédents codebase** :
+
 - Sprint Refactor-I5-followup-v2 (CLAUDE.md §11) — création `transfer_with_savings_debit` + helper TS + 4 cas gated atomicity
 - Sprint Atomicity-Expenses (CLAUDE.md §11) — pattern miroir `add_expense_with_breakdown`
 - Sprint Atomicity-Savings (CLAUDE.md §11) — pattern miroir `transfer_savings_between_budgets`
@@ -67,6 +73,7 @@ Identifier le pattern reversed `RPC → INSERT` dans `auto-balance/route.ts` (ou
 ### 3. Spécifications fonctionnelles attendues
 
 **Cas nominal** : auto-balance fonctionne identique côté response shape + DB outcomes finaux byte-identique. Mais la séquence interne devient atomique :
+
 - Avant : `await rpc.debit(); await db.insert(); // bug if insert fails`
 - Après : `await transferWithSavingsDebit({ from, to, amount }) // 1 tx Postgres`
 
