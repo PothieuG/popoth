@@ -1,5 +1,17 @@
 # 08 — P3 : Recalcul RAV sur validation revenu (3 règles)
 
+> ⚠️ **STALE — closed-by-pre-existing-fix 2026-05-15**
+>
+> Phase 1 audit a confirmé que les 3 règles P3 sont déjà toutes implémentées dans la formule RAV actuelle :
+>
+> - **Règle 1** (budget négatif → baisse RAV) : `lib/finance/calc-rtl.ts:97-105` `calculateBudgetDeficit` calculé on-the-fly + `lib/finance/financial-data.ts:131-164` somme `totalBudgetDeficits` + RAV formula `... - budgetDeficits`. **`monthly_surplus_deficit` n'est PAS consommé par la formule RAV** (0 hit applicatif via grep, c'est une colonne legacy).
+> - **Règle 2** (dépense hors budget → baisse RAV) : `lib/finance/financial-data.ts:115-118` `exceptionalExpenses` filter + RAV `... - exceptionalExpenses`.
+> - **Règle 3** (entrée hors budget → augmente RAV) : `lib/finance/financial-data.ts:119-120` `exceptionalIncomes` filter + RAV `incomeContribution + exceptionalIncomes + ...`.
+> - **Trigger "recalcul sur validation revenu"** : `hooks/useRealIncomes.ts` (Sprint 1.5) `useMutation` invalide `['financial-summary']` via `invalidateFinancialRefreshes(qc)` (Sprint 2-followup) → recalcul temps réel.
+> - **Couverture tests** : `lib/finance/__tests__/calc-rtl.test.ts:73-126` (9 cas pure-unit) + `lib/finance/__tests__/financial-data.test.ts` (gated, golden math seed avec exceptional rows).
+>
+> Voir CLAUDE.md §11 entrée Sprint P3-Closeout-Administrative. Recovery : pas applicable, 0 code touché.
+
 ## En-tête
 
 | Champ | Valeur |

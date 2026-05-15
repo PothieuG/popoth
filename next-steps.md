@@ -8,16 +8,6 @@
 
 Ajouter une option de switch par semaine ou par jour sur l'affichage budgets / dépenses.
 
-## P3 — Recalcul RAV sur validation revenu
-
-**Domaine** : finances / RAV calc
-
-Quand un revenu est validé, recalculer le RAV avec la nouvelle valeur. Règles :
-
-- Si un budget est négatif, le négatif s'ajoute au calcul du RAV.
-- Une dépense hors budget s'ajoute au calcul du RAV.
-- Une entrée d'argent hors budget s'ajoute au calcul du RAV.
-
 ## P4 — Cascade économies sur dépassement budget
 
 **Domaine** : finances / dépenses
@@ -64,3 +54,4 @@ Enlever l'entrée "Se déconnecter" dans les options "Mon groupe" — la déconn
 
 - **P10 — Fix flicker page d'accueil** ✅ livré 2026-05-14 (Sprint P10-Fix-Home-Flicker, cf. [CLAUDE.md §11](CLAUDE.md))
 - **P2 — RAV calculé sans économies de budget** ✅ closed-by-pre-existing-fix 2026-05-15 (Sprint P2-Closeout-Administrative — bug n'existait pas dans le code actuel, formule RAV dans `lib/finance/calc-rtl.ts` n'inclut pas `cumulated_savings` depuis fix antérieur silencieux ; `totalSavings` exposé séparément + UI conforme. Cf. [CLAUDE.md §11](CLAUDE.md))
+- **P3 — Recalcul RAV sur validation revenu** ✅ closed-by-pre-existing-fix 2026-05-15 (Sprint P3-Closeout-Administrative — les 3 règles sont déjà implémentées dans la formule RAV actuelle : Règle 1 budget déficit calculé on-the-fly via `calculateBudgetDeficit(estimated, spent)` dans `lib/finance/calc-rtl.ts`, Règles 2+3 exceptional incomes/expenses déjà additifs/soustractifs dans `_loadFinancialData` ; trigger recalcul via TanStack Query invalidation cascade depuis Sprint 1.5+2-followup. Cf. [CLAUDE.md §11](CLAUDE.md))
