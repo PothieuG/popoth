@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
@@ -29,6 +29,44 @@ const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTran
 type EditableTransaction = RealExpense | RealIncome
 
 /**
+ * Sprint P1 — wrapper component that calls usePeriodParam (which uses
+ * useSearchParams). Must be wrapped in `<Suspense>` by the parent so Next.js
+ * static prerendering doesn't fail at build time. Owns the period state +
+ * renders the selector + the period-filtered TransactionTabsComponent.
+ */
+interface DashboardPeriodSectionProps {
+  context: 'profile' | 'group'
+  userProfile: Parameters<typeof TransactionTabsComponent>[0]['userProfile']
+  onEditTransaction: Parameters<typeof TransactionTabsComponent>[0]['onEditTransaction']
+  onTransactionDeleted: Parameters<typeof TransactionTabsComponent>[0]['onTransactionDeleted']
+}
+function DashboardPeriodSection({
+  context,
+  userProfile,
+  onEditTransaction,
+  onTransactionDeleted,
+}: DashboardPeriodSectionProps) {
+  const { period, setPeriod } = usePeriodParam()
+  return (
+    <>
+      <div className="flex shrink-0 justify-end">
+        <PeriodSelector value={period} onChange={setPeriod} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <TransactionTabsComponent
+          context={context}
+          userProfile={userProfile}
+          period={period}
+          onEditTransaction={onEditTransaction}
+          onTransactionDeleted={onTransactionDeleted}
+          className="h-full"
+        />
+      </div>
+    </>
+  )
+}
+
+/**
  * Dashboard page - main application page for authenticated users
  * Clean interface with sticky navbar, slide-out menu panel, and sticky footer
  */
@@ -43,7 +81,6 @@ export default function DashboardPage() {
     refreshFinancialData,
   } = useFinancialData()
   const { balance: bankBalance, updateBankBalance } = useBankBalance('profile')
-  const { period, setPeriod } = usePeriodParam()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
@@ -207,22 +244,17 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {/* Period Selector (Sprint P1) — filtre listing transactions + progress bars budget */}
-                <div className="flex shrink-0 justify-end">
-                  <PeriodSelector value={period} onChange={setPeriod} />
-                </div>
-
-                {/* Transaction Tabs Component - Scrollable */}
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <TransactionTabsComponent
+                {/* Sprint P1 — period state wrapped in Suspense because usePeriodParam()
+                    uses useSearchParams() which requires a Suspense boundary at build time
+                    (Next.js prerender static gen check). */}
+                <Suspense fallback={null}>
+                  <DashboardPeriodSection
                     context="profile"
                     userProfile={profile}
-                    period={period}
                     onEditTransaction={handleEditTransaction}
                     onTransactionDeleted={refreshFinancialData}
-                    className="h-full"
                   />
-                </div>
+                </Suspense>
               </>
             )}
           </div>

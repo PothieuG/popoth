@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
@@ -21,6 +21,40 @@ const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTran
 })
 
 /**
+ * Sprint P1 — wrapper component for group-dashboard's period-aware section,
+ * mirror of DashboardPeriodSection in app/dashboard/page.tsx. Wraps the
+ * usePeriodParam() hook in a parent <Suspense> boundary.
+ */
+interface GroupDashboardPeriodSectionProps {
+  context: 'profile' | 'group'
+  userProfile: Parameters<typeof TransactionTabsComponent>[0]['userProfile']
+  onTransactionDeleted: Parameters<typeof TransactionTabsComponent>[0]['onTransactionDeleted']
+}
+function GroupDashboardPeriodSection({
+  context,
+  userProfile,
+  onTransactionDeleted,
+}: GroupDashboardPeriodSectionProps) {
+  const { period, setPeriod } = usePeriodParam()
+  return (
+    <>
+      <div className="flex shrink-0 justify-end">
+        <PeriodSelector value={period} onChange={setPeriod} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <TransactionTabsComponent
+          context={context}
+          userProfile={userProfile}
+          period={period}
+          onTransactionDeleted={onTransactionDeleted}
+          className="h-full"
+        />
+      </div>
+    </>
+  )
+}
+
+/**
  * Group Dashboard page - dashboard view for group finances
  * Same UI as personal dashboard but with group-specific navbar and data
  */
@@ -35,7 +69,6 @@ export default function GroupDashboardPage() {
     refreshFinancialData,
   } = useFinancialData('group')
   const { balance: bankBalance, updateBankBalance } = useBankBalance('group')
-  const { period, setPeriod } = usePeriodParam()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
 
@@ -141,21 +174,15 @@ export default function GroupDashboardPage() {
                   />
                 </div>
 
-                {/* Period Selector (Sprint P1) — filtre listing transactions + progress bars budget */}
-                <div className="flex shrink-0 justify-end">
-                  <PeriodSelector value={period} onChange={setPeriod} />
-                </div>
-
-                {/* Transaction Tabs Component - Scrollable */}
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <TransactionTabsComponent
+                {/* Sprint P1 — period state wrapped in Suspense because usePeriodParam()
+                    uses useSearchParams() which requires a Suspense boundary at build time. */}
+                <Suspense fallback={null}>
+                  <GroupDashboardPeriodSection
                     context="group"
                     userProfile={profile}
-                    period={period}
                     onTransactionDeleted={refreshFinancialData}
-                    className="h-full"
                   />
-                </div>
+                </Suspense>
               </>
             )}
           </div>
