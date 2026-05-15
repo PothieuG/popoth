@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { TablesInsert } from '@/lib/database.types'
 import { updatePiggyBank } from '@/lib/finance/piggy-bank'
-import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
+import { transferWithSavingsDebit } from '@/lib/finance/budget-transfers'
+import { asContextFilter } from '@/lib/finance/context'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { autoBalanceBodySchema } from '@/lib/schemas/recap'
@@ -219,8 +220,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       source: 'piggy_bank' | 'savings' | 'surplus'
     }> = []
 
-    const savingsUpdates: Array<{ budget_id: string; old_savings: number; new_savings: number }> =
-      []
     let totalPiggyBankUsed = 0
     let totalSavingsUsed = 0
     let totalSurplusUsed = 0
@@ -312,22 +311,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         }
       }
 
-      // Mettre à jour les économies de chaque budget source
-      for (const savingsBudget of budgetsWithSavings) {
-        const totalUsedFromThisBudget = transfers
-          .filter((t) => t.from_budget_id === savingsBudget.id && t.source === 'savings')
-          .reduce((sum, t) => sum + t.amount, 0)
-
-        // Ensure we never go negative due to rounding errors
-        const newSavings = Math.max(0, savingsBudget.cumulated_savings - totalUsedFromThisBudget)
-
-        savingsUpdates.push({
-          budget_id: savingsBudget.id,
-          old_savings: savingsBudget.cumulated_savings,
-          new_savings: newSavings,
-        })
-      }
-
       remainingDeficitToCover = Math.max(0, totalDeficit - totalSavingsUsed)
     }
 
@@ -406,31 +389,38 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       })
     }
 
-    // 1. Mettre à jour les économies cumulées pour les budgets qui ont contribué depuis leurs économies
-    //    (atomique via RPC update_budget_cumulated_savings)
-    for (const update of savingsUpdates) {
-      const safeNewSavings = Math.max(0, Math.round(update.new_savings * 100) / 100)
-      const delta = safeNewSavings - update.old_savings
+    // Shared context filter used by atomic savings transfers and piggy bank debit.
+    const filter = asContextFilter(
+      ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId },
+    )
 
+    // 1. Apply savings transfers atomically per (from, to) pair via composite RPC.
+    //    Each call composes INSERT budget_transfers + debit cumulated_savings into a
+    //    single Postgres transaction — Sprint Auto-Balance-Atomic (mirror
+    //    lib/recap/step1-persist.ts step 2.4.2 / Sprint Refactor-I5-followup-v2).
+    //    Pre-refactor this was the reversed pattern (aggregate debit per FROM, then
+    //    batched INSERT): an INSERT failure after debits succeeded left orphan
+    //    cumulated_savings reductions with no audit-trail row. Fail-soft on any
+    //    individual transfer — the Postgres tx rolls back atomically, no risk of
+    //    half-applied state for that pair.
+    const savingsTransfers = transfers.filter(
+      (t) => t.source === 'savings' && t.from_budget_id !== null,
+    )
+    for (const transfer of savingsTransfers) {
       try {
-        await updateBudgetCumulatedSavings(update.budget_id, delta)
-      } catch (updateError) {
-        logger.error('[Auto Balance] Erreur mise à jour économies', {
-          budgetId: update.budget_id,
-          oldSavings: update.old_savings,
-          attemptedNewSavings: update.new_savings,
-          safeNewSavings,
-          error: updateError,
+        await transferWithSavingsDebit(filter, {
+          fromBudgetId: transfer.from_budget_id!,
+          toBudgetId: transfer.to_budget_id,
+          amount: transfer.amount,
+          reason: 'Auto-balance via monthly recap (économies cumulées)',
         })
-        return NextResponse.json(
-          {
-            error: 'Erreur lors de la mise à jour des économies',
-            details: updateError instanceof Error ? updateError.message : 'Erreur inconnue',
-            budget_id: update.budget_id,
-            attempted_value: safeNewSavings,
-          },
-          { status: 500 },
-        )
+      } catch (error) {
+        logger.warn('[Auto Balance] transferWithSavingsDebit failed (fail-soft)', {
+          fromBudgetId: transfer.from_budget_id,
+          toBudgetId: transfer.to_budget_id,
+          amount: transfer.amount,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
 
@@ -449,8 +439,6 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       const piggyDelta = newPiggyBankAmount - piggyBank
 
       try {
-        const filter =
-          ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
         await updatePiggyBank(filter, piggyDelta)
       } catch (updateError) {
         logger.error('[Auto Balance] Erreur mise à jour tirelire', updateError)
@@ -491,20 +479,23 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
       }
     }
 
-    // 2b. Insérer les transferts entre budgets dans budget_transfers
-    const transfersWithBudget = transfers.filter((t) => t.from_budget_id !== null)
+    // 2b. Insérer les transferts surplus (depuis budgets surplus → budgets déficitaires).
+    //     Surplus n'est pas stocké comme colonne (computed via real_expenses +
+    //     budget_transfers), donc pas de debit associé — un INSERT seul suffit.
+    //     Les transferts savings ont déjà été insérés par transferWithSavingsDebit
+    //     ci-dessus.
+    const surplusTransfers = transfers.filter(
+      (t) => t.source === 'surplus' && t.from_budget_id !== null,
+    )
 
-    if (transfersWithBudget.length > 0) {
-      const transferInserts: TablesInsert<'budget_transfers'>[] = transfersWithBudget.map(
+    if (surplusTransfers.length > 0) {
+      const transferInserts: TablesInsert<'budget_transfers'>[] = surplusTransfers.map(
         (transfer) => {
           const base = {
             from_budget_id: transfer.from_budget_id,
             to_budget_id: transfer.to_budget_id,
             transfer_amount: transfer.amount,
-            transfer_reason:
-              transfer.source === 'savings'
-                ? 'Auto-balance via monthly recap (économies cumulées)'
-                : 'Auto-balance via monthly recap (surplus mensuel)',
+            transfer_reason: 'Auto-balance via monthly recap (surplus mensuel)',
             transfer_date: new Date().toISOString().split('T')[0]!,
           }
           return context === 'profile'
@@ -518,14 +509,14 @@ export const POST = withAuthAndProfile(async (request, { profile }) => {
         .insert(transferInserts)
 
       if (insertError) {
-        logger.error('[Auto Balance] Erreur enregistrement transferts entre budgets', {
+        logger.error('[Auto Balance] Erreur enregistrement transferts surplus', {
           transfersAttempted: transferInserts.length,
           transfers: transferInserts,
           error: insertError,
         })
         return NextResponse.json(
           {
-            error: "Erreur lors de l'enregistrement des transferts",
+            error: "Erreur lors de l'enregistrement des transferts surplus",
             details: insertError.message || 'Erreur inconnue',
             transfers_attempted: transferInserts.length,
           },
