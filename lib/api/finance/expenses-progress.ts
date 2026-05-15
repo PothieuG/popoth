@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
-import { contextOnlyQuerySchema } from '@/lib/schemas/common'
+import { progressQuerySchema } from '@/lib/schemas/common'
+import { computePeriodDateRange } from '@/lib/finance/period'
 
 type BudgetForProgress = {
   id: string
@@ -21,11 +22,20 @@ type ExpenseForProgress = {
 
 /**
  * GET /api/finance/expenses/progress
- * Récupère la progression des dépenses par budget estimé
+ *
+ * Récupère la progression des dépenses par budget estimé.
+ *
+ * Sprint P1 — `?period=month|week|day` filtre `real_expenses.expense_date` au
+ * range correspondant ('month' = pas de filtre, préserve la sémantique
+ * "depuis dernier recap"). Les `estimated_budgets` ne sont PAS filtrés
+ * (entités, pas transactions). Conséquence : en mode 'week' / 'day', le
+ * `spentAmount` reflète uniquement la sous-période ; le `estimatedAmount`
+ * reste le budget mensuel (= compare consommation de la période vs cap mensuel).
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
-    const { context } = parseQuery(request, contextOnlyQuerySchema)
+    const { context, period } = parseQuery(request, progressQuerySchema)
+    const dateRange = computePeriodDateRange(period)
 
     let budgets: BudgetForProgress[] = []
     let expenses: ExpenseForProgress[] = []
@@ -39,14 +49,20 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
       budgets = budgetsData || []
 
-      // Récupérer les dépenses réelles associées aux budgets
-      const { data: expensesData } = await supabaseServer
+      // Récupérer les dépenses réelles associées aux budgets (filtrées par période si demandé)
+      let profileExpensesQuery = supabaseServer
         .from('real_expenses')
         .select(
           'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
         )
         .eq('profile_id', userId)
         .not('estimated_budget_id', 'is', null)
+      if (dateRange) {
+        profileExpensesQuery = profileExpensesQuery
+          .gte('expense_date', dateRange.startDate)
+          .lte('expense_date', dateRange.endDate)
+      }
+      const { data: expensesData } = await profileExpensesQuery
 
       expenses = expensesData || []
     } else {
@@ -72,14 +88,20 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
       budgets = budgetsData || []
 
-      // Récupérer les dépenses réelles du groupe associées aux budgets
-      const { data: expensesData } = await supabaseServer
+      // Récupérer les dépenses réelles du groupe (filtrées par période si demandé)
+      let groupExpensesQuery = supabaseServer
         .from('real_expenses')
         .select(
           'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
         )
         .eq('group_id', profileData.group_id)
         .not('estimated_budget_id', 'is', null)
+      if (dateRange) {
+        groupExpensesQuery = groupExpensesQuery
+          .gte('expense_date', dateRange.startDate)
+          .lte('expense_date', dateRange.endDate)
+      }
+      const { data: expensesData } = await groupExpensesQuery
 
       expenses = expensesData || []
     }

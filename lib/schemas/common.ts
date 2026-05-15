@@ -86,3 +86,23 @@ export const summaryQuerySchema = z.object({
     .transform((v) => v === 'true'),
 })
 export type SummaryQuery = z.infer<typeof summaryQuerySchema>
+
+/**
+ * Period enum for Sprint P1 (switch hebdo/quotidien). 'month' = no DB
+ * date filter (preserves "since last recap" semantics), 'week' = ISO
+ * 8601 Monday→Sunday range, 'day' = today only. Both bounds inclusive.
+ */
+export const periodSchema = z.enum(['month', 'week', 'day'])
+export type PeriodQuery = z.infer<typeof periodSchema>
+
+/**
+ * Query schema for routes that filter by period in addition to context.
+ * Used by expenses-progress GET (Sprint P1) to filter real_expenses by
+ * expense_date. The 'period' param is optional, default 'month' = no
+ * filter applied.
+ */
+export const progressQuerySchema = z.object({
+  context: contextSchema.optional().default('profile'),
+  period: periodSchema.optional().default('month'),
+})
+export type ProgressQuery = z.infer<typeof progressQuerySchema>
