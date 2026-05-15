@@ -20,6 +20,7 @@ import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProfile } from '@/hooks/useProfile'
+import { usePeriodParam } from '@/hooks/usePeriodParam'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -100,12 +101,16 @@ export default function PlanningDrawer({
     totalIncomes,
   } = useIncomes(context)
 
+  // Sprint P1 — lit la période depuis l'URL ?period= pour filtrer les progress
+  // bars budget. Hérité automatiquement du dashboard (PeriodSelector).
+  const { period } = usePeriodParam()
+
   // Hooks pour les calculs de progression
   const {
     budgetProgresses,
     loading: budgetProgressLoading,
     refreshProgress: refreshBudgetProgress,
-  } = useBudgetProgress(budgets, context)
+  } = useBudgetProgress(budgets, context, period)
 
   const {
     incomeProgresses,

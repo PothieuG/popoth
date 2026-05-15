@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import type { Period } from '@/lib/finance/period'
 
 interface ExpenseProgress {
   budgetId: string
@@ -33,20 +34,34 @@ interface ProgressDataPayload {
 }
 
 /**
- * Hook pour récupérer les données de progression des budgets et revenus
+ * Hook pour récupérer les données de progression des budgets et revenus.
+ *
+ * Sprint P1 — accepte un `period` optionnel ('month'|'week'|'day'). Quand
+ * fourni et différent de 'month', il est passé en query param `?period=`
+ * aux 2 fetch. Côté serveur, seul `/api/finance/expenses/progress` filtre
+ * réellement (Sprint P1 Commit 3) ; `/api/finance/income/progress` ignore
+ * silencieusement le param (hors wording chantier "budgets/dépenses").
+ *
+ * Le queryKey inclut `period` pour invalidation correcte au toggle.
  */
-export function useProgressData(context?: 'profile' | 'group'): UseProgressDataReturn {
+export function useProgressData(
+  context?: 'profile' | 'group',
+  period?: Period,
+): UseProgressDataReturn {
   const { data, isLoading, error, refetch } = useQuery<ProgressDataPayload>({
-    queryKey: ['progress-data', context ?? null],
+    queryKey: ['progress-data', context ?? null, period ?? 'month'],
     queryFn: async () => {
-      const contextParam = context ? `?context=${context}` : ''
+      const params = new URLSearchParams()
+      if (context) params.set('context', context)
+      if (period && period !== 'month') params.set('period', period)
+      const qs = params.toString() ? `?${params.toString()}` : ''
 
       const [expenseResponse, incomeResponse] = await Promise.all([
-        fetch(`/api/finance/expenses/progress${contextParam}`, {
+        fetch(`/api/finance/expenses/progress${qs}`, {
           method: 'GET',
           credentials: 'include',
         }),
-        fetch(`/api/finance/income/progress${contextParam}`, {
+        fetch(`/api/finance/income/progress${qs}`, {
           method: 'GET',
           credentials: 'include',
         }),

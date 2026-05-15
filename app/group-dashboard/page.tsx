@@ -13,6 +13,8 @@ import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
+import { PeriodSelector } from '@/components/dashboard/PeriodSelector'
+import { usePeriodParam } from '@/hooks/usePeriodParam'
 
 const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), {
   ssr: false,
@@ -33,6 +35,7 @@ export default function GroupDashboardPage() {
     refreshFinancialData,
   } = useFinancialData('group')
   const { balance: bankBalance, updateBankBalance } = useBankBalance('group')
+  const { period, setPeriod } = usePeriodParam()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
 
@@ -138,11 +141,17 @@ export default function GroupDashboardPage() {
                   />
                 </div>
 
+                {/* Period Selector (Sprint P1) — filtre listing transactions + progress bars budget */}
+                <div className="flex shrink-0 justify-end">
+                  <PeriodSelector value={period} onChange={setPeriod} />
+                </div>
+
                 {/* Transaction Tabs Component - Scrollable */}
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <TransactionTabsComponent
                     context="group"
                     userProfile={profile}
+                    period={period}
                     onTransactionDeleted={refreshFinancialData}
                     className="h-full"
                   />

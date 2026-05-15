@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
+import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 
 /**
  * Interface pour la progression d'un budget
@@ -66,12 +67,21 @@ const getBudgetColorClass = (
  * Hook pour calculer la progression des budgets estimés
  * Calcule pour chaque budget le montant dépensé, pourcentage, économies et code couleur
  *
+ * Sprint P1 — accepte un `period` optionnel. Quand fourni et différent de
+ * 'month', les expenses sont filtrées CSR par `expense_date` dans le range
+ * calculé via computePeriodDateRange (lundi-dimanche pour 'week', today pour
+ * 'day'). 'month' = pas de filtre, sémantique "depuis dernier recap"
+ * préservée. Le `estimatedAmount` (budget mensuel) reste inchangé : le
+ * `spentAmount` reflète la sous-période vs cap mensuel.
+ *
  * @param budgets - Liste des budgets estimés
  * @param context - Contexte profile ou group
+ * @param period - Période optionnelle (default 'month' = no filter)
  */
 export function useBudgetProgress(
   budgets: EstimatedBudget[],
   context?: 'profile' | 'group',
+  period?: Period,
 ): UseBudgetProgressReturn {
   // Hook pour récupérer les dépenses réelles
   const {
@@ -134,13 +144,24 @@ export function useBudgetProgress(
     [],
   )
 
-  // Source unique de vérité : calcul memorise a partir de budgets + expenses
+  // Filtre expenses par période (CSR) — Sprint P1.
+  // computePeriodDateRange retourne null pour 'month' = pas de filtre.
+  const filteredExpenses = useMemo<RealExpense[]>(() => {
+    if (!period || period === 'month') return expenses
+    const range = computePeriodDateRange(period)
+    if (!range) return expenses
+    return expenses.filter(
+      (e) => e.expense_date >= range.startDate && e.expense_date <= range.endDate,
+    )
+  }, [expenses, period])
+
+  // Source unique de vérité : calcul memorise a partir de budgets + filteredExpenses
   const budgetProgresses = useMemo<BudgetProgress[]>(() => {
     if (!budgets.length || expensesLoading) {
       return []
     }
-    return calculateBudgetProgresses(budgets, expenses)
-  }, [budgets, expenses, expensesLoading, calculateBudgetProgresses])
+    return calculateBudgetProgresses(budgets, filteredExpenses)
+  }, [budgets, filteredExpenses, expensesLoading, calculateBudgetProgresses])
 
   /**
    * Rafraîchit les données de progression

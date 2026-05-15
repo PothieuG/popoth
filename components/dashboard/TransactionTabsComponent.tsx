@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
 import { logger } from '@/lib/logger'
+import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 import type { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
 
@@ -13,6 +14,13 @@ type EditableTransaction = RealExpense | RealIncome
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
   userProfile?: ProfileData | null
+  /**
+   * Sprint P1 — period filter for the listed transactions. When provided
+   * and not 'month', expenses are filtered by `expense_date` and incomes
+   * by `entry_date` to the ISO range computed by computePeriodDateRange
+   * (Europe/Paris timezone). 'month' = no filter (default behavior).
+   */
+  period?: Period
   onEditTransaction?: (transaction: EditableTransaction, type: 'expense' | 'income') => void
   onTransactionDeleted?: () => void
   className?: string
@@ -27,6 +35,7 @@ type TabType = 'expenses' | 'incomes'
 export default function TransactionTabsComponent({
   context,
   userProfile,
+  period,
   onEditTransaction,
   onTransactionDeleted,
   className,
@@ -47,6 +56,24 @@ export default function TransactionTabsComponent({
     error: incomesError,
     deleteIncome,
   } = useRealIncomes(context)
+
+  // Sprint P1 — filter CSR by period. Range null = no filter applied.
+  const dateRange = useMemo(
+    () => (period ? computePeriodDateRange(period) : null),
+    [period],
+  )
+  const filteredExpenses = useMemo(() => {
+    if (!dateRange) return expenses
+    return expenses.filter(
+      (e) => e.expense_date >= dateRange.startDate && e.expense_date <= dateRange.endDate,
+    )
+  }, [expenses, dateRange])
+  const filteredIncomes = useMemo(() => {
+    if (!dateRange) return incomes
+    return incomes.filter(
+      (i) => i.entry_date >= dateRange.startDate && i.entry_date <= dateRange.endDate,
+    )
+  }, [incomes, dateRange])
 
   /**
    * Handle delete expense with callback
@@ -200,17 +227,17 @@ export default function TransactionTabsComponent({
   )
 
   /**
-   * Render transactions list
+   * Render transactions list (filteredExpenses/Incomes reflect period filter)
    */
   const renderTransactionsList = () => {
     if (activeTab === 'expenses') {
       if (expensesLoading) return renderLoading()
       if (expensesError) return renderError(expensesError)
-      if (expenses.length === 0) return renderEmptyState('expenses')
+      if (filteredExpenses.length === 0) return renderEmptyState('expenses')
 
       return (
         <div className="space-y-2">
-          {expenses.map((expense) => (
+          {filteredExpenses.map((expense) => (
             <TransactionListItem
               key={expense.id}
               transaction={expense}
@@ -226,11 +253,11 @@ export default function TransactionTabsComponent({
     } else {
       if (incomesLoading) return renderLoading()
       if (incomesError) return renderError(incomesError)
-      if (incomes.length === 0) return renderEmptyState('incomes')
+      if (filteredIncomes.length === 0) return renderEmptyState('incomes')
 
       return (
         <div className="space-y-2">
-          {incomes.map((income) => (
+          {filteredIncomes.map((income) => (
             <TransactionListItem
               key={income.id}
               transaction={income}
@@ -270,9 +297,9 @@ export default function TransactionTabsComponent({
                 />
               </svg>
               <span className="font-medium">Dépenses</span>
-              {expenses.length > 0 && (
+              {filteredExpenses.length > 0 && (
                 <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-medium text-red-800">
-                  {expenses.length}
+                  {filteredExpenses.length}
                 </span>
               )}
             </div>
@@ -289,9 +316,9 @@ export default function TransactionTabsComponent({
                 />
               </svg>
               <span className="font-medium">Revenus</span>
-              {incomes.length > 0 && (
+              {filteredIncomes.length > 0 && (
                 <span className="rounded-full bg-green-200 px-2 py-0.5 text-xs font-medium text-green-800">
-                  {incomes.length}
+                  {filteredIncomes.length}
                 </span>
               )}
             </div>

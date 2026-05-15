@@ -17,6 +17,8 @@ import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
+import { PeriodSelector } from '@/components/dashboard/PeriodSelector'
+import { usePeriodParam } from '@/hooks/usePeriodParam'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 
@@ -41,6 +43,7 @@ export default function DashboardPage() {
     refreshFinancialData,
   } = useFinancialData()
   const { balance: bankBalance, updateBankBalance } = useBankBalance('profile')
+  const { period, setPeriod } = usePeriodParam()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
@@ -204,11 +207,17 @@ export default function DashboardPage() {
                   />
                 </div>
 
+                {/* Period Selector (Sprint P1) — filtre listing transactions + progress bars budget */}
+                <div className="flex shrink-0 justify-end">
+                  <PeriodSelector value={period} onChange={setPeriod} />
+                </div>
+
                 {/* Transaction Tabs Component - Scrollable */}
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <TransactionTabsComponent
                     context="profile"
                     userProfile={profile}
+                    period={period}
                     onEditTransaction={handleEditTransaction}
                     onTransactionDeleted={refreshFinancialData}
                     className="h-full"
