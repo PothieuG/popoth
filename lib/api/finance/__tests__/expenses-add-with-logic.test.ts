@@ -116,15 +116,20 @@ async function importMocks() {
 // Tests ----------------------------------------------------------------------
 
 describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic)', () => {
-  it('happy path: atomic RPC called once with full breakdown, response shape preserved', async () => {
+  it('P4 strict happy path: amount fits budget, savings & piggy untouched', async () => {
+    // Sprint P4-P5-P6 — calculateBreakdown was refactored to be budget-first
+    // (P4 strict). With amount=150 and budgetRemaining=200, the breakdown is
+    // 150 budget / 0 savings / 0 piggy. The cascade-aggressive behavior of
+    // pre-P4 (100 piggy + 30 savings + 20 budget) is no longer correct.
+    // The piggy bank is NEVER auto-debited in P4 strict mode.
     const { supabase, expensesMod, loggerMod } = await importMocks()
 
-    // L129 piggy_bank fetch (maybeSingle)
+    // L129 piggy_bank fetch (maybeSingle) — read for response shape, not for cascade
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({
       data: { amount: 100 },
       error: null,
     })
-    // L138 estimated_budgets fetch (single)
+    // L138 estimated_budgets fetch (single) — estimated_amount=200, spent=0 → room=200
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: '11111111-1111-4111-8111-111111111111',
@@ -134,7 +139,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       },
       error: null,
     })
-    // L153 real_expenses listing (awaited chain, no terminal)
+    // L153 real_expenses listing (awaited chain, no terminal) — empty → spent=0
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
     // RPC resolves with the new expense id
     expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-1' })
@@ -150,7 +155,7 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     })
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    // amount=150, piggy=100, savings=30 → breakdown {100, 30, 20}
+    // amount=150, budgetRemaining=200, savings=30 → P4 strict {0, 0, 150}
     const response = await POST(
       buildRequest({
         amount: 150,
@@ -164,9 +169,9 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     expect(response.status).toBe(200)
     expect(json.real_expense).toMatchObject({ id: 'rx-1', amount: 150 })
     expect(json.breakdown).toMatchObject({
-      from_piggy_bank: 100,
-      from_budget_savings: 30,
-      from_budget: 20,
+      from_piggy_bank: 0,
+      from_budget_savings: 0,
+      from_budget: 150,
     })
     // Single mutation entry point — atomic RPC called exactly once with the
     // full breakdown (piggy debit + savings debit + INSERT all live inside).
@@ -177,15 +182,84 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
         amount: 150,
         description: 'Lunch',
         estimatedBudgetId: '11111111-1111-4111-8111-111111111111',
-        amountFromPiggyBank: 100,
-        amountFromBudgetSavings: 30,
-        amountFromBudget: 20,
+        amountFromPiggyBank: 0,
+        amountFromBudgetSavings: 0,
+        amountFromBudget: 150,
       }),
     )
     // The handler does NOT INSERT real_expenses directly — the INSERT lives
     // inside the RPC (mocked here).
     expect(supabase.__mocks.insert).not.toHaveBeenCalled()
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('P4 strict overflow path: budget+savings cascade, remainder absorbed as fromBudget', async () => {
+    // Sprint P4-P5-P6 — when amount exceeds budgetRemaining, savings cascade
+    // (P4 strict). If amount also exceeds savings, the overflow is absorbed
+    // into fromBudget (budget deficit) — Phase 2 cross-budget cascade is the
+    // proper resolution but isn't wired here yet. RAV impact is visible via
+    // budgetDeficits in the dashboard.
+    const { supabase, expensesMod } = await importMocks()
+
+    // piggy_bank fetch
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
+      data: { amount: 100 },
+      error: null,
+    })
+    // estimated_budgets fetch — estimated_amount=200, will compute budgetRemaining
+    // from spent (180), so budgetRemaining=20.
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Budget 1',
+        estimated_amount: 200,
+        cumulated_savings: 30,
+      },
+      error: null,
+    })
+    // real_expenses listing — 1 existing expense with amount_from_budget=180
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 180, amount_from_budget: 180 }],
+      error: null,
+    })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-2' })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: 'rx-2',
+        amount: 150,
+        description: 'Lunch',
+        estimated_budget: { name: 'Budget 1' },
+      },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    // amount=150, budgetRemaining=20, savings=30 → P4 strict {0, 30, 20} + overflow 100
+    // → fromBudget = 20 + 100 = 120 (overshoot absorbed)
+    const response = await POST(
+      buildRequest({
+        amount: 150,
+        description: 'Lunch',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+      }),
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.breakdown).toMatchObject({
+      from_piggy_bank: 0,
+      from_budget_savings: 30,
+      from_budget: 120, // 20 budget remaining + 100 overflow
+    })
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amountFromPiggyBank: 0,
+        amountFromBudgetSavings: 30,
+        amountFromBudget: 120,
+      }),
+    )
   })
 
   it('atomic RPC throws (overdraft or INSERT failure): 500, no fallback ops', async () => {

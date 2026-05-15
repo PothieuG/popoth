@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
+import { calculateBreakdown } from '@/lib/expense-allocation'
 
 export interface ExpenseBreakdownPreview {
   total_amount: number
@@ -131,28 +132,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budgetSpentBefore -= existingExpense.amount_from_budget
     }
 
-    // Calculate breakdown
-    let remainingToAllocate = amount
-    let fromPiggyBank = 0
-    let fromBudgetSavings = 0
-    let fromBudget = 0
-
-    // Priority 1: Piggy bank
-    if (piggyBankBefore > 0) {
-      fromPiggyBank = Math.min(remainingToAllocate, piggyBankBefore)
-      remainingToAllocate -= fromPiggyBank
-    }
-
-    // Priority 2: Budget savings
-    if (remainingToAllocate > 0 && savingsBefore > 0) {
-      fromBudgetSavings = Math.min(remainingToAllocate, savingsBefore)
-      remainingToAllocate -= fromBudgetSavings
-    }
-
-    // Priority 3: Budget itself
-    if (remainingToAllocate > 0) {
-      fromBudget = remainingToAllocate
-    }
+    // Calculate breakdown via shared P4-strict algorithm (DRY with the
+    // POST handler). Overflow > 0 is absorbed into fromBudget as overshoot
+    // (same semantic as the POST handler). Phase 2 cross-budget will swap
+    // this for an explicit cross-budget array param.
+    const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
+    const allocation = calculateBreakdown(amount, budgetRemaining, savingsBefore)
+    const fromPiggyBank = allocation.fromPiggyBank
+    const fromBudgetSavings = allocation.fromBudgetSavings
+    const fromBudget = allocation.fromBudget + allocation.overflow
 
     const breakdown: ExpenseBreakdownPreview = {
       total_amount: amount,

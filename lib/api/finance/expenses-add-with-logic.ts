@@ -167,16 +167,25 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         )
       }, 0) || 0
 
-    // Step 4: Calculate the breakdown
-    const { fromPiggyBank, fromBudgetSavings, fromBudget } = calculateBreakdown(
+    // Step 4: Calculate the breakdown (P4 strict — budget first, savings cascade
+    // only on overflow; piggy never auto-debited).
+    const budgetRemaining = (budgetData.estimated_amount || 0) - budgetSpentBefore
+    const { fromPiggyBank, fromBudgetSavings, fromBudget, overflow } = calculateBreakdown(
       amount,
-      piggyBankBefore,
+      budgetRemaining,
       savingsBefore,
     )
 
+    // Overflow > 0 = amount > budgetRemaining + savings. Without cross-budget
+    // cascade (Phase 2 — not yet wired in this commit), we absorb the overflow
+    // as additional fromBudget (the budget goes into deficit). RAV impact is
+    // visible via budgetDeficits in the dashboard / RAV formula. User can
+    // cancel and reduce the amount if they don't want the overshoot.
+    const fromBudgetWithOverflow = fromBudget + overflow
+
     const piggyBankAfter = piggyBankBefore - fromPiggyBank
     const savingsAfter = savingsBefore - fromBudgetSavings
-    const budgetSpentAfter = budgetSpentBefore + fromBudget
+    const budgetSpentAfter = budgetSpentBefore + fromBudgetWithOverflow
 
     // Step 5: Single atomic op — piggy debit + savings debit + INSERT
     // real_expenses in one Postgres tx. Overdraft (piggy or savings
@@ -193,7 +202,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
           estimatedBudgetId: estimated_budget_id,
           amountFromPiggyBank: fromPiggyBank,
           amountFromBudgetSavings: fromBudgetSavings,
-          amountFromBudget: fromBudget,
+          amountFromBudget: fromBudgetWithOverflow,
         },
       )
       expenseId = result.expense_id
@@ -231,7 +240,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       total_amount: amount,
       from_piggy_bank: fromPiggyBank,
       from_budget_savings: fromBudgetSavings,
-      from_budget: fromBudget,
+      from_budget: fromBudgetWithOverflow,
       piggy_bank_before: piggyBankBefore,
       piggy_bank_after: piggyBankAfter,
       savings_before: savingsBefore,
