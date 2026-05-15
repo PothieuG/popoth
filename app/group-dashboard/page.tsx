@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
+import { useGroups } from '@/hooks/useGroups'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useBankBalance } from '@/hooks/useBankBalance'
@@ -61,6 +62,7 @@ function GroupDashboardPeriodSection({
 export default function GroupDashboardPage() {
   const { logoutAndRedirect } = useLogoutAndRedirect()
   const { profile, isLoading } = useProfile()
+  const { isCreator } = useGroups()
   const { members, fetchGroupMembers } = useGroupMembers()
   const {
     financialData,
@@ -319,13 +321,15 @@ export default function GroupDashboardPage() {
                 </Button>
               </div>
 
-              {/* Solde bancaire du groupe */}
-              <div className="space-y-4">
-                <EditableBalanceLine
-                  currentBalance={bankBalance}
-                  onBalanceUpdate={handleBankBalanceUpdate}
-                />
-              </div>
+              {/* Solde bancaire du groupe — Sprint P7 : creator-only */}
+              {isCreator && (
+                <div className="space-y-4">
+                  <EditableBalanceLine
+                    currentBalance={bankBalance}
+                    onBalanceUpdate={handleBankBalanceUpdate}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Menu Footer with Logout */}

@@ -112,6 +112,26 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         )
       }
       const groupId = profile.group_id
+
+      // Sprint P7 — seul le créateur du groupe peut modifier le solde groupe
+      const { data: group, error: groupErr } = await supabaseServer
+        .from('groups')
+        .select('creator_id')
+        .eq('id', groupId)
+        .single()
+
+      if (groupErr || !group) {
+        logger.error('Erreur lors de la récupération du groupe:', groupErr)
+        return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
+      }
+
+      if (group.creator_id !== userId) {
+        return NextResponse.json(
+          { error: 'Action réservée au créateur du groupe' },
+          { status: 403 },
+        )
+      }
+
       checkQuery = supabaseServer
         .from('bank_balances')
         .select('id')
