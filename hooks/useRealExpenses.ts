@@ -28,6 +28,10 @@ export interface CreateRealExpenseRequest {
   expense_date?: string
   estimated_budget_id?: string
   is_for_group?: boolean
+  /** Sprint P4-P5-P6 / P5 toggle — see addExpenseWithLogicBodySchema. */
+  use_savings?: boolean
+  /** Sprint P4-P5-P6 / P4 Phase 2 — see addExpenseWithLogicBodySchema. */
+  cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
 }
 
 export interface UpdateRealExpenseRequest {

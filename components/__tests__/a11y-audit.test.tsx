@@ -319,11 +319,13 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
   })
 
   it('AddTransactionModal: Esc keydown invokes onClose', async () => {
+    // Sprint P4-P5-P6 / B1 — wizard refactored. Step 1 title is now
+    // "Type de transaction" (was "Ajouter une transaction" pre-wizard).
     const onClose = vi.fn()
     await expectEscClose(
       <AddTransactionModal onClose={onClose} />,
       onClose,
-      'Ajouter une transaction',
+      'Type de transaction',
     )
   })
 

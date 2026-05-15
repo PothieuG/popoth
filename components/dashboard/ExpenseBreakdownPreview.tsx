@@ -8,6 +8,11 @@ interface ExpenseBreakdownPreviewProps {
   budgetId: string
   context?: 'profile' | 'group'
   expenseId?: string // Pour le mode edition: simule reverse+reapply
+  /**
+   * Sprint P4-P5-P6 / P5 toggle. When true, savings consumed BEFORE
+   * budget in the preview breakdown. Default false → P4 strict.
+   */
+  useSavings?: boolean
 }
 
 interface BreakdownData {
@@ -34,6 +39,7 @@ export default function ExpenseBreakdownPreview({
   budgetId,
   context = 'profile',
   expenseId,
+  useSavings = false,
 }: ExpenseBreakdownPreviewProps) {
   const enabled = amount > 0 && !!budgetId
 
@@ -42,7 +48,7 @@ export default function ExpenseBreakdownPreview({
     isLoading,
     error,
   } = useQuery<BreakdownData>({
-    queryKey: ['expense-breakdown', amount, budgetId, context, expenseId ?? null],
+    queryKey: ['expense-breakdown', amount, budgetId, context, expenseId ?? null, useSavings],
     enabled,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({
@@ -52,6 +58,9 @@ export default function ExpenseBreakdownPreview({
       })
       if (expenseId) {
         params.set('expense_id', expenseId)
+      }
+      if (useSavings) {
+        params.set('use_savings', 'true')
       }
 
       const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {
