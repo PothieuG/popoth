@@ -16,13 +16,7 @@ import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
  * Settings page - User settings and group management
  */
 export default function SettingsPage() {
-  const {
-    currentGroup,
-    hasGroup,
-    isLoading: groupsLoading,
-    createGroup,
-    leaveGroup,
-  } = useGroups()
+  const { currentGroup, hasGroup, isLoading: groupsLoading, createGroup, leaveGroup } = useGroups()
   const {
     searchResults,
     isLoading: searchLoading,
