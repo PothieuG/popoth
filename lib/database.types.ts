@@ -754,6 +754,17 @@ export type Database = {
         }
         Returns: Json
       }
+      transfer_piggy_to_budget_with_insert: {
+        Args: {
+          p_amount: number
+          p_group_id?: string
+          p_profile_id?: string
+          p_reason?: string
+          p_recap_id?: string
+          p_to_budget_id: string
+        }
+        Returns: Json
+      }
       transfer_savings_between_budgets: {
         Args: {
           p_amount: number
