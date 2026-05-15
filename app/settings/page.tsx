@@ -5,26 +5,22 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupSearch } from '@/hooks/useGroupSearch'
 import CreateGroupForm from '@/components/groups/CreateGroupForm'
 import GroupSearchList from '@/components/groups/GroupSearchList'
-import DeleteGroupModal from '@/components/groups/DeleteGroupModal'
 import GroupMembersWithContributionsModal from '@/components/groups/GroupMembersWithContributionsModal'
-import type { GroupData } from '@/app/api/groups/route'
+import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 
 /**
  * Settings page - User settings and group management
  */
 export default function SettingsPage() {
-  const { logoutAndRedirect } = useLogoutAndRedirect()
   const {
     currentGroup,
     hasGroup,
     isLoading: groupsLoading,
     createGroup,
-    deleteGroup,
     leaveGroup,
   } = useGroups()
   const {
@@ -41,8 +37,8 @@ export default function SettingsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
-  const [groupToDelete, setGroupToDelete] = useState<GroupData | null>(null)
   const [showMembersModal, setShowMembersModal] = useState(false)
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false)
   const [isOperationLoading, setIsOperationLoading] = useState(false)
 
   /**
@@ -90,10 +86,23 @@ export default function SettingsPage() {
       if (success) {
         // User can now search for groups again
         setShowSearch(false)
+        setShowLeaveWarning(false)
       }
       return success
     } finally {
       setIsOperationLoading(false)
+    }
+  }
+
+  /**
+   * Handles the leave button click - shows warning for creators, leaves directly otherwise
+   */
+  const handleLeaveClick = () => {
+    if (!currentGroup) return
+    if (currentGroup.is_creator) {
+      setShowLeaveWarning(true)
+    } else {
+      void handleLeaveGroup()
     }
   }
 
@@ -107,26 +116,6 @@ export default function SettingsPage() {
       await loadAllGroups()
     }
     setShowSearch(true)
-  }
-
-  /**
-   * Handles group deletion
-   */
-  const handleDeleteGroup = async (groupId: string): Promise<boolean> => {
-    const success = await deleteGroup(groupId)
-    if (success) {
-      setGroupToDelete(null)
-    }
-    return success
-  }
-
-  /**
-   * Opens delete confirmation modal
-   */
-  const openDeleteModal = () => {
-    if (currentGroup) {
-      setGroupToDelete(currentGroup)
-    }
   }
 
   /**
@@ -171,14 +160,6 @@ export default function SettingsPage() {
               </Button>
               <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
             </div>
-            <Button
-              onClick={logoutAndRedirect}
-              variant="outline"
-              size="sm"
-              className="border-red-300 text-red-600 hover:bg-red-50"
-            >
-              Se déconnecter
-            </Button>
           </div>
         </div>
 
@@ -212,14 +193,6 @@ export default function SettingsPage() {
             </Button>
             <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
           </div>
-          <Button
-            onClick={logoutAndRedirect}
-            variant="outline"
-            size="sm"
-            className="border-red-300 text-red-600 hover:bg-red-50"
-          >
-            Se déconnecter
-          </Button>
         </div>
       </div>
 
@@ -256,11 +229,6 @@ export default function SettingsPage() {
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center space-x-2">
                     <h3 className="font-medium text-gray-900">{currentGroup.name}</h3>
-                    {currentGroup.is_creator && (
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-                        Créateur
-                      </span>
-                    )}
                   </div>
 
                   <div className="space-y-1 text-sm text-gray-500">
@@ -295,28 +263,16 @@ export default function SettingsPage() {
                     Voir membres
                   </Button>
 
-                  {/* Action Buttons */}
-                  {currentGroup.is_creator ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={openDeleteModal}
-                      disabled={isOperationLoading}
-                      className="w-full border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Supprimer
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleLeaveGroup}
-                      disabled={isOperationLoading}
-                      className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50 disabled:opacity-50"
-                    >
-                      {isOperationLoading ? 'Chargement...' : 'Quitter'}
-                    </Button>
-                  )}
+                  {/* Quitter (creator sees warning first) */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLeaveClick}
+                    disabled={isOperationLoading}
+                    className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50 disabled:opacity-50"
+                  >
+                    {isOperationLoading ? 'Chargement...' : 'Quitter'}
+                  </Button>
                 </div>
               </div>
 
@@ -469,15 +425,18 @@ export default function SettingsPage() {
         )}
       </main>
 
-      {/* Delete Confirmation Modal */}
-      {groupToDelete && (
-        <DeleteGroupModal
-          group={groupToDelete}
-          isOpen={true}
-          onClose={() => setGroupToDelete(null)}
-          onConfirm={handleDeleteGroup}
-        />
-      )}
+      {/* Leave Warning for Creators */}
+      <ConfirmationDialog
+        isOpen={showLeaveWarning}
+        onClose={() => setShowLeaveWarning(false)}
+        onConfirm={() => void handleLeaveGroup()}
+        title="Quitter votre groupe ?"
+        message="Vous êtes le créateur de ce groupe. En quittant, vous perdez le contrôle du groupe mais celui-ci continuera d'exister avec ses membres restants. Cette action est irréversible."
+        confirmText="Quitter"
+        cancelText="Annuler"
+        variant="warning"
+        loading={isOperationLoading}
+      />
 
       {/* Group Members Modal */}
       {currentGroup && (
