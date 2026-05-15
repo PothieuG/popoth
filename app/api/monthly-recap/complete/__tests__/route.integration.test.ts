@@ -319,19 +319,41 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete — characterization
   }, 60_000)
 
   // ------------------------------------------------------------------------
-  // CAS 3 — deficit + surplus mixed (exercises BOTH carryover_spent_amount
-  // AND the atomicity fix on cumulated_savings via RPC)
+  // CAS 3 — deficit + surplus mixed (exercises carryover_spent_amount + RPC
+  // path on cumulated_savings + Block 4 exceptional expense for uncovered deficit)
   // ------------------------------------------------------------------------
-  it('CAS 3 mixed deficit + surplus: A.carryover_spent_amount=200 + B.cumulated_savings=150 (RPC path)', async () => {
+  it('CAS 3 mixed deficit + surplus: A.carryover=200 + B.cumulated_savings=150 + 1 exceptional row (uncovered deficit)', async () => {
     await resetUserFinancialState()
 
-    // Math:
-    //   bank.current_rtl=400, totalEstimatedIncome=700, totalEstimatedBudgets=300
-    //   baseRtl = 700 - 300 = 400 → difference = 0 → adjustedDifference = 0 (no transfers)
-    //   → NO exceptional expense
+    // Runtime math (loadCompleteSnapshot → decideCompleteAllocation → applyCompleteDecision):
     //
-    // Budget A: estimated=100, real_expense=300 → deficit=200 → carryover=200, no surplus
-    // Budget B: estimated=200, real_expense=50  → deficit=0,  surplus=150 → cumulated_savings=0+150=150
+    //   1. Seed bank.current_rtl=400, totalEstimatedIncome=700, totalEstimatedBudgets=300.
+    //   2. loadCompleteSnapshot step 2 calls getProfileFinancialData which RECOMPUTES
+    //      the RAV from scratch and OVERWRITES bank_balances via saveRavToDatabase
+    //      (lib/finance/financial-data.ts:207). getProfileFinancialData computes:
+    //        incomeContribution = 700 (estimated, no real entries)
+    //        totalBudgetDeficits = 200 (A: 300 spent on 100 estimated)
+    //        remainingToLive = 700 + 0 - 300 - 0 - 200 = 200 → SAVED to bank
+    //   3. loadCompleteSnapshot step 6 re-reads bank.current_rtl post-overwrite = 200.
+    //   4. Algorithm: baseRtl = 700 - 300 = 400; difference = 200 - 400 = -200;
+    //      preTrans/postTrans = 200/200 → deficitCoveredByTransfers = 0 (no transfers).
+    //      Carryover ≠ transfers in the algorithm's adjustedDifference formula, so
+    //      the 200 deficit going to carryover is NOT credited as "covered".
+    //      adjustedDifference = -200 → exceptional expense of 200 created.
+    //   5. Step 3 cleanup DELETE wipes the 2 seeded real_expenses.
+    //   6. Step 5 INSERTs the exceptional expense (amount=200, is_exceptional=true)
+    //      AFTER the cleanup → 1 row remains in real_expenses.
+    //
+    // Per-budget effects:
+    //   Budget A: estimated=100, real_expense=300 → deficit=200 → carryover=200, no surplus
+    //   Budget B: estimated=200, real_expense=50  → deficit=0,  surplus=150 → cumulated_savings=0+150=150
+    //
+    // CONTRACT (pinned by this test): the algorithm intentionally creates an
+    // exceptional expense when the recomputed RAV is below the base RAV (i.e.
+    // there are deficits not covered by transfers). This is the design pinned
+    // by lib/recap/__tests__/complete-algorithm.test.ts Block 4. The seemingly
+    // "double-counted" interaction with carryover_spent_amount is a SEPARATE
+    // concern (CLAUDE.md §11 — investigation deferred, no production incident).
 
     await admin.from('bank_balances').insert({
       profile_id: testUserId,
@@ -436,12 +458,19 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete — characterization
     expect(Number(surplusAfter?.cumulated_savings)).toBe(150)
     expect(Number(surplusAfter?.carryover_spent_amount)).toBe(0)
 
-    // Cleanup: real_expenses empty after route's DELETE step
+    // Step 3 cleanup DELETE wipes the 2 seeded real_expenses ; Step 5 INSERTs
+    // the exceptional expense (amount=200, is_exceptional=true) AFTER cleanup.
+    // Net: exactly 1 row remains, the exceptional from Block 4.
     const { data: expensesAfter } = await admin
       .from('real_expenses')
-      .select('id')
+      .select('id, amount, is_exceptional, estimated_budget_id, description')
       .eq('profile_id', testUserId)
-    expect(expensesAfter ?? []).toHaveLength(0)
+    expect(expensesAfter ?? []).toHaveLength(1)
+    const exceptional = expensesAfter![0]!
+    expect(Number(exceptional.amount)).toBe(200)
+    expect(exceptional.is_exceptional).toBe(true)
+    expect(exceptional.estimated_budget_id).toBe(null)
+    expect(exceptional.description).toMatch(/^Écart de reste à vivre reporté du récap /)
   }, 60_000)
 
   // ------------------------------------------------------------------------
