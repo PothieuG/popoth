@@ -48,3 +48,29 @@ export type {
   ProcessAutoBalanceOutput,
   ProcessAutoBalanceSnapshot,
 } from './auto-balance-types'
+
+// Sprint Refactor-Recover (2026-05-16)
+export { decideRecoveryActions } from './recover-algorithm'
+export {
+  loadRecoverySnapshot,
+  applyRecoveryDecision,
+  processRecovery,
+} from './recover-persist'
+export {
+  RecoverContextError,
+  RecoverSnapshotNotFoundError,
+  RecoverSnapshotCorruptedError,
+  RecoveryAppliedPartiallyError,
+} from './recover-types'
+export type {
+  ProcessRecoveryInput,
+  ProcessRecoverySnapshot,
+  ProcessRecoveryDecision,
+  ProcessRecoveryOutput,
+  RecoveryResults,
+  RestorableTable,
+  RestorationAction,
+  ResultKey as RecoverResultKey,
+  CountResultKey as RecoverCountResultKey,
+  BooleanResultKey as RecoverBooleanResultKey,
+} from './recover-types'

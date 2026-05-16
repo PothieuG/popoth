@@ -104,6 +104,12 @@ const eslintConfig = [
       'lib/recap/auto-balance-algorithm.ts',
       'lib/recap/auto-balance-persist.ts',
       'lib/recap/auto-balance-types.ts',
+      // Sprint Refactor-Recover (2026-05-16) — recover god file extraction.
+      // Same scoping rationale: escalate only the migrated scope so any
+      // future console.* regression sorts the PR red.
+      'lib/recap/recover-algorithm.ts',
+      'lib/recap/recover-persist.ts',
+      'lib/recap/recover-types.ts',
     ],
     rules: { 'no-console': 'error' },
   },
