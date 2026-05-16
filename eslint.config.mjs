@@ -97,6 +97,13 @@ const eslintConfig = [
       // Closes the chantier console.log cleanup multi-sprint.
       'app/api/monthly-recap/balance/**',
       'app/api/monthly-recap/auto-balance/**',
+      // Sprint Refactor-Auto-Balance (2026-05-16) — god file extraction
+      // mirror Sprint Refactor-I5/I6: pin the 3 new modules to no-console
+      // explicitly so any regression sorts the PR red (belt-and-suspenders
+      // with the global rule, but symmetric with the step1/complete entries).
+      'lib/recap/auto-balance-algorithm.ts',
+      'lib/recap/auto-balance-persist.ts',
+      'lib/recap/auto-balance-types.ts',
     ],
     rules: { 'no-console': 'error' },
   },
