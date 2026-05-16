@@ -12,7 +12,7 @@
 
 ## 4. Structure du repo
 
-> ⚠️ **Note historique (chantier 16 — 2026-05-15)** : la doc audit originale (`docs/audit/`) et les prompts (`prompts/`) ont été archivés en bloc lors du commit de réorg + cleanup. Les 2 survivants migrés : `docs/db/SCHEMA.md` → [`doc2/db/SCHEMA.md`](./doc2/db/SCHEMA.md) et `docs/api/README.md` → [`doc2/api/README.md`](./doc2/api/README.md). Le working set actuel des chantiers est dans [`audit_2/`](./audit_2/). Les références `docs/audit/*.md` et `prompts/*.md` qui persistent dans cette doc (§4 inventaire + §11 roadmap narrative) sont historiques — recovery via `git show <sha>:<path>` à partir du commit chantier 16.
+> ⚠️ **Note historique (chantier 16 + Mission-suppression-audits — 2026-05-16)** : 2 cleanup massifs ont archivé la doc audit. Chantier 16 (2026-05-15) : `docs/audit/` + `prompts/`. Mission-suppression-audits (2026-05-16) : `audit_2/` + `audit_3/` (working set des prompts une fois tous les sprints livrés). Les 2 survivants doc migrés : `docs/db/SCHEMA.md` → [`doc2/db/SCHEMA.md`](./doc2/db/SCHEMA.md) et `docs/api/README.md` → [`doc2/api/README.md`](./doc2/api/README.md). Les références `docs/audit/*.md`, `prompts/*.md`, `audit_2/*.md`, `audit_3/*.md` qui persistent dans cette doc (§4 inventaire + §11 roadmap narrative) sont historiques — recovery via `git show <sha>:<path>` à partir du commit correspondant.
 
 ```
 app/                       # App Router (pages + API routes)

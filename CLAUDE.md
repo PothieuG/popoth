@@ -105,7 +105,6 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
   - `lib/logger.ts` — logger central level-aware
 - `supabase/migrations/` — baseline + RLS + RPCs (1 fichier par feature)
 - `scripts/` — outils API Management (export-schema, apply-sql, check-drift, check-rpcs, audit-\*)
-- `audit_2/`, `audit_3/` — chantiers actifs (working set)
 - `doc2/` — documentation migrée (api/README, db/SCHEMA)
 
 ## 5. Architecture critique
