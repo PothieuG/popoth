@@ -200,9 +200,7 @@ describe('decideRecoveryActions — V2 dispatch', () => {
     expect(fallback?.kind === 'update_bank_balance_v1' && fallback.amount).toBe(1234)
     // No restore_table for bank_balances
     expect(
-      decision.actions.some(
-        (a) => a.kind === 'restore_table' && a.table === 'bank_balances',
-      ),
+      decision.actions.some((a) => a.kind === 'restore_table' && a.table === 'bank_balances'),
     ).toBe(false)
   })
 
@@ -218,9 +216,7 @@ describe('decideRecoveryActions — V2 dispatch', () => {
     // No bank action at all (init false will be preserved in persist)
     expect(decision.actions.some((a) => a.kind === 'update_bank_balance_v1')).toBe(false)
     expect(
-      decision.actions.some(
-        (a) => a.kind === 'restore_table' && a.table === 'bank_balances',
-      ),
+      decision.actions.some((a) => a.kind === 'restore_table' && a.table === 'bank_balances'),
     ).toBe(false)
   })
 
@@ -344,9 +340,7 @@ describe('decideRecoveryActions — V1 fallback', () => {
     ).toBe(false)
     // No budget_transfers action
     expect(
-      decision.actions.some(
-        (a) => a.kind === 'restore_table' && a.table === 'budget_transfers',
-      ),
+      decision.actions.some((a) => a.kind === 'restore_table' && a.table === 'budget_transfers'),
     ).toBe(false)
     // 3 actions: incomes, budgets, bank update
     expect(decision.actions).toHaveLength(3)

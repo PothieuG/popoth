@@ -51,11 +51,7 @@ export type {
 
 // Sprint Refactor-Recover (2026-05-16)
 export { decideRecoveryActions } from './recover-algorithm'
-export {
-  loadRecoverySnapshot,
-  applyRecoveryDecision,
-  processRecovery,
-} from './recover-persist'
+export { loadRecoverySnapshot, applyRecoveryDecision, processRecovery } from './recover-persist'
 export {
   RecoverContextError,
   RecoverSnapshotNotFoundError,

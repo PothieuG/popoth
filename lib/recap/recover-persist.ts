@@ -76,9 +76,7 @@ import {
  *  - RecoveryAppliedPartiallyError    → handler maps to 500 + recovery_results
  *  - Other Error                      → handler maps to 500 generic
  */
-export async function processRecovery(
-  input: ProcessRecoveryInput,
-): Promise<ProcessRecoveryOutput> {
+export async function processRecovery(input: ProcessRecoveryInput): Promise<ProcessRecoveryOutput> {
   const snapshot = await loadRecoverySnapshot(input)
   const decision = decideRecoveryActions(snapshot)
   const results = await applyRecoveryDecision(input, decision)

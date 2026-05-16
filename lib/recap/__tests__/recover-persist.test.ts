@@ -46,23 +46,20 @@ vi.mock('@/lib/supabase-server', () => {
   const updateEqChain: any = {}
   updateEqChain.eq = vi.fn(() => updateEqChain)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arbitrary onResolve/onReject signatures
-  updateEqChain.then = (onResolve: any, onReject: any) =>
-    updateAwait().then(onResolve, onReject)
+  updateEqChain.then = (onResolve: any, onReject: any) => updateAwait().then(onResolve, onReject)
 
   // deleteEqChain is what chain.delete() returns. .eq returns same. Thenable.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- thenable + chainable
   const deleteEqChain: any = {}
   deleteEqChain.eq = vi.fn(() => deleteEqChain)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deleteEqChain.then = (onResolve: any, onReject: any) =>
-    deleteAwait().then(onResolve, onReject)
+  deleteEqChain.then = (onResolve: any, onReject: any) => deleteAwait().then(onResolve, onReject)
 
   // insertChain is what chain.insert(...) returns. Thenable for direct await.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const insertChain: any = {}
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  insertChain.then = (onResolve: any, onReject: any) =>
-    insertAwait().then(onResolve, onReject)
+  insertChain.then = (onResolve: any, onReject: any) => insertAwait().then(onResolve, onReject)
 
   // Top-level chain returned by from(...). Chainable.
   // .order + .limit return the chain itself (terminal is .single() which
@@ -360,11 +357,12 @@ describe('applyRecoveryDecision — CLEANUP-ATTEMPT CRITIQUE preservation', () =
     }
 
     expect(caught).toBeInstanceOf(RecoveryAppliedPartiallyError)
-    expect((caught as InstanceType<typeof RecoveryAppliedPartiallyError>).partialResults)
-      .toMatchObject({
-        estimated_incomes: 1, // 1st action succeeded → captured in partialResults
-        estimated_budgets: 0, // 2nd action threw before assigning
-      })
+    expect(
+      (caught as InstanceType<typeof RecoveryAppliedPartiallyError>).partialResults,
+    ).toMatchObject({
+      estimated_incomes: 1, // 1st action succeeded → captured in partialResults
+      estimated_budgets: 0, // 2nd action threw before assigning
+    })
 
     // CLEANUP-ATTEMPT CRITIQUE log fired (grep-able for ops investigation)
     expect(errorSpy).toHaveBeenCalledWith(
@@ -558,9 +556,7 @@ describe('loadRecoverySnapshot — happy paths + error mapping', () => {
     const { RecoverContextError } = await import('@/lib/recap/recover-types')
 
     await expect(
-      loadRecoverySnapshot(
-        buildInput({ context: 'group', contextId: '', ownerField: 'group_id' }),
-      ),
+      loadRecoverySnapshot(buildInput({ context: 'group', contextId: '', ownerField: 'group_id' })),
     ).rejects.toThrow(RecoverContextError)
   })
 })
