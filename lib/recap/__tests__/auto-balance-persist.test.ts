@@ -22,7 +22,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   AutoBalanceTransfer,
-  BudgetAnalysis,
   ProcessAutoBalanceDecision,
   ProcessAutoBalanceInput,
 } from '@/lib/recap/auto-balance-types'
@@ -80,9 +79,7 @@ afterEach(() => {
 
 // Helpers ------------------------------------------------------------------
 
-function buildInput(
-  overrides: Partial<ProcessAutoBalanceInput> = {},
-): ProcessAutoBalanceInput {
+function buildInput(overrides: Partial<ProcessAutoBalanceInput> = {}): ProcessAutoBalanceInput {
   return {
     userId: 'user-1',
     context: 'profile',
@@ -104,9 +101,7 @@ function buildPiggyTransfer(overrides: Partial<AutoBalanceTransfer> = {}): AutoB
   }
 }
 
-function buildSavingsTransfer(
-  overrides: Partial<AutoBalanceTransfer> = {},
-): AutoBalanceTransfer {
+function buildSavingsTransfer(overrides: Partial<AutoBalanceTransfer> = {}): AutoBalanceTransfer {
   return {
     from_budget_id: 'b-from',
     from_budget_name: 'From',
@@ -118,9 +113,7 @@ function buildSavingsTransfer(
   }
 }
 
-function buildSurplusTransfer(
-  overrides: Partial<AutoBalanceTransfer> = {},
-): AutoBalanceTransfer {
+function buildSurplusTransfer(overrides: Partial<AutoBalanceTransfer> = {}): AutoBalanceTransfer {
   return {
     from_budget_id: 'b-from',
     from_budget_name: 'From',
@@ -493,9 +486,7 @@ describe('loadAutoBalanceSnapshot', () => {
     const { loadAutoBalanceSnapshot } = await import('@/lib/recap/auto-balance-persist')
     const { RecapNoBudgetsError } = await import('@/lib/recap/auto-balance-types')
 
-    await expect(loadAutoBalanceSnapshot(buildInput())).rejects.toBeInstanceOf(
-      RecapNoBudgetsError,
-    )
+    await expect(loadAutoBalanceSnapshot(buildInput())).rejects.toBeInstanceOf(RecapNoBudgetsError)
   })
 
   it('estimated_budgets SELECT fails → throws "Erreur ... budgets"', async () => {
@@ -615,9 +606,7 @@ describe('processAutoBalance — orchestration', () => {
     }
     // estimated_budgets: 2 budgets, one deficit, one savings-source
     supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
-      data: [
-        { id: 'b-deficit', name: 'D', estimated_amount: 50, cumulated_savings: 0 },
-      ],
+      data: [{ id: 'b-deficit', name: 'D', estimated_amount: 50, cumulated_savings: 0 }],
       error: null,
     })
     // real_expenses: 1 expense > estimated → deficit
@@ -660,9 +649,7 @@ describe('processAutoBalance — orchestration', () => {
     }
     // Budget with surplus but no deficit
     supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
-      data: [
-        { id: 'b-1', name: 'B', estimated_amount: 200, cumulated_savings: 0 },
-      ],
+      data: [{ id: 'b-1', name: 'B', estimated_amount: 200, cumulated_savings: 0 }],
       error: null,
     })
     supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
@@ -697,9 +684,7 @@ describe('processAutoBalance — orchestration', () => {
     }
     // 1 deficit budget, spent=estimated (no surplus possible elsewhere)
     supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({
-      data: [
-        { id: 'b-1', name: 'B', estimated_amount: 50, cumulated_savings: 0 },
-      ],
+      data: [{ id: 'b-1', name: 'B', estimated_amount: 50, cumulated_savings: 0 }],
       error: null,
     })
     supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({

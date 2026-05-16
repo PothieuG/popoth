@@ -47,9 +47,7 @@ describe('decideAutoBalanceAllocation', () => {
       const result = decideAutoBalanceAllocation(
         makeSnapshot({
           piggyBank: 100,
-          budgetAnalyses: [
-            makeBudget({ id: 'a', monthly_surplus: 100, cumulated_savings: 50 }),
-          ],
+          budgetAnalyses: [makeBudget({ id: 'a', monthly_surplus: 100, cumulated_savings: 50 })],
         }),
       )
       expect(result.kind).toBe('no_deficit')
@@ -301,9 +299,7 @@ describe('decideAutoBalanceAllocation', () => {
       const result = decideAutoBalanceAllocation(
         makeSnapshot({
           piggyBank: 0,
-          budgetAnalyses: [
-            makeBudget({ id: 'a', cumulated_savings: 100, monthly_deficit: 50 }),
-          ],
+          budgetAnalyses: [makeBudget({ id: 'a', cumulated_savings: 100, monthly_deficit: 50 })],
         }),
       )
       // A is the only budget; A→A is skipped. 0 transfers from PHASE 1.
@@ -473,9 +469,7 @@ describe('decideAutoBalanceAllocation', () => {
       const result = decideAutoBalanceAllocation(
         makeSnapshot({
           piggyBank: 0,
-          budgetAnalyses: [
-            makeBudget({ id: 'a', monthly_surplus: 100, monthly_deficit: 50 }),
-          ],
+          budgetAnalyses: [makeBudget({ id: 'a', monthly_surplus: 100, monthly_deficit: 50 })],
         }),
       )
       expect(result.kind).toBe('no_transfers')
