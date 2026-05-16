@@ -234,3 +234,25 @@ export class RecoverSnapshotCorruptedError extends Error {
     this.name = 'RecoverSnapshotCorruptedError'
   }
 }
+
+/**
+ * Thrown by `applyRecoveryDecision` when the restoration loop catches an
+ * UNEXPECTED exception (network failure, Supabase client crash, etc.) —
+ * preserves the route's L286-295 CLEANUP-ATTEMPT CRITIQUE contract by
+ * carrying the in-flight `partialResults` so the HTTP handler can return
+ * 500 + recovery_results in the body (informational; the actual DB state
+ * may be partially restored, snapshot may still be active).
+ *
+ * Per-row INSERT/UPDATE errors do NOT throw this — they accumulate into
+ * `RecoveryResults.errors[]` and the flow continues (mirror route's
+ * restoreTable absorb-and-continue pattern at L206-211).
+ */
+export class RecoveryAppliedPartiallyError extends Error {
+  partialResults: RecoveryResults
+  constructor(partialResults: RecoveryResults, cause: unknown) {
+    const causeMsg = cause instanceof Error ? cause.message : String(cause)
+    super(`Recovery failed mid-flight: ${causeMsg}`)
+    this.name = 'RecoveryAppliedPartiallyError'
+    this.partialResults = partialResults
+  }
+}
