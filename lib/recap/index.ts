@@ -31,3 +31,20 @@ export type {
   ProcessCompleteOutput,
   ProcessCompleteSnapshot,
 } from './complete-types'
+
+// Sprint Refactor-Auto-Balance (2026-05-16)
+export { decideAutoBalanceAllocation } from './auto-balance-algorithm'
+export type { AutoBalanceAlgorithmResult } from './auto-balance-algorithm'
+export { processAutoBalance } from './auto-balance-persist'
+export { RecapNoBudgetsError } from './auto-balance-types'
+export type {
+  AllocationOperation as AutoBalanceAllocationOperation,
+  AutoBalanceEmptyOutput,
+  AutoBalanceSuccessOutput,
+  AutoBalanceTransfer,
+  BudgetAnalysis as AutoBalanceBudgetAnalysis,
+  ProcessAutoBalanceDecision,
+  ProcessAutoBalanceInput,
+  ProcessAutoBalanceOutput,
+  ProcessAutoBalanceSnapshot,
+} from './auto-balance-types'
