@@ -1,0 +1,164 @@
+# Règles opérationnelles — précédents, exemples, cleanup-attempts CRITIQUES
+
+> Extraction détaillée de CLAUDE.md §8 (justifications longues, exemples, précédents).
+
+## 1. Pattern Path B closed-by-deletion (7+ cas)
+
+Pour tout candidat de cleanup ou de refactor non-trivial, vérifier d'abord les consumers cross-codebase. Si **0 consumer applicatif** : préférer **Path B DELETE** (CLAUDE.md system prompt "Don't design for hypothetical future requirements") plutôt que Path A refactor.
+
+**Précédents** :
+
+1. **Sprint Lot 5b** (2026-05-10) — `app/api/monthly-recap/status-test/route.ts` deleted (0 consumer, mock data hardcodé).
+2. **Sprint Lot 5c** (2026-05-10) — `testSupabaseConnection()` deleted dans `lib/supabase-client.ts` (0 callsite cross-codebase, 17 LOC).
+3. **Sprint Atomicity-Savings v2** (2026-05-12) — `handlePiggyBankAction` deleted dans `app/api/savings/transfer/route.ts` (89 LOC, 3 action types `set_piggy_bank`/`add_to_piggy_bank`/`remove_from_piggy_bank` confirmed dead code).
+4. **Sprint Dead-Code-Purge** (2026-05-13) — 3 deletions bundled :
+   - `lib/auth.ts::resetPassword + updatePassword` (−42 LOC, les pages forgot/reset utilisent `supabase.auth.*` direct).
+   - `app/api/debug/{remaining-to-live,financial,group-financial}/route.ts` (−504 LOC, 0 consumer cross-codebase, toutes gated `blockInProduction()` 404 prod).
+   - `lib/contribution-calculator.ts::calculateMinimumSalary + calculateMaximumGroupBudget` (−17 LOC, 0 consumer).
+5. **Sprint UserGroupsList-Cleanup** (2026-05-14) — `components/groups/UserGroupsList.tsx` deleted (157 LOC, 0 consumer applicatif, app/settings/page.tsx rend déjà inline la même UI sur `currentGroup` singular).
+6. **Sprint Audit-Closeout I3** (2026-05-13) — `lib/monthly-recap-calculations.ts` deleted (399 LOC, 8 exports tous orphelins).
+7. **Sprint Zod-Rollout v8** (2026-05-14) — `components/groups/GroupMembersModal.tsx` deleted (175 LOC, 0 consumer).
+
+**Pattern** : (a) `Grep "<exportName>" --glob '**/*.{ts,tsx}'` cross-codebase ; (b) `Grep` dans `app/`, `components/`, `hooks/`, `contexts/`, `lib/`, `middleware.ts`, `__tests__/` (scope MUST inclure tous pour éviter de manquer un consumer — leçon Sprint Lot 5c qui scope-bound à `app/` only et a manqué `contexts/AuthContext.tsx:14` register callback consommant `signUp`).
+
+## 2. God-files monthly-recap stateful — 4/4 extraits
+
+Pattern d'extraction `route.ts → lib/recap/{types,algorithm,persist}.ts + thin handler + N caract gated + M algorithm tests + K mocked tests` standardisé sur 4 routes :
+
+| Route                    | Sprint                             | Pre LOC         | Post LOC                        | Tests ajoutés                        |
+| ------------------------ | ---------------------------------- | --------------- | ------------------------------- | ------------------------------------ |
+| `process-step1/route.ts` | Refactor-I5 (2026-05-11)           | 740             | 45                              | 33 algo + 8 mocked + 6 caract gated  |
+| `complete/route.ts`      | Refactor-I6 (2026-05-14)           | 703 + 4 globals | 59                              | 32 algo + 18 mocked + 5 caract gated |
+| `auto-balance/route.ts`  | Refactor-Auto-Balance (2026-05-16) | 533             | 56                              | 37 algo + 17 mocked + 5 caract gated |
+| `recover/route.ts`       | Refactor-Recover (2026-05-16)      | 385             | 168 (POST 80 + GET 76 verbatim) | 21 algo + 16 mocked + 5 caract gated |
+
+Le pattern standardisé en 8 étapes (suivi sur les 4 sprints) :
+
+1. **Caract tests gated** d'abord (byte-identique pré-refactor)
+2. **Types pure module** (`*-types.ts` 0 runtime)
+3. **Algorithm pur** 0 I/O / 0 console / 0 Date.now / immutable + sort déterministe
+4. **Unit tests algorithm** (pure-unit non-gated)
+5. **Persist I/O** avec fail-soft semantics + custom errors
+6. **Mocked tests persist** (vi.mock hoisted + dynamic import in test)
+7. **Rewire route thin handler** + barrel + ESLint glob no-console:'error'
+8. **Closeout doc**
+
+**`balance/route.ts`** reste hors scope d'extraction post-Sprint Balance-Atomicity-Eval (2026-05-16) qui a confirmé la route déjà atomique by design (0 reversed pattern). L'extraction serait pure consolidation refactor mirror I5/I6 sans gain.
+
+## 3. Cleanup-attempts CRITIQUES préservés
+
+Patterns à NE PAS supprimer même si fail-soft cosmétique :
+
+- **`savings/transfer/route.ts` pré-Sprint Atomicity-Savings** (L122/L321/L337) — rollback FROM impossible / rollback piggy UPDATE impossible / rollback piggy INSERT impossible. Regression-guardés Sprint Refactor-Test-Coverage 2026-05-12 puis **fermés à la racine** Sprint Atomicity-Savings 2026-05-12 via composite RPCs `transfer_savings_between_budgets` + `transfer_budget_to_piggy_bank` (les 3 cleanup-attempts n'existent plus dans le code post-fix ; les tests PIN ATOMIC CONTRACT pinnent le single-call-site invariant).
+
+- **`recover-persist.ts:applyRecoveryDecision`** (route L286-288 pre-refactor Sprint Refactor-Recover 2026-05-16) — unexpected exceptions → `logger.error('[recover] rollback partiel impossible (snapshot may stay active)')` + throw `RecoveryAppliedPartiallyError` carrying partialResults. Le HTTP handler catch ce type d'erreur dédié et retourne 500 + recovery_results in body (shape byte-identique pre-refactor). Regression-guardé par le test "unexpected exception in apply loop" dans recover-persist.test.ts.
+
+- **`auth/session/route.ts:56`** (Sprint Lot 5b) — Supabase auth réussi mais JWT session fail → état inconsistant grep-able. `logger.error` préservé.
+
+- **`app/auth/confirm/route.ts:46`** (Sprint Lot 5c) — OTP verification réussie mais `data.user` manquant (edge case non-évident).
+
+- **`database-snapshot.ts:169-173`** (Sprint Lot 5c) — 5 statements `logger.info` (snapshot ID + mois + total records + per-table counts — foundational pour audit recovery si rollback nécessaire post-process-step1).
+
+- **`useMonthlyRecap.ts:84/115/157`** (Sprint Lot 5) — /monthly-recap/transfer + /auto-balance + /complete fail → état inconsistant si client cascade fail après server commit.
+
+- **`useGroups.ts:145+168`** (Sprint Lot 5) — join/leave cross-mutation cascade fail (financial state stale risk).
+
+- **`SavingsDistributionDrawer.tsx:171`** (Sprint Lot 5) — POST /savings/transfer fail peut laisser DB partiellement débitée, no toast UX.
+
+- **`ServiceWorkerRegistration.tsx:18`** (Sprint Lot 5) — silent par design, log nécessaire pour tickets support 'offline ne marche pas'.
+
+## 4. Composite RPCs atomiques (battle-tested)
+
+Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`), utiliser un helper `lib/finance/*` qui invoque une composite RPC :
+
+| Helper                             | RPC                                     | Sprint                      | Use case                                                                               |
+| ---------------------------------- | --------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `updatePiggyBank`                  | `update_piggy_bank_amount`              | Sprint 0 / C3               | Single piggy debit/credit                                                              |
+| `updateBankBalance`                | `update_bank_balance`                   | Sprint 0 / C3               | Single bank update                                                                     |
+| `updateBudgetCumulatedSavings`     | `update_budget_cumulated_savings`       | Sprint 0 / C3               | Single savings update                                                                  |
+| `transferFromPiggyToBudget`        | `transfer_from_piggy_to_budget`         | Sprint 0 / C3               | Piggy debit + budget savings credit                                                    |
+| `transferWithSavingsDebit`         | `transfer_with_savings_debit`           | Refactor-I5-followup-v2     | INSERT budget_transfers + debit cumulated_savings                                      |
+| `addExpenseWithBreakdown`          | `add_expense_with_breakdown`            | Atomicity-Expenses          | Smart-allocation expense (piggy + savings + INSERT real_expenses)                      |
+| `transferSavingsBetweenBudgets`    | `transfer_savings_between_budgets`      | Atomicity-Savings           | Debit FROM + credit TO en 1 tx                                                         |
+| `transferBudgetToPiggyBank`        | `transfer_budget_to_piggy_bank`         | Atomicity-Savings           | Debit budget + UPSERT piggy_bank                                                       |
+| `transferPiggyToBudgetWithInsert`  | `transfer_piggy_to_budget_with_insert`  | Auto-Balance-Atomic-Phase-B | Debit piggy + INSERT budget_transfers (from_budget_id=NULL)                            |
+| `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                    | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
+
+`EXPECTED_RPCS = 10` pinnés dans [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs).
+
+## 5. Patterns ❌ "Ne pas réintroduire X"
+
+### Séquences non-atomiques (smart-allocation / savings transfer / auto-balance)
+
+- ❌ **NE PAS** appeler `updatePiggyBank` puis `updateBudgetCumulatedSavings` puis `supabaseServer.from('real_expenses').insert(...)` séparément pour smart-allocation → utiliser `addExpenseWithBreakdown` (Sprint Atomicity-Expenses).
+- ❌ **NE PAS** appeler `updateBudgetCumulatedSavings` deux fois séparées avec un manual rollback compensatoire → utiliser `transferSavingsBetweenBudgets` (Sprint Atomicity-Savings).
+- ❌ **NE PAS** réintroduire le pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched` dans `auto-balance/route.ts` → utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
+- ❌ **NE PAS** réintroduire le pattern reversed `updatePiggyBank(aggregate) + INSERT batched budget_transfers (from_budget_id=NULL)` → utiliser `transferPiggyToBudgetWithInsert` per-pair (Sprint Auto-Balance-Atomic-Phase-B).
+
+### God-files monthly-recap
+
+- ❌ **NE PAS** réintroduire de logique métier dans `process-step1/route.ts`, `complete/route.ts`, `auto-balance/route.ts`, `recover/route.ts` (4/4 extraits). Tout ajout passe par `lib/recap/<route>-{algorithm,persist,types}.ts`.
+- ❌ **NE PAS** réintroduire `declare global` dans aucune route (0 occurrence post-Refactor-I6).
+- ❌ **NE PAS** réintroduire le pattern SELECT-then-UPDATE sur `cumulated_savings` dans `complete/route.ts` (L484 pre-Refactor-I6 fix).
+
+### Idempotency / retries
+
+- ❌ **NE PAS retry automatiquement** un POST `/api/monthly-recap/process-step1` qui retourne une 5xx — la route n'est pas idempotente. Le frontend doit disable le bouton pendant la submission (pattern `isSubmitting` dans [MonthlyRecapStep1.tsx](../../components/monthly-recap/MonthlyRecapStep1.tsx)). Si un futur incident montre des states cassés, prioritiser idempotency key serveur-side (header `Idempotency-Key` + cache table) ou `pg_try_advisory_xact_lock(hashtext(user_id))` plutôt que retry client.
+
+### RAV formula
+
+- ❌ **NE PAS** réintroduire `cumulated_savings` comme terme additif dans la formule RAV (`calculateRemainingToLiveProfile`/`Group`). La formule canonique est `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits`. Le `totalSavings` est exposé séparément sur `FinancialData.totalSavings`.
+- ❌ **NE PAS** dépendre de la colonne `estimated_budgets.monthly_surplus_deficit` comme source du terme `budgetDeficits` — le déficit est calculé **on-the-fly** via `calculateBudgetDeficit(estimatedAmount, spentThisMonth)`.
+
+### budget_transfers.monthly_recap_id
+
+- ❌ **NE PAS** ajouter un consumer qui FILTER/JOIN sur `budget_transfers.monthly_recap_id` sans d'abord plumber `recapId` à travers les 5 paths automatiques (step1-persist 2.3.1+2.4.2 via RPC `transfer_with_savings_debit` qui devrait accepter `p_recap_id`, auto-balance, balance, complete). Aujourd'hui la colonne est best-effort/NULL pour les paths automatiques. Un JOIN naïf raterait la quasi-totalité des transferts récap.
+
+### recover route — strict boolean invariant
+
+- ❌ **NE PAS** réintroduire `bank_balance: boolean | number` mismatch dans `RecoveryResults` (Sprint Lint-Followups Item 1 2026-05-08). Les paths V1 (update_bank_balance_v1) ET V2 (restoreTable resultKey 'bank_balance'/'piggy_bank') doivent assigner `true` strict (NEVER numeric `data.length`, NEVER `Boolean(x)`). Regression-guardé par 3 cas A/B/C dans `lib/__tests__/api-regressions.test.ts` gated `SUPABASE_API_TESTS=1`.
+
+### recover — 5 tables v2 NON-restaurées
+
+- ❌ **NE PAS** ajouter `profiles`, `groups`, `group_contributions`, `monthly_recaps`, `remaining_to_live_snapshots` dans `RestorableTable` literal union de `lib/recap/recover-types.ts`. Ces 5 tables contiennent de l'identity/membership/output/audit-trail data qui serait écrasée par snapshot restore. Sprint dédié `Recover-V2-Complete-Restoration` avec FK cascade tests requis avant.
+
+### Tests gated monthly-recap
+
+- ❌ **NE PAS supposer** dans un test gated que `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`. Step 2 appelle `getProfileFinancialData` qui recompute le RAV from scratch et **écrase la colonne via `saveRavToDatabase`** avant que step 6 ne re-lise. Cas vu Sprint Complete-CAS3-TestFix (2026-05-15). Tracer la séquence end-to-end avant d'asserter sur `bank_balances` ou `real_expenses` post-cleanup.
+
+### Modals & UI
+
+- ❌ **NE PAS** créer de nouveau modal en raw `<div className="fixed inset-0 ...">` — utiliser `<Dialog>` + `<DialogContent>` (Sprint Zod-Rollout v8). 12 surfaces v8 migrées, 12 tests focus-trap regression-guards.
+- ❌ **NE PAS** réintroduire un raw `<button onClick> ... <svg path d="M6 18L18 6M6 6l12 12">...</svg></button>` pour le close X d'un modal → utiliser `<ModalCloseX>` (Sprint v10).
+- ❌ **NE PAS** réintroduire un wizard single-step `AddTransactionModal` — le wizard 2-step (Step 1 type / Step 2 budgétée-exceptionnelle / Step 3 fields, income skips Step 2) est requis pour P6.
+- ❌ **NE PAS** réintroduire le pattern cascade-aggressive piggy→savings→budget dans `calculateBreakdown` — P4 strict default → budget priorité 1, savings cascade UNIQUEMENT si overflow, piggy JAMAIS auto-débitée.
+
+### Forbidden absolus
+
+- ❌ **NE PAS** modifier [supabase/migrations/20260506000000_create_finance_rpcs.sql](../../supabase/migrations/20260506000000_create_finance_rpcs.sql). Pour corriger une RPC : `CREATE OR REPLACE` dans une nouvelle migration.
+- ❌ **NE PAS** réactiver `typescript.ignoreBuildErrors`.
+- ❌ **NE PAS** upgrader `eslint-config-next` 15→16 maintenant (Sprint 1 séparé).
+- ❌ **NE PAS** mocker la DB dans les tests d'intégration — utiliser Supabase local ou staging.
+- ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, prompts/, et les fichiers `.claude/` mis en place pour la refactorisation du CLAUDE.md).
+- ❌ **NE PAS** réintroduire les exports supprimés au Sprint Dead-Code-Purge (cf. §1 ci-dessus).
+- ❌ **NE PAS** réintroduire un fichier `lib/financial-calculations.ts` — le god file (1069 LOC) a été splitté en 8 modules sous [lib/finance/](../../lib/finance/) au Sprint Refactor-I4.
+
+## 6. Précédents Sprint chronologie résumée
+
+| Sprint                               | Date       | Pattern installé                                                 | Référence §11              |
+| ------------------------------------ | ---------- | ---------------------------------------------------------------- | -------------------------- |
+| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy           | roadmap-detailed.md        |
+| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1     | roadmap-detailed.md        |
+| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                    | sprint-history-security.md |
+| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                       | roadmap-detailed.md        |
+| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                  | roadmap-detailed.md        |
+| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`  | roadmap-detailed.md        |
+| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                  | roadmap-detailed.md        |
+| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                       | roadmap-detailed.md        |
+| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                | roadmap-detailed.md        |
+| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés | roadmap-detailed.md        |
+| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)       | roadmap-detailed.md        |
+| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                   | roadmap-detailed.md        |
+| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                       | roadmap-detailed.md        |
+
+Pour la chronologie complète des 94 sprints, voir [@.claude/history/roadmap-detailed.md](../history/roadmap-detailed.md).
