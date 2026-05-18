@@ -224,6 +224,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **`recap_snapshots.snapshot_data`** : types [lib/recap-snapshot.types.ts](lib/recap-snapshot.types.ts) (`SnapshotPayload` + `isSnapshotV2()`). Pas de `as any`.
 - **Form client a11y** : `aria-describedby` + `id` sur erreur (id-prefix par form) ; `role="alert"` sur serverError ; `onInvalidSubmit` → `form.setFocus(Object.keys(errors)[0])` ; close X svg-only → `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur `<svg>`.
 - **Modal Radix-migré** : close X via `<ModalCloseX onClose variant="circle"|"ghost" />` (v10). Drawer fullscreen → `DRAWER_CONTENT_CLASSES` (v9). Test focus-trap → helper `expectEscClose()` (v10).
+- **Feedback transient post-mutation** : snackbar fixed bottom `z-[60]` (au-dessus drawer z-50) + `animate-in slide-in-from-bottom-4` + auto-dismiss 3s + `role="status"`. Mobile-safe `w-[calc(100%-2rem)] max-w-sm`. Pas de bandeau in-flow. Cf. [ProfileSettingsCard.tsx](components/profile/ProfileSettingsCard.tsx).
 - **DB ops** : Nouvelle RPC = `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public` + `NOTIFY pgrst`. Migration fonction → `pnpm db:audit-functions`. CREATE TYPE/DOMAIN → `db:audit-objects`. DROP / capture rétroactive prod → workflow strict ([git-workflow.md](.claude/conventions/git-workflow.md) §5-6). **NE PAS** `supabase db push` pour capture rétroactive.
 - **Push gate prod** : `db push --dry-run` → STOP → `db push` → re-audit → commit. Régénérer types `pnpm db:types` + `db:check-types-fresh`. Migration non-triviale → `db:check-drift`, si exit 1 re-exporter baseline.
 - **PR Dependabot mergée** : `git pull` + `pnpm install` + `pnpm verify` + `pnpm dev` smoke. Fix-forward plutôt que `git revert -m 1` ([git-workflow.md](.claude/conventions/git-workflow.md) §9).
@@ -233,6 +234,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 **Architecture / modals / Zod**
 
 - **Modal/drawer raw** `<div className="fixed inset-0 ...">` → `<Dialog>` + `<DialogContent>` Radix (v8). Pas de raw button + SVG `M6 18L18 6M6 6l12 12` → `<ModalCloseX>` (v10).
+- **`window.location.reload()` après mutation TanStack Query**. `onSuccess` fait `setQueryData(key, newData)` → les consumers re-render. Le reload casse le drawer/modal/state UX (cas vu sur avatar update 2026-05-18).
 - **`await request.json()` direct** sans `parseBody` dans les routes Zod-migrated. Pas de `if (typeof X !== 'number' || X <= 0)` après parseBody.
 - **Réintroduire `lib/financial-calculations.ts`** (splitté en 8 modules `lib/finance/` au Refactor-I4).
 - **Réintroduire les exports supprimés Dead-Code-Purge** (`resetPassword`/`updatePassword`, `calculateMinimumSalary`/`calculateMaximumGroupBudget`, 3 routes `app/api/debug/{remaining-to-live,financial,group-financial}`).

@@ -171,12 +171,8 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
 
       const success = await updateProfile(updates)
       if (success) {
-        setSuccessMessage('Photo de profil mise à jour avec succès')
-
-        // Force page refresh after a short delay to show success message
-        setTimeout(() => {
-          window.location.reload()
-        }, 1000)
+        setSuccessMessage('Photo de profil mise à jour')
+        setTimeout(() => setSuccessMessage(''), 3000)
       }
     } catch (error) {
       logger.error('Error updating avatar:', error)
@@ -267,9 +263,13 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
         )}
       </div>
 
-      {/* Success Message */}
+      {/* Snackbar — fixed bottom, slide-in, auto-dismiss 3s. z-[60] passe au-dessus du drawer (z-50). */}
       {successMessage && (
-        <div className="mb-4 rounded border border-green-400 bg-green-100 p-3 text-green-700">
+        <div
+          role="status"
+          aria-live="polite"
+          className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg duration-300"
+        >
           {successMessage}
         </div>
       )}
