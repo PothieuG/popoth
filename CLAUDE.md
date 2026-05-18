@@ -58,7 +58,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~
 | `pnpm db:check-types-fresh`                | Vérifie que `database.types.ts` matche prod                                                                                               |
 | `pnpm db:audit-functions`                  | Audit générique `pg_proc` ↔ migrations (lance après chaque migration touchant une fonction PL/pgSQL)                                      |
 | `pnpm db:audit-objects`                    | Audit générique étendu (functions, types, enums, domains, operators)                                                                      |
-| `pnpm verify`                              | **Sanity sweep** : `typecheck + test:run + 6 db:* checks` fail-fast. ~36s en local. À lancer après chaque sprint.                         |
+| `pnpm verify`                              | **Sanity sweep** : `typecheck + format:check + test:run + 6 db:* checks` fail-fast. ~36s en local. À lancer après chaque sprint.          |
 | `pnpm supabase ...`                        | Supabase CLI (lié à `jzmppreybwabaeycvasz`)                                                                                               |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker)                                                                                  |
 | `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management                                                                                                |
