@@ -19,7 +19,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 
 ## 1. Projet
 
-**Popoth** : PWA francophone de gestion financière personnelle et en groupe. Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
+**Popoth** : PWA francophone **mobile-first** de gestion financière personnelle et en groupe. **Toute UI doit être pensée mobile uniquement** (cible iPhone Safari/Chrome, viewport ≤ 430 px). Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
 Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
@@ -127,13 +127,17 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 ## 6. Conventions
 
+### UI / Mobile-first
+
+**Toute UI doit être pensée mobile uniquement**. Cible viewport iPhone Safari/Chrome, largeur ≤ 430 px. Pas de breakpoints `md:`/`lg:`/`xl:` "pour le desktop". Un layout qui décale en mobile (texte qui pousse le navbar, modal qui déborde, table non-scrollable) est un bug bloquant. Tester en DevTools mobile viewport avant push. Pour les textes longs dans les zones contraintes (navbar, badges) : tronquer + tooltip via `title=` natif.
+
 ### API
 
 - Format réponse : **`{ data: T } | { error: string }`** sur toutes les routes
 - Auth invalide : `401` + `{ error: 'Session invalide' }`
 - Debug-route en prod : `404` (pas 403, pour ne pas révéler l'existence)
 - **Pattern obligatoire** (routes `/api/debug/*` uniquement) : `blockInProduction()` en première instruction → `validateSessionToken(request)` + 401 si invalide → try/catch + 500 fallback. Exemple complet dans `git-workflow.md` ou voir route existante.
-- Pour les handlers non-debug, préférer le wrapper `withAuth(handler)` / `withAuthAndProfile(handler)` depuis [lib/api/with-auth.ts](lib/api/with-auth.ts) (34 modules wrappés). `withAuthAndProfile` fetch `select('id, group_id, first_name, last_name')` et passe `{ userId, profile }` au callback. Pour routes dynamiques : `withAuth<RouteParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })`.
+- Handlers non-debug : wrapper `withAuth(handler)` / `withAuthAndProfile(handler)` ([lib/api/with-auth.ts](lib/api/with-auth.ts), 34 modules). Le second fetch `select('id, group_id, first_name, last_name')` et passe `{ userId, profile }`. Routes dynamiques : `withAuth<TParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })`.
 - **Hors scope wrapper** : `app/api/debug/**` (blockInProduction wrap d'abord), `app/api/auth/**` (créent la session).
 
 ### Validation Zod
@@ -192,15 +196,12 @@ Détails capture-then-drop + DROP workflow + push gate + Dependabot triage → [
 
 ## 7. Sécurité — état des lieux
 
-L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Architecture, 15 sprints livrés 2026-05-06/07/08) est dans [@.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) (Sprint 0 → Code-CI) et [part-2-quality-architecture](.claude/history/sprint-history-security-part-2-quality-architecture.md) (Lint-Followups → Refactor-Architecture). État résumé :
+Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architecture, livrés 2026-05-06/08) dans [@.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2](.claude/history/sprint-history-security-part-2-quality-architecture.md). État résumé :
 
-- ✅ **Sprint 0** : `typescript.ignoreBuildErrors` retiré (C1), 20 routes debug bloquées `blockInProduction()` (C2), 4 RPC atomiques piggy/bank/savings/transfer-from-piggy (C3), audit RLS (C4)
-- ✅ **Sprint DB** (D1-D11) : RLS activée sur `piggy_bank`, policies group_contributions / remaining_to_live_snapshots fixées, schéma baseline versionné, types générés, indexes/constraints piggy, tests RPC concurrence, dedupe profiles policies
-- ✅ **Sprint Refactor** : 11 routes debug dead supprimées (R1), `createClient<Database>` wirage (R2), dedupe indexes/constraints (R3), `pnpm db:check-drift` (R4), tests RLS D2/D3 + fix policy récursive (R6)
-- ✅ **Sprint Hardening** : H1 unwind 17 scope-casts (3 vrais bugs surfacés), H2 ghost table dropped, H3 overdraft bank_balance, H4 `pnpm db:check-rpcs`
-- ✅ **Sprint Polish, Audit-Triggers, Audit-Functions-v2, Cleanup-Legacy, Polish-CI, Hygiene-CI, Code-CI, DX-Verify, Stabilize-Deps** : suite de consolidations CI/db-audit/dependabot
+- ✅ **Sprints 0 / DB / Refactor / Hardening** : `ignoreBuildErrors` retiré (C1), 20 routes debug `blockInProduction` (C2), 4 RPC atomiques C3, RLS `piggy_bank` (D1), policies group_contributions + remaining_to_live_snapshots fixées (D2/D3), baseline schéma versionné (D5), `createClient<Database>` wirage (R2), `pnpm db:check-drift` (R4), 17 scope-casts unwound + 3 bugs surfacés (H1), overdraft `bank_balance` (H3), `pnpm db:check-rpcs` (H4).
+- ✅ **Sprints Polish → Stabilize-Deps** (9 sprints) : consolidations CI / db-audit / dependabot.
 
-**Drift C3 résolu** : `supabase_migrations.schema_migrations` ↔ `pg_proc` (les 4 RPC C3 marquées appliquées sans exécution du SQL). Filet aujourd'hui = `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` + tests gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`. Post-mortem dans [doc2/audit/POST-MORTEM-C3-DRIFT.md](doc2/audit/POST-MORTEM-C3-DRIFT.md).
+**Drift C3 résolu** ([post-mortem](doc2/audit/POST-MORTEM-C3-DRIFT.md)) : filet = `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` + tests gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
@@ -279,8 +280,8 @@ L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Arc
 
 ## 9. Tests
 
-- **Vitest 4.1.5** avec `test.projects` split : `unit` env=node (`*.test.ts`) + `client` env=jsdom (`*.test.tsx`). Évite régression perf x23 d'un env=jsdom flat. Tests à côté du code, suffixe `.test.ts`/`.test.tsx`, pattern `__tests__/`. CI auto-run via [.github/workflows/code-checks.yml](.github/workflows/code-checks.yml) sur tout PR + push `cleanup`.
-- **Total** : ~485 tests non-gated passants + 89 gated skipped (sans env vars).
+- **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
+- **Total** : ~485 non-gated + 89 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 
@@ -293,12 +294,7 @@ L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Arc
 
 ### Tests non-gated par module
 
-- **lib/recap/** : step1/complete/auto-balance/recover × {algorithm pure-unit + persist mocked} ; voir each sprint closeout pour counts.
-- **lib/finance/** : calc-rtl 19 + snapshots 5. **lib/api/** : parse-body 9. **lib/api/finance/** : expenses-add-with-logic 5 (PIN ATOMIC CONTRACT).
-- **app/api/savings/transfer/** : 4 PIN ATOMIC CONTRACT. **lib/schemas/** : 11 fichiers (common/budget/income/expense/savings/bank-balance/profile/auth/recap/groups).
-- **lib/**tests**/** : auth-reducer 14 + query-client + logger 11 + contribution-calculator 8.
-- **components/**tests**/** : a11y-audit 19 (7 axe-core + 12 focus-trap via `expectEscClose`). **components/ui/**tests**/** : DecimalFormInput 8 + ModalCloseX 4.
-- **RTL forms** : 64+ cas / 15 fichiers `*.test.tsx` (auth + dashboard + profile + groups + transactions + EditBalance).
+Couverture par dossier : `lib/recap/` (algo pure + persist mocked, 4 routes), `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `lib/schemas/` (11 fichiers), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
 
 ### Patterns techniques
 
