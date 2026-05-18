@@ -229,10 +229,7 @@ export function decideAutoBalanceAllocation(
       })
       .filter((b) => b.remaining_deficit > 0)
 
-    const totalRemainingDeficit = remainingDeficits.reduce(
-      (sum, b) => sum + b.remaining_deficit,
-      0,
-    )
+    const totalRemainingDeficit = remainingDeficits.reduce((sum, b) => sum + b.remaining_deficit, 0)
 
     if (remainingDeficits.length > 0) {
       for (const deficitBudget of remainingDeficits) {

@@ -14,7 +14,19 @@ module.exports = {
     'type-enum': [
       2,
       'always',
-      ['feat', 'fix', 'chore', 'docs', 'refactor', 'test', 'perf', 'style', 'revert', 'build', 'ci'],
+      [
+        'feat',
+        'fix',
+        'chore',
+        'docs',
+        'refactor',
+        'test',
+        'perf',
+        'style',
+        'revert',
+        'build',
+        'ci',
+      ],
     ],
     // Subject: non-empty + max 100 chars (header total).
     // - subject-case OFF : proper nouns + abbreviations légitimes (CLAUDE.md, Sprint Pn, P3, R10, etc.)
