@@ -97,4 +97,3 @@
   - **Pattern miroir** : v6 a fixé les attributs HTML des boutons (close X aria-label) ; v7 a étendu sur 9 fichiers / 11 sites + axe-core 2→7 surfaces ; v8 ferme la **structure** des 11 modals (focus trap + Esc + return focus + role/aria-modal nativement). Ensemble v6+v7+v8 closent le chantier a11y modal complet — rien de déféré post-v8.
   - **Hors scope explicite** : Sprint Tailwind-v4 / Supabase-Strict-Types / Chantier I6 / Lot 6 console-cleanup / OpenAPI / Error boundaries / Sentry / i18n — roadmap §11 inchangée.
   - Livré 2026-05-14, 5 commits code + closeout sur `cleanup` (`8289419` PoC / `c1084ca` Add forms / `63a9e32` Transactions + drop key / `45530f0` Groups + Confirm + DELETE dead / `653ebe0` Drawers + nested / closeout). Score : ~99.998 → **~99.999/100** (chantier a11y modal complètement clos, gain keyboard-only users + structural Radix migration).
-

@@ -145,20 +145,20 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ## 6. Précédents Sprint chronologie résumée
 
-| Sprint                               | Date       | Pattern installé                                                 | Référence §11              |
-| ------------------------------------ | ---------- | ---------------------------------------------------------------- | -------------------------- |
-| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy           | CLAUDE.md §11               |
-| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1     | CLAUDE.md §11               |
-| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                    | CLAUDE.md §7               |
-| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                       | CLAUDE.md §11               |
-| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                  | CLAUDE.md §11               |
-| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`  | CLAUDE.md §11               |
-| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                  | CLAUDE.md §11               |
-| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                       | CLAUDE.md §11               |
-| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                | CLAUDE.md §11               |
-| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés | CLAUDE.md §11               |
-| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)       | CLAUDE.md §11               |
-| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                   | CLAUDE.md §11               |
-| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                       | CLAUDE.md §11               |
+| Sprint                               | Date       | Pattern installé                                                 | Référence §11 |
+| ------------------------------------ | ---------- | ---------------------------------------------------------------- | ------------- |
+| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy           | CLAUDE.md §11 |
+| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1     | CLAUDE.md §11 |
+| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                    | CLAUDE.md §7  |
+| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                       | CLAUDE.md §11 |
+| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                  | CLAUDE.md §11 |
+| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`  | CLAUDE.md §11 |
+| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                  | CLAUDE.md §11 |
+| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                       | CLAUDE.md §11 |
+| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                | CLAUDE.md §11 |
+| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés | CLAUDE.md §11 |
+| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)       | CLAUDE.md §11 |
+| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                   | CLAUDE.md §11 |
+| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                       | CLAUDE.md §11 |
 
 Pour la chronologie complète des 94 sprints, voir CLAUDE.md §11 (index des 12 parts `.claude/history/roadmap-detailed-NN-...md`).

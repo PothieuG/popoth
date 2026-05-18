@@ -109,19 +109,19 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 À tenir à jour à chaque sprint touchant ces invariants.
 
-| Invariant                                 | Valeur                    | Source / Vérification                                                                  |
-| ----------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------- |
-| `EXPECTED_RPCS`                           | **10**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                       |
-| Counter `as unknown as SupabaseClient`    | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                   |
-| Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                      |
-| Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                 |
-| Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                      |
-| Tests non-gated passants                  | **485**                   | `pnpm test:run`                                                                        |
-| Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                   |
-| Routes API                                | **54**                    | `pnpm build`                                                                           |
-| Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                              |
-| God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                            |
-| Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots |
+| Invariant                                 | Valeur                    | Source / Vérification                                                                                                     |
+| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `EXPECTED_RPCS`                           | **10**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                          |
+| Counter `as unknown as SupabaseClient`    | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                      |
+| Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                         |
+| Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                    |
+| Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                         |
+| Tests non-gated passants                  | **485**                   | `pnpm test:run`                                                                                                           |
+| Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                                                      |
+| Routes API                                | **54**                    | `pnpm build`                                                                                                              |
+| Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                 |
+| God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                                                               |
+| Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                    |
 | Score audit estimé                        | **~100**                  | Voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
@@ -295,8 +295,8 @@ L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Arc
 - **lib/recap/** : step1/complete/auto-balance/recover × {algorithm pure-unit + persist mocked} ; voir each sprint closeout pour counts.
 - **lib/finance/** : calc-rtl 19 + snapshots 5. **lib/api/** : parse-body 9. **lib/api/finance/** : expenses-add-with-logic 5 (PIN ATOMIC CONTRACT).
 - **app/api/savings/transfer/** : 4 PIN ATOMIC CONTRACT. **lib/schemas/** : 11 fichiers (common/budget/income/expense/savings/bank-balance/profile/auth/recap/groups).
-- **lib/__tests__/** : auth-reducer 14 + query-client + logger 11 + contribution-calculator 8.
-- **components/__tests__/** : a11y-audit 19 (7 axe-core + 12 focus-trap via `expectEscClose`). **components/ui/__tests__/** : DecimalFormInput 8 + ModalCloseX 4.
+- **lib/**tests**/** : auth-reducer 14 + query-client + logger 11 + contribution-calculator 8.
+- **components/**tests**/** : a11y-audit 19 (7 axe-core + 12 focus-trap via `expectEscClose`). **components/ui/**tests**/** : DecimalFormInput 8 + ModalCloseX 4.
 - **RTL forms** : 64+ cas / 15 fichiers `*.test.tsx` (auth + dashboard + profile + groups + transactions + EditBalance).
 
 ### Patterns techniques

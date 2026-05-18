@@ -79,7 +79,7 @@ CLAUDE.md                                     37k    Index opérationnel + règl
     └─ size-policy.md                                  7k   (ce fichier)
 ```
 
-**Total contexte** : ~634k chars répartis sur 23 fichiers, aucun > 38k.
+**Total contexte** : ~639k chars répartis sur 24 fichiers, aucun > 38k.
 
 ## 5. Règles d'extension
 
@@ -141,21 +141,21 @@ Pour les fichiers de référence à splitter (mode hors-CLAUDE.md) : compter les
 
 ## 9. Tailles cibles par fichier (référence)
 
-| Fichier                                                  | Cible (chars) | Plafond  |
-| -------------------------------------------------------- | ------------- | -------- |
-| `CLAUDE.md`                                              | 35-38k        | **38k**  |
-| `history/score-evolution-part-1-47-to-99.md`             | naturel       | 38k      |
-| `history/score-evolution-part-2-99-to-100.md`            | naturel       | 38k      |
-| `history/sprint-history-security-part-1-foundation-ci.md` | naturel      | 38k      |
-| `history/sprint-history-security-part-2-quality-architecture.md` | naturel | 38k      |
-| `history/roadmap-detailed-NN-...md` (12 parts)           | 30-37k        | **38k**  |
-| `reference/structure-repo.md`                            | ~30k          | 38k      |
-| `conventions/zod-patterns.md`                            | ~18k          | 38k      |
-| `conventions/typescript.md`                              | ~4k           | 38k      |
-| `conventions/logs-cleanup.md`                            | ~10k          | 38k      |
-| `conventions/git-workflow.md`                            | ~9k           | 38k      |
-| `conventions/operational-rules.md`                       | ~18k          | 38k      |
-| `guardrails/size-policy.md`                              | ~7k           | 38k      |
+| Fichier                                                          | Cible (chars) | Plafond |
+| ---------------------------------------------------------------- | ------------- | ------- |
+| `CLAUDE.md`                                                      | 35-38k        | **38k** |
+| `history/score-evolution-part-1-47-to-99.md`                     | naturel       | 38k     |
+| `history/score-evolution-part-2-99-to-100.md`                    | naturel       | 38k     |
+| `history/sprint-history-security-part-1-foundation-ci.md`        | naturel       | 38k     |
+| `history/sprint-history-security-part-2-quality-architecture.md` | naturel       | 38k     |
+| `history/roadmap-detailed-NN-...md` (12 parts)                   | 30-37k        | **38k** |
+| `reference/structure-repo.md`                                    | ~30k          | 38k     |
+| `conventions/zod-patterns.md`                                    | ~18k          | 38k     |
+| `conventions/typescript.md`                                      | ~4k           | 38k     |
+| `conventions/logs-cleanup.md`                                    | ~10k          | 38k     |
+| `conventions/git-workflow.md`                                    | ~9k           | 38k     |
+| `conventions/operational-rules.md`                               | ~18k          | 38k     |
+| `guardrails/size-policy.md`                                      | ~7k           | 38k     |
 
 **Plafond dur 38k** s'applique uniformément. Cible 35-38k pour les fichiers "denses" (CLAUDE.md, roadmap parts). "Naturel" pour les autres (peuvent rester en-dessous sans gonflage).
 

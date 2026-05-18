@@ -74,4 +74,3 @@
   - **Hors scope** (documenté plan) : tests unitaires des forms client (React Testing Library) → Sprint v4 dédié si surface suffisante. Sprint Tailwind-v4 / Supabase-Strict-Types / Chantier I6 / Lot 6 console-cleanup / OpenAPI / R10 audit → roadmappés séparément.
 
   Livré 2026-05-13, 3 commits code + closeout sur `cleanup` (`2ee22cc` trivial / `1bf5c19` moderate + 2 schemas / `d984a41` AddTransaction / closeout). Score estimé ~99.98 → ~99.99/100 (chantier Zod-client clos, premier alignement complet validation client ↔ serveur via Zod).
-
