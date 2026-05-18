@@ -423,20 +423,20 @@ Touchent le hook commit-msg. Update : tester avec un commit message volontaireme
 
 ### Commands cheatsheet
 
-| Action                       | Commande                                          |
-| ---------------------------- | ------------------------------------------------- |
-| Versions disponibles         | `pnpm view <name> versions --json`                |
-| Version installée vs latest  | `pnpm outdated <name>`                            |
-| Repo GitHub                  | `pnpm view <name> repository.url`                 |
-| Quels packages dépendent     | `pnpm ls <name>` (transitive : `pnpm why <name>`) |
-| Add prod dep                 | `pnpm add <name>@<version>`                       |
-| Add dev dep                  | `pnpm add -D <name>@<version>`                    |
-| Update sous caret            | `pnpm update <name>`                              |
-| Force latest                 | `pnpm add <name>@latest`                          |
-| Validation full              | `pnpm ci` (typecheck + lint + format + test + build) |
-| Sanity sweep DB              | `pnpm verify`                                     |
-| Regen Supabase types         | `pnpm db:types`                                   |
-| Smoke dev                    | `pnpm dev` (background)                           |
+| Action                      | Commande                                             |
+| --------------------------- | ---------------------------------------------------- |
+| Versions disponibles        | `pnpm view <name> versions --json`                   |
+| Version installée vs latest | `pnpm outdated <name>`                               |
+| Repo GitHub                 | `pnpm view <name> repository.url`                    |
+| Quels packages dépendent    | `pnpm ls <name>` (transitive : `pnpm why <name>`)    |
+| Add prod dep                | `pnpm add <name>@<version>`                          |
+| Add dev dep                 | `pnpm add -D <name>@<version>`                       |
+| Update sous caret           | `pnpm update <name>`                                 |
+| Force latest                | `pnpm add <name>@latest`                             |
+| Validation full             | `pnpm ci` (typecheck + lint + format + test + build) |
+| Sanity sweep DB             | `pnpm verify`                                        |
+| Regen Supabase types        | `pnpm db:types`                                      |
+| Smoke dev                   | `pnpm dev` (background)                              |
 
 ### Validation gates (ordre fail-fast)
 
