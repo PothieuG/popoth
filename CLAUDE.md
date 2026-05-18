@@ -2,14 +2,11 @@
 
 > Index opérationnel chargé en début de chaque session Claude Code sur ce repo. Garde-le à jour si une convention change.
 
-## ⚠️ Règle critique de maintenance
+## 📏 Règle de taille des fichiers `.md` de contexte
 
-Ce fichier ne doit **JAMAIS dépasser 40 KB**.
+Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent rester **entre 35 000 et 38 000 caractères** (`LC_ALL=en_US.UTF-8 wc -m`). **Plafond dur 38k** (marge sous limite 40k Claude Code). **Plancher 35k**, sauf si naturellement plus court.
 
-- **Avant toute modification** : vérifier la taille avec `wc -c CLAUDE.md`
-- **Si l'ajout fait dépasser 38 KB** : créer/étendre un sous-fichier dans `.claude/` au lieu d'inliner
-- **Si une refactorisation est nécessaire** : avertir l'utilisateur **AVANT** de modifier
-- **Cible** : 35–40 KB. **Plafond absolu** : 40 KB.
+**Avant tout commit touchant un `.md` de contexte** : mesurer `wc -m`. Si > 38k → découper (chronologique / thématique / par module) + mettre à jour références. Si < 35k + frère thématiquement proche → fusionner. Détails → [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md).
 
 **Architecture documentaire** (référence `@.claude/<path>` navigable depuis Claude Code) :
 
@@ -23,7 +20,7 @@ Ce fichier ne doit **JAMAIS dépasser 40 KB**.
 
 **Popoth** : PWA francophone de gestion financière personnelle et en groupe. Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [@.claude/history/score-evolution.md](.claude/history/score-evolution.md).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
 ## 2. Stack
 
@@ -67,24 +64,13 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~
 
 ### Hooks Git (Husky)
 
-3 hooks installés :
-
-- **pre-commit** ([.husky/pre-commit](.husky/pre-commit)) — `pnpm lint-staged` (prettier `--write` + eslint `--fix` sur fichiers staged)
-- **pre-push** ([.husky/pre-push](.husky/pre-push)) — `pnpm lint:check && pnpm typecheck` fail-fast
-- **commit-msg** ([.husky/commit-msg](.husky/commit-msg)) — `pnpm exec commitlint --edit "$1"` (config dans [commitlint.config.js](commitlint.config.js))
-
-Bypass d'urgence `git commit --no-verify` possible **mais à éviter** (cf. §8 ❌). Si hooks ne firent pas après fresh clone : `pnpm exec husky` manuellement.
+3 hooks installés : **pre-commit** (`pnpm lint-staged`), **pre-push** (`pnpm lint:check && pnpm typecheck` fail-fast), **commit-msg** (`pnpm exec commitlint`). Bypass `--no-verify` à éviter (cf. §8 ❌). Si hooks ne firent pas après fresh clone : `pnpm exec husky` manuellement.
 
 **Détails workflows Husky + capture-then-drop + DROP + push gate + Dependabot triage** → [@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md).
 
 ### Tests gated (env var requise, sinon `describe.skipIf` skip)
 
-- `SUPABASE_RPC_CONCURRENCY_TESTS=1` — concurrence RPC (rpc-concurrency, transfer-with-savings, add-expense-with-breakdown, transfer-savings, transfer-piggy-to-budget-with-insert)
-- `SUPABASE_RLS_TESTS=1` — isolation cross-user RLS
-- `SUPABASE_API_TESTS=1` — régressions H1/H2/R2 + withAuth wrapper (12 cas)
-- `SUPABASE_TRIGGER_TESTS=1` — 4 fonctions trigger A2 + FK ON DELETE SET NULL
-- `SUPABASE_FINANCE_TESTS=1` — round-trip `_loadFinancialData` profile+group (6 cas)
-- `SUPABASE_RECAP_TESTS=1` — caractérisation routes process-step1 + complete + auto-balance + recover (21 cas répartis)
+6 env vars activent les tests gated DB : `SUPABASE_RPC_CONCURRENCY_TESTS` / `_RLS_TESTS` / `_API_TESTS` / `_TRIGGER_TESTS` / `_FINANCE_TESTS` / `_RECAP_TESTS`. Détails par scope → §9 Tests.
 
 ## 4. Structure du repo
 
@@ -136,7 +122,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                              |
 | God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                            |
 | Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots |
-| Score audit estimé                        | **~100**                  | Voir [@.claude/history/score-evolution.md](.claude/history/score-evolution.md)         |
+| Score audit estimé                        | **~100**                  | Voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
 
@@ -145,23 +131,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - Format réponse : **`{ data: T } | { error: string }`** sur toutes les routes
 - Auth invalide : `401` + `{ error: 'Session invalide' }`
 - Debug-route en prod : `404` (pas 403, pour ne pas révéler l'existence)
-- Pattern obligatoire :
-
-  ```ts
-  export async function POST(request: NextRequest) {
-    const blocked = blockInProduction() // SI route /api/debug/*
-    if (blocked) return blocked
-    try {
-      const sessionData = await validateSessionToken(request)
-      if (!sessionData?.userId)
-        return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
-      // ...
-    } catch (error) {
-      return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
-    }
-  }
-  ```
-
+- **Pattern obligatoire** (routes `/api/debug/*` uniquement) : `blockInProduction()` en première instruction → `validateSessionToken(request)` + 401 si invalide → try/catch + 500 fallback. Exemple complet dans `git-workflow.md` ou voir route existante.
 - Pour les handlers non-debug, préférer le wrapper `withAuth(handler)` / `withAuthAndProfile(handler)` depuis [lib/api/with-auth.ts](lib/api/with-auth.ts) (34 modules wrappés). `withAuthAndProfile` fetch `select('id, group_id, first_name, last_name')` et passe `{ userId, profile }` au callback. Pour routes dynamiques : `withAuth<RouteParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })`.
 - **Hors scope wrapper** : `app/api/debug/**` (blockInProduction wrap d'abord), `app/api/auth/**` (créent la session).
 
@@ -169,23 +139,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 Le repo utilise Zod pour valider 100% des bodies API et form clients via `parseBody`/`parseQuery` + `react-hook-form` + `zodResolver`. **Patterns A–H standardisés** dans [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
 
-**Pour ajouter une route** : déclarer schema dans `lib/schemas/<domain>.ts` + brancher via `parseBody(request, schema)` + `handleBadRequest(error)` au top du catch (avant le 500 fallback). Pas de validation manuelle subséquente.
-
-```ts
-import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
-import { someSchema } from '@/lib/schemas/<domain>'
-
-export const POST = withAuthAndProfile(async (request, { profile }) => {
-  try {
-    const body = await parseBody(request, someSchema) // typé + validé
-    // ...
-  } catch (error) {
-    const handled = handleBadRequest(error)
-    if (handled) return handled
-    return NextResponse.json({ error: '...' }, { status: 500 })
-  }
-})
-```
+**Pour ajouter une route** : déclarer schema dans `lib/schemas/<domain>.ts` + brancher via `parseBody(request, schema)` + `handleBadRequest(error)` au top du catch (avant le 500 fallback). Pas de validation manuelle subséquente. Exemple serveur complet dans [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) §2.
 
 **Pour les forms client** : pattern dual-type `useForm<FormInput, undefined, FormOutput>` (Pattern A) avec `<DecimalFormInput>` composant réutilisable pour décimaux fr-FR (comma→dot). Voir [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) pour les 8 patterns standardisés et la liste des routes/forms migrés par sprint.
 
@@ -204,20 +158,11 @@ Détails et patterns complets → [@.claude/conventions/typescript.md](.claude/c
 
 ### ESLint suppressions (justified disable pattern)
 
-Format : `// eslint-disable-next-line <rule> -- <raison explicite>` (double-tiret + raison). Exemples installés :
-
-- `react-hooks/exhaustive-deps` sur fetchers mount-only ou context-change-only
-- `@next/next/no-img-element` sur [components/ui/UserAvatar.tsx](components/ui/UserAvatar.tsx) (Supabase Storage remote hosts)
-- `react-hooks/set-state-in-effect` — compteur 0 depuis Sprint 2-followup-v3 (migration `useState` → `useReducer` dans `AuthContext`)
-
-**Ne PAS** utiliser `// eslint-disable-next-line` sans raison. **Ne PAS** utiliser `// eslint-disable` (sans `-next-line`) au top du fichier.
+Format obligatoire : `// eslint-disable-next-line <rule> -- <raison explicite>` (double-tiret + raison). **Ne PAS** utiliser sans raison ni `// eslint-disable` (sans `-next-line`) au top du fichier. Exemples installés : `react-hooks/exhaustive-deps` sur fetchers mount-only, `@next/next/no-img-element` sur UserAvatar (Supabase Storage remote hosts).
 
 ### Format / Prettier
 
-Config [.prettierrc.json](.prettierrc.json) : `semi: false`, `singleQuote: true`, `trailingComma: 'all'`, `printWidth: 100`, `tabWidth: 2`, `arrowParens: 'always'`, `endOfLine: 'lf'`, plugin `prettier-plugin-tailwindcss`.
-Ignore [.prettierignore](.prettierignore) : `node_modules`, `.next`, `lib/database.types.ts` (auto-gen), `next-env.d.ts` (auto-gen).
-
-**Ne PAS lancer** `pnpm format` (= `prettier --write .`) dans une PR feature — diff mécanique massif. `lint-staged` formate les fichiers staged au commit automatiquement.
+Config [.prettierrc.json](.prettierrc.json) : `semi:false`, `singleQuote:true`, `trailingComma:'all'`, `printWidth:100`, `tabWidth:2`, `endOfLine:'lf'`, plugin `prettier-plugin-tailwindcss`. Ignore auto-gen (`lib/database.types.ts`, `next-env.d.ts`). **Ne PAS lancer** `pnpm format` dans PR feature (diff mécanique massif) — `lint-staged` formate les staged au commit.
 
 ### Logs
 
@@ -225,16 +170,7 @@ Logger central : [lib/logger.ts](lib/logger.ts). 4 niveaux `error/warn/info/debu
 
 ESLint global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cleanup-I8 / Lot 6, activé 2026-05-14). Tout nouveau `console.log` fait sortir la PR rouge.
 
-**Règle d'or de triage** pour tout `console.*` :
-
-- **(a)** outer catch-all `console.error('Error in METHOD /api/...:', error)` → **DROP** (Next.js capture la stack côté Vercel)
-- **(b)** DB error inline qui discrimine une branche → **KEEP+migrate** `logger.error` (grep-able si bug futur)
-- **(c)** erreur silencieusement avalée (return 200 ou fallback) → **KEEP+migrate**
-- **(d)** cleanup-attempt critique → **KEEP+migrate**
-
-Pour le code que tu écris : préfère `logger.debug/info`. `console.warn`/`console.error` directs allow-listés ad-hoc mais préférer `logger.warn`/`logger.error`.
-
-Détails Lot 1-6 history + per-file overrides → [@.claude/conventions/logs-cleanup.md](.claude/conventions/logs-cleanup.md).
+**Règle d'or de triage** pour tout `console.*` : (a) outer catch-all → **DROP** (Vercel capture la stack) ; (b) DB error inline discriminant → **KEEP+migrate** `logger.error` (grep-able) ; (c) erreur silencieusement avalée → **KEEP+migrate** ; (d) cleanup-attempt critique → **KEEP+migrate**. Pour ton code : préfère `logger.debug/info`. Détails Lot 1-6 + per-file overrides → [@.claude/conventions/logs-cleanup.md](.claude/conventions/logs-cleanup.md).
 
 ### Naming
 
@@ -255,7 +191,7 @@ Détails capture-then-drop + DROP workflow + push gate + Dependabot triage → [
 
 ## 7. Sécurité — état des lieux
 
-L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Architecture, 15 sprints livrés 2026-05-06/07/08) est dans [@.claude/history/sprint-history-security.md](.claude/history/sprint-history-security.md). État résumé :
+L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Architecture, 15 sprints livrés 2026-05-06/07/08) est dans [@.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) (Sprint 0 → Code-CI) et [part-2-quality-architecture](.claude/history/sprint-history-security-part-2-quality-architecture.md) (Lint-Followups → Refactor-Architecture). État résumé :
 
 - ✅ **Sprint 0** : `typescript.ignoreBuildErrors` retiré (C1), 20 routes debug bloquées `blockInProduction()` (C2), 4 RPC atomiques piggy/bank/savings/transfer-from-piggy (C3), audit RLS (C4)
 - ✅ **Sprint DB** (D1-D11) : RLS activée sur `piggy_bank`, policies group_contributions / remaining_to_live_snapshots fixées, schéma baseline versionné, types générés, indexes/constraints piggy, tests RPC concurrence, dedupe profiles policies
@@ -267,124 +203,113 @@ L'historique détaillé des sprints sécurité (Sprint 0 → Sprint Refactor-Arc
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
+> Listes condensées. Pour chaque pattern : précédents (Path B closed-by-deletion, god-files extractions, cleanup-attempts CRITIQUES préservés, chronologie sprint) → [@.claude/conventions/operational-rules.md](.claude/conventions/operational-rules.md).
+
 ### ✅ À faire
 
-- **Tout nouveau body POST/PATCH/PUT** : déclarer schema dans `lib/schemas/<domain>.ts` + brancher via `parseBody(request, schema)` + `handleBadRequest(error)` (cf. §6 Validation Zod). Pas de validation manuelle. Préférer `z.discriminatedUnion` / `z.union + type guard` / `.refine`.
-- **Tout transfert/écriture sur colonnes sensibles** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) : **utiliser obligatoirement** les helpers `lib/finance/*` (10 composite RPCs atomiques). Pas de SELECT-then-UPDATE direct. Pas d'appels séparés `updatePiggyBank` + `updateBudgetCumulatedSavings` + `INSERT` — utiliser le composite adapté : smart-allocation → `addExpenseWithBreakdown` ; cross-budget cascade → `addExpenseWithCrossBudgetCascade` ; savings budget↔budget OU budget→piggy → `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank` ; piggy→budget avec audit-trail → `transferPiggyToBudgetWithInsert` ; recap step 2.4.2 → `transferWithSavingsDebit`. Tableau complet → [@.claude/conventions/operational-rules.md](.claude/conventions/operational-rules.md) §4.
-- **Calcul breakdown côté client** : importer `calculateBreakdown` depuis [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (module pur), **PAS** depuis `expense-allocation.ts` (importe `supabase-server` avec service_role key, leak côté client).
-- **Composant qui consomme l'auth** : `useAuthUser()` (state) / `useAuthActions()` (handlers) / hooks composés `useRequireGuest()` / `useLogin()` / `useLogoutAndRedirect()`. **Pas de `useAuth()` aggregator** (supprimé Sprint 2-followup-v5).
-- **Magic numbers** (TTL, intervalle, tolérance) : déclarer dans [lib/constants/](lib/constants/) (`auth.ts` / `finance.ts`) avant d'utiliser.
-- **Nouvelle route API finance** : créer handler dans `lib/api/finance/<route>.ts` + `route.ts` qui ré-exporte.
-- **Nouveau handler API** : utiliser `withAuth(handler)` / `withAuthAndProfile(handler)` (cf. §6 API).
-- **Middleware / Edge runtime** : ne JAMAIS faire de `fetch` self-call HTTP vers une route locale. Extraire en lib pure + importer directement (pattern [lib/recap/check-status.ts](lib/recap/check-status.ts)). Vérifier imports transitifs Edge-safe.
-- **Fetch composant** : utiliser **TanStack Query** (`useQuery`/`useMutation`). Pour cross-domain invalidation : importer `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts) + l'invoquer depuis `onSuccess`. Pour mutations qui changent `profile.group_id` : invalider AUSSI `['profile']` + `['groups']`.
-- **Modal forms qui mirror un prop dans le state local** : pattern `key={editing.id}` + `useState(() => ...editing.foo)` lazy init + parent conditional render `{isOpen && editing && <Modal key={editing.id} ... />}` (Sprint 1.5 standard).
-- **Hook qui mirror un calcul `useMemo` dans un `useState`** : c'est de la duplication. Le `useMemo` est la source de vérité, retourner-le directement.
-- **Reducer / state machine `useReducer`** : extraire reducer + types dans un module dédié sans `'use client'` (pattern [contexts/auth-reducer.ts](contexts/auth-reducer.ts)) pour testabilité pure-unit.
-- **Context value alimenté par `useReducer`** : wrapper la value prop en `useMemo` avec deps slice-by-slice (pattern Sprint 2-followup-v4).
-- **Nouvelle route `/api/debug/*`** : importer + appeler `blockInProduction()` en première instruction.
-- **Consommateur de `recap_snapshots.snapshot_data`** : utiliser les types [lib/recap-snapshot.types.ts](lib/recap-snapshot.types.ts) (`SnapshotPayload` + `isSnapshotV2()`). Pas de `as any`.
-- **Form client (a11y v5+v6)** : `aria-describedby` + `id` sur l'erreur avec id-prefix par form ; `role="alert"` sur le serverError ; `onInvalidSubmit` qui appelle `form.setFocus(Object.keys(errors)[0])` ; pour close X svg-only, `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur le `<svg>`.
-- **Modal Radix-migré** : close X via `<ModalCloseX onClose={handleClose} variant="circle"|"ghost" disabled={...} />` (Sprint v10). Nouveau drawer fullscreen → `DRAWER_CONTENT_CLASSES` (Sprint v9). Test focus-trap regression-guard → helper `expectEscClose()` (Sprint v10).
-- **DB ops** : Nouvelle RPC = `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public` + `NOTIFY pgrst, 'reload schema';`. Nouvelle fonction trigger = migration dédiée + ajouter à `EXPECTED_FUNCTIONS` si custom. Après migration fonction → `pnpm db:audit-functions`. Après migration CREATE TYPE/DOMAIN/OPERATOR → `pnpm db:audit-objects`. DROP objet → workflow capture-then-drop strict ([@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md) §6). Capture rétroactive fonction prod → workflow strict, **NE PAS** `supabase db push` ([@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md) §5).
-- **Push gate prod** : `pnpm supabase db push --dry-run` → STOP confirmation → `db push` → re-audit → commit. Régénérer types : `pnpm db:types` (sans redirection) + `pnpm db:check-types-fresh`. Après migration non-triviale : `pnpm db:check-drift` ; si exit 1, re-exporter baseline + commit (sinon trap C3).
-- **PR Dependabot mergée** : `git pull` + `pnpm install` + `pnpm verify` + `pnpm dev` smoke. Fix-forward (`pnpm update <pkg>@<version>` + `revert: re-pin`) plutôt que `git revert -m 1`. Cf. [@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md) §9.
-
-**Précédents Path B closed-by-deletion (7 cas), god-files extractions (4/4), cleanup-attempts CRITIQUES préservés, chronologie sprint patterns** → [@.claude/conventions/operational-rules.md](.claude/conventions/operational-rules.md).
+- **Body POST/PATCH/PUT** : schema dans `lib/schemas/<domain>.ts` + `parseBody(request, schema)` + `handleBadRequest(error)` (cf. §6). Préférer `z.discriminatedUnion` / `z.union + type guard` / `.refine`.
+- **Écriture sur colonnes sensibles** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) : **obligatoirement** via composite RPCs `lib/finance/*` (10 atomiques). Mapping smart-allocation / cross-budget cascade / savings ↔ budget / piggy ↔ budget / recap 2.4.2 → [operational-rules.md](.claude/conventions/operational-rules.md) §4.
+- **Calcul breakdown client** : `calculateBreakdown` depuis [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (pur). **Jamais** `expense-allocation.ts` (leak service_role).
+- **Composant auth** : `useAuthUser()` / `useAuthActions()` / hooks composés `useRequireGuest`/`useLogin`/`useLogoutAndRedirect`. Pas de `useAuth()` aggregator (supprimé v5).
+- **Magic numbers** (TTL, intervalle, tolérance) : déclarer dans [lib/constants/](lib/constants/) avant usage.
+- **Nouvelle route API finance** : handler dans `lib/api/finance/<route>.ts` + `route.ts` ré-exporte.
+- **Nouveau handler API** : `withAuth(handler)` / `withAuthAndProfile(handler)` (cf. §6).
+- **Middleware / Edge runtime** : pas de `fetch` self-call HTTP. Extraire en lib pure + import direct (pattern [lib/recap/check-status.ts](lib/recap/check-status.ts)). Vérifier transitifs Edge-safe.
+- **Fetch composant** : **TanStack Query** (`useQuery`/`useMutation`). Cross-domain → `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts). Mutations changeant `profile.group_id` invalident aussi `['profile']` + `['groups']`.
+- **Modal forms mirror prop** : `key={editing.id}` + `useState(() => ...editing.foo)` lazy + parent `{isOpen && editing && <Modal ... />}` (Sprint 1.5 standard).
+- **`useReducer`** : extraire reducer + types module dédié sans `'use client'` (pattern [contexts/auth-reducer.ts](contexts/auth-reducer.ts)). Context value via useReducer → wrapper `useMemo` slice-by-slice.
+- **Nouvelle route `/api/debug/*`** : `blockInProduction()` en première instruction.
+- **`recap_snapshots.snapshot_data`** : types [lib/recap-snapshot.types.ts](lib/recap-snapshot.types.ts) (`SnapshotPayload` + `isSnapshotV2()`). Pas de `as any`.
+- **Form client a11y** : `aria-describedby` + `id` sur erreur (id-prefix par form) ; `role="alert"` sur serverError ; `onInvalidSubmit` → `form.setFocus(Object.keys(errors)[0])` ; close X svg-only → `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur `<svg>`.
+- **Modal Radix-migré** : close X via `<ModalCloseX onClose variant="circle"|"ghost" />` (v10). Drawer fullscreen → `DRAWER_CONTENT_CLASSES` (v9). Test focus-trap → helper `expectEscClose()` (v10).
+- **DB ops** : Nouvelle RPC = `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public` + `NOTIFY pgrst`. Migration fonction → `pnpm db:audit-functions`. CREATE TYPE/DOMAIN → `db:audit-objects`. DROP / capture rétroactive prod → workflow strict ([git-workflow.md](.claude/conventions/git-workflow.md) §5-6). **NE PAS** `supabase db push` pour capture rétroactive.
+- **Push gate prod** : `db push --dry-run` → STOP → `db push` → re-audit → commit. Régénérer types `pnpm db:types` + `db:check-types-fresh`. Migration non-triviale → `db:check-drift`, si exit 1 re-exporter baseline.
+- **PR Dependabot mergée** : `git pull` + `pnpm install` + `pnpm verify` + `pnpm dev` smoke. Fix-forward plutôt que `git revert -m 1` ([git-workflow.md](.claude/conventions/git-workflow.md) §9).
 
 ### ❌ À ne pas faire
 
-**Architecture / modals**
+**Architecture / modals / Zod**
 
-- ❌ **Modal/drawer en raw** `<div className="fixed inset-0 ...">` — utiliser `<Dialog>` + `<DialogContent>` Radix (Sprint v8). Pas de raw button + SVG `M6 18L18 6M6 6l12 12` pour close X — utiliser `<ModalCloseX>` (Sprint v10).
-- ❌ **`await request.json()` direct** sans `parseBody` dans les routes Zod-migrated. Pas de `if (typeof X !== 'number' || X <= 0)` après parseBody.
-- ❌ **Réintroduire `lib/financial-calculations.ts`** — splitté en 8 modules sous [lib/finance/](lib/finance/) au Sprint Refactor-I4.
-- ❌ **Réintroduire les exports supprimés Sprint Dead-Code-Purge** : `resetPassword`/`updatePassword`, `calculateMinimumSalary`/`calculateMaximumGroupBudget`, 3 routes `app/api/debug/{remaining-to-live,financial,group-financial}`. Si besoin futur, recréer ad-hoc.
+- **Modal/drawer raw** `<div className="fixed inset-0 ...">` → `<Dialog>` + `<DialogContent>` Radix (v8). Pas de raw button + SVG `M6 18L18 6M6 6l12 12` → `<ModalCloseX>` (v10).
+- **`await request.json()` direct** sans `parseBody` dans les routes Zod-migrated. Pas de `if (typeof X !== 'number' || X <= 0)` après parseBody.
+- **Réintroduire `lib/financial-calculations.ts`** (splitté en 8 modules `lib/finance/` au Refactor-I4).
+- **Réintroduire les exports supprimés Dead-Code-Purge** (`resetPassword`/`updatePassword`, `calculateMinimumSalary`/`calculateMaximumGroupBudget`, 3 routes `app/api/debug/{remaining-to-live,financial,group-financial}`).
 
 **God-files monthly-recap (4/4 extraits)**
 
-- ❌ **Logique métier dans `process-step1`/`complete`/`auto-balance`/`recover` route.ts** — thin handlers ≤80 LOC. Tout ajout passe par `lib/recap/<route>-{algorithm,persist,types}.ts`.
-- ❌ **`declare global`** dans aucune route (0 occurrence post-Refactor-I6).
-- ❌ **Pattern SELECT-then-UPDATE sur `cumulated_savings`** dans `complete/route.ts` — utiliser `updateBudgetCumulatedSavings` RPC atomique.
+- **Logique métier dans `process-step1`/`complete`/`auto-balance`/`recover` route.ts** — thin handlers ≤80 LOC. Tout ajout passe par `lib/recap/<route>-{algorithm,persist,types}.ts`.
+- **`declare global`** dans aucune route (0 occurrence post-Refactor-I6).
+- **SELECT-then-UPDATE sur `cumulated_savings`** dans `complete` → `updateBudgetCumulatedSavings` RPC.
 
 **Sémantique RAV / breakdown**
 
-- ❌ **Réintroduire `cumulated_savings` dans la formule RAV**. Formule canonique : `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits`. `totalSavings` exposé séparément.
-- ❌ **Dépendre de `estimated_budgets.monthly_surplus_deficit`** comme source du terme `budgetDeficits` — calculé **on-the-fly** via `calculateBudgetDeficit(estimatedAmount, spentThisMonth)`.
-- ❌ **Pattern cascade-aggressive piggy→savings→budget dans `calculateBreakdown`**. P4 strict default = budget priorité 1, savings cascade UNIQUEMENT si overflow, **piggy JAMAIS auto-débitée**. Toggle P5 inverse opt-in user-driven.
-- ❌ **Wizard single-step `AddTransactionModal`** — le wizard 2-step est requis pour P6.
+- **`cumulated_savings` dans la formule RAV**. Canonique : `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits`. `totalSavings` exposé séparément.
+- **Dépendre de `estimated_budgets.monthly_surplus_deficit`** comme source de `budgetDeficits` — calculé **on-the-fly** via `calculateBudgetDeficit`.
+- **Cascade-aggressive piggy→savings→budget** dans `calculateBreakdown`. P4 strict = budget priorité 1, savings cascade uniquement si overflow, **piggy JAMAIS auto-débitée**. Toggle P5 opt-in.
+- **Wizard single-step `AddTransactionModal`** — 2-step requis pour P6.
 
-**Patterns DB non-atomiques (consolidation par composite RPCs)**
+**Patterns DB non-atomiques (composite RPCs requis)**
 
-- ❌ **Appels directs `updatePiggyBank` + `updateBudgetCumulatedSavings` + `INSERT real_expenses`** séparément en smart-allocation — utiliser `addExpenseWithBreakdown` (Sprint Atomicity-Expenses).
-- ❌ **2 RPCs séquentielles + manual rollback** dans `savings/transfer/route.ts` — utiliser `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank` (Sprint Atomicity-Savings). `handlePiggyBankAction` supprimé Sprint v2 (0 consumer) — ne pas réintroduire sans use case.
-- ❌ **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** dans `auto-balance` — utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
-- ❌ **Pattern reversed `updatePiggyBank(aggregate) + INSERT batched (from_budget_id=NULL)`** — utiliser `transferPiggyToBudgetWithInsert` per-pair (Sprint Phase-B).
-- ❌ **Retry automatique POST `/api/monthly-recap/process-step1`** sur 5xx — la route n'est pas idempotente. Frontend doit disable bouton pendant submission.
+- **Appels directs `updatePiggyBank` + `updateBudgetCumulatedSavings` + `INSERT real_expenses`** séparés en smart-allocation → `addExpenseWithBreakdown`.
+- **2 RPCs séquentielles + manual rollback** dans `savings/transfer` → `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank`. `handlePiggyBankAction` supprimé v2 (0 consumer).
+- **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** dans `auto-balance` → `transferWithSavingsDebit` per-pair.
+- **Pattern reversed `updatePiggyBank(aggregate) + INSERT batched (from_budget_id=NULL)`** → `transferPiggyToBudgetWithInsert` per-pair (Phase-B).
+- **Retry automatique POST `/api/monthly-recap/process-step1`** sur 5xx — route non-idempotente. Frontend doit disable bouton.
 
 **Recover route — invariants stricts**
 
-- ❌ **`bank_balance: boolean | number` mismatch dans `RecoveryResults`** — paths V1 ET V2 doivent assigner `true` strict (NEVER `data.length`, NEVER `Boolean(x)`).
-- ❌ **Ajouter `profiles`/`groups`/`group_contributions`/`monthly_recaps`/`remaining_to_live_snapshots` dans `RestorableTable`** — sprint dédié `Recover-V2-Complete-Restoration` requis.
-- ❌ **Consumer qui FILTER/JOIN sur `budget_transfers.monthly_recap_id`** sans d'abord plumber `recapId` à travers les 5 paths automatiques (cf. §5).
+- **`bank_balance: boolean | number` mismatch dans `RecoveryResults`** — V1 ET V2 doivent assigner `true` strict.
+- **Ajouter `profiles`/`groups`/`group_contributions`/`monthly_recaps`/`remaining_to_live_snapshots` dans `RestorableTable`** — sprint dédié requis.
+- **Consumer qui FILTER/JOIN sur `budget_transfers.monthly_recap_id`** sans d'abord plumber `recapId` à travers les 5 paths automatiques (cf. §5).
 
 **Tests gated monthly-recap**
 
-- ❌ **Supposer dans un test gated que `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`** — step 2 `getProfileFinancialData` écrase via `saveRavToDatabase` avant step 6 re-read. Tracer la séquence end-to-end avant d'asserter (cas Sprint Complete-CAS3-TestFix).
+- **Supposer `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`** — step 2 écrase via `saveRavToDatabase` avant step 6 re-read (cas Complete-CAS3-TestFix).
 
 **Forbidden absolus**
 
-- ❌ **Modifier** [supabase/migrations/20260506000000_create_finance_rpcs.sql](supabase/migrations/20260506000000_create_finance_rpcs.sql) — pour corriger une RPC, `CREATE OR REPLACE` dans nouvelle migration.
-- ❌ **`any`** dans le nouveau code. **`console.log` ajouté** — utiliser `logger.debug/info`. **Mocker la DB** dans tests d'intégration.
-- ❌ **Commiter** de secret. `.env.local` + `.claude/settings.local.json` gitignored.
-- ❌ **Réactiver** `typescript.ignoreBuildErrors`. **Upgrader `eslint-config-next` 15→16** (déjà fait, ignore rule `>=16.0.0` en place).
-- ❌ **Écrire des docs `.md`** sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, sous-fichiers `.claude/`).
-- ❌ **Écrire la phrase littérale `eslint-disable-next-line`** dans un commentaire qui n'est PAS un disable directive — ESLint la parse comme rule "directive.". Reformuler.
-- ❌ **Ajouter un trigger / handler-side cleanup pour FK** avant d'avoir vérifié si la FK a déjà `ON DELETE SET NULL` / `ON DELETE CASCADE` (cas Sprint 2-followup-v3 trigger redondant).
-
-**Précédents détaillés (Path B, god-files, cleanup-attempts CRITIQUES, ❌ patterns complets)** → [@.claude/conventions/operational-rules.md](.claude/conventions/operational-rules.md).
+- **Modifier** [supabase/migrations/20260506000000_create_finance_rpcs.sql](supabase/migrations/20260506000000_create_finance_rpcs.sql) — corriger via `CREATE OR REPLACE` dans nouvelle migration.
+- **`any`** dans nouveau code. **`console.log` ajouté** → `logger.debug/info`. **Mocker la DB** dans tests d'intégration.
+- **Commiter** de secret. `.env.local` + `.claude/settings.local.json` gitignored.
+- **Réactiver** `typescript.ignoreBuildErrors`. **Upgrader `eslint-config-next` 15→16** (déjà fait, ignore rule en place).
+- **Écrire des docs `.md`** sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, sous-fichiers `.claude/`).
+- **Écrire la phrase littérale `eslint-disable-next-line`** dans un commentaire qui n'est PAS un disable directive (ESLint la parse comme rule "directive.").
+- **Trigger / handler-side cleanup pour FK** avant d'avoir vérifié `ON DELETE SET NULL` / `ON DELETE CASCADE` existant.
 
 ## 9. Tests
 
-- Framework : **Vitest 4.1.5** (`vitest.config.ts` à la racine, alias `@/` → racine, charge `.env.local` automatiquement). **`test.projects` split** : `unit` env=node pour `*.test.ts` (pure-unit + mocked + gated DB) + `client` env=jsdom pour `*.test.tsx` (RTL forms) avec `setupFiles: ['./vitest.setup.ts']`. Le split évite la régression perf x23 d'un env=jsdom flat.
-- **Convention** : tests à côté du code, suffixe `.test.ts` ou `.test.tsx`. Pattern dossier `__tests__/`.
-- **CI auto-run** depuis Sprint Code-CI / F1 : [.github/workflows/code-checks.yml](.github/workflows/code-checks.yml) lance `pnpm typecheck` + `pnpm test:run` sur tout PR. Étendu Sprint Stabilize-Deps / S2 à `push: branches: [cleanup]` (validation post-merge).
+- **Vitest 4.1.5** avec `test.projects` split : `unit` env=node (`*.test.ts`) + `client` env=jsdom (`*.test.tsx`). Évite régression perf x23 d'un env=jsdom flat. Tests à côté du code, suffixe `.test.ts`/`.test.tsx`, pattern `__tests__/`. CI auto-run via [.github/workflows/code-checks.yml](.github/workflows/code-checks.yml) sur tout PR + push `cleanup`.
+- **Total** : ~485 tests non-gated passants + 89 gated skipped (sans env vars).
 
-### Tests gated DB (env var requise — cf. §3)
+### Tests gated DB (env var requise)
 
-- **rpc-concurrency** (`SUPABASE_RPC_CONCURRENCY_TESTS=1`) : 4 cas + extensions par sprint (transfer-with-savings 4 cas, add-expense-with-breakdown 6 cas, transfer-savings 8 cas, transfer-piggy-to-budget-with-insert 4 cas) — pinent atomicité sous 100× concurrence
-- **rls-isolation** (`SUPABASE_RLS_TESTS=1`) : isolation cross-user
-- **api-regressions** (`SUPABASE_API_TESTS=1`) : H1/H2/R2 (cumulated*savings round-trip, total_real*\*, availableBalance) + recover strict boolean A/B/C + withAuth wrapper 12 cas
-- **trigger-behavior** (`SUPABASE_TRIGGER_TESTS=1`) : 4 fonctions trigger A2 + FK ON DELETE SET NULL
-- **financial-data** (`SUPABASE_FINANCE_TESTS=1`) : 6 cas profile/group golden math + round-trip `bank_balances.current_remaining_to_live`
-- **route.integration recap** (`SUPABASE_RECAP_TESTS=1`) : caractérisation byte-identique des 4 routes extraites (process-step1 6 cas + complete 5 cas + auto-balance 5 cas + recover 5 cas)
+- **SUPABASE_RPC_CONCURRENCY_TESTS=1** : atomicité RPCs sous 100× concurrence (rpc-concurrency, transfer-with-savings 4, add-expense-with-breakdown 6, transfer-savings 8, transfer-piggy-to-budget-with-insert 4).
+- **SUPABASE_RLS_TESTS=1** : isolation cross-user.
+- **SUPABASE_API_TESTS=1** : régressions H1/H2/R2 + recover strict boolean + withAuth wrapper (12 cas).
+- **SUPABASE_TRIGGER_TESTS=1** : 4 fonctions trigger A2 + FK ON DELETE SET NULL.
+- **SUPABASE_FINANCE_TESTS=1** : 6 cas profile/group golden math + round-trip RAV.
+- **SUPABASE_RECAP_TESTS=1** : caractérisation byte-identique des 4 routes recap extraites (process-step1 / complete / auto-balance / recover).
 
 ### Tests non-gated par module
 
-- **lib/recap/** : step1-algorithm 28 cas + step1-persist 8 mocked / complete-algorithm 32 + complete-persist 18 / auto-balance-algorithm 37 + auto-balance-persist 17 / recover-algorithm 21 + recover-persist 16
-- **lib/finance/** : calc-rtl 19 + snapshots 5
-- **lib/schemas/** : 11 fichiers (common, budget, income, expense-real, expense-add, savings, bank-balance, profile, auth, recap, recap-complete, groups) couvrent refine/discriminatedUnion/dispatch
-- **lib/api/** : parse-body 9 cas
-- **lib/api/finance/** : expenses-add-with-logic 5 cas (incl. PIN ATOMIC CONTRACT)
-- **app/api/savings/transfer/** : 4 cas PIN ATOMIC CONTRACT (Sprint Atomicity-Savings)
-- **lib/**tests**/** : auth-reducer 14 + query-client + logger 11 + contribution-calculator 8
-- **components/**tests**/** : a11y-audit 19 cas (7 axe-core + 12 focus-trap regression-guards via `expectEscClose` helper)
-- **components/ui/**tests**/** : DecimalFormInput 8 + ModalCloseX 4
-- **RTL forms** : 64+ cas répartis sur 15 fichiers `*.test.tsx` (auth + dashboard + profile + groups + transactions + EditBalance)
+- **lib/recap/** : step1/complete/auto-balance/recover × {algorithm pure-unit + persist mocked} ; voir each sprint closeout pour counts.
+- **lib/finance/** : calc-rtl 19 + snapshots 5. **lib/api/** : parse-body 9. **lib/api/finance/** : expenses-add-with-logic 5 (PIN ATOMIC CONTRACT).
+- **app/api/savings/transfer/** : 4 PIN ATOMIC CONTRACT. **lib/schemas/** : 11 fichiers (common/budget/income/expense/savings/bank-balance/profile/auth/recap/groups).
+- **lib/__tests__/** : auth-reducer 14 + query-client + logger 11 + contribution-calculator 8.
+- **components/__tests__/** : a11y-audit 19 (7 axe-core + 12 focus-trap via `expectEscClose`). **components/ui/__tests__/** : DecimalFormInput 8 + ModalCloseX 4.
+- **RTL forms** : 64+ cas / 15 fichiers `*.test.tsx` (auth + dashboard + profile + groups + transactions + EditBalance).
 
 ### Patterns techniques
 
-- **Pattern import dynamique pour gated tests** : `await import('@/lib/...')` à l'intérieur de `beforeAll` pour que le module ne se charge PAS quand le suite est skipped sans env vars.
-- **chunked helper** dans `rpc-concurrency.test.ts` : batch les appels parallèles en groupes de 10 (pool undici default per-origin de Node fetch).
-- **Cleanup en cascade obligatoire** dans `afterAll` : tables FK → profiles sans `ON DELETE CASCADE` doivent être nettoyées explicitement avant `auth.admin.deleteUser`. Sans ça, prod accumule des comptes test orphelins.
-- **Tests RTL** : mock-per-site inline `vi.mock('@/lib/supabase-client'|'@/hooks/useX', ...)`. UUIDs valides obligatoires dans fixtures FK (uuidSchema.nullable() rejette silencieusement `'b-1'`). CustomDropdown mocké en `<select>`.
-- **a11y regression-guards** : `expect(input).toHaveAttribute('aria-describedby', 'X')` + `expect(input).toHaveFocus()` (Sprint v6 Axe 3) ; `expect(results.violations).toEqual([])` direct (pivot vitest 4.x, jest-axe matcher incompatible).
+- **Gated tests** : `await import(...)` dans `beforeAll` (load lazy), `chunked` helper pour batch 10× appels (pool undici), cleanup cascade obligatoire dans `afterAll` (FK → profiles sans CASCADE).
+- **RTL** : mock-per-site inline `vi.mock(...)`. UUIDs valides obligatoires dans fixtures FK. CustomDropdown mocké en `<select>`.
+- **a11y regression-guards** : `toHaveAttribute('aria-describedby', 'X')` + `toHaveFocus()` ; `axe(container).violations.toEqual([])` direct (pivot vitest 4.x).
 
 ### Sanity sweep
 
-`pnpm verify` (Sprint DX-Verify / G1) enchaîne `typecheck` + `test:run` + les 6 `db:*` checks avec fail-fast. ~36s en local. Skip-friendly : tests gated sans env vars skip et `verify` continue.
+`pnpm verify` (DX-Verify / G1) : `typecheck` + `test:run` + 6 `db:*` checks fail-fast. ~36s local. Tests gated skip-friendly sans env vars.
 
-Détails patterns Zod-côté-client (Pattern A-H, useRavValidation séparation, factory refines, etc.) → [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
+Détails Zod-client (Pattern A-H, useRavValidation, factory refines) → [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
 
 ## 10. Variables d'environnement
 
@@ -415,19 +340,15 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 > - ✅ **Autorisé** : laisser les scripts (`apply-sql.mjs`, `export-schema.mjs`, `check-rpcs.mjs`) lire `process.env.SUPABASE_ACCESS_TOKEN` en interne — la valeur ne transite pas par stdout/stderr.
 > - **Si une commande échoue avec "TOKEN_MISSING"** : demander à l'utilisateur de le set lui-même via `[Environment]::SetEnvironmentVariable(...)` puis redémarrer Claude Code. **Ne jamais** lui demander de coller le secret dans le chat.
 
-## 11. Roadmap — index 10 derniers sprints
+## 11. Roadmap
 
-**Pour l'historique détaillé verbatim des 94 sprints livrés**, voir [@.claude/history/roadmap-detailed.md](.claude/history/roadmap-detailed.md). Pour l'évolution du score, [@.claude/history/score-evolution.md](.claude/history/score-evolution.md). Pour l'historique sécurité Sprint 0 → Refactor-Architecture, [@.claude/history/sprint-history-security.md](.claude/history/sprint-history-security.md).
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 485 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5).
 
-- ✅ **Sprint Refactor-Recover** (2026-05-16) — god file `recover/route.ts` 385 → 168 LOC splitté en `lib/recap/recover-{algorithm,persist,types}.ts`. 37 algo + 16 mocked + 5 caract gated. **4/4 god-files monthly-recap stateful extraits**.
-- ✅ **Sprint Refactor-Auto-Balance** (2026-05-16) — god file `auto-balance/route.ts` 533 → 56 LOC splitté. 37 algo + 17 mocked + 5 caract gated.
-- ✅ **Sprint Balance-Atomicity-Eval** (2026-05-16) — closeout : `balance/route.ts` déjà atomique by design (0 reversed pattern).
-- ✅ **Sprint Complete-CAS3-TestFix** (2026-05-15) — fix test gated CAS 3 (assertion `expensesAfter length 0` impossible post-I6 ; reformulée en pin 1 exceptional row via Block 4).
-- ✅ **Sprint Commitlint** (chantier 24, 2026-05-15) — `@commitlint/cli@21` + hook `.husky/commit-msg`. Convention Conventional Commits enforced.
-- ✅ **Sprint P8-P9-Menu-Groupe-Cleanup** + **P7-Authz-Solde-Groupe** (2026-05-15) — UI groupe cleanup + 403 serveur-side créateur-only.
-- ✅ **Sprint Auto-Balance-Atomic + Phase-B** (2026-05-15) — nouvelle composite RPC `transfer_piggy_to_budget_with_insert` ferme bug latent reversed patterns A+B. `EXPECTED_RPCS` 9 → 10.
-- ✅ **Sprint OpenAPI-Schema-To-Docs** (R10, 2026-05-15) — `/api/docs` + `/api/docs/openapi.json` générés depuis schemas Zod. 36 paths / 63 ops.
-- ✅ **Sprint P1-Switch-Hebdo-Quotidien** (2026-05-15) — toggle Mois/Semaine/Jour URL `?period=` filtre listing + progress bars budget.
-- ✅ **Sprint P2/P3-Closeout-Administrative** (2026-05-15) — closeouts : formule RAV sans `cumulated_savings` + 3 règles RAV déjà toutes implémentées on-the-fly.
+**Historique détaillé verbatim des 94 sprints livrés** — 12 parts chronologiques sous `.claude/history/roadmap-detailed-NN-...md` :
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 485 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5 Invariants).
+- [Part 01](.claude/history/roadmap-detailed-01-sprint-0-to-architecture-v5.md) Sprint 0 → Refactor-Architecture-v5 (24) | [Part 02](.claude/history/roadmap-detailed-02-sprint-1-to-cleanup-lot-1.md) Sprint 1 → Lot 1 (11) | [Part 03](.claude/history/roadmap-detailed-03-lot-3-to-refactor-i5-followup-v2.md) Lot 3 → Refactor-I5-followup-v2 (8) | [Part 04](.claude/history/roadmap-detailed-04-followup-v3-to-atomicity-savings-v2.md) Refactor-I5-followup-v3 → Atomicity-Savings v2 (5)
+- [Part 05](.claude/history/roadmap-detailed-05-dead-code-to-lot-4b.md) Dead-Code-Purge → Lot 4b (6) | [Part 06](.claude/history/roadmap-detailed-06-lot-4c-to-lot-5d.md) Lot 4c → Lot 5d (7) | [Part 07](.claude/history/roadmap-detailed-07-audit-c2-to-zod-v3.md) Audit-Closeout C2 → Zod v3 (6) | [Part 08](.claude/history/roadmap-detailed-08-zod-v4-to-zod-v8.md) Zod v4 → v8 (5)
+- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) Complete-CAS3-TestFix → Refactor-Recover (4)
+
+**Évolution du score** : [part-1 47→99.998](.claude/history/score-evolution-part-1-47-to-99.md) + [part-2 99.999→100](.claude/history/score-evolution-part-2-99-to-100.md).
+**Historique sécurité Sprint 0 → Refactor-Architecture** : [part-1 foundation/CI](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2 quality/architecture](.claude/history/sprint-history-security-part-2-quality-architecture.md).
