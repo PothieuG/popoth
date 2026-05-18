@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateBreakdown } from '@/lib/expense-allocation'
+import { calculateBreakdown } from '@/lib/expense-breakdown'
 
 /**
  * Pure-unit tests for `calculateBreakdown` (Sprint P4-P5-P6 / Phase A4).
