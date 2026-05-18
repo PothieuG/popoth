@@ -117,7 +117,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                         |
 | Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                    |
 | Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                         |
-| Tests non-gated passants                  | **485**                   | `pnpm test:run`                                                                                                           |
+| Tests non-gated passants                  | **482**                   | `pnpm test:run`                                                                                                           |
 | Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                                                      |
 | Routes API                                | **54**                    | `pnpm build`                                                                                                              |
 | Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                 |
@@ -341,7 +341,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 485 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5).
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 482 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5).
 
 **Historique détaillé verbatim des 94 sprints livrés** — 12 parts chronologiques sous `.claude/history/roadmap-detailed-NN-...md` :
 

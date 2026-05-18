@@ -54,6 +54,12 @@ export default async function middleware(req: NextRequest) {
       }
     }
 
+    // Redirect root path to dashboard (auth) or connexion (guest)
+    if (path === '/') {
+      const target = session?.userId ? '/dashboard' : '/connexion'
+      return NextResponse.redirect(new URL(target, req.url))
+    }
+
     // Redirect to login if trying to access protected route without valid session
     if ((isProtectedRoute || isSpecialRoute) && !session?.userId) {
       const loginUrl = new URL('/connexion', req.url)
@@ -62,7 +68,7 @@ export default async function middleware(req: NextRequest) {
     }
 
     // Check for monthly recap requirement on protected routes (but not on monthly-recap page itself)
-    if ((isProtectedRoute || path === '/') && session?.userId && !isSpecialRoute) {
+    if (isProtectedRoute && session?.userId && !isSpecialRoute) {
       try {
         const context = path.startsWith('/group-dashboard') ? 'group' : 'profile'
 
