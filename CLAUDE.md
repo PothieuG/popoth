@@ -15,6 +15,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 - [@.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) — inventaire fichiers annoté
 - [@.claude/conventions/](.claude/conventions/) — patterns détaillés (zod-patterns, typescript, logs-cleanup, git-workflow, operational-rules)
 - [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 40 KB
+- [@.claude/skills/](.claude/skills/) — slash commands
 
 ## 1. Projet
 
