@@ -2,7 +2,7 @@
 
 > Extraction détaillée de CLAUDE.md §8 (justifications longues, exemples, précédents).
 
-## 1. Pattern Path B closed-by-deletion (7+ cas)
+## 1. Pattern Path B closed-by-deletion (8+ cas)
 
 Pour tout candidat de cleanup ou de refactor non-trivial, vérifier d'abord les consumers cross-codebase. Si **0 consumer applicatif** : préférer **Path B DELETE** (CLAUDE.md system prompt "Don't design for hypothetical future requirements") plutôt que Path A refactor.
 
@@ -18,6 +18,7 @@ Pour tout candidat de cleanup ou de refactor non-trivial, vérifier d'abord les 
 5. **Sprint UserGroupsList-Cleanup** (2026-05-14) — `components/groups/UserGroupsList.tsx` deleted (157 LOC, 0 consumer applicatif, app/settings/page.tsx rend déjà inline la même UI sur `currentGroup` singular).
 6. **Sprint Audit-Closeout I3** (2026-05-13) — `lib/monthly-recap-calculations.ts` deleted (399 LOC, 8 exports tous orphelins).
 7. **Sprint Zod-Rollout v8** (2026-05-14) — `components/groups/GroupMembersModal.tsx` deleted (175 LOC, 0 consumer).
+8. **Sprint Refactor-Settings-Drawer** (2026-05-18) — `app/settings/page.tsx` deleted (~457 LOC, 0 consumer applicatif hors `dashboard` + `group-dashboard` qui basculent vers `<SettingsDrawer>` swap-horizontal in-place). Le bug intermittent "1 fois sur 2 retour au dashboard" est éliminé mécaniquement (plus de `window.location.href` ni `window.history.back()` fragile sur PWA + middleware `checkRecapStatus`). `/settings` retiré de `protectedRoutes` middleware.ts. Le contenu de la page est extrait dans `components/settings/GroupManagementPanel.tsx` (verbatim sauf : loading overlay full-screen remplacé par snackbar non-bloquante z-[60] + skeleton léger). Aucun deep-link applicatif (PWA install / push notif) à `/settings`.
 
 **Pattern** : (a) `Grep "<exportName>" --glob '**/*.{ts,tsx}'` cross-codebase ; (b) `Grep` dans `app/`, `components/`, `hooks/`, `contexts/`, `lib/`, `middleware.ts`, `__tests__/` (scope MUST inclure tous pour éviter de manquer un consumer — leçon Sprint Lot 5c qui scope-bound à `app/` only et a manqué `contexts/AuthContext.tsx:14` register callback consommant `signUp`).
 
@@ -132,6 +133,8 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** réintroduire un raw `<button onClick> ... <svg path d="M6 18L18 6M6 6l12 12">...</svg></button>` pour le close X d'un modal → utiliser `<ModalCloseX>` (Sprint v10).
 - ❌ **NE PAS** réintroduire un wizard single-step `AddTransactionModal` — le wizard 2-step (Step 1 type / Step 2 budgétée-exceptionnelle / Step 3 fields, income skips Step 2) est requis pour P6.
 - ❌ **NE PAS** réintroduire le pattern cascade-aggressive piggy→savings→budget dans `calculateBreakdown` — P4 strict default → budget priorité 1, savings cascade UNIQUEMENT si overflow, piggy JAMAIS auto-débitée.
+- ❌ **NE PAS** utiliser `window.location.href = '/<route>'` pour naviguer vers une sous-vue qui peut cohabiter dans un drawer/menu déjà ouvert (cas vu Sprint Refactor-Settings-Drawer 2026-05-18 : ancien drawer paramètres → bouton "Gestion du groupe" → `window.location.href = '/settings'` provoquait un full reload + bug intermittent 1/2 sur `history.back()`). Pattern correct : swap horizontal in-place via `[view, setView] = useState<'main'|'sub'>('main')` + 2 panels `absolute inset-0` + `translate-x-{-full,0,full}` + container `overflow-hidden`. Référence : [components/settings/SettingsDrawer.tsx](../../components/settings/SettingsDrawer.tsx).
+- ❌ **NE PAS** mettre un loading overlay fullscreen `fixed inset-0 bg-black/50` dans un drawer/sub-panel — préférer **spinner inline** sur les boutons submit + **snackbar non-bloquante z-[60]** sur success (pattern `ProfileSettingsCard.tsx:266-275`). Pour le loading initial d'un fetch dans un panel : skeleton `animate-pulse` léger localisé sur la Card concernée (pattern `ProfileSettingsCard.tsx:33-44`).
 
 ### Forbidden absolus
 
@@ -145,20 +148,21 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ## 6. Précédents Sprint chronologie résumée
 
-| Sprint                               | Date       | Pattern installé                                                 | Référence §11 |
-| ------------------------------------ | ---------- | ---------------------------------------------------------------- | ------------- |
-| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy           | CLAUDE.md §11 |
-| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1     | CLAUDE.md §11 |
-| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                    | CLAUDE.md §7  |
-| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                       | CLAUDE.md §11 |
-| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                  | CLAUDE.md §11 |
-| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`  | CLAUDE.md §11 |
-| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                  | CLAUDE.md §11 |
-| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                       | CLAUDE.md §11 |
-| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                | CLAUDE.md §11 |
-| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés | CLAUDE.md §11 |
-| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)       | CLAUDE.md §11 |
-| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                   | CLAUDE.md §11 |
-| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                       | CLAUDE.md §11 |
+| Sprint                               | Date       | Pattern installé                                                                                                      | Référence §11 |
+| ------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy                                                                | CLAUDE.md §11 |
+| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1                                                          | CLAUDE.md §11 |
+| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                                                                         | CLAUDE.md §7  |
+| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                                                                            | CLAUDE.md §11 |
+| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                                                                       | CLAUDE.md §11 |
+| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`                                                       | CLAUDE.md §11 |
+| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                                                                       | CLAUDE.md §11 |
+| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                                                                            | CLAUDE.md §11 |
+| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                                                                     | CLAUDE.md §11 |
+| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés                                                      | CLAUDE.md §11 |
+| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)                                                            | CLAUDE.md §11 |
+| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                                                                        | CLAUDE.md §11 |
+| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                                                                            | CLAUDE.md §11 |
+| Sprint Refactor-Settings-Drawer      | 2026-05-18 | Swap horizontal in-place dans drawer (`<SettingsDrawer>` partagé) + Path B closed-by-deletion `app/settings/page.tsx` | CLAUDE.md §11 |
 
 Pour la chronologie complète des 94 sprints, voir CLAUDE.md §11 (index des 12 parts `.claude/history/roadmap-detailed-NN-...md`).

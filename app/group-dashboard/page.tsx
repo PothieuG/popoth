@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import dynamic from 'next/dynamic'
-import { Button } from '@/components/ui/button'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
@@ -12,8 +11,8 @@ import { useBankBalance } from '@/hooks/useBankBalance'
 import UserAvatar from '@/components/ui/UserAvatar'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
 import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
-import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
+import SettingsDrawer from '@/components/settings/SettingsDrawer'
 import { PeriodSelector } from '@/components/dashboard/PeriodSelector'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
 
@@ -255,96 +254,18 @@ export default function GroupDashboardPage() {
         </div>
       </footer>
 
-      {/* Slide-out Menu Panel */}
-      <>
-        {/* Overlay */}
-        <div
-          className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
-          }`}
-          onClick={() => setIsMenuOpen(false)}
-        />
-
-        {/* Menu Panel */}
-        <div
-          className={`fixed inset-y-0 right-0 z-50 w-full transform bg-white shadow-xl transition-all duration-300 ease-in-out ${
-            isMenuOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
-        >
-          <div className="flex h-full flex-col">
-            {/* Menu Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 p-4">
-              <h2 className="text-lg font-semibold text-gray-900">Paramètres du groupe</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMenuOpen(false)}
-                className="p-2"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </Button>
-            </div>
-
-            {/* Menu Content */}
-            <div className="flex-1 p-4">
-              {/* Navigation Links */}
-              <div className="mb-6 space-y-3">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    window.location.href = '/settings'
-                    setIsMenuOpen(false)
-                  }}
-                  className="w-full justify-start text-left"
-                >
-                  <svg
-                    className="mr-3 h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                    />
-                  </svg>
-                  Gestion du groupe
-                </Button>
-              </div>
-
-              {/* Solde bancaire du groupe — Sprint P7 : creator-only */}
-              {isCreator && (
-                <div className="space-y-4">
-                  <EditableBalanceLine
-                    currentBalance={bankBalance}
-                    onBalanceUpdate={handleBankBalanceUpdate}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Menu Footer with Logout */}
-            <div className="border-t border-gray-200 p-4">
-              <Button
-                onClick={logoutAndRedirect}
-                variant="outline"
-                className="w-full border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50"
-              >
-                Se déconnecter
-              </Button>
-            </div>
-          </div>
-        </div>
-      </>
+      {/* Settings Drawer — swap horizontal entre paramètres et gestion de groupe.
+         Sprint P7 : EditableBalanceLine du groupe est creator-only. */}
+      <SettingsDrawer
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        title="Paramètres du groupe"
+        showProfileCard={false}
+        showBankBalanceLine={isCreator}
+        bankBalance={bankBalance}
+        onBankBalanceUpdate={handleBankBalanceUpdate}
+        onLogout={logoutAndRedirect}
+      />
 
       {/* Add Transaction Modal — conditional render so lazy useState
          init runs fresh on each open. */}

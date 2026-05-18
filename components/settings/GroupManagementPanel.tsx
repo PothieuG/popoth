@@ -12,10 +12,12 @@ import GroupSearchList from '@/components/groups/GroupSearchList'
 import GroupMembersWithContributionsModal from '@/components/groups/GroupMembersWithContributionsModal'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 
-/**
- * Settings page - User settings and group management
- */
-export default function SettingsPage() {
+interface GroupManagementPanelProps {
+  onBack: () => void
+  onClose: () => void
+}
+
+export default function GroupManagementPanel({ onBack, onClose }: GroupManagementPanelProps) {
   const { currentGroup, hasGroup, isLoading: groupsLoading, createGroup, leaveGroup } = useGroups()
   const {
     searchResults,
@@ -34,33 +36,33 @@ export default function SettingsPage() {
   const [showMembersModal, setShowMembersModal] = useState(false)
   const [showLeaveWarning, setShowLeaveWarning] = useState(false)
   const [isOperationLoading, setIsOperationLoading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
-  /**
-   * Handles group creation
-   */
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message)
+    setTimeout(() => setSuccessMessage(''), 3000)
+  }
+
   const handleCreateGroup = async (name: string, budget: number): Promise<boolean> => {
     const success = await createGroup({ name, monthly_budget_estimate: budget })
     if (success) {
       setShowCreateForm(false)
-      // Clear search results since user now has a group
       clearSearch()
       setShowSearch(false)
+      showSuccess('Groupe créé')
     }
     return success
   }
 
-  /**
-   * Handles joining a group from search results
-   */
   const handleJoinGroup = async (groupId: string): Promise<boolean> => {
     setIsOperationLoading(true)
     try {
       const success = await joinGroup(groupId)
       if (success) {
         updateGroupMembership(groupId, true)
-        // Clear search and hide it since user now has a group
         clearSearch()
         setShowSearch(false)
+        showSuccess('Vous avez rejoint le groupe')
       }
       return success
     } finally {
@@ -68,9 +70,6 @@ export default function SettingsPage() {
     }
   }
 
-  /**
-   * Handles leaving the current group
-   */
   const handleLeaveGroup = async (): Promise<boolean> => {
     if (!currentGroup) return false
 
@@ -78,9 +77,9 @@ export default function SettingsPage() {
     try {
       const success = await leaveGroup(currentGroup.id)
       if (success) {
-        // User can now search for groups again
         setShowSearch(false)
         setShowLeaveWarning(false)
+        showSuccess('Vous avez quitté le groupe')
       }
       return success
     } finally {
@@ -88,9 +87,6 @@ export default function SettingsPage() {
     }
   }
 
-  /**
-   * Handles the leave button click - shows warning for creators, leaves directly otherwise
-   */
   const handleLeaveClick = () => {
     if (!currentGroup) return
     if (currentGroup.is_creator) {
@@ -100,9 +96,6 @@ export default function SettingsPage() {
     }
   }
 
-  /**
-   * Handles group search
-   */
   const handleSearch = async () => {
     if (searchQuery.trim()) {
       await searchGroups(searchQuery)
@@ -112,15 +105,8 @@ export default function SettingsPage() {
     setShowSearch(true)
   }
 
-  /**
-   * Loads all groups for browsing
-   */
   const handleBrowseGroups = async () => {
     if (hasGroup) {
-      // User already has a group, show message
-      alert(
-        "Vous êtes déjà membre d'un groupe. Quittez d'abord votre groupe actuel pour en rejoindre un autre.",
-      )
       return
     }
 
@@ -129,74 +115,42 @@ export default function SettingsPage() {
     setShowSearch(true)
   }
 
-  // Show loading screen while fetching group data
-  if (groupsLoading && !hasGroup && !currentGroup) {
-    return (
-      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
-        {/* Header */}
-        <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => window.history.back()}
-                className="p-2"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M15 19l-7-7 7-7"
-                  />
-                </svg>
-              </Button>
-              <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
-            </div>
-          </div>
-        </div>
-
-        {/* Loading Content */}
-        <main className="flex flex-1 items-center justify-center p-4">
-          <div className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-            <p className="mb-2 text-gray-600">Chargement de vos groupes...</p>
-            <p className="text-sm text-gray-500">Veuillez patienter</p>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
   return (
-    <div className="relative min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center space-x-3">
-            <Button variant="ghost" size="sm" onClick={() => window.history.back()} className="p-2">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </Button>
-            <h1 className="text-xl font-semibold text-gray-900">Gestion du groupe</h1>
-          </div>
+    <div className="flex h-full flex-col">
+      {/* Header — same style as main settings panel */}
+      <div className="flex items-center justify-between border-b border-gray-200 p-4">
+        <div className="flex items-center space-x-2">
+          <Button variant="ghost" size="sm" onClick={onBack} className="p-2" aria-label="Retour">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </Button>
+          <h2 className="text-lg font-semibold text-gray-900">Gestion du groupe</h2>
         </div>
+        <Button variant="ghost" size="sm" onClick={onClose} className="p-2" aria-label="Fermer">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </Button>
       </div>
 
-      {/* Main Content */}
-      <main className="space-y-6 p-4">
+      {/* Content scrollable */}
+      <div className="flex-1 space-y-6 overflow-y-auto p-4">
         {/* My Group Section */}
         <Card className="p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">Mon groupe</h2>
-            {!hasGroup && (
+            <h3 className="text-lg font-semibold text-gray-900">Mon groupe</h3>
+            {!hasGroup && !groupsLoading && (
               <Button
                 onClick={() => setShowCreateForm(!showCreateForm)}
                 className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
@@ -216,13 +170,19 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* Current Group Display */}
-          {hasGroup && currentGroup ? (
+          {/* Skeleton while loading initial groups */}
+          {groupsLoading && !hasGroup && !currentGroup ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-5 w-2/3 rounded bg-gray-200" />
+              <div className="h-4 w-1/2 rounded bg-gray-200" />
+              <div className="h-4 w-1/3 rounded bg-gray-200" />
+            </div>
+          ) : hasGroup && currentGroup ? (
             <Card className="p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center space-x-2">
-                    <h3 className="font-medium text-gray-900">{currentGroup.name}</h3>
+                    <h4 className="font-medium text-gray-900">{currentGroup.name}</h4>
                   </div>
 
                   <div className="space-y-1 text-sm text-gray-500">
@@ -246,7 +206,6 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="ml-4 space-y-2">
-                  {/* View Members Button */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -257,7 +216,6 @@ export default function SettingsPage() {
                     Voir membres
                   </Button>
 
-                  {/* Quitter (creator sees warning first) */}
                   <Button
                     variant="outline"
                     size="sm"
@@ -270,7 +228,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Additional Info for Creators */}
               {currentGroup.is_creator && (
                 <div className="mt-3 border-t border-gray-200 pt-3">
                   <div className="flex items-center justify-between text-xs text-gray-500">
@@ -304,7 +261,7 @@ export default function SettingsPage() {
                       />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900">Aucun groupe</h3>
+                  <h4 className="text-lg font-medium text-gray-900">Aucun groupe</h4>
                   <p className="text-gray-500">
                     Vous n&apos;appartenez à aucun groupe. Créez-en un ou rejoignez un groupe
                     existant.
@@ -316,11 +273,10 @@ export default function SettingsPage() {
         </Card>
 
         {/* Join Group Section - Only show if user has no group */}
-        {!hasGroup && (
+        {!hasGroup && !groupsLoading && (
           <Card className="p-6">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Rejoindre un groupe</h2>
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Rejoindre un groupe</h3>
 
-            {/* Search Interface */}
             <div className="mb-6 space-y-4">
               <div className="flex space-x-2">
                 <div className="flex-1">
@@ -357,13 +313,12 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Search Results */}
             {showSearch && (
               <>
                 <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-medium text-gray-900">
+                  <h4 className="font-medium text-gray-900">
                     {hasSearched ? 'Résultats de recherche' : 'Groupes disponibles'}
-                  </h3>
+                  </h4>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -406,9 +361,9 @@ export default function SettingsPage() {
                 </svg>
               </div>
               <div>
-                <h3 className="text-sm font-medium text-blue-800">
+                <h4 className="text-sm font-medium text-blue-800">
                   Vous appartenez déjà à un groupe
-                </h3>
+                </h4>
                 <p className="mt-1 text-sm text-blue-700">
                   Pour rejoindre un autre groupe, vous devez d&apos;abord quitter votre groupe
                   actuel.
@@ -417,7 +372,18 @@ export default function SettingsPage() {
             </div>
           </Card>
         )}
-      </main>
+      </div>
+
+      {/* Snackbar — z-[60] passe au-dessus du drawer (z-50). Pattern mirror ProfileSettingsCard.tsx. */}
+      {successMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg duration-300"
+        >
+          {successMessage}
+        </div>
+      )}
 
       {/* Leave Warning for Creators */}
       <ConfirmationDialog
@@ -439,17 +405,6 @@ export default function SettingsPage() {
           isOpen={showMembersModal}
           onClose={() => setShowMembersModal(false)}
         />
-      )}
-
-      {/* Loading Overlay for Group Operations */}
-      {isOperationLoading && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-          <div className="rounded-lg bg-white p-6 text-center shadow-xl">
-            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-            <p className="font-medium text-gray-700">Opération en cours...</p>
-            <p className="mt-1 text-sm text-gray-500">Veuillez patienter</p>
-          </div>
-        </div>
       )}
     </div>
   )
