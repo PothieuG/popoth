@@ -142,7 +142,7 @@ function NouveauMotDePasseContent() {
   }
 
   const handleRequestNewLink = () => {
-    router.push('/mot-de-passe-oublie')
+    router.push('/forgot-password')
   }
 
   // Loading state while validating token

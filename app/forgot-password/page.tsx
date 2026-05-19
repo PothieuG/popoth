@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
 import { forgotPasswordFormSchema, type ForgotPasswordForm } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
+import { getSiteUrl } from '@/lib/site-url'
 
 /**
  * Forgot password page allowing users to request a password reset email.
@@ -33,8 +34,17 @@ export default function MotDePasseOubliePage() {
     setServerError('')
 
     try {
+      // `redirectTo` resolves to `{{ .RedirectTo }}` in the Supabase email
+      // template (configured in Dashboard → Authentication → Email Templates
+      // → Reset Password). The custom template appends `token_hash`, `type`,
+      // and `next` so the link points to our click-to-confirm gate at
+      // `/auth/confirm`, NOT to Supabase's legacy `/auth/v1/verify` endpoint.
+      // That gate calls `verifyOtp()` only on explicit user click —
+      // neutralising email scanners (Outlook Safe Links, Gmail previewers,
+      // antivirus) that pre-fetch links and would otherwise consume the
+      // single-use OTP before the user opens it.
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${getSiteUrl()}/auth/confirm`,
       })
 
       if (resetError) {

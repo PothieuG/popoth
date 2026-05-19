@@ -61,7 +61,13 @@ describe('forgot-password page', () => {
       expect(screen.getByText('Email envoyé !')).toBeInTheDocument()
     })
     expect(screen.getByText(/foo@bar\.com/)).toBeInTheDocument()
-    expect(resetPasswordForEmail).toHaveBeenCalledWith('foo@bar.com', expect.any(Object))
+    // redirectTo points at the click-to-confirm gate so the Supabase email
+    // template can append `token_hash` / `type` / `next` — never at the
+    // legacy `/auth/v1/verify` endpoint which scanners would consume.
+    expect(resetPasswordForEmail).toHaveBeenCalledWith(
+      'foo@bar.com',
+      expect.objectContaining({ redirectTo: expect.stringContaining('/auth/confirm') }),
+    )
   })
 
   it('maps rate-limit Supabase error to specific serverError + a11y role="alert"', async () => {

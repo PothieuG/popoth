@@ -56,7 +56,7 @@ Patterns à NE PAS supprimer même si fail-soft cosmétique :
 
 - **`auth/session/route.ts:56`** (Sprint Lot 5b) — Supabase auth réussi mais JWT session fail → état inconsistant grep-able. `logger.error` préservé.
 
-- **`app/auth/confirm/route.ts:46`** (Sprint Lot 5c) — OTP verification réussie mais `data.user` manquant (edge case non-évident).
+- **`app/auth/confirm/route.ts:46`** (Sprint Lot 5c) — OTP verification réussie mais `data.user` manquant (edge case non-évident). ⚠️ **OBSOLETE (Sprint Fix-Password-Reset-OTP 2026-05-19)** — fichier supprimé, remplacé par client page `app/auth/confirm/page.tsx` (Path B closed-by-deletion + nouveau pattern click-to-confirm scanner-resistant cf. §7). Le cleanup-attempt n'a plus de site applicable : `verifyOtp` côté client ne peut pas retourner success+no-user (la session est créée localStorage par le SDK).
 
 - **`database-snapshot.ts:169-173`** (Sprint Lot 5c) — 5 statements `logger.info` (snapshot ID + mois + total records + per-table counts — foundational pour audit recovery si rollback nécessaire post-process-step1).
 
@@ -151,22 +151,63 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ## 6. Précédents Sprint chronologie résumée
 
-| Sprint                               | Date       | Pattern installé                                                                                                      | Référence §11 |
-| ------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy                                                                | CLAUDE.md §11 |
-| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1                                                          | CLAUDE.md §11 |
-| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                                                                         | CLAUDE.md §7  |
-| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                                                                            | CLAUDE.md §11 |
-| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                                                                       | CLAUDE.md §11 |
-| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`                                                       | CLAUDE.md §11 |
-| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                                                                       | CLAUDE.md §11 |
-| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                                                                            | CLAUDE.md §11 |
-| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                                                                     | CLAUDE.md §11 |
-| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés                                                      | CLAUDE.md §11 |
-| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)                                                            | CLAUDE.md §11 |
-| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                                                                        | CLAUDE.md §11 |
-| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                                                                            | CLAUDE.md §11 |
-| Sprint Refactor-Settings-Drawer      | 2026-05-18 | Swap horizontal in-place dans drawer (`<SettingsDrawer>` partagé) + Path B closed-by-deletion `app/settings/page.tsx` | CLAUDE.md §11 |
-| Sprint Rework-Group-Management       | 2026-05-19 | Sections plates dans panel drawer + footer pinned destructive + readonly button avec backend-match + modal 80vh       | CLAUDE.md §11 |
+| Sprint                               | Date       | Pattern installé                                                                                                                         | Référence §11 |
+| ------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Sprint 0 / C3                        | 2026-05-06 | 4 RPC atomiques piggy/bank/savings/transfer-from-piggy                                                                                   | CLAUDE.md §11 |
+| Sprint DB / D9                       | 2026-05-07 | Tests concurrence RPC gated SUPABASE_RPC_CONCURRENCY_TESTS=1                                                                             | CLAUDE.md §11 |
+| Sprint Refactor / R2                 | 2026-05-07 | `createClient<Database>(...)`                                                                                                            | CLAUDE.md §7  |
+| Sprint Refactor-Architecture v3-v5   | 2026-05-08 | `withAuth` / `withAuthAndProfile` wrappers                                                                                               | CLAUDE.md §11 |
+| Sprint 1.5                           | 2026-05-09 | TanStack Query + key={editing.id} modal pattern                                                                                          | CLAUDE.md §11 |
+| Sprint Refactor-I4                   | 2026-05-11 | Split god-file `lib/financial-calculations.ts` → `lib/finance/`                                                                          | CLAUDE.md §11 |
+| Sprint Refactor-I5                   | 2026-05-11 | First god-file recap extraction (process-step1)                                                                                          | CLAUDE.md §11 |
+| Sprint Atomicity-Expenses            | 2026-05-12 | Composite RPC `add_expense_with_breakdown`                                                                                               | CLAUDE.md §11 |
+| Sprint Atomicity-Savings             | 2026-05-12 | 2 composite RPCs savings transfer                                                                                                        | CLAUDE.md §11 |
+| Sprint Refactor-I6                   | 2026-05-14 | Second god-file recap extraction (complete) + 4 globals éliminés                                                                         | CLAUDE.md §11 |
+| Sprint Auto-Balance-Atomic + Phase-B | 2026-05-15 | Pattern reversed RPC→INSERT fix (auto-balance PHASE 0 + 1)                                                                               | CLAUDE.md §11 |
+| Sprint Refactor-Auto-Balance         | 2026-05-16 | Third god-file recap extraction (auto-balance)                                                                                           | CLAUDE.md §11 |
+| Sprint Refactor-Recover              | 2026-05-16 | Fourth god-file recap extraction (recover)                                                                                               | CLAUDE.md §11 |
+| Sprint Refactor-Settings-Drawer      | 2026-05-18 | Swap horizontal in-place dans drawer (`<SettingsDrawer>` partagé) + Path B closed-by-deletion `app/settings/page.tsx`                    | CLAUDE.md §11 |
+| Sprint Rework-Group-Management       | 2026-05-19 | Sections plates dans panel drawer + footer pinned destructive + readonly button avec backend-match + modal 80vh                          | CLAUDE.md §11 |
+| Sprint Fix-Password-Reset-OTP        | 2026-05-19 | Click-to-confirm gate `/auth/confirm` (client page) + `getSiteUrl()` helper + email template `{{ .RedirectTo }}?token_hash=...` (cf. §7) | CLAUDE.md §11 |
 
-Pour la chronologie complète des 95 sprints, voir CLAUDE.md §11 (index des 12 parts `.claude/history/roadmap-detailed-NN-...md`).
+Pour la chronologie complète des 96 sprints, voir CLAUDE.md §11 (index des 12 parts `.claude/history/roadmap-detailed-NN-...md`).
+
+## 7. Supabase Auth click-to-confirm gate — scanner-résistance
+
+Sprint Fix-Password-Reset-OTP (2026-05-19) — corrige une régression prod du flow "mot de passe oublié" où le lien de récupération reçu par mail répondait immédiatement `otp_expired` parce que les scanners d'email (Outlook Safe Links, Gmail previewers, antivirus locaux, link-preview bots) GET-prefetchaient `https://...supabase.co/auth/v1/verify?token=...` et consommaient l'OTP single-use **avant** que l'utilisateur ne clique.
+
+### Architecture installée
+
+1. **Browser → `forgot-password`** : appelle `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${getSiteUrl()}/auth/confirm\` })`. Le `redirectTo` est validé par Supabase contre l'allowlist Redirect URLs.
+2. **Supabase → email** : template "Reset Password" (Dashboard → Authentication → Email Templates) doit utiliser `<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">…</a>`. Ce format évite `{{ .ConfirmationURL }}` qui embed l'endpoint legacy `/auth/v1/verify` consommé au premier GET du scanner.
+3. **Utilisateur → `/auth/confirm` (client page)** : `app/auth/confirm/page.tsx` rend du HTML inerte (Suspense + bouton "Confirmer"). `verifyOtp({ token_hash, type })` n'est appelé qu'**au clic explicite**. Les scanners ne ré-exécutent pas le JS → l'OTP survit jusqu'au clic humain.
+4. **`verifyOtp` succès → `next` sanitisé** : `sanitizeNext(raw, type)` n'accepte que les URLs same-origin ou les paths relatifs (rejette `//evil.example`, `https://evil.example`). Fallback type-aware (`recovery` → `/reset-password`, autres → `/dashboard`).
+5. **`verifyOtp` erreur → `/auth/auth-code-error?error={expired|invalid|server}`** : surface UX existante avec "Demander un nouveau lien" + "Retour à la connexion".
+
+### Helpers + fichiers livrés
+
+- [lib/site-url.ts](../../lib/site-url.ts) — `getSiteUrl()` : browser → `window.location.origin`, SSR → `NEXT_PUBLIC_SITE_URL`, fallback `localhost:3000`. À utiliser pour TOUTE URL absolue côté app (Supabase `redirectTo`, OAuth, futurs deep-links).
+- [app/auth/confirm/page.tsx](../../app/auth/confirm/page.tsx) — gate client (148 LOC). 11 cas test dans [app/auth/confirm/\_\_tests\_\_/page.test.tsx](../../app/auth/confirm/__tests__/page.test.tsx) couvrant happy + missing/invalid params + open-redirect rejection + 3 erreurs verifyOtp.
+- Supprimés : `app/auth/confirm/route.ts` (server route, scanner-vulnerable), back-link cassé `/mot-de-passe-oublie` → `/forgot-password` dans `reset-password/page.tsx:145`.
+
+### Configuration manuelle Supabase Dashboard (requise post-déploiement)
+
+Projet `jzmppreybwabaeycvasz` :
+
+- **Authentication → URL Configuration → Site URL** : l'URL prod (ex. `https://popoth.app`).
+- **Authentication → URL Configuration → Redirect URLs** : `https://popoth.app/**` + `http://localhost:3000/**` (les deux, sinon `resetPasswordForEmail` rejette le `redirectTo`).
+- **Authentication → Email Templates → Reset Password** (et idéalement les 4 autres types `signup` / `magiclink` / `invite` / `email_change` qui sont aussi gérés par `/auth/confirm`) : remplacer le `<a>` par `<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password">Réinitialiser mon mot de passe</a>` (adapter `type` et `next` par template). Variables `{{ .Token }}` (6 chiffres) et `{{ .ConfirmationURL }}` interdites.
+- **Authentication → Providers → Email → OTP Expiration** : 3600s (1h) par défaut OK. Ne pas baisser sans raison forte (race scanner-prefetch ↔ user-click plus probable).
+
+### ❌ À ne pas réintroduire
+
+- **Server route `app/auth/confirm/route.ts`** — un `route.ts` GET handler consomme l'OTP serveur-side au premier prefetch. Reste un client page (Suspense + bouton).
+- **`useEffect` auto-call `verifyOtp()` on-mount** dans `app/auth/confirm/page.tsx` — supprime la protection scanner (certains preloads / link-preview bots exécutent JS minimal). Le clic explicite est obligatoire.
+- **`{{ .ConfirmationURL }}`** dans n'importe quel template email Supabase — embed `/auth/v1/verify?token=...` qui est l'endpoint legacy auto-consommateur. Toujours `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=<type>` + path `next` hardcodé.
+- **`redirectTo` hardcodé `${window.location.origin}/...`** dans le code — utiliser `getSiteUrl()` pour SSR-safety + un futur usage server-side.
+- **`next` query non-sanitisé** dans `/auth/confirm` — l'open-redirect (`?next=https://evil.example`) est un vecteur de phishing. Rester sur `sanitizeNext()` (same-origin + path-relatif uniquement). Regression-guardée par 2 cas test ("rejects external `next` URLs" + "rejects protocol-relative `next` (//evil.example.com)").
+- **Migrer vers PKCE flow** sans plan dédié — PKCE stocke le `code_verifier` en localStorage du device qui a fait `resetPasswordForEmail` ; casse le cas cross-device (request laptop, ouvre email phone). Le pattern token_hash + click-to-confirm est scanner-resistant ET cross-device safe.
+
+### Flow cross-référence
+
+Le pattern miroir s'applique aux 4 autres types `EmailOtpType` (signup, magiclink, invite, email_change) — `/auth/confirm` gère déjà les 5 valeurs via `ALLOWED_TYPES` (literal union strict). Si un nouveau type est ajouté côté Supabase, étendre la const + ajouter un cas test "renders gate for type=<new>" dans [page.test.tsx](../../app/auth/confirm/__tests__/page.test.tsx).
