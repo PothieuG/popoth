@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { moneyFormSchema, moneySchema } from './common'
 
 const groupNameSchema = z
   .string()
@@ -19,37 +18,40 @@ export const searchGroupsQuerySchema = z.object({
 export type SearchGroupsQuery = z.infer<typeof searchGroupsQuerySchema>
 
 /**
- * POST /api/groups body — create a new group. The route enforces "user not
- * already in a group" + 23505 uniqueness on name; both stay route-side
- * post-Zod since they require runtime context.
+ * POST /api/groups body — create a new group.
+ *
+ * `monthly_budget_estimate` is intentionally NOT part of this schema since
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) : the column is now auto-synced
+ * by the DB trigger `estimated_budgets_sync_group_budget` as
+ * `SUM(estimated_budgets WHERE group_id = X)`. The group is created with
+ * monthly_budget_estimate = 0 by DB default; the trigger updates it on the
+ * 1st INSERT into estimated_budgets for this group.
+ *
+ * The route enforces "user not already in a group" + 23505 uniqueness on
+ * name; both stay route-side post-Zod since they require runtime context.
  */
 export const createGroupBodySchema = z.object({
   name: groupNameSchema,
-  monthly_budget_estimate: moneySchema,
 })
 export type CreateGroupBody = z.infer<typeof createGroupBodySchema>
 
 /**
- * PUT /api/groups/[id] body — partial update (name and/or monthly_budget_estimate).
- * Refine at-least-one ensures the route doesn't bail with empty `updateData`.
- * Creator-only check stays in the handler (needs runtime profile).
+ * PUT /api/groups/[id] body — partial update of the group name.
+ *
+ * Like createGroupBodySchema, the budget field is gone (auto-synced from
+ * estimated_budgets). Creator-only check stays in the handler (needs runtime
+ * profile).
  */
-export const updateGroupBodySchema = z
-  .object({
-    name: groupNameSchema.optional(),
-    monthly_budget_estimate: moneySchema.optional(),
-  })
-  .refine((d) => d.name !== undefined || d.monthly_budget_estimate !== undefined, {
-    message: 'Aucune donnée à mettre à jour',
-  })
+export const updateGroupBodySchema = z.object({
+  name: groupNameSchema,
+})
 export type UpdateGroupBody = z.infer<typeof updateGroupBodySchema>
 
 /**
- * Client-form variant used by CreateGroupForm. Coerces
- * monthly_budget_estimate from string|number at submit.
+ * Client-form variant used by CreateGroupForm. Same shape as the body schema
+ * post-Sprint Group-Budget-Auto-Sync — no monetary field to coerce.
  */
 export const createGroupFormSchema = z.object({
   name: groupNameSchema,
-  monthly_budget_estimate: moneyFormSchema,
 })
 export type CreateGroupForm = z.infer<typeof createGroupFormSchema>

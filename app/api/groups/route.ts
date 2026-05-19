@@ -19,7 +19,6 @@ export interface GroupData {
 
 export interface CreateGroupRequest {
   name: string
-  monthly_budget_estimate: number
 }
 
 /**
@@ -78,10 +77,15 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
 
 /**
  * POST /api/groups - Create a new group
+ *
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) : we no longer accept a
+ * `monthly_budget_estimate` from the client. The column defaults to 0 in DB
+ * and is then auto-synced by the trigger `estimated_budgets_sync_group_budget`
+ * whenever an estimated_budget is created/updated/deleted for this group.
  */
 export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    const { name, monthly_budget_estimate } = await parseBody(request, createGroupBodySchema)
+    const { name } = await parseBody(request, createGroupBodySchema)
 
     const supabase = supabaseServer
 
@@ -93,12 +97,14 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       )
     }
 
-    // Create the group
+    // Create the group — monthly_budget_estimate defaults to 0; the trigger
+    // estimated_budgets_sync_group_budget will sync it on the first INSERT
+    // into estimated_budgets for this group.
     const { data: group, error: createError } = await supabase
       .from('groups')
       .insert({
         name,
-        monthly_budget_estimate,
+        monthly_budget_estimate: 0,
         creator_id: userId,
       })
       .select()

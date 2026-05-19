@@ -11,24 +11,27 @@ interface RouteParams {
 
 export interface UpdateGroupRequest {
   name?: string
-  monthly_budget_estimate?: number
 }
 
 /**
  * PUT /api/groups/[id] - Update a group (only by creator)
+ *
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) : `monthly_budget_estimate` is
+ * no longer editable through this route. The column is auto-synced from
+ * SUM(estimated_budgets) by the DB trigger. Only `name` remains mutable.
  */
 export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContext) => {
   try {
     const resolvedParams = await routeContext.params
     const groupId = resolvedParams.id
-    const { name, monthly_budget_estimate } = await parseBody(request, updateGroupBodySchema)
+    const { name } = await parseBody(request, updateGroupBodySchema)
 
     const supabase = supabaseServer
 
     // Check if group exists and user is the creator
     const { data: group, error: fetchError } = await supabase
       .from('groups')
-      .select('id, creator_id, name, monthly_budget_estimate')
+      .select('id, creator_id, name')
       .eq('id', groupId)
       .single()
 
@@ -43,16 +46,10 @@ export const PUT = withAuth<RouteParams>(async (request, { userId }, routeContex
       )
     }
 
-    // Prepare update data
-    const updateData: Partial<UpdateGroupRequest> = {}
-    if (name !== undefined) updateData.name = name
-    if (monthly_budget_estimate !== undefined)
-      updateData.monthly_budget_estimate = monthly_budget_estimate
-
-    // Update the group
+    // Update the group (only name — monthly_budget_estimate auto-synced)
     const { data: updatedGroup, error: updateError } = await supabase
       .from('groups')
-      .update(updateData)
+      .update({ name })
       .eq('id', groupId)
       .select()
       .single()
