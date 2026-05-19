@@ -143,15 +143,30 @@ export const DELETE = withAuthAndProfile<RouteParams>(
         return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
       }
 
-      // Prevent creator from leaving their own group
+      // Prevent creator from leaving while other members remain
       if (group.creator_id === userId) {
-        return NextResponse.json(
-          {
-            error:
-              'Le créateur ne peut pas quitter son propre groupe. Supprimez le groupe si nécessaire.',
-          },
-          { status: 403 },
-        )
+        const { count: memberCount, error: countError } = await supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_id', groupId)
+
+        if (countError) {
+          logger.error('Error counting group members before creator leave:', countError)
+          return NextResponse.json(
+            { error: 'Erreur lors de la vérification des membres du groupe' },
+            { status: 500 },
+          )
+        }
+
+        if ((memberCount ?? 0) > 1) {
+          return NextResponse.json(
+            {
+              error:
+                "Vous ne pouvez pas quitter ce groupe tant qu'il y a d'autres membres. Les autres membres doivent d'abord quitter le groupe.",
+            },
+            { status: 403 },
+          )
+        }
       }
 
       // Remove user from the group by clearing their group_id
