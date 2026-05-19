@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -60,7 +60,7 @@ interface ProfileSettingsFormProps {
 function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
   const { updateProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
-  const { contributions, fetchContributions } = useGroupContributions()
+  const { contributions } = useGroupContributions()
 
   // Form state — lazy init from the (non-null) profile prop. The outer
   // gates rendering until profile is loaded, so the legacy sync effect
@@ -76,13 +76,6 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
     message: string
     suggestions: string[]
   } | null>(null)
-
-  // Load contributions when component mounts and user has a group
-  useEffect(() => {
-    if (hasGroup && currentGroup) {
-      fetchContributions()
-    }
-  }, [hasGroup, currentGroup, fetchContributions])
 
   /**
    * Validates salary against potential contribution
@@ -429,8 +422,11 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                         <span className="text-xs text-blue-600">
                           ({formatPercentage(calculation.userPercentage)} de votre salaire,{' '}
                           {formatPercentage(
-                            (calculation.userContribution / currentGroup.monthly_budget_estimate) *
-                              100,
+                            currentGroup.monthly_budget_estimate > 0
+                              ? (calculation.userContribution /
+                                  currentGroup.monthly_budget_estimate) *
+                                  100
+                              : 0,
                           )}{' '}
                           du budget)
                         </span>

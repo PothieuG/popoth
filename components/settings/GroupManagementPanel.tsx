@@ -42,8 +42,8 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
     setTimeout(() => setSuccessMessage(''), 3000)
   }
 
-  const handleCreateGroup = async (name: string, budget: number): Promise<boolean> => {
-    const success = await createGroup({ name, monthly_budget_estimate: budget })
+  const handleCreateGroup = async (name: string): Promise<boolean> => {
+    const success = await createGroup({ name })
     if (success) {
       setShowCreateForm(false)
       clearSearch()

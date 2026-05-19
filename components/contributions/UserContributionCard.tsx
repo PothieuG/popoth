@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
@@ -24,11 +23,6 @@ export default function UserContributionCard({ userId, className }: UserContribu
     isRecalculating,
     recalculateContributions,
   } = useGroupContributions()
-
-  // Load contributions on mount
-  useEffect(() => {
-    fetchContributions()
-  }, [fetchContributions])
 
   /**
    * Formats currency amount for display

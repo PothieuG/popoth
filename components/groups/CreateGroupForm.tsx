@@ -3,10 +3,8 @@
 import { useState } from 'react'
 import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import {
@@ -15,47 +13,44 @@ import {
 } from '@/lib/schemas/groups'
 
 interface CreateGroupFormProps {
-  onSubmit: (name: string, budget: number) => Promise<boolean>
+  onSubmit: (name: string) => Promise<boolean>
   onCancel: () => void
 }
-
-// z.coerce.number() schemas have distinct input/output — input accepts
-// string|number, output is always number. useForm needs both shapes.
-type CreateGroupFormInput = z.input<typeof createGroupFormSchema>
 
 /**
  * Form component for creating a new group.
  *
- * Uses react-hook-form + zodResolver(createGroupFormSchema). Decimal field
- * `monthly_budget_estimate` via Controller dual-type pattern (Sprint
- * Zod-Rollout v3). Server-side errors flow via `serverError` state,
- * independent of `form.formState.errors`.
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) — the manual "Budget mensuel"
+ * input is gone. `groups.monthly_budget_estimate` is now auto-synced from
+ * `SUM(estimated_budgets WHERE group_id = X)` by the DB trigger
+ * `estimated_budgets_sync_group_budget`. The group starts at budget 0 and
+ * inflates as items are added to it.
  */
 export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormProps) {
   const [serverError, setServerError] = useState<string | null>(null)
 
-  const form = useForm<CreateGroupFormInput, undefined, CreateGroupFormOutput>({
+  const form = useForm<CreateGroupFormOutput>({
     resolver: zodResolver(createGroupFormSchema),
-    defaultValues: { name: '', monthly_budget_estimate: 0 },
+    defaultValues: { name: '' },
     mode: 'onSubmit',
   })
 
   const onValidSubmit = async (data: CreateGroupFormOutput) => {
     setServerError(null)
     try {
-      const success = await onSubmit(data.name, data.monthly_budget_estimate)
+      const success = await onSubmit(data.name)
       if (success) {
-        form.reset({ name: '', monthly_budget_estimate: 0 })
+        form.reset({ name: '' })
       }
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Erreur lors de la création')
     }
   }
 
-  const onInvalidSubmit = (errors: FieldErrors<CreateGroupFormInput>) => {
+  const onInvalidSubmit = (errors: FieldErrors<CreateGroupFormOutput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<CreateGroupFormInput>)
+      form.setFocus(firstErrorKey as FieldPath<CreateGroupFormOutput>)
     }
   }
 
@@ -69,53 +64,27 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
         className="space-y-4"
         noValidate
       >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Group Name */}
-          <div className="space-y-2">
-            <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
-              Nom du groupe *
-            </Label>
-            <Input
-              id="groupName"
-              type="text"
-              {...form.register('name')}
-              placeholder="Ex: Famille Dupont"
-              className="w-full"
-              disabled={isSubmitting}
-              maxLength={100}
-              aria-invalid={fieldErrors.name ? 'true' : 'false'}
-              aria-describedby={fieldErrors.name ? 'group-name-error' : undefined}
-            />
-            {fieldErrors.name && (
-              <p id="group-name-error" className="text-sm text-red-600">
-                {fieldErrors.name.message}
-              </p>
-            )}
-          </div>
-
-          {/* Monthly Budget */}
-          <div className="space-y-2">
-            <Label htmlFor="monthlyBudget" className="text-sm font-medium text-gray-700">
-              Budget mensuel estimé (€) *
-            </Label>
-            <DecimalFormInput
-              control={form.control}
-              name="monthly_budget_estimate"
-              id="monthlyBudget"
-              placeholder="Ex: 2500"
-              className="w-full"
-              disabled={isSubmitting}
-              ariaInvalid={!!fieldErrors.monthly_budget_estimate}
-              ariaDescribedby={
-                fieldErrors.monthly_budget_estimate ? 'group-budget-error' : undefined
-              }
-            />
-            {fieldErrors.monthly_budget_estimate && (
-              <p id="group-budget-error" className="text-sm text-red-600">
-                {fieldErrors.monthly_budget_estimate.message}
-              </p>
-            )}
-          </div>
+        {/* Group Name */}
+        <div className="space-y-2">
+          <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
+            Nom du groupe *
+          </Label>
+          <Input
+            id="groupName"
+            type="text"
+            {...form.register('name')}
+            placeholder="Ex: Famille Dupont"
+            className="w-full"
+            disabled={isSubmitting}
+            maxLength={100}
+            aria-invalid={fieldErrors.name ? 'true' : 'false'}
+            aria-describedby={fieldErrors.name ? 'group-name-error' : undefined}
+          />
+          {fieldErrors.name && (
+            <p id="group-name-error" className="text-sm text-red-600">
+              {fieldErrors.name.message}
+            </p>
+          )}
         </div>
 
         {/* Server-side error */}
@@ -141,8 +110,8 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
 
         {/* Helper Text */}
         <div className="text-xs text-gray-500">
-          * Champs obligatoires. Le budget est utilisé pour les statistiques et peut être modifié
-          plus tard.
+          * Champs obligatoires. Le budget du groupe se met à jour automatiquement à mesure que vous
+          créez des items de budget.
         </div>
       </form>
     </Card>
