@@ -71,7 +71,7 @@ function DashboardPeriodSection({
 export default function DashboardPage() {
   const { logoutAndRedirect } = useLogoutAndRedirect()
   const { profile, hasProfile, createProfile, isLoading } = useProfile()
-  const { getUserContribution, fetchContributions } = useGroupContributions()
+  const { getUserContribution, groupInfo, fetchContributions } = useGroupContributions()
   const {
     financialData,
     loading: financialLoading,
@@ -192,6 +192,7 @@ export default function DashboardPage() {
           <UserInfoNavbar
             profile={profile}
             userContribution={profile?.id ? getUserContribution(profile.id) : null}
+            groupBudget={groupInfo?.monthly_budget_estimate ?? null}
           />
           <UserAvatar profile={profile} onClick={() => setIsMenuOpen(true)} size="md" />
         </div>
