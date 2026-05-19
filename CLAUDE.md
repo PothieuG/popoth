@@ -110,19 +110,19 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 À tenir à jour à chaque sprint touchant ces invariants.
 
-| Invariant                                 | Valeur                    | Source / Vérification                                                                                                     |
-| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `EXPECTED_RPCS`                           | **10**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                          |
-| Counter `as unknown as SupabaseClient`    | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                      |
-| Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                         |
-| Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                    |
-| Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                         |
-| Tests non-gated passants                  | **482**                   | `pnpm test:run`                                                                                                           |
-| Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                                                      |
-| Routes API                                | **54**                    | `pnpm build`                                                                                                              |
-| Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                 |
-| God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                                                               |
-| Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                    |
+| Invariant                                 | Valeur                    | Source / Vérification                                                                                                    |
+| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `EXPECTED_RPCS`                           | **10**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| Counter `as unknown as SupabaseClient`    | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
+| Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
+| Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
+| Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
+| Tests non-gated passants                  | **482**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                                                     |
+| Routes API                                | **54**                    | `pnpm build`                                                                                                             |
+| Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                |
+| God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                                                              |
+| Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                   |
 | Score audit estimé                        | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
