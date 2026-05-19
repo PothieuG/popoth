@@ -31,38 +31,47 @@ describe('searchGroupsQuerySchema', () => {
 
 describe('createGroupBodySchema', () => {
   it('accepts a valid body and trims the name', () => {
-    const result = createGroupBodySchema.safeParse({
-      name: '  Famille  ',
-      monthly_budget_estimate: 1500,
-    })
+    const result = createGroupBodySchema.safeParse({ name: '  Famille  ' })
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.name).toBe('Famille')
   })
 
-  it('rejects short name and non-positive budget', () => {
-    expect(
-      createGroupBodySchema.safeParse({ name: 'X', monthly_budget_estimate: 100 }).success,
-    ).toBe(false)
-    expect(
-      createGroupBodySchema.safeParse({ name: 'Famille', monthly_budget_estimate: 0 }).success,
-    ).toBe(false)
+  it('rejects short name', () => {
+    expect(createGroupBodySchema.safeParse({ name: 'X' }).success).toBe(false)
+  })
+
+  it('ignores monthly_budget_estimate if passed (auto-synced via DB trigger)', () => {
+    // Z default mode strips unknown keys; the body parser will simply ignore
+    // a stray monthly_budget_estimate from older clients without throwing.
+    const result = createGroupBodySchema.safeParse({
+      name: 'Famille',
+      monthly_budget_estimate: 1500,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.name).toBe('Famille')
+      expect('monthly_budget_estimate' in result.data).toBe(false)
+    }
   })
 })
 
 describe('updateGroupBodySchema', () => {
-  it('accepts partial update with only name', () => {
+  it('accepts a body with only name', () => {
     expect(updateGroupBodySchema.safeParse({ name: 'Famille' }).success).toBe(true)
   })
 
-  it('accepts partial update with only monthly_budget_estimate', () => {
-    expect(updateGroupBodySchema.safeParse({ monthly_budget_estimate: 2000 }).success).toBe(true)
+  it('rejects an empty body (name required)', () => {
+    expect(updateGroupBodySchema.safeParse({}).success).toBe(false)
   })
 
-  it('rejects empty update body (refine at-least-one)', () => {
-    const result = updateGroupBodySchema.safeParse({})
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues[0]?.message).toBe('Aucune donnée à mettre à jour')
+  it('ignores monthly_budget_estimate if passed (auto-synced via DB trigger)', () => {
+    const result = updateGroupBodySchema.safeParse({
+      name: 'Famille',
+      monthly_budget_estimate: 2000,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect('monthly_budget_estimate' in result.data).toBe(false)
     }
   })
 })

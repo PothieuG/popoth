@@ -236,6 +236,133 @@ describe.skipIf(!ENABLED)('trigger behavior (Sprint Audit-Functions-v2 B2)', () 
     expect(afterTs).toBeGreaterThan(beforeTs)
   }, 30_000)
 
+  // Case 6 — Sprint Group-Budget-Auto-Sync (2026-05-19).
+  // estimated_budgets_sync_group_budget (AFTER INSERT/UPDATE/DELETE on
+  // estimated_budgets) maintains groups.monthly_budget_estimate as the
+  // SUM(estimated_amount) of the group's items, which cascades into
+  // groups_budget_contribution_recalc → calculate_group_contributions.
+  // This regression-guards the original bug: creating an estimated_budget
+  // for a group used to leave monthly_budget_estimate (and therefore every
+  // contribution_amount) frozen at the manually-entered value.
+  it('estimated_budgets_sync_group_budget : INSERT/UPDATE/DELETE recalculent budget + contributions', async () => {
+    // Fresh group + both members joined. Reuses userId1/userId2 set up by
+    // beforeAll and reset to group_id = NULL by Case 3 (DELETE group) + the
+    // FK ON DELETE SET NULL pinned by Case 5.
+    const { data: g, error: gErr } = await admin
+      .from('groups')
+      .insert({
+        name: `B2 sync group ${stamp}`,
+        monthly_budget_estimate: 0,
+        creator_id: userId1,
+      })
+      .select('id')
+      .single()
+    expect(gErr).toBeNull()
+    expect(g).toBeTruthy()
+    const syncGroupId = g!.id
+
+    try {
+      const { error: j1Err } = await admin
+        .from('profiles')
+        .update({ group_id: syncGroupId })
+        .eq('id', userId1)
+      expect(j1Err).toBeNull()
+      const { error: j2Err } = await admin
+        .from('profiles')
+        .update({ group_id: syncGroupId })
+        .eq('id', userId2)
+      expect(j2Err).toBeNull()
+
+      // INSERT a 600€ estimated_budget for this group.
+      const { data: eb, error: ebErr } = await admin
+        .from('estimated_budgets')
+        .insert({
+          name: `B2 sync budget ${stamp}`,
+          estimated_amount: 600,
+          is_monthly_recurring: true,
+          group_id: syncGroupId,
+          profile_id: null,
+        })
+        .select('id')
+        .single()
+      expect(ebErr).toBeNull()
+      expect(eb).toBeTruthy()
+
+      // The trigger should have :
+      //   1. UPDATEd groups.monthly_budget_estimate = 600
+      //   2. The existing groups_budget_contribution_recalc trigger should
+      //      then have PERFORMed calculate_group_contributions → UPSERT
+      //      contributions = (1000/3000)*600 = 200 and (2000/3000)*600 = 400
+      const { data: g1, error: g1Err } = await admin
+        .from('groups')
+        .select('monthly_budget_estimate')
+        .eq('id', syncGroupId)
+        .single()
+      expect(g1Err).toBeNull()
+      expect(Number(g1!.monthly_budget_estimate)).toBeCloseTo(600, 2)
+
+      const { data: c1, error: c1Err } = await admin
+        .from('group_contributions')
+        .select('profile_id, contribution_amount')
+        .eq('group_id', syncGroupId)
+      expect(c1Err).toBeNull()
+      expect(c1).toHaveLength(2)
+      const c1Map = new Map(c1!.map((r) => [r.profile_id, Number(r.contribution_amount)]))
+      expect(c1Map.get(userId1)).toBeCloseTo(200, 2)
+      expect(c1Map.get(userId2)).toBeCloseTo(400, 2)
+
+      // UPDATE estimated_amount 600 → 900.
+      const { error: updErr } = await admin
+        .from('estimated_budgets')
+        .update({ estimated_amount: 900 })
+        .eq('id', eb!.id)
+      expect(updErr).toBeNull()
+
+      const { data: g2, error: g2Err } = await admin
+        .from('groups')
+        .select('monthly_budget_estimate')
+        .eq('id', syncGroupId)
+        .single()
+      expect(g2Err).toBeNull()
+      expect(Number(g2!.monthly_budget_estimate)).toBeCloseTo(900, 2)
+
+      const { data: c2 } = await admin
+        .from('group_contributions')
+        .select('profile_id, contribution_amount')
+        .eq('group_id', syncGroupId)
+      expect(c2).toHaveLength(2)
+      const c2Map = new Map(c2!.map((r) => [r.profile_id, Number(r.contribution_amount)]))
+      expect(c2Map.get(userId1)).toBeCloseTo(300, 2)
+      expect(c2Map.get(userId2)).toBeCloseTo(600, 2)
+
+      // DELETE the estimated_budget.
+      const { error: delEbErr } = await admin.from('estimated_budgets').delete().eq('id', eb!.id)
+      expect(delEbErr).toBeNull()
+
+      const { data: g3 } = await admin
+        .from('groups')
+        .select('monthly_budget_estimate')
+        .eq('id', syncGroupId)
+        .single()
+      expect(Number(g3!.monthly_budget_estimate)).toBeCloseTo(0, 2)
+
+      const { data: c3 } = await admin
+        .from('group_contributions')
+        .select('profile_id, contribution_amount')
+        .eq('group_id', syncGroupId)
+      expect(c3).toHaveLength(2)
+      for (const row of c3!) {
+        expect(Number(row.contribution_amount)).toBeCloseTo(0, 2)
+      }
+    } finally {
+      // Cleanup: detach members + delete the group (cleanup_group_contributions
+      // wipes contributions via BEFORE DELETE trigger).
+      await admin.from('profiles').update({ group_id: null }).eq('id', userId1)
+      await admin.from('profiles').update({ group_id: null }).eq('id', userId2)
+      await admin.from('groups').delete().eq('id', syncGroupId)
+    }
+  }, 30_000)
+
   // Case 5 — Sprint 2-followup-v3 / Item 1.
   // Regression guard for the FK profiles_group_id_fkey ON DELETE SET NULL.
   // Not a trigger function strictly speaking, but lives in this file because
