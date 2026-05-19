@@ -83,13 +83,13 @@ export function useGroups() {
       }
       return data.group as GroupData
     },
-    onSuccess: (updatedGroup, { groupId, updates }) => {
+    onSuccess: (updatedGroup, { groupId }) => {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) =>
         prev.map((g) => (g.id === groupId ? { ...g, ...updatedGroup } : g)),
       )
-      if ('monthly_budget_estimate' in updates) {
-        invalidateFinancialRefreshes(queryClient)
-      }
+      // monthly_budget_estimate is no longer mutable through PUT /api/groups/[id]
+      // (auto-synced via DB trigger from estimated_budgets), so only a name
+      // change is possible here — no need to invalidate financial refreshes.
     },
     onError: (err) => {
       logger.error('Error updating group:', err)
