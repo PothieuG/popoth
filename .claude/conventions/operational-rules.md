@@ -127,6 +127,11 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS supposer** dans un test gated que `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`. Step 2 appelle `getProfileFinancialData` qui recompute le RAV from scratch et **écrase la colonne via `saveRavToDatabase`** avant que step 6 ne re-lise. Cas vu Sprint Complete-CAS3-TestFix (2026-05-15). Tracer la séquence end-to-end avant d'asserter sur `bank_balances` ou `real_expenses` post-cleanup.
 
+### Tables owner-row hybrides (`.single()` trap)
+
+- ❌ **NE PAS** utiliser `.single()` sur les tables hybrides à 1-row-par-owner (`piggy_bank`, `bank_balances`) quand la ligne peut ne pas exister — `.single()` RAISE `PGRST116 "Cannot coerce the result to a single JSON object"` et un `if (error) throw` propage le crash jusqu'à l'UI. Utiliser `.maybeSingle()` + défaut `data?.amount ?? 0`. Cas vu Sprint Fix-Empty-Recap-Tirelire (2026-05-19) — `step1-persist.ts:148` crashait pour tout nouveau compte sans piggy. Les fixtures gated `SUPABASE_FINANCE_TESTS=1` créent toujours une ligne piggy, donc le bug n'a pas surfacé en CI — toute nouvelle route lisant `piggy_bank`/`bank_balances` doit être manuellement testée sur un compte fresh.
+- ❌ **NE PAS** appeler directement les RPCs `update_piggy_bank_amount` / `update_bank_balance` quand la ligne peut ne pas exister — les RPCs font un `UPDATE ... WHERE owner = X` qui RAISE explicitement `'piggy_bank row not found for the given context'` si 0 rows. Précéder l'appel d'un `ensurePiggyBankRow(filter)` ([lib/finance/piggy-bank.ts](../../lib/finance/piggy-bank.ts) — INSERT idempotent `amount=0` qui swallow le PG `23505` unique_violation via les partial unique indexes par owner). Pattern miroir disponible pour `bank_balances` si besoin (à ajouter quand un site applicatif similaire surface — pas écrit préemptivement). Sites couverts post-Fix-Empty-Recap-Tirelire : `lib/recap/step1-persist.ts:applyDecision` CAS 1 op 1.1 + CAS 2 op 2.4.1.
+
 ### Modals & UI
 
 - ❌ **NE PAS** créer de nouveau modal en raw `<div className="fixed inset-0 ...">` — utiliser `<Dialog>` + `<DialogContent>` (Sprint Zod-Rollout v8). 12 surfaces v8 migrées, 12 tests focus-trap regression-guards.
@@ -169,8 +174,9 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | Sprint Refactor-Settings-Drawer      | 2026-05-18 | Swap horizontal in-place dans drawer (`<SettingsDrawer>` partagé) + Path B closed-by-deletion `app/settings/page.tsx`                    | CLAUDE.md §11 |
 | Sprint Rework-Group-Management       | 2026-05-19 | Sections plates dans panel drawer + footer pinned destructive + readonly button avec backend-match + modal 80vh                          | CLAUDE.md §11 |
 | Sprint Fix-Password-Reset-OTP        | 2026-05-19 | Click-to-confirm gate `/auth/confirm` (client page) + `getSiteUrl()` helper + email template `{{ .RedirectTo }}?token_hash=...` (cf. §7) | CLAUDE.md §11 |
+| Sprint Fix-Empty-Recap-Tirelire      | 2026-05-19 | `.maybeSingle()` sur `piggy_bank` + helper idempotent `ensurePiggyBankRow(filter)` avant `update_piggy_bank_amount` RPC (cf. §5)         | CLAUDE.md §11 |
 
-Pour la chronologie complète des 96 sprints, voir CLAUDE.md §11 (index des 12 parts `.claude/history/roadmap-detailed-NN-...md`).
+Pour la chronologie complète des 97 sprints, voir CLAUDE.md §11 (index des 13 parts `.claude/history/roadmap-detailed-NN-...md`).
 
 ## 7. Supabase Auth click-to-confirm gate — scanner-résistance
 

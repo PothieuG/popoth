@@ -55,7 +55,7 @@ export const GET = withAuthAndProfile(async (request, { profile }) => {
       .from('piggy_bank')
       .select('amount')
       .eq(ownerField, contextId)
-      .single()
+      .maybeSingle()
 
     const piggyBankAmount = piggyBank?.amount || 0
 

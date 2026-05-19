@@ -117,7 +117,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants                  | **493**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants                  | **494**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped (sans env vars)       | **89**                    | idem                                                                                                                     |
 | Routes API                                | **54**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                |
@@ -342,13 +342,13 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 493 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5).
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 494 non-gated / 89 gated. 54 routes API. 10 RPCs pinnées (cf. §5.5).
 
-**Historique détaillé verbatim des 95 sprints livrés** — 12 parts chronologiques sous `.claude/history/roadmap-detailed-NN-...md` :
+**Historique détaillé verbatim des 97 sprints livrés** — 13 parts chronologiques sous `.claude/history/roadmap-detailed-NN-...md` :
 
 - [Part 01](.claude/history/roadmap-detailed-01-sprint-0-to-architecture-v5.md) Sprint 0 → Refactor-Architecture-v5 (24) | [Part 02](.claude/history/roadmap-detailed-02-sprint-1-to-cleanup-lot-1.md) Sprint 1 → Lot 1 (11) | [Part 03](.claude/history/roadmap-detailed-03-lot-3-to-refactor-i5-followup-v2.md) Lot 3 → Refactor-I5-followup-v2 (8) | [Part 04](.claude/history/roadmap-detailed-04-followup-v3-to-atomicity-savings-v2.md) Refactor-I5-followup-v3 → Atomicity-Savings v2 (5)
 - [Part 05](.claude/history/roadmap-detailed-05-dead-code-to-lot-4b.md) Dead-Code-Purge → Lot 4b (6) | [Part 06](.claude/history/roadmap-detailed-06-lot-4c-to-lot-5d.md) Lot 4c → Lot 5d (7) | [Part 07](.claude/history/roadmap-detailed-07-audit-c2-to-zod-v3.md) Audit-Closeout C2 → Zod v3 (6) | [Part 08](.claude/history/roadmap-detailed-08-zod-v4-to-zod-v8.md) Zod v4 → v8 (5)
-- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) Complete-CAS3-TestFix → Fix-Password-Reset-OTP (6)
+- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) | [Part 13](.claude/history/roadmap-detailed-13-fix-empty-recap-tirelire.md) Fix-Empty-Recap-Tirelire (1)
 
 **Évolution du score** : [part-1 47→99.998](.claude/history/score-evolution-part-1-47-to-99.md) + [part-2 99.999→100](.claude/history/score-evolution-part-2-99-to-100.md).
 **Historique sécurité Sprint 0 → Refactor-Architecture** : [part-1 foundation/CI](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2 quality/architecture](.claude/history/sprint-history-security-part-2-quality-architecture.md).

@@ -106,7 +106,7 @@ lib/
   finance/                 # ✅ Sprint 0 C3 (RPC atomiques) + Sprint Refactor-I4 (split god file 1069 LOC)
     # Sprint 0 / C3 — atomic RPC helpers (single-call + retry-safe DB writes)
     context.ts             # ContextFilter type discriminé { profile_id } | { group_id } + asContextFilter() + resolveContextIds()
-    piggy-bank.ts          # updatePiggyBank, transferFromPiggyToBudget
+    piggy-bank.ts          # updatePiggyBank, transferFromPiggyToBudget, transferPiggyToBudgetWithInsert, ensurePiggyBankRow (Sprint Fix-Empty-Recap-Tirelire — idempotent INSERT amount=0 before RPC writes)
     bank-balance.ts        # updateBankBalance
     budget-savings.ts      # updateBudgetCumulatedSavings
     budget-transfers.ts    # ✅ Sprint Refactor-I5-followup-v2 — transferWithSavingsDebit (composite RPC : INSERT budget_transfers + debit cumulated_savings en une tx Postgres)

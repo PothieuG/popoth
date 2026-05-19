@@ -63,7 +63,8 @@ CLAUDE.md                                     37k    Index opérationnel + règl
 │   ├─ roadmap-detailed-09-zod-v9-to-tailwind-v4.md            36k   Zod v9 → Tailwind-v4 (5)
 │   ├─ roadmap-detailed-10-p10-to-auto-balance-atomic.md       32k   P10 → Auto-Balance-Atomic (7)
 │   ├─ roadmap-detailed-11-phase-b-to-commitlint.md            30k   Phase-B → Commitlint (6)
-│   └─ roadmap-detailed-12-cas3-to-refactor-recover.md         32k   Complete-CAS3-TestFix → Refactor-Recover (4)
+│   ├─ roadmap-detailed-12-cas3-to-refactor-recover.md         39k   Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) — over 38k, split if extended
+│   └─ roadmap-detailed-13-fix-empty-recap-tirelire.md          8k   Fix-Empty-Recap-Tirelire (1)
 │
 ├─ reference/
 │   └─ structure-repo.md                              29k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -79,7 +80,7 @@ CLAUDE.md                                     37k    Index opérationnel + règl
     └─ size-policy.md                                  7k   (ce fichier)
 ```
 
-**Total contexte** : ~639k chars répartis sur 24 fichiers, aucun > 38k.
+**Total contexte** : ~647k chars répartis sur 25 fichiers. CLAUDE.md + roadmap-12 ont franchi le plafond 38k (~38-39k) — pas réagi car split prématuré ; à splitter quand un sprint ajoute encore du contenu.
 
 ## 5. Règles d'extension
 
@@ -178,8 +179,8 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 
 **24 fichiers `.md`** chargés comme contexte par Claude Code, tous ≤ 38k chars :
 
-- 1× `CLAUDE.md` (37k)
-- 12× `.claude/history/roadmap-detailed-01..12-*.md` (30-37k chacun, partition DP balanced)
+- 1× `CLAUDE.md` (38k, légèrement au-delà du plafond)
+- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 ouverte 2026-05-19 pour Sprint Fix-Empty-Recap-Tirelire)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (29k)

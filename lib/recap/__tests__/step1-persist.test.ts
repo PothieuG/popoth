@@ -45,6 +45,11 @@ vi.mock('@/lib/supabase-server', () => {
   chain.not = vi.fn(() => chain)
   chain.match = vi.fn(() => chain)
   chain.single = single
+  // Sprint Fix-Empty-Recap-Tirelire (2026-05-19): step1-persist loadSnapshot
+  // switched from .single() to .maybeSingle() so brand-new users without a
+  // piggy_bank row don't crash with PGRST116. Same mock fn drives both for
+  // back-compat with existing mockResolvedValueOnce calls.
+  chain.maybeSingle = single
   chain.insert = insert
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arbitrary onResolve/onReject signatures
   chain.then = (onResolve: any, onReject: any) => arrayAwait().then(onResolve, onReject)
@@ -90,6 +95,7 @@ vi.mock('@/lib/finance/budget-savings', () => ({
 
 vi.mock('@/lib/finance/piggy-bank', () => ({
   updatePiggyBank: vi.fn(async () => 0),
+  ensurePiggyBankRow: vi.fn(async () => undefined),
 }))
 
 beforeEach(() => {
@@ -149,6 +155,7 @@ describe('applyDecision — CAS 1 (excédent)', () => {
   it('1.1 piggy push fires updatePiggyBank with the excedent amount and no other RPCs', async () => {
     const piggyMod = (await import('@/lib/finance/piggy-bank')) as unknown as {
       updatePiggyBank: ReturnType<typeof vi.fn>
+      ensurePiggyBankRow: ReturnType<typeof vi.fn>
     }
     const transferMod = (await import('@/lib/finance/budget-transfers')) as unknown as {
       transferWithSavingsDebit: ReturnType<typeof vi.fn>
@@ -179,6 +186,16 @@ describe('applyDecision — CAS 1 (excédent)', () => {
 
     expect(piggyMod.updatePiggyBank).toHaveBeenCalledTimes(1)
     expect(piggyMod.updatePiggyBank).toHaveBeenCalledWith({ profile_id: 'profile-1' }, 100)
+    // ensurePiggyBankRow must fire BEFORE updatePiggyBank (regression guard
+    // for Sprint Fix-Empty-Recap-Tirelire — first-time users have no row).
+    expect(piggyMod.ensurePiggyBankRow).toHaveBeenCalledTimes(1)
+    expect(piggyMod.ensurePiggyBankRow).toHaveBeenCalledWith({ profile_id: 'profile-1' })
+    const ensureOrder = piggyMod.ensurePiggyBankRow.mock.invocationCallOrder[0]
+    const updateOrder = piggyMod.updatePiggyBank.mock.invocationCallOrder[0]
+    if (ensureOrder === undefined || updateOrder === undefined) {
+      throw new Error('invocationCallOrder missing — mocks not called as expected')
+    }
+    expect(ensureOrder).toBeLessThan(updateOrder)
     expect(transferMod.transferWithSavingsDebit).not.toHaveBeenCalled()
     expect(savingsMod.updateBudgetCumulatedSavings).not.toHaveBeenCalled()
     expect(supabaseMock.__mocks.insert).not.toHaveBeenCalled()
@@ -612,6 +629,32 @@ describe('loadSnapshot', () => {
     const { loadSnapshot } = await import('@/lib/recap/step1-persist')
 
     await expect(loadSnapshot(buildInput())).rejects.toThrow(/Erreur récupération dépenses/)
+  })
+
+  it('piggy_bank row absent (maybeSingle returns null/null) → piggyBank defaults to 0, no throw', async () => {
+    // Regression guard for Sprint Fix-Empty-Recap-Tirelire (2026-05-19).
+    // A brand-new user without an accumulated piggy yet has 0 rows in the
+    // piggy_bank table. Pre-fix, loadSnapshot used `.single()` which raises
+    // PGRST116 "Cannot coerce the result to a single JSON object" and blocked
+    // the entire monthly recap at Step 1. Post-fix, `.maybeSingle()` returns
+    // { data: null, error: null } and the snapshot reports piggyBank = 0.
+    const supabaseMock = (await import('@/lib/supabase-server')) as unknown as {
+      __mocks: {
+        single: ReturnType<typeof vi.fn>
+        arrayAwait: ReturnType<typeof vi.fn>
+      }
+    }
+    // budgets + expenses OK
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({ data: [], error: null })
+    supabaseMock.__mocks.arrayAwait.mockResolvedValueOnce({ data: [], error: null })
+    // piggy_bank maybeSingle() returns null/null (no row exists)
+    supabaseMock.__mocks.single.mockResolvedValueOnce({ data: null, error: null })
+
+    const { loadSnapshot } = await import('@/lib/recap/step1-persist')
+    const snapshot = await loadSnapshot(buildInput())
+
+    expect(snapshot.piggyBank).toBe(0)
+    expect(snapshot.budgetAnalyses).toEqual([])
   })
 
   it('piggy_bank SELECT fails → throws "Erreur récupération tirelire"', async () => {

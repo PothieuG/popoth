@@ -38,7 +38,7 @@ import { getGroupFinancialData, getProfileFinancialData } from '@/lib/finance'
 import { transferWithSavingsDebit } from '@/lib/finance/budget-transfers'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import { asContextFilter } from '@/lib/finance/context'
-import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { ensurePiggyBankRow, updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -142,11 +142,15 @@ export async function loadSnapshot(input: ProcessStep1Input): Promise<ProcessSte
     .not('estimated_budget_id', 'is', null)
   if (expensesError) throw new Error(`Erreur récupération dépenses: ${expensesError.message}`)
 
+  // `.maybeSingle()` returns `{ data: null, error: null }` when no row exists
+  // (brand-new user without an accumulated piggy yet). Only real DB errors
+  // bubble up. Defaults to 0 — applyDecision calls `ensurePiggyBankRow` before
+  // any RPC write so the missing-row case is handled transparently.
   const { data: piggyBankData, error: piggyBankError } = await supabaseServer
     .from('piggy_bank')
     .select('amount')
     .eq(input.ownerField, input.contextId)
-    .single()
+    .maybeSingle()
   if (piggyBankError) throw new Error(`Erreur récupération tirelire: ${piggyBankError.message}`)
 
   const piggyBank = piggyBankData?.amount ?? 0
@@ -204,6 +208,14 @@ export async function applyDecision(
 
   if (decision.case === 'excedent') {
     // CAS 1 — single step 1.1 (piggy push if difference > 0)
+    const hasPiggyPush = decision.operations.some(
+      (op) => op.step === '1.1' && op.type === 'excedent_to_piggy_bank',
+    )
+    if (hasPiggyPush) {
+      // RPC update_piggy_bank_amount RAISEs when its UPDATE matches 0 rows.
+      // Ensure the row exists for first-time users before the RPC fires.
+      await ensurePiggyBankRow(filter)
+    }
     for (const op of decision.operations) {
       if (op.step === '1.1' && op.type === 'excedent_to_piggy_bank') {
         await updatePiggyBank(filter, op.details.excedent_amount)
@@ -290,6 +302,8 @@ export async function applyDecision(
 
     if (newDifference > 0) {
       try {
+        // Same guard as CAS 1: ensure the piggy_bank row exists before the RPC.
+        await ensurePiggyBankRow(filter)
         await updatePiggyBank(filter, newDifference)
       } catch (error) {
         throw new Error(
