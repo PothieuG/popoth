@@ -64,7 +64,7 @@ CLAUDE.md                                     37k    Index opérationnel + règl
 │   ├─ roadmap-detailed-10-p10-to-auto-balance-atomic.md       32k   P10 → Auto-Balance-Atomic (7)
 │   ├─ roadmap-detailed-11-phase-b-to-commitlint.md            30k   Phase-B → Commitlint (6)
 │   ├─ roadmap-detailed-12-cas3-to-refactor-recover.md         39k   Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) — over 38k, split if extended
-│   └─ roadmap-detailed-13-fix-empty-recap-tirelire.md          8k   Fix-Empty-Recap-Tirelire (1)
+│   └─ roadmap-detailed-13-fix-empty-recap-tirelire.md         16k   Fix-Empty-Recap-Tirelire → Group-Budget-Auto-Sync (2)
 │
 ├─ reference/
 │   └─ structure-repo.md                              29k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -74,13 +74,13 @@ CLAUDE.md                                     37k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   └─ operational-rules.md                           18k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules
+│   └─ operational-rules.md                           33k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules
 │
 └─ guardrails/
-    └─ size-policy.md                                  7k   (ce fichier)
+    └─ size-policy.md                                 12k   (ce fichier)
 ```
 
-**Total contexte** : ~647k chars répartis sur 25 fichiers. CLAUDE.md + roadmap-12 ont franchi le plafond 38k (~38-39k) — pas réagi car split prématuré ; à splitter quand un sprint ajoute encore du contenu.
+**Total contexte** : ~670k chars répartis sur 25 fichiers. CLAUDE.md (~38.7k) + roadmap-12 (~39k) restent légèrement au-delà du plafond 38k. À splitter dans un sprint dédié — pas urgent tant que l'overflow reste sous ~40k (limite Claude Code). operational-rules.md a franchi 33k post-Sprint Group-Budget-Auto-Sync (2026-05-19), à surveiller.
 
 ## 5. Règles d'extension
 
@@ -175,16 +175,16 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 38000 && $2 != "t
 Si un fichier > 38k → refactor immédiat (split ou trim).
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-18)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-19)
 
-**24 fichiers `.md`** chargés comme contexte par Claude Code, tous ≤ 38k chars :
+**24 fichiers `.md`** chargés comme contexte par Claude Code :
 
-- 1× `CLAUDE.md` (38k, légèrement au-delà du plafond)
-- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 ouverte 2026-05-19 pour Sprint Fix-Empty-Recap-Tirelire)
+- 1× `CLAUDE.md` (~38.7k, légèrement au-delà du plafond — split déféré)
+- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 contient désormais 2 sprints : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync, ~16k)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (29k)
-- 5× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules}.md` (4-18k)
-- 1× `.claude/guardrails/size-policy.md` (~11k — ce fichier).
+- 1× `.claude/reference/structure-repo.md` (33k)
+- 5× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules}.md` (4-33k — operational-rules désormais le plus gros à 33k post-Sprint Group-Budget-Auto-Sync, à surveiller)
+- 1× `.claude/guardrails/size-policy.md` (~12k — ce fichier).
 
 Cf. inventaire détaillé via `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
