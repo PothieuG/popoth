@@ -26,17 +26,17 @@ Budget du groupe : **1 800 € / mois**. Alice contribue 720 €, Bob 1 080 €.
 
 ## 2. Glossaire
 
-| Terme                   | Définition                                                                                                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Groupe**              | Table `groups`. Un et un seul groupe par utilisateur (`profiles.group_id` unique nullable). Possède un nom unique, un `monthly_budget_estimate`, un `creator_id`.                                                                                                   |
-| **Budget mensuel**      | `groups.monthly_budget_estimate` (numeric(10,2)). **Auto-syncé** depuis `SUM(estimated_budgets.estimated_amount WHERE group_id = X)` par le trigger `estimated_budgets_sync_group_budget` (Sprint Group-Budget-Auto-Sync 2026-05-19). Non saisissable manuellement. |
-| **Salaire**             | `profiles.salary` (numeric(10,2), ≥ 0). Donnée privée individuelle, requise pour participer au calcul proportionnel.                                                                                                                                                |
-| **Contribution**        | Ligne dans `group_contributions` (`profile_id`, `group_id`, `salary`, `contribution_amount`, `contribution_percentage`, `calculated_at`). 1 ligne par (membre, groupe), unique.                                                                                     |
-| **Recalcul**            | Appel à la fonction PL/pgSQL `calculate_group_contributions(group_id_param)` qui UPSERT toutes les lignes du groupe en un seul `FOR member_record IN ...`.                                                                                                          |
-| **Split proportionnel** | Mode nominal : `contribution_amount = (salary / Σ salaires positifs) × monthly_budget_estimate`.                                                                                                                                                                    |
-| **Split égalitaire**    | Mode fallback : `contribution_amount = monthly_budget_estimate / nb_membres` quand tous les salaires sont à 0.                                                                                                                                                      |
-| **Creator**             | Membre qui a créé le groupe (`groups.creator_id`). Peut modifier le nom + budget, supprimer le groupe. **Ne peut pas le quitter** tant que d'autres membres y sont (verrou côté API + UX).                                                                          |
-| **RAV** (reste-à-vivre) | Indicateur central du tableau de bord. Pour un groupe, inclut les `contribution_amount` des membres comme un revenu collectif (cf. §5). Pour un profil personnel, **n'inclut PAS** sa contribution comme une charge.                                                |
+| Terme                   | Définition                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Groupe**              | Table `groups`. Un et un seul groupe par utilisateur (`profiles.group_id` unique nullable). Possède un nom unique, un `monthly_budget_estimate`, un `creator_id`.                                                                                                                                                                              |
+| **Budget mensuel**      | `groups.monthly_budget_estimate` (numeric(10,2)). **Auto-syncé** depuis `SUM(estimated_budgets.estimated_amount WHERE group_id = X)` par le trigger `estimated_budgets_sync_group_budget` (Sprint Group-Budget-Auto-Sync 2026-05-19). Non saisissable manuellement.                                                                            |
+| **Salaire**             | `profiles.salary` (numeric(10,2), ≥ 0). Donnée privée individuelle, requise pour participer au calcul proportionnel.                                                                                                                                                                                                                           |
+| **Contribution**        | Ligne dans `group_contributions` (`profile_id`, `group_id`, `salary`, `contribution_amount`, `contribution_percentage`, `calculated_at`). 1 ligne par (membre, groupe), unique.                                                                                                                                                                |
+| **Recalcul**            | Appel à la fonction PL/pgSQL `calculate_group_contributions(group_id_param)` qui UPSERT toutes les lignes du groupe en un seul `FOR member_record IN ...`.                                                                                                                                                                                     |
+| **Split proportionnel** | Mode nominal : `contribution_amount = (salary / Σ salaires positifs) × monthly_budget_estimate`.                                                                                                                                                                                                                                               |
+| **Split égalitaire**    | Mode fallback : `contribution_amount = monthly_budget_estimate / nb_membres` quand tous les salaires sont à 0.                                                                                                                                                                                                                                 |
+| **Creator**             | Membre qui a créé le groupe (`groups.creator_id`). Peut modifier le `name` (route `PUT /api/groups/[id]`) et supprimer le groupe. Le `monthly_budget_estimate` n'est plus directement éditable depuis Sprint Group-Budget-Auto-Sync (auto-syncé via trigger). **Ne peut pas quitter** tant que d'autres membres y sont (verrou côté API + UX). |
+| **RAV** (reste-à-vivre) | Indicateur central du tableau de bord. Pour un groupe, inclut les `contribution_amount` des membres comme un revenu collectif (cf. §5). Pour un profil personnel, **n'inclut PAS** sa contribution comme une charge.                                                                                                                           |
 
 ---
 
@@ -88,7 +88,7 @@ Le formulaire de profil ([components/profile/ProfileSettingsCard.tsx](../../comp
 
 ### 3.4 Rôles & verrous
 
-- **Creator** : créateur du groupe. Privilèges DB exclusifs : modifier `name` + `monthly_budget_estimate`, supprimer le groupe. Tagué via `groups.creator_id`.
+- **Creator** : créateur du groupe. Privilèges DB exclusifs : modifier `name` (via `PUT /api/groups/[id]`), supprimer le groupe. Tagué via `groups.creator_id`. **Note** : `monthly_budget_estimate` n'est plus directement éditable depuis Sprint Group-Budget-Auto-Sync (2026-05-19) — auto-syncé via trigger DB depuis `SUM(estimated_budgets)`.
 - **Membre standard** : peut consulter les contributions de tout le monde dans son groupe (RLS), peut modifier son propre salaire (impact en cascade), peut quitter.
 - **Verrou creator-leave** : la route `DELETE /api/groups/[id]/members` refuse (HTTP 403) si `creator_id = userId` ET `member_count > 1`. Surface UX : encart amber + bouton désactivé dans [GroupManagementPanel.tsx](../../components/settings/GroupManagementPanel.tsx) (cf. operational rule "false-affordance UX" pour le pattern).
 - **Unicité de groupe par utilisateur** : `profile.group_id` est nullable mais singulier. Pour rejoindre un autre groupe, il faut d'abord quitter l'actuel (HTTP 409 sur tentative double-membership).
@@ -481,13 +481,14 @@ calculateUserContribution(
 
 ### 9.2 Tests gated `SUPABASE_TRIGGER_TESTS=1`
 
-[lib/\_\_tests\_\_/trigger-behavior.test.ts](../../lib/__tests__/trigger-behavior.test.ts) — 5 cas end-to-end staging (Sprint Audit-Functions-v2 / B2) :
+[lib/\_\_tests\_\_/trigger-behavior.test.ts](../../lib/__tests__/trigger-behavior.test.ts) — 6 cas end-to-end staging (Sprint Audit-Functions-v2 / B2 + Sprint Group-Budget-Auto-Sync) :
 
 1. `trigger_recalculate_contributions` auto-crée une row à l'INSERT/UPDATE join
 2. `trigger_group_budget_change` recalcule à l'UPDATE de `monthly_budget_estimate` (somme conservée = nouveau budget)
 3. `cleanup_group_contributions` wipe toutes les rows au DELETE du groupe
 4. `update_updated_at_column` (boilerplate canonique, sanity check)
 5. FK `ON DELETE SET NULL` sur `profiles.group_id` quand un groupe est supprimé
+6. `estimated_budgets_sync_group_budget` recalcule la cascade complète sur INSERT/UPDATE/DELETE d'un `estimated_budget` du groupe (Sprint Group-Budget-Auto-Sync 2026-05-19) : INSERT 600 → contributions 200/400 ; UPDATE 900 → 300/600 ; DELETE → 0/0.
 
 > Ces tests sont skipped par défaut (`describe.skipIf(!ENABLED)`). Activation : `SUPABASE_TRIGGER_TESTS=1 pnpm test:run` avec `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` dans `.env.local`.
 
@@ -507,7 +508,7 @@ Le RAV personnel d'un membre n'inclut **pas** sa contribution comme une charge i
 
 Les triggers `AFTER` ne bloquent pas la transaction parente. Si `calculate_group_contributions` levait une exception (cas non-attendu — la fonction est défensive avec `RAISE NOTICE + RETURN` plutôt qu'erreur), la mutation parente (UPDATE profile, INSERT group, etc.) **roulerait quand même quand même back via la transaction**. En revanche, si un trigger silencieusement no-op-e (cas pathologique d'une fonction stubbée), les rows seraient stale → besoin du bouton "Actualiser" pour forcer un RPC explicite.
 
-> Le filet : `pnpm db:check-functions` ([scripts/check-trigger-functions.mjs](../../scripts/check-trigger-functions.mjs)) vérifie la **présence** des 4 fonctions dans `pg_proc`. La **behavior** est verrouillée par les tests gated `SUPABASE_TRIGGER_TESTS=1` (cf. §9.2). Un stub `BEGIN RETURN NEW; END` passerait check-functions mais ferait sortir les tests rouge.
+> Le filet : `pnpm db:check-functions` ([scripts/check-trigger-functions.mjs](../../scripts/check-trigger-functions.mjs)) vérifie la **présence** des 5 fonctions dans `pg_proc` (4 historiques + `sync_group_monthly_budget_estimate` ajoutée 2026-05-19). La **behavior** est verrouillée par les tests gated `SUPABASE_TRIGGER_TESTS=1` (cf. §9.2). Un stub `BEGIN RETURN NEW; END` passerait check-functions mais ferait sortir les tests rouge.
 
 ### 10.3 Snapshot `group_contributions.salary` vs `profiles.salary`
 
@@ -552,28 +553,29 @@ Aucun de ces niveaux ne supprime le besoin des autres : le backend protège cont
 
 ## 12. Références code
 
-| Fichier                                                                                                                                                    | Rôle                                                                          |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| [supabase/migrations/20260101000000_remote_schema.sql](../../supabase/migrations/20260101000000_remote_schema.sql)                                         | Baseline schéma (table + indexes + RLS + triggers liés)                       |
-| [supabase/migrations/20260507000001_fix_group_contributions_policy.sql](../../supabase/migrations/20260507000001_fix_group_contributions_policy.sql)       | Sprint DB / D2 — fix policy over-permissive                                   |
-| [supabase/migrations/20260512000000_capture_trigger_functions.sql](../../supabase/migrations/20260512000000_capture_trigger_functions.sql)                 | Sprint Audit-Triggers / A2 — capture des 4 fonctions PL/pgSQL                 |
-| [supabase/migrations/20260515000000_add_group_members_cleanup_trigger.sql](../../supabase/migrations/20260515000000_add_group_members_cleanup_trigger.sql) | Trigger `groups_aaa_cleanup_members` (FK SET NULL backup)                     |
-| [lib/contribution-calculator.ts](../../lib/contribution-calculator.ts)                                                                                     | Helper pur preview form (sync, 0 I/O)                                         |
-| [lib/finance/financial-data.ts](../../lib/finance/financial-data.ts)                                                                                       | `_loadFinancialData` — agrège totalProfileContributions pour RAV              |
-| [lib/finance/calc-rtl.ts](../../lib/finance/calc-rtl.ts)                                                                                                   | `calculateRemainingToLiveGroup` — formule avec contributions                  |
-| [app/api/groups/contributions/route.ts](../../app/api/groups/contributions/route.ts)                                                                       | GET (read) + POST (force-recalc)                                              |
-| [app/api/groups/[id]/members/route.ts](../../app/api/groups/[id]/members/route.ts)                                                                         | POST join / DELETE leave                                                      |
-| [app/api/groups/[id]/route.ts](../../app/api/groups/[id]/route.ts)                                                                                         | PUT update name/budget + DELETE group                                         |
-| [hooks/useGroupContributions.ts](../../hooks/useGroupContributions.ts)                                                                                     | Hook client (fetch + recalc + computed)                                       |
-| [hooks/useGroups.ts](../../hooks/useGroups.ts)                                                                                                             | Mutations TanStack (create/join/leave + invalidations RAV)                    |
-| [components/profile/ProfileSettingsCard.tsx](../../components/profile/ProfileSettingsCard.tsx)                                                             | Form profil + validation salaire vs contribution                              |
-| [components/contributions/UserContributionCard.tsx](../../components/contributions/UserContributionCard.tsx)                                               | Carte détaillée dashboard                                                     |
-| [components/groups/GroupMembersWithContributionsModal.tsx](../../components/groups/GroupMembersWithContributionsModal.tsx)                                 | Modal membres + contributions                                                 |
-| [components/settings/GroupManagementPanel.tsx](../../components/settings/GroupManagementPanel.tsx)                                                         | Panel settings (create/join/leave/voir membres)                               |
-| [components/ui/UserInfoNavbar.tsx](../../components/ui/UserInfoNavbar.tsx)                                                                                 | Navbar compacte (3 lignes : greeting / contribution € / % salaire · % budget) |
-| [lib/\_\_tests\_\_/contribution-calculator.test.ts](../../lib/__tests__/contribution-calculator.test.ts)                                                   | 6 cas unit non-gated                                                          |
-| [lib/\_\_tests\_\_/trigger-behavior.test.ts](../../lib/__tests__/trigger-behavior.test.ts)                                                                 | 5 cas e2e gated `SUPABASE_TRIGGER_TESTS=1`                                    |
-| [scripts/check-trigger-functions.mjs](../../scripts/check-trigger-functions.mjs)                                                                           | Filet CI : 4 fonctions PL/pgSQL présentes dans `pg_proc`                      |
+| Fichier                                                                                                                                                    | Rôle                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [supabase/migrations/20260101000000_remote_schema.sql](../../supabase/migrations/20260101000000_remote_schema.sql)                                         | Baseline schéma (table + indexes + RLS + triggers liés)                          |
+| [supabase/migrations/20260507000001_fix_group_contributions_policy.sql](../../supabase/migrations/20260507000001_fix_group_contributions_policy.sql)       | Sprint DB / D2 — fix policy over-permissive                                      |
+| [supabase/migrations/20260512000000_capture_trigger_functions.sql](../../supabase/migrations/20260512000000_capture_trigger_functions.sql)                 | Sprint Audit-Triggers / A2 — capture des 4 fonctions PL/pgSQL historiques        |
+| [supabase/migrations/20260515000000_add_group_members_cleanup_trigger.sql](../../supabase/migrations/20260515000000_add_group_members_cleanup_trigger.sql) | Trigger `groups_aaa_cleanup_members` (FK SET NULL backup)                        |
+| [supabase/migrations/20260520000000_auto_sync_group_budget.sql](../../supabase/migrations/20260520000000_auto_sync_group_budget.sql)                       | Sprint Group-Budget-Auto-Sync — trigger `estimated_budgets_sync_group_budget`    |
+| [lib/contribution-calculator.ts](../../lib/contribution-calculator.ts)                                                                                     | Helper pur preview form (sync, 0 I/O)                                            |
+| [lib/finance/financial-data.ts](../../lib/finance/financial-data.ts)                                                                                       | `_loadFinancialData` — agrège totalProfileContributions pour RAV                 |
+| [lib/finance/calc-rtl.ts](../../lib/finance/calc-rtl.ts)                                                                                                   | `calculateRemainingToLiveGroup` — formule avec contributions                     |
+| [app/api/groups/contributions/route.ts](../../app/api/groups/contributions/route.ts)                                                                       | GET (read) + POST (force-recalc)                                                 |
+| [app/api/groups/[id]/members/route.ts](../../app/api/groups/[id]/members/route.ts)                                                                         | POST join / DELETE leave                                                         |
+| [app/api/groups/[id]/route.ts](../../app/api/groups/[id]/route.ts)                                                                                         | PUT update `name` only + DELETE group (budget non éditable depuis 2026-05-19)    |
+| [hooks/useGroupContributions.ts](../../hooks/useGroupContributions.ts)                                                                                     | Hook TanStack Query (useQuery + useMutation, queryKey `['group-contributions']`) |
+| [hooks/useGroups.ts](../../hooks/useGroups.ts)                                                                                                             | Mutations TanStack (create/join/leave + invalidations RAV)                       |
+| [components/profile/ProfileSettingsCard.tsx](../../components/profile/ProfileSettingsCard.tsx)                                                             | Form profil + validation salaire vs contribution                                 |
+| [components/contributions/UserContributionCard.tsx](../../components/contributions/UserContributionCard.tsx)                                               | Carte détaillée dashboard                                                        |
+| [components/groups/GroupMembersWithContributionsModal.tsx](../../components/groups/GroupMembersWithContributionsModal.tsx)                                 | Modal membres + contributions                                                    |
+| [components/settings/GroupManagementPanel.tsx](../../components/settings/GroupManagementPanel.tsx)                                                         | Panel settings (create/join/leave/voir membres)                                  |
+| [components/ui/UserInfoNavbar.tsx](../../components/ui/UserInfoNavbar.tsx)                                                                                 | Navbar compacte (3 lignes : greeting / contribution € / % salaire · % budget)    |
+| [lib/\_\_tests\_\_/contribution-calculator.test.ts](../../lib/__tests__/contribution-calculator.test.ts)                                                   | 6 cas unit non-gated                                                             |
+| [lib/\_\_tests\_\_/trigger-behavior.test.ts](../../lib/__tests__/trigger-behavior.test.ts)                                                                 | 6 cas e2e gated `SUPABASE_TRIGGER_TESTS=1` (Case 6 = sync_group_budget cascade)  |
+| [scripts/check-trigger-functions.mjs](../../scripts/check-trigger-functions.mjs)                                                                           | Filet CI : 5 fonctions PL/pgSQL présentes dans `pg_proc`                         |
 
 ---
 
