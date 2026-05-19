@@ -1,23 +1,24 @@
 #!/usr/bin/env node
-// Verify the 4 custom PL/pgSQL functions captured by Sprint Audit-Triggers / A2
-// still exist in prod. Companion to scripts/check-rpcs.mjs.
+// Verify the 5 custom PL/pgSQL functions still exist in prod. Companion to
+// scripts/check-rpcs.mjs.
 //
 // Why a separate detector: scripts/export-schema.mjs intentionally does NOT
 // dump function bodies into the schema baseline (functions live in their own
 // dedicated migrations, same pattern as the C3 RPCs). Drift detection is
 // therefore blind to a `DROP FUNCTION` on these. This script closes that gap
-// for the 4 custom functions; update_updated_at_column is excluded because
+// for the 5 custom functions; update_updated_at_column is excluded because
 // it's Supabase canonical boilerplate (not pinned here to avoid false
 // positives if Supabase evolves it).
 //
-// Source of truth for the expected functions:
-//   supabase/migrations/20260512000000_capture_trigger_functions.sql
+// Sources of truth for the expected functions:
+//   - supabase/migrations/20260512000000_capture_trigger_functions.sql (4)
+//   - supabase/migrations/20260520000000_auto_sync_group_budget.sql (1)
 //
 // Usage:
 //   $env:SUPABASE_ACCESS_TOKEN = "sbp_..."
 //   pnpm db:check-functions
 //
-// Exit 0 -> all 4 functions present in pg_proc (public schema).
+// Exit 0 -> all 5 functions present in pg_proc (public schema).
 // Exit 1 -> at least one function is missing.
 // Exit 2 -> fatal (network, auth, etc.).
 
@@ -34,11 +35,18 @@ const URL_API = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/qu
 const EXPECTED_FUNCTIONS = [
   'calculate_group_contributions',
   'cleanup_group_contributions',
+  'sync_group_monthly_budget_estimate',
   'trigger_group_budget_change',
   'trigger_recalculate_contributions',
 ]
 
-const MIGRATION_PATH = 'supabase/migrations/20260512000000_capture_trigger_functions.sql'
+// Map each function to the migration that defines it (used in the drift
+// recovery hint below). All functions share the same recovery pattern (re-apply
+// via apply-sql.mjs), so the script reports both paths when any is missing.
+const MIGRATION_PATHS = [
+  'supabase/migrations/20260512000000_capture_trigger_functions.sql',
+  'supabase/migrations/20260520000000_auto_sync_group_budget.sql',
+]
 
 async function query(sql) {
   const res = await fetch(URL_API, {
@@ -87,8 +95,9 @@ async function main() {
   }
   console.error('')
   console.error(`To resolve: re-apply the migration that defines these functions.`)
-  console.error(`Source: ${MIGRATION_PATH}`)
-  console.error(`Recovery: node scripts/apply-sql.mjs ${MIGRATION_PATH}`)
+  console.error(`Sources:`)
+  for (const path of MIGRATION_PATHS) console.error(`  - ${path}`)
+  console.error(`Recovery: node scripts/apply-sql.mjs <migration-path>`)
   console.error('')
   console.error(`This is the same failure mode as the C3 RPC drift post-mortem`)
   console.error(`(docs/audit/POST-MORTEM-C3-DRIFT.md), applied to trigger functions.`)
