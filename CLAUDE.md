@@ -8,20 +8,20 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 
 **Avant tout commit touchant un `.md` de contexte** : mesurer `wc -m`. Si > 38k → découper (chronologique / thématique / par module) + mettre à jour références. Si < 35k + frère thématiquement proche → fusionner. Détails → [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md).
 
-**Architecture documentaire** (référence `@.claude/<path>` navigable depuis Claude Code) :
+**Architecture documentaire** — `@` prefix = auto-load ; plain link = on-demand :
 
-- `CLAUDE.md` (ce fichier) — index opérationnel + instructions critiques actives
-- [@.claude/history/](.claude/history/) — score-evolution, sprint-history-security, roadmap-detailed (94 sprints verbatim)
-- [@.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) — inventaire fichiers annoté
-- [@.claude/conventions/](.claude/conventions/) — patterns détaillés (zod-patterns, typescript, logs-cleanup, git-workflow, operational-rules)
-- [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 40 KB
-- [@.claude/skills/](.claude/skills/) — slash commands
+- `CLAUDE.md` — index opérationnel + instructions critiques actives
+- [.claude/history/](.claude/history/) — score-evolution, sprint-history-security, roadmap-detailed (94 sprints verbatim)
+- [.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) — inventaire fichiers annoté
+- [.claude/conventions/](.claude/conventions/) — 5 patterns ; auto : operational-rules, git-workflow, typescript ; on-demand : zod-patterns, logs-cleanup
+- [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 38k chars
+- `.claude/skills/` — slash commands
 
 ## 1. Projet
 
 **Popoth** : PWA francophone **mobile-first** de gestion financière personnelle et en groupe. **Toute UI doit être pensée mobile uniquement** (cible iPhone Safari/Chrome, viewport ≤ 430 px). Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
 ## 2. Stack
 
@@ -75,7 +75,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~
 
 ## 4. Structure du repo
 
-L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, scripts/) est dans [@.claude/reference/structure-repo.md](.claude/reference/structure-repo.md). À tenir à jour quand un module est ajouté/supprimé/déplacé.
+L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, scripts/) est dans [.claude/reference/structure-repo.md](.claude/reference/structure-repo.md). À tenir à jour quand un module est ajouté/supprimé/déplacé.
 
 **Sommaire haut-niveau** :
 
@@ -123,7 +123,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Functions DB versionnées                  | **15/15**                 | `pnpm db:audit-functions`                                                                                                 |
 | God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                                                               |
 | Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                    |
-| Score audit estimé                        | **~100**                  | Voir [@.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
+| Score audit estimé                        | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
 
@@ -142,11 +142,11 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 ### Validation Zod
 
-Le repo utilise Zod pour valider 100% des bodies API et form clients via `parseBody`/`parseQuery` + `react-hook-form` + `zodResolver`. **Patterns A–H standardisés** dans [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
+Le repo utilise Zod pour valider 100% des bodies API et form clients via `parseBody`/`parseQuery` + `react-hook-form` + `zodResolver`. **Patterns A–H standardisés** dans [.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
 
-**Pour ajouter une route** : déclarer schema dans `lib/schemas/<domain>.ts` + brancher via `parseBody(request, schema)` + `handleBadRequest(error)` au top du catch (avant le 500 fallback). Pas de validation manuelle subséquente. Exemple serveur complet dans [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) §2.
+**Pour ajouter une route** : déclarer schema dans `lib/schemas/<domain>.ts` + brancher via `parseBody(request, schema)` + `handleBadRequest(error)` au top du catch (avant le 500 fallback). Pas de validation manuelle subséquente. Exemple serveur complet dans [.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) §2.
 
-**Pour les forms client** : pattern dual-type `useForm<FormInput, undefined, FormOutput>` (Pattern A) avec `<DecimalFormInput>` composant réutilisable pour décimaux fr-FR (comma→dot). Voir [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) pour les 8 patterns standardisés et la liste des routes/forms migrés par sprint.
+**Pour les forms client** : pattern dual-type `useForm<FormInput, undefined, FormOutput>` (Pattern A) avec `<DecimalFormInput>` composant réutilisable pour décimaux fr-FR (comma→dot). Voir [.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md) pour les 8 patterns standardisés et la liste des routes/forms migrés par sprint.
 
 **Primitives partagés** dans [lib/schemas/common.ts](lib/schemas/common.ts) : `contextSchema`, `uuidSchema`, `moneySchema`, `nonNegativeMoneySchema`, `isoDateSchema`, `moneyFormSchema`, `periodSchema` (P1). Query schemas : `contextOnlyQuerySchema`, `estimatedListQuerySchema`, `deleteByIdQuerySchema`, `summaryQuerySchema`, `progressQuerySchema`.
 
@@ -175,7 +175,7 @@ Logger central : [lib/logger.ts](lib/logger.ts). 4 niveaux `error/warn/info/debu
 
 ESLint global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cleanup-I8 / Lot 6, activé 2026-05-14). Tout nouveau `console.log` fait sortir la PR rouge.
 
-**Règle d'or de triage** pour tout `console.*` : (a) outer catch-all → **DROP** (Vercel capture la stack) ; (b) DB error inline discriminant → **KEEP+migrate** `logger.error` (grep-able) ; (c) erreur silencieusement avalée → **KEEP+migrate** ; (d) cleanup-attempt critique → **KEEP+migrate**. Pour ton code : préfère `logger.debug/info`. Détails Lot 1-6 + per-file overrides → [@.claude/conventions/logs-cleanup.md](.claude/conventions/logs-cleanup.md).
+**Règle d'or de triage** pour tout `console.*` : (a) outer catch-all → **DROP** (Vercel capture la stack) ; (b) DB error inline discriminant → **KEEP+migrate** `logger.error` (grep-able) ; (c) erreur silencieusement avalée → **KEEP+migrate** ; (d) cleanup-attempt critique → **KEEP+migrate**. Pour ton code : préfère `logger.debug/info`. Détails Lot 1-6 + per-file overrides → [.claude/conventions/logs-cleanup.md](.claude/conventions/logs-cleanup.md).
 
 ### Naming
 
@@ -196,7 +196,7 @@ Détails capture-then-drop + DROP workflow + push gate + Dependabot triage → [
 
 ## 7. Sécurité — état des lieux
 
-Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architecture, livrés 2026-05-06/08) dans [@.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2](.claude/history/sprint-history-security-part-2-quality-architecture.md). État résumé :
+Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architecture, livrés 2026-05-06/08) dans [.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2](.claude/history/sprint-history-security-part-2-quality-architecture.md). État résumé :
 
 - ✅ **Sprints 0 / DB / Refactor / Hardening** : `ignoreBuildErrors` retiré (C1), 20 routes debug `blockInProduction` (C2), 4 RPC atomiques C3, RLS `piggy_bank` (D1), policies group_contributions + remaining_to_live_snapshots fixées (D2/D3), baseline schéma versionné (D5), `createClient<Database>` wirage (R2), `pnpm db:check-drift` (R4), 17 scope-casts unwound + 3 bugs surfacés (H1), overdraft `bank_balance` (H3), `pnpm db:check-rpcs` (H4).
 - ✅ **Sprints Polish → Stabilize-Deps** (9 sprints) : consolidations CI / db-audit / dependabot.
@@ -308,7 +308,7 @@ Couverture par dossier : `lib/recap/` (algo pure + persist mocked, 4 routes), `l
 
 `pnpm verify` (DX-Verify / G1) : `typecheck` + `test:run` + 6 `db:*` checks fail-fast. ~36s local. Tests gated skip-friendly sans env vars.
 
-Détails Zod-client (Pattern A-H, useRavValidation, factory refines) → [@.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
+Détails Zod-client (Pattern A-H, useRavValidation, factory refines) → [.claude/conventions/zod-patterns.md](.claude/conventions/zod-patterns.md).
 
 ## 10. Variables d'environnement
 
