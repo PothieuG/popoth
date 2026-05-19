@@ -37,7 +37,6 @@ export default function GroupMembersWithContributionsModal({
   } = useGroupMembers()
   const {
     contributions,
-    groupInfo,
     isLoading: contributionsLoading,
     error: contributionsError,
     fetchContributions,
@@ -95,7 +94,7 @@ export default function GroupMembersWithContributionsModal({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         hideCloseButton
-        className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl sm:max-w-2xl sm:rounded-lg"
+        className="flex h-[80vh] max-h-[80vh] flex-col gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl sm:max-w-2xl sm:rounded-lg"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 p-6">
@@ -104,17 +103,12 @@ export default function GroupMembersWithContributionsModal({
               <h2 className="text-lg font-semibold text-gray-900">Membres et contributions</h2>
             </DialogTitle>
             <p className="text-sm text-gray-500">{group.name}</p>
-            {groupInfo && (
-              <p className="mt-1 text-xs text-gray-400">
-                Budget: {formatCurrency(groupInfo.monthly_budget_estimate)}/mois
-              </p>
-            )}
           </div>
           <ModalCloseX onClose={onClose} variant="ghost" />
         </div>
 
         {/* Content */}
-        <div className="max-h-96 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             /* Loading State */
             <div className="py-8 text-center">
@@ -179,11 +173,6 @@ export default function GroupMembersWithContributionsModal({
                 <h3 className="font-medium text-gray-900">
                   {members.length} membre{members.length > 1 ? 's' : ''}
                 </h3>
-                {groupInfo && (
-                  <div className="text-sm text-gray-500">
-                    Total: {formatCurrency(groupInfo.total_contributions)}
-                  </div>
-                )}
               </div>
 
               {members.map((member) => {
@@ -238,11 +227,6 @@ export default function GroupMembersWithContributionsModal({
                               </p>
                             </div>
                           </div>
-                          {contribution.salary > 0 && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              Basé sur un salaire de {formatCurrency(contribution.salary)}
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <div className="rounded-lg bg-yellow-50 p-3">
@@ -279,21 +263,6 @@ export default function GroupMembersWithContributionsModal({
 
         {/* Footer */}
         <div className="border-t border-gray-200 p-6">
-          {groupInfo && (
-            <div className="mb-4 rounded-lg bg-blue-50 p-3">
-              <h4 className="mb-2 text-sm font-medium text-blue-800">Résumé du groupe</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-blue-600">Budget mensuel:</span>
-                  <p className="font-medium">{formatCurrency(groupInfo.monthly_budget_estimate)}</p>
-                </div>
-                <div>
-                  <span className="text-blue-600">Total contributions:</span>
-                  <p className="font-medium">{formatCurrency(groupInfo.total_contributions)}</p>
-                </div>
-              </div>
-            </div>
-          )}
           <Button onClick={onClose} className="w-full" variant="outline">
             Fermer
           </Button>
