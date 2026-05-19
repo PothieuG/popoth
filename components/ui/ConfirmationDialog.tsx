@@ -132,11 +132,11 @@ export default function ConfirmationDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-3 px-6 pb-6">
+        <div className="flex space-x-2 px-5 pb-5">
           <button
             onClick={onClose}
             disabled={loading}
-            className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex-1 rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {cancelText}
           </button>
@@ -144,7 +144,7 @@ export default function ConfirmationDialog({
             onClick={onConfirm}
             disabled={loading}
             className={cn(
-              'flex flex-1 items-center justify-center rounded-lg px-4 py-2 font-medium text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
+              'flex flex-1 items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium text-white transition-colors focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
               styles.confirmButton,
             )}
           >
