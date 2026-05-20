@@ -54,7 +54,14 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
             isFetching={contributionsFetching}
           />
         ) : (
-          <GroupInfoNavbar profile={profile} members={members} isFetching={membersLoading} />
+          <GroupInfoNavbar
+            profile={profile}
+            members={members}
+            userContribution={profile?.id ? getUserContribution(profile.id) : null}
+            groupBudget={groupInfo?.monthly_budget_estimate ?? null}
+            isFetching={membersLoading}
+            isFetchingContribution={contributionsFetching}
+          />
         )}
         <UserAvatar profile={profile} onClick={onOpenMenu} size="md" />
       </div>
