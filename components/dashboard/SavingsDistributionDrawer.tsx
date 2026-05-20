@@ -270,7 +270,7 @@ export default function SavingsDistributionDrawer({
         {/* Header - Sticky */}
         <div className="shrink-0 border-b border-gray-200 bg-purple-50/30 px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-600">
                 <svg
                   className="h-5 w-5 text-white"
@@ -308,7 +308,7 @@ export default function SavingsDistributionDrawer({
           {isLoading ? (
             <div className="flex items-center justify-center py-16">
               <div className="text-center">
-                <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-600"></div>
+                <div className="mx-auto mb-3 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-600"></div>
                 <p className="text-gray-600">Chargement des économies...</p>
               </div>
             </div>
@@ -316,7 +316,7 @@ export default function SavingsDistributionDrawer({
             <div className="p-4">
               <Card className="border-red-200 bg-red-50 p-4">
                 <div className="text-center">
-                  <div className="mb-2 text-red-600">
+                  <div className="mb-1.5 text-red-600">
                     <svg
                       className="mx-auto h-12 w-12"
                       fill="none"
@@ -331,8 +331,8 @@ export default function SavingsDistributionDrawer({
                       />
                     </svg>
                   </div>
-                  <h3 className="mb-2 text-lg font-semibold text-red-900">Erreur</h3>
-                  <p className="mb-4 text-red-700">{error}</p>
+                  <h3 className="mb-1.5 text-lg font-semibold text-red-900">Erreur</h3>
+                  <p className="mb-3 text-red-700">{error}</p>
                   <Button
                     onClick={() => {
                       void refetch()
@@ -345,15 +345,17 @@ export default function SavingsDistributionDrawer({
               </Card>
             </div>
           ) : savingsData ? (
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-4">
               {/* Statistiques globales */}
               <Card className="border-purple-200 bg-purple-50 p-4">
                 <div className="text-center">
-                  <h3 className="mb-2 text-sm font-medium text-purple-900">Total des Économies</h3>
+                  <h3 className="mb-1.5 text-sm font-medium text-purple-900">
+                    Total des Économies
+                  </h3>
                   <p className="text-3xl font-bold text-purple-600">
                     {formatCurrency(savingsData.statistics.total_savings)}
                   </p>
-                  <div className="mt-3 border-t border-purple-200 pt-3">
+                  <div className="mt-2 border-t border-purple-200 pt-3">
                     <div className="mb-1 flex items-center justify-between text-sm">
                       <span className="text-purple-700">Économies budgets:</span>
                       <span className="font-medium text-purple-900">
@@ -367,7 +369,7 @@ export default function SavingsDistributionDrawer({
                       </span>
                     </div>
                   </div>
-                  <p className="mt-3 text-xs text-purple-700">
+                  <p className="mt-2 text-xs text-purple-700">
                     {savingsData.statistics.budgets_with_savings} budget(s) avec économies
                   </p>
                 </div>
@@ -376,10 +378,10 @@ export default function SavingsDistributionDrawer({
               {/* Budgets avec économies */}
               {budgetsWithSavings.length > 0 && (
                 <Card className="p-4">
-                  <h3 className="mb-3 text-lg font-semibold text-gray-900">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900">
                     Budgets avec économies ({budgetsWithSavings.length})
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {budgetsWithSavings.map((budget) => (
                       <div
                         key={budget.id}
@@ -399,7 +401,7 @@ export default function SavingsDistributionDrawer({
                           disabled={isLoading || isProcessing}
                           variant="outline"
                           size="sm"
-                          className="ml-3 border-purple-500 text-purple-600 hover:bg-purple-50"
+                          className="ml-2 border-purple-500 text-purple-600 hover:bg-purple-50"
                         >
                           <svg
                             className="mr-1 h-4 w-4"
@@ -425,10 +427,10 @@ export default function SavingsDistributionDrawer({
               {/* Budgets sans économies */}
               {budgetsWithoutSavings.length > 0 && (
                 <Card className="p-4">
-                  <h3 className="mb-3 text-lg font-semibold text-gray-900">
+                  <h3 className="mb-2 text-lg font-semibold text-gray-900">
                     Autres budgets ({budgetsWithoutSavings.length})
                   </h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {budgetsWithoutSavings.map((budget) => (
                       <div
                         key={budget.id}
@@ -451,7 +453,7 @@ export default function SavingsDistributionDrawer({
                 <Card className="p-8">
                   <div className="text-center text-gray-500">
                     <svg
-                      className="mx-auto mb-4 h-16 w-16 text-gray-400"
+                      className="mx-auto mb-3 h-16 w-16 text-gray-400"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -464,7 +466,7 @@ export default function SavingsDistributionDrawer({
                       />
                     </svg>
                     <p className="text-lg font-medium">Aucun budget configuré</p>
-                    <p className="mt-2 text-sm">
+                    <p className="mt-1.5 text-sm">
                       Créez des budgets estimés pour commencer à épargner
                     </p>
                   </div>
@@ -484,7 +486,7 @@ export default function SavingsDistributionDrawer({
           {selectedFromBudget && (
             <>
               {/* Header — iOS-like: back button (top-left) + centered title + close */}
-              <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+              <div className="flex shrink-0 items-center gap-1.5 border-b border-gray-200 px-4 py-3">
                 {transferWizardStep === 'select-destination' ? (
                   <div className="h-9 w-9 shrink-0" />
                 ) : (
@@ -531,7 +533,7 @@ export default function SavingsDistributionDrawer({
                 <div
                   key="transfer-step-select-destination"
                   className={cn(
-                    'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+                    'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
                     'animate-in fade-in duration-200',
                     stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
                   )}
@@ -551,13 +553,13 @@ export default function SavingsDistributionDrawer({
 
                   <p className="text-sm text-gray-600">Choisissez la destination du transfert.</p>
 
-                  <div className="flex flex-col space-y-3">
+                  <div className="flex flex-col space-y-2">
                     <button
                       type="button"
                       onClick={() => handleSelectTransferDestination('piggy_bank')}
                       className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4 text-left transition-all hover:bg-purple-100 focus-visible:outline-2 focus-visible:outline-purple-500"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
                         <svg
                           className="h-6 w-6 text-purple-600"
                           fill="none"
@@ -600,7 +602,7 @@ export default function SavingsDistributionDrawer({
                       onClick={() => handleSelectTransferDestination('budget')}
                       className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center space-x-2">
                         <svg
                           className="h-6 w-6 text-blue-600"
                           fill="none"
@@ -647,13 +649,13 @@ export default function SavingsDistributionDrawer({
                   <div
                     key="transfer-step-fields"
                     className={cn(
-                      'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+                      'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
                       'animate-in fade-in duration-200',
                       stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
                     )}
                   >
                     {/* Summary chip: source + destination */}
-                    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-gray-50 p-3 text-xs">
                       <span className="rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-700">
                         {selectedFromBudget.name}
                       </span>
@@ -685,7 +687,7 @@ export default function SavingsDistributionDrawer({
 
                     {/* Montant */}
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                      <label className="mb-1 block text-sm font-medium text-gray-700">
                         Montant à transférer
                       </label>
                       <input
@@ -709,7 +711,7 @@ export default function SavingsDistributionDrawer({
                     {/* Destination dropdown (only for budget) */}
                     {transferDestinationType === 'budget' && (
                       <div>
-                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        <label className="mb-1 block text-sm font-medium text-gray-700">
                           Budget de destination
                         </label>
                         <CustomDropdown
@@ -732,7 +734,7 @@ export default function SavingsDistributionDrawer({
                   </div>
 
                   {/* Footer - sticky */}
-                  <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-6 py-4">
+                  <div className="flex shrink-0 justify-end gap-1.5 border-t border-gray-200 px-6 py-4">
                     <Button
                       variant="outline"
                       onClick={() => setIsTransferModalOpen(false)}

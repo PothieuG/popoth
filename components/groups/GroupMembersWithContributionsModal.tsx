@@ -111,13 +111,13 @@ export default function GroupMembersWithContributionsModal({
           {isLoading ? (
             /* Loading State */
             <div className="py-8 text-center">
-              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+              <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
               <p className="text-gray-600">Chargement des données...</p>
             </div>
           ) : hasError ? (
             /* Error State */
             <div className="py-8 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
                 <svg
                   className="h-6 w-6 text-red-600"
                   fill="none"
@@ -132,8 +132,8 @@ export default function GroupMembersWithContributionsModal({
                   />
                 </svg>
               </div>
-              <h3 className="mb-2 text-lg font-medium text-gray-900">Erreur de chargement</h3>
-              <p className="mb-4 text-gray-600">{error}</p>
+              <h3 className="mb-1.5 text-lg font-medium text-gray-900">Erreur de chargement</h3>
+              <p className="mb-3 text-gray-600">{error}</p>
               <Button
                 onClick={() => {
                   fetchGroupMembers(group.id)
@@ -147,7 +147,7 @@ export default function GroupMembersWithContributionsModal({
           ) : members.length === 0 ? (
             /* Empty State */
             <div className="py-8 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
                 <svg
                   className="h-6 w-6 text-gray-400"
                   fill="none"
@@ -162,13 +162,13 @@ export default function GroupMembersWithContributionsModal({
                   />
                 </svg>
               </div>
-              <h3 className="mb-2 text-lg font-medium text-gray-900">Aucun membre</h3>
+              <h3 className="mb-1.5 text-lg font-medium text-gray-900">Aucun membre</h3>
               <p className="text-gray-600">Ce groupe n&apos;a actuellement aucun membre.</p>
             </div>
           ) : (
             /* Members List with Contributions */
-            <div className="space-y-3">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="space-y-2">
+              <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-medium text-gray-900">
                   {members.length} membre{members.length > 1 ? 's' : ''}
                 </h3>
@@ -179,10 +179,10 @@ export default function GroupMembersWithContributionsModal({
 
                 return (
                   <Card key={member.id} className="p-4">
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {/* Member Header */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
                           {/* Avatar */}
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-purple-600 text-sm font-medium text-white">
                             {member.first_name.charAt(0)}
@@ -212,7 +212,7 @@ export default function GroupMembersWithContributionsModal({
                       {/* Contribution Information */}
                       {contribution ? (
                         <div className="rounded-lg bg-gray-50 p-3">
-                          <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="grid grid-cols-2 gap-3 text-sm">
                             <div>
                               <span className="text-gray-600">Contribution:</span>
                               <p className="font-semibold text-blue-600">
@@ -235,7 +235,7 @@ export default function GroupMembersWithContributionsModal({
                         </div>
                       ) : (
                         <div className="rounded-lg bg-yellow-50 p-3">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5">
                             <svg
                               className="h-4 w-4 text-yellow-600"
                               fill="none"

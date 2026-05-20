@@ -33,8 +33,8 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   if (isLoading || !profile) {
     return (
       <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse space-y-3">
-          <div className="flex items-center gap-3">
+        <div className="animate-pulse space-y-2">
+          <div className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-full bg-gray-200" />
             <div className="h-4 w-32 rounded bg-gray-200" />
           </div>
@@ -287,7 +287,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
       />
 
       {/* Divider subtil entre avatar et infos */}
-      <div className="my-4 border-t border-gray-200" />
+      <div className="my-3 border-t border-gray-200" />
 
       {!isEditing ? (
         /* View mode — sous-titre + bouton Modifier inline, suivi des rows flat */
@@ -342,7 +342,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
           </dl>
 
           {!hasSalary && (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="mt-1.5 text-xs text-gray-500">
               <span className="text-red-500">*</span> Requis pour calculer votre contribution au
               groupe
             </p>
@@ -410,7 +410,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
               <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-3">
                 <div className="flex items-start">
                   <svg
-                    className="mt-0.5 mr-2 h-5 w-5 shrink-0 text-red-400"
+                    className="mt-0.5 mr-1.5 h-5 w-5 shrink-0 text-red-400"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -423,7 +423,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                     />
                   </svg>
                   <div className="flex-1">
-                    <p className="mb-2 text-sm font-medium text-red-800">
+                    <p className="mb-1.5 text-sm font-medium text-red-800">
                       {contributionWarning.message}
                     </p>
                     <div className="text-xs text-red-700">
@@ -445,7 +445,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
           </div>
 
           {/* Action Buttons */}
-          <div className="mt-4 flex gap-2">
+          <div className="mt-3 flex gap-1.5">
             <Button
               onClick={handleSave}
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}

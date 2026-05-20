@@ -45,9 +45,9 @@ export default function ConnexionPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6">
         {/* Header */}
-        <div className="space-y-3 text-center">
+        <div className="space-y-2 text-center">
           <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Popoth
           </h1>
@@ -58,11 +58,11 @@ export default function ConnexionPage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-            className="space-y-6"
+            className="space-y-4"
             noValidate
           >
             {/* Email Field */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
                 Adresse email
               </label>
@@ -85,7 +85,7 @@ export default function ConnexionPage() {
             </div>
 
             {/* Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label htmlFor="motdepasse" className="block text-sm font-semibold text-gray-700">
                 Mot de passe
               </label>
@@ -120,7 +120,7 @@ export default function ConnexionPage() {
                       />
                     </svg>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2">
                     <p className="font-medium text-red-800">{error}</p>
                   </div>
                 </div>
@@ -138,7 +138,7 @@ export default function ConnexionPage() {
           </form>
 
           {/* Additional Links */}
-          <div className="mt-8 space-y-4">
+          <div className="mt-6 space-y-3">
             <div className="text-center">
               <button
                 onClick={() => (window.location.href = '/forgot-password')}

@@ -79,7 +79,7 @@ export default function DropdownMenu({
                 }
               }}
               disabled={item.disabled}
-              className={`flex w-full items-center space-x-2 px-3 py-2 text-left transition-colors ${
+              className={`flex w-full items-center space-x-1.5 px-3 py-2 text-left transition-colors ${
                 item.disabled
                   ? 'cursor-not-allowed text-gray-400'
                   : item.variant === 'danger'

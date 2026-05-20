@@ -78,10 +78,10 @@ export default function GroupDashboardPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col space-y-3">
       {financialError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5">
             <svg
               className="h-5 w-5 text-red-600"
               fill="none"

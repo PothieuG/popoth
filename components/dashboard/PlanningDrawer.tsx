@@ -363,7 +363,7 @@ export default function PlanningDrawer({
         {/* Header - Sticky (harmonisé avec SavingsDistributionDrawer, couleur bleue) */}
         <div className="shrink-0 border-b border-gray-200 bg-blue-50/30 px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600">
                 <svg
                   className="h-5 w-5 text-white"
@@ -408,7 +408,7 @@ export default function PlanningDrawer({
                   : 'text-gray-600 hover:text-gray-900',
               )}
             >
-              <div className="flex items-center justify-center space-x-2">
+              <div className="flex items-center justify-center space-x-1.5">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -429,7 +429,7 @@ export default function PlanningDrawer({
                   : 'text-gray-600 hover:text-gray-900',
               )}
             >
-              <div className="flex items-center justify-center space-x-2">
+              <div className="flex items-center justify-center space-x-1.5">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -457,7 +457,7 @@ export default function PlanningDrawer({
 
           {/* Budgets Tab Content */}
           {activeTab === 'budgets' && (
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-4">
               {budgetsLoading && (
                 <div className="flex justify-center py-8">
                   <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-orange-600"></div>
@@ -484,7 +484,7 @@ export default function PlanningDrawer({
               {/* Budgets List or Empty State */}
               {!budgetsLoading && budgets.length === 0 ? (
                 <div className="py-12 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
                     <svg
                       className="h-8 w-8 text-orange-600"
                       fill="none"
@@ -499,8 +499,10 @@ export default function PlanningDrawer({
                       />
                     </svg>
                   </div>
-                  <h4 className="mb-2 text-lg font-medium text-gray-900">Aucun budget configuré</h4>
-                  <p className="mb-4 text-sm text-gray-600">
+                  <h4 className="mb-1.5 text-lg font-medium text-gray-900">
+                    Aucun budget configuré
+                  </h4>
+                  <p className="mb-3 text-sm text-gray-600">
                     Commencez par ajouter vos catégories de dépenses mensuelles
                   </p>
                   <button
@@ -511,7 +513,7 @@ export default function PlanningDrawer({
                   </button>
                 </div>
               ) : !budgetsLoading && !budgetProgressLoading ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {budgets.map((budget) => {
                     const progress = budgetProgresses.find((p) => p.budgetId === budget.id)
                     if (!progress) return null
@@ -528,7 +530,7 @@ export default function PlanningDrawer({
                           </div>
 
                           {/* Menu dropdown */}
-                          <div className="ml-2">
+                          <div className="ml-1.5">
                             <DropdownMenu
                               items={[
                                 {
@@ -586,7 +588,7 @@ export default function PlanningDrawer({
 
           {/* Revenus Tab Content */}
           {activeTab === 'revenus' && (
-            <div className="space-y-4 p-4">
+            <div className="space-y-3 p-4">
               {incomesLoading && (
                 <div className="flex justify-center py-8">
                   <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div>
@@ -614,7 +616,7 @@ export default function PlanningDrawer({
               {/* Incomes List or Empty State */}
               {!incomesLoading && incomes.length === 0 && profileSalary === 0 ? (
                 <div className="py-12 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                     <svg
                       className="h-8 w-8 text-green-600"
                       fill="none"
@@ -629,8 +631,10 @@ export default function PlanningDrawer({
                       />
                     </svg>
                   </div>
-                  <h4 className="mb-2 text-lg font-medium text-gray-900">Aucun revenu configuré</h4>
-                  <p className="mb-4 text-sm text-gray-600">
+                  <h4 className="mb-1.5 text-lg font-medium text-gray-900">
+                    Aucun revenu configuré
+                  </h4>
+                  <p className="mb-3 text-sm text-gray-600">
                     Ajoutez vos sources de revenus mensuels récurrents
                   </p>
                   <button
@@ -641,13 +645,13 @@ export default function PlanningDrawer({
                   </button>
                 </div>
               ) : !incomesLoading && !incomeProgressLoading ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {/* Salaire du profil (read-only) */}
                   {profileSalary > 0 && (
                     <div className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-sm font-semibold text-gray-900">Salaire</span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                               <svg
@@ -689,7 +693,7 @@ export default function PlanningDrawer({
                           </div>
 
                           {/* Menu dropdown */}
-                          <div className="ml-2">
+                          <div className="ml-1.5">
                             <DropdownMenu
                               items={[
                                 {

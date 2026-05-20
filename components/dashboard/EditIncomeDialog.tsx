@@ -105,7 +105,7 @@ export default function EditIncomeDialog({
         {/* Header */}
         <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
                 <svg
                   className="h-4 w-4 text-green-600"
@@ -139,7 +139,7 @@ export default function EditIncomeDialog({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du revenu */}
             <div>
               <label htmlFor="income-name" className="mb-1 block text-sm font-medium text-gray-700">
@@ -220,7 +220,7 @@ export default function EditIncomeDialog({
 
           {/* Actions */}
           <div className="shrink-0 border-t border-gray-200 px-6 py-4">
-            <div className="flex space-x-3">
+            <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={onClose}

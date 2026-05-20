@@ -80,9 +80,9 @@ function AuthCodeErrorContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6">
         {/* Header */}
-        <div className="space-y-3 text-center">
+        <div className="space-y-2 text-center">
           <h1 className="bg-linear-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
             {errorInfo.title}
           </h1>
@@ -90,7 +90,7 @@ function AuthCodeErrorContent() {
 
         {/* Error Message */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <div className="space-y-6 text-center">
+          <div className="space-y-4 text-center">
             {/* Error Icon */}
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
               <svg
@@ -108,13 +108,13 @@ function AuthCodeErrorContent() {
               </svg>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <h2 className="text-xl font-semibold text-gray-900">{errorInfo.message}</h2>
               <p className="text-gray-600">{errorInfo.description}</p>
             </div>
 
             {/* Action Buttons */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               <Button
                 onClick={handleRequestNewLink}
                 className="h-12 w-full rounded-lg bg-linear-to-r from-blue-600 to-purple-600 text-lg font-semibold text-white shadow-lg transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:shadow-xl"

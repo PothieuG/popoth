@@ -64,9 +64,9 @@ export default function FinancialIndicators({
   }
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-2', className)}>
       {/* Main Financial Indicators */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         {/* Available Balance Card */}
         <div
           className={cn(
@@ -168,7 +168,7 @@ export default function FinancialIndicators({
         className="hover:to-purple-150 w-full cursor-pointer rounded-xl border border-purple-200 bg-linear-to-r from-purple-50 to-purple-100 p-2 shadow-xs transition-all duration-200 hover:from-purple-100"
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {/* Information Icon */}
             <div className="shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600">
@@ -204,7 +204,7 @@ export default function FinancialIndicators({
         className="hover:to-blue-150 w-full cursor-pointer rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-blue-100 p-2 shadow-xs transition-all duration-200 hover:from-blue-100"
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             {/* Planning Icon */}
             <div className="shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600">

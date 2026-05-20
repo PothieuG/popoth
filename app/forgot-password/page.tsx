@@ -84,9 +84,9 @@ export default function MotDePasseOubliePage() {
   if (success) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
           {/* Header */}
-          <div className="space-y-3 text-center">
+          <div className="space-y-2 text-center">
             <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
               Email envoyé !
             </h1>
@@ -95,7 +95,7 @@ export default function MotDePasseOubliePage() {
 
           {/* Success Message */}
           <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-            <div className="space-y-6 text-center">
+            <div className="space-y-4 text-center">
               {/* Success Icon */}
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <svg
@@ -113,13 +113,13 @@ export default function MotDePasseOubliePage() {
                 </svg>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <h2 className="text-xl font-semibold text-gray-900">Demande traitée</h2>
                 <p className="text-gray-600">
                   Si un compte existe avec l&apos;adresse <strong>{submittedEmail}</strong>, vous
                   recevrez un lien de réinitialisation.
                 </p>
-                <div className="space-y-2 text-sm text-gray-500">
+                <div className="space-y-1.5 text-sm text-gray-500">
                   <p>• Vérifiez votre boîte de réception et votre dossier spam</p>
                   <p>• Le lien expire après 1 heure</p>
                   <p>• Si vous ne recevez rien, vérifiez que l&apos;adresse est correcte</p>
@@ -142,9 +142,9 @@ export default function MotDePasseOubliePage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6">
         {/* Header */}
-        <div className="space-y-3 text-center">
+        <div className="space-y-2 text-center">
           <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Mot de passe oublié
           </h1>
@@ -157,11 +157,11 @@ export default function MotDePasseOubliePage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-            className="space-y-6"
+            className="space-y-4"
             noValidate
           >
             {/* Email Field */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
                 Adresse email
               </label>
@@ -196,7 +196,7 @@ export default function MotDePasseOubliePage() {
                       />
                     </svg>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2">
                     <p className="font-medium text-red-800">{serverError}</p>
                   </div>
                 </div>
@@ -214,7 +214,7 @@ export default function MotDePasseOubliePage() {
           </form>
 
           {/* Back to Login Link */}
-          <div className="mt-8 text-center">
+          <div className="mt-6 text-center">
             <button
               onClick={handleBackToLogin}
               className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-800"

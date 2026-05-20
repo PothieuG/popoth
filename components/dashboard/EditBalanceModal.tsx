@@ -81,10 +81,10 @@ export default function EditBalanceModal({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Explication */}
             <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
-              <div className="flex items-start space-x-2">
+              <div className="flex items-start space-x-1.5">
                 <svg
                   className="mt-0.5 h-4 w-4 shrink-0 text-blue-600"
                   fill="none"
@@ -147,7 +147,7 @@ export default function EditBalanceModal({
           </div>
 
           {/* Boutons d'action */}
-          <div className="flex shrink-0 space-x-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
             <Button
               type="button"
               variant="outline"
@@ -160,7 +160,7 @@ export default function EditBalanceModal({
             <Button type="submit" className="flex-1" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                  <div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   Sauvegarde...
                 </>
               ) : (

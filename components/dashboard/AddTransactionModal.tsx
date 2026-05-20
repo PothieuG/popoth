@@ -408,7 +408,7 @@ export default function AddTransactionModal({
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
         {/* Header — iOS-like: back button (top-left) + centered title + close */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-gray-200 px-4 py-3">
           {wizardStep === 'select-type' ? (
             <div className="h-9 w-9 shrink-0" />
           ) : (
@@ -453,19 +453,19 @@ export default function AddTransactionModal({
           <div
             key="step-select-type"
             className={cn(
-              'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+              'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
               'animate-in fade-in duration-200',
               stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
             )}
           >
             <p className="text-sm text-gray-600">Choisissez le type de transaction à ajouter.</p>
-            <div className="flex flex-col space-y-3">
+            <div className="flex flex-col space-y-2">
               <button
                 type="button"
                 onClick={() => handleSelectType('expense')}
                 className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4 text-left transition-all hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-500"
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <svg
                     className="h-6 w-6 text-red-600"
                     fill="none"
@@ -504,7 +504,7 @@ export default function AddTransactionModal({
                 onClick={() => handleSelectType('income')}
                 className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-left transition-all hover:bg-green-100 focus-visible:outline-2 focus-visible:outline-green-500"
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <svg
                     className="h-6 w-6 text-green-600"
                     fill="none"
@@ -546,7 +546,7 @@ export default function AddTransactionModal({
           <div
             key="step-select-expense-kind"
             className={cn(
-              'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+              'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
               'animate-in fade-in duration-200',
               stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
             )}
@@ -554,13 +554,13 @@ export default function AddTransactionModal({
             <p className="text-sm text-gray-600">
               La dépense est-elle rattachée à un budget existant ?
             </p>
-            <div className="flex flex-col space-y-3">
+            <div className="flex flex-col space-y-2">
               <button
                 type="button"
                 onClick={() => handleSelectExpenseKind(false)}
                 className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <svg
                     className="h-6 w-6 text-blue-600"
                     fill="none"
@@ -586,7 +586,7 @@ export default function AddTransactionModal({
                 onClick={() => handleSelectExpenseKind(true)}
                 className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
                   <svg
                     className="h-6 w-6 text-orange-600"
                     fill="none"
@@ -624,9 +624,9 @@ export default function AddTransactionModal({
             )}
             noValidate
           >
-            <div className="min-h-0 flex-auto space-y-6 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
               {/* Summary chip: type + kind (for context) */}
-              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-xs">
+              <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-gray-50 p-3 text-xs">
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 font-medium',
@@ -651,7 +651,7 @@ export default function AddTransactionModal({
 
               {/* Budget/Income Selection - Only shown if not exceptional */}
               {!isExceptional && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-gray-900">
                     {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
                     <span className="ml-1 text-red-500">*</span>
@@ -694,7 +694,7 @@ export default function AddTransactionModal({
               )}
 
               {/* Description */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="description" className="text-sm font-medium text-gray-900">
                   Description <span className="text-red-500">*</span>
                 </Label>
@@ -721,7 +721,7 @@ export default function AddTransactionModal({
               </div>
 
               {/* Amount */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
                   Montant (€) <span className="text-red-500">*</span>
                 </Label>
@@ -742,7 +742,7 @@ export default function AddTransactionModal({
               </div>
 
               {/* Date */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="date" className="text-sm font-medium text-gray-900">
                   Date <span className="text-red-500">*</span>
                 </Label>
@@ -796,8 +796,8 @@ export default function AddTransactionModal({
                 !isExceptional &&
                 budgetId &&
                 savingsAvailable > 0 && (
-                  <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                    <div className="flex items-start space-x-3">
+                  <div className="space-y-1.5 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                    <div className="flex items-start space-x-2">
                       <input
                         type="checkbox"
                         id="use-savings"
@@ -827,8 +827,8 @@ export default function AddTransactionModal({
 
               {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
               {overflow > 0 && availableCrossBudgets.length > 0 && (
-                <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
-                  <div className="flex items-start justify-between gap-2">
+                <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <div className="flex items-start justify-between gap-1.5">
                     <p className="text-sm font-medium text-orange-900">
                       Dépassement de{' '}
                       {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
@@ -846,7 +846,7 @@ export default function AddTransactionModal({
                     Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
                     dépassement.
                   </p>
-                  <ul className="space-y-2">
+                  <ul className="space-y-1.5">
                     {availableCrossBudgets.map((b) => {
                       const isSelected = crossBudgetSelected.includes(b.id)
                       const savings = b.cumulated_savings ?? 0
@@ -866,7 +866,7 @@ export default function AddTransactionModal({
                           >
                             <span>
                               <span className="font-medium">{b.name}</span>
-                              <span className="ml-2 text-xs text-orange-700">
+                              <span className="ml-1.5 text-xs text-orange-700">
                                 (
                                 {savings.toLocaleString('fr-FR', {
                                   style: 'currency',
@@ -948,7 +948,7 @@ export default function AddTransactionModal({
             </div>
 
             {/* Actions */}
-            <div className="flex shrink-0 space-x-3 border-t border-gray-200 px-6 py-4">
+            <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
               <Button
                 type="button"
                 variant="outline"
@@ -969,7 +969,7 @@ export default function AddTransactionModal({
                 )}
               >
                 {isSubmitting ? (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1.5">
                     <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     <span>Ajout...</span>
                   </div>

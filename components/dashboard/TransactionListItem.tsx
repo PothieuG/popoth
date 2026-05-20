@@ -150,7 +150,7 @@ export default function TransactionListItem({
       >
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
-          <div className="flex min-w-0 flex-1 items-center space-x-3">
+          <div className="flex min-w-0 flex-1 items-center space-x-2">
             {/* Avatar for group transactions */}
             {context === 'group' && (
               <div className="shrink-0">
@@ -161,7 +161,7 @@ export default function TransactionListItem({
             {/* 3-line layout */}
             <div className="min-w-0 flex-1 space-y-0.5">
               {/* Line 1: Amount - Description with breakdown badges */}
-              <div className="flex items-baseline space-x-2">
+              <div className="flex items-baseline space-x-1.5">
                 <span
                   className={cn(
                     'text-lg font-bold',
@@ -206,7 +206,7 @@ export default function TransactionListItem({
           </div>
 
           {/* Actions dropdown - Bigger and centered */}
-          <div className="ml-2 flex min-h-full shrink-0 items-center">
+          <div className="ml-1.5 flex min-h-full shrink-0 items-center">
             <DropdownMenu
               items={getDropdownItems()}
               buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"

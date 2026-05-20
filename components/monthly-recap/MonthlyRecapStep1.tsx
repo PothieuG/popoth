@@ -56,8 +56,8 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
     return (
       <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <h2 className="mb-2 text-xl font-semibold text-gray-900">Récupération des données</h2>
+          <div className="mx-auto mb-3 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <h2 className="mb-1.5 text-xl font-semibold text-gray-900">Récupération des données</h2>
           <p className="text-gray-600">Calcul de votre situation financière...</p>
         </div>
       </div>
@@ -68,7 +68,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
     return (
       <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
         <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
-          <div className="mb-4 text-red-600">
+          <div className="mb-3 text-red-600">
             <svg
               className="mx-auto h-12 w-12"
               fill="none"
@@ -83,8 +83,8 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
               />
             </svg>
           </div>
-          <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
-          <p className="mb-4 text-gray-600">{error}</p>
+          <h2 className="mb-1.5 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-3 text-gray-600">{error}</p>
           <Button
             onClick={fetchStep1Data}
             className="w-full bg-red-600 text-white hover:bg-red-700"
@@ -113,11 +113,11 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
       </div>
 
       {/* Main Content */}
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {/* Reste à vivre - Vue d'ensemble */}
         <Card className="bg-white p-6">
-          <div className="space-y-4">
-            <h2 className="mb-4 text-center text-lg font-semibold text-gray-900">
+          <div className="space-y-3">
+            <h2 className="mb-3 text-center text-lg font-semibold text-gray-900">
               Vue d&apos;ensemble de votre situation
             </h2>
 
@@ -204,7 +204,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
         {step1Data.needs_balancing && (
           <Card className="border-2 border-orange-300 bg-orange-50 p-6">
             <div className="text-center">
-              <div className="mb-3 text-3xl">⚠️</div>
+              <div className="mb-2 text-3xl">⚠️</div>
               <p className="text-lg font-semibold text-orange-900">
                 Il manque {formatCurrency(step1Data.balance_amount)} pour atteindre l&apos;objectif
                 budgétaire
@@ -216,7 +216,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
         {!step1Data.needs_balancing && step1Data.surplus_for_next_step > 0 && (
           <Card className="border-2 border-green-300 bg-green-50 p-6">
             <div className="text-center">
-              <div className="mb-3 text-3xl">🎉</div>
+              <div className="mb-2 text-3xl">🎉</div>
               <p className="text-lg font-semibold text-green-900">
                 Votre reste à vivre dépasse l&apos;objectif budgétaire de{' '}
                 {formatCurrency(step1Data.surplus_for_next_step)}
@@ -228,7 +228,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
         {!step1Data.needs_balancing && step1Data.surplus_for_next_step === 0 && (
           <Card className="border-2 border-green-300 bg-green-50 p-6">
             <div className="text-center">
-              <div className="mb-3 text-3xl">✅</div>
+              <div className="mb-2 text-3xl">✅</div>
               <p className="text-lg font-semibold text-green-900">
                 Votre reste à vivre atteint exactement l&apos;objectif budgétaire
               </p>
@@ -244,11 +244,11 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
             {(step1Data.budgets_with_surplus.length > 0 ||
               step1Data.budgets_with_savings.length > 0) && (
               <Card className="bg-white p-4">
-                <h3 className="mb-4 font-medium text-gray-900">
+                <h3 className="mb-3 font-medium text-gray-900">
                   💰 Budgets disponibles pour atteindre l&apos;objectif
                 </h3>
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {/* Budgets avec excédents */}
                   {step1Data.budgets_with_surplus.map((budget) => (
                     <div
@@ -300,16 +300,16 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
             {/* Aperçu des calculs de répartition */}
             <Card className="bg-white p-6">
-              <div className="space-y-4">
-                <h3 className="mb-4 text-center text-lg font-semibold text-gray-900">
+              <div className="space-y-3">
+                <h3 className="mb-3 text-center text-lg font-semibold text-gray-900">
                   📊 Aperçu des calculs de répartition
                 </h3>
 
                 {/* Détails de la répartition */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {/* Tirelire */}
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="mb-1.5 flex items-center justify-between">
                       <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
                       <div className="text-lg font-bold text-amber-600">
                         {formatCurrency(step1Data.piggy_bank_amount)}
@@ -325,7 +325,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
                   {/* Économies */}
                   <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="mb-1.5 flex items-center justify-between">
                       <h4 className="text-sm font-medium text-purple-900">Économies 💎</h4>
                       <div className="text-lg font-bold text-purple-600">
                         {formatCurrency(step1Data.total_savings_available)}
@@ -343,7 +343,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
                   {/* Surplus */}
                   <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-                    <div className="mb-2 flex items-center justify-between">
+                    <div className="mb-1.5 flex items-center justify-between">
                       <h4 className="text-sm font-medium text-green-900">Surplus 📈</h4>
                       <div className="text-lg font-bold text-green-600">
                         {formatCurrency(step1Data.total_surplus_available)}
@@ -360,11 +360,11 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
                 {/* Résumé de ce qui restera après équilibrage */}
                 {step1Data.needs_balancing && step1Data.can_balance && (
-                  <div className="mt-4 rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
-                    <h4 className="mb-3 text-center text-sm font-semibold text-blue-900">
+                  <div className="mt-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
+                    <h4 className="mb-2 text-center text-sm font-semibold text-blue-900">
                       Après équilibrage automatique
                     </h4>
-                    <div className="space-y-2 text-sm">
+                    <div className="space-y-1.5 text-sm">
                       <div className="flex justify-between">
                         <span className="text-blue-800">Montant nécessaire:</span>
                         <span className="font-bold text-blue-900">
@@ -377,7 +377,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
                           {formatCurrency(step1Data.total_available)}
                         </span>
                       </div>
-                      <div className="my-2 h-px bg-blue-300"></div>
+                      <div className="my-1.5 h-px bg-blue-300"></div>
                       {(() => {
                         // Calcul de ce qui restera après équilibrage
                         let remaining = step1Data.balance_amount
@@ -424,12 +424,12 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
                 )}
 
                 {/* Message informatif sur le rééquilibrage automatique */}
-                <div className="mt-4 rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
+                <div className="mt-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
                   <p className="text-center text-sm font-medium text-blue-800">
                     ℹ️ Le rééquilibrage se fera automatiquement lors du passage à l&apos;étape
                     suivante
                   </p>
-                  <p className="mt-2 text-center text-xs text-blue-700">
+                  <p className="mt-1.5 text-center text-xs text-blue-700">
                     Les surplus seront transférés vers les économies, et l&apos;excédent éventuel
                     ira dans la tirelire
                   </p>
@@ -440,16 +440,16 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
         ) : (
           /* Objectif atteint - Afficher aperçu des calculs sans bouton */
           <Card className="bg-white p-6">
-            <div className="space-y-4">
-              <h3 className="mb-4 text-center text-lg font-semibold text-gray-900">
+            <div className="space-y-3">
+              <h3 className="mb-3 text-center text-lg font-semibold text-gray-900">
                 📊 Aperçu des calculs de répartition
               </h3>
 
               {/* Détails de la répartition */}
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {/* Tirelire */}
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 flex items-center justify-between">
                     <h4 className="text-sm font-medium text-amber-900">Tirelire 🐷</h4>
                     <div className="text-lg font-bold text-amber-600">
                       {formatCurrency(step1Data.piggy_bank_amount)}
@@ -460,7 +460,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
                 {/* Économies */}
                 <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 flex items-center justify-between">
                     <h4 className="text-sm font-medium text-purple-900">Économies 💎</h4>
                     <div className="text-lg font-bold text-purple-600">
                       {formatCurrency(step1Data.total_savings_available)}
@@ -471,7 +471,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
                 {/* Surplus */}
                 <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 flex items-center justify-between">
                     <h4 className="text-sm font-medium text-green-900">Surplus 📈</h4>
                     <div className="text-lg font-bold text-green-600">
                       {formatCurrency(step1Data.total_surplus_available)}
@@ -482,7 +482,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
               </div>
 
               {/* Message informatif */}
-              <div className="mt-4 rounded-lg border-2 border-green-300 bg-green-50 p-4">
+              <div className="mt-3 rounded-lg border-2 border-green-300 bg-green-50 p-4">
                 <p className="text-center text-sm font-medium text-green-800">
                   ✅ Aucune action nécessaire - Vous pouvez continuer
                 </p>
@@ -493,7 +493,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
 
         {/* Informations complémentaires */}
         <Card className="border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-start space-x-2">
+          <div className="flex items-start space-x-1.5">
             <svg
               className="mt-0.5 h-5 w-5 text-blue-600"
               fill="none"
@@ -545,7 +545,7 @@ export default function MonthlyRecapStep1({ context, onNext }: MonthlyRecapStep1
               className="bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {isSubmitting ? (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5">
                   <svg
                     className="h-4 w-4 animate-spin"
                     xmlns="http://www.w3.org/2000/svg"

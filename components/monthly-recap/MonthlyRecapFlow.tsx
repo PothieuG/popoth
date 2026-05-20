@@ -31,7 +31,7 @@ export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFl
     return (
       <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
         <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
-          <div className="mb-4 text-red-600">
+          <div className="mb-3 text-red-600">
             <svg
               className="mx-auto h-12 w-12"
               fill="none"
@@ -46,8 +46,8 @@ export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFl
               />
             </svg>
           </div>
-          <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
-          <p className="mb-4 text-gray-600">{error}</p>
+          <h2 className="mb-1.5 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-3 text-gray-600">{error}</p>
           <button
             onClick={() => router.push('/dashboard')}
             className="w-full rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700"

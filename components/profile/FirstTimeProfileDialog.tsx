@@ -76,8 +76,8 @@ export default function FirstTimeProfileDialog({
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         {/* Header */}
-        <div className="shrink-0 space-y-1.5 border-b border-gray-200 px-6 py-4">
-          <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
+        <div className="shrink-0 space-y-1 border-b border-gray-200 px-6 py-4">
+          <DialogTitle className="flex items-center gap-1.5 text-xl font-semibold">
             <User className="h-6 w-6 text-blue-600" />
             Bienvenue !
           </DialogTitle>
@@ -92,9 +92,9 @@ export default function FirstTimeProfileDialog({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Prénom */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="firstName" className="text-sm font-medium">
                 Prénom *
               </Label>
@@ -116,7 +116,7 @@ export default function FirstTimeProfileDialog({
             </div>
 
             {/* Nom */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="lastName" className="text-sm font-medium">
                 Nom *
               </Label>
@@ -156,7 +156,7 @@ export default function FirstTimeProfileDialog({
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   Création en cours...
                 </>
               ) : (

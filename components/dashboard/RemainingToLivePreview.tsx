@@ -155,7 +155,7 @@ export default function RemainingToLivePreview({
     return (
       <div className="rounded-lg border bg-gray-50 p-4">
         <div className="animate-pulse">
-          <div className="mb-2 h-4 w-3/4 rounded bg-gray-200"></div>
+          <div className="mb-1.5 h-4 w-3/4 rounded bg-gray-200"></div>
           <div className="h-6 w-1/2 rounded bg-gray-200"></div>
         </div>
       </div>
@@ -169,7 +169,7 @@ export default function RemainingToLivePreview({
 
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <p className="text-sm font-medium text-gray-700">Impact sur le reste à vivre :</p>
 
         <div className="flex items-center justify-between">
@@ -223,12 +223,12 @@ export default function RemainingToLivePreview({
         </div>
 
         {isExceptional ? (
-          <p className="mt-2 text-xs text-blue-600">
+          <p className="mt-1.5 text-xs text-blue-600">
             {type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel - Impact direct sur le reste à
             vivre
           </p>
         ) : change !== 0 ? (
-          <p className="mt-2 text-xs text-amber-600">
+          <p className="mt-1.5 text-xs text-amber-600">
             {type === 'expense'
               ? 'Dépassement de budget'
               : change > 0
@@ -236,7 +236,7 @@ export default function RemainingToLivePreview({
                 : "Déficit par rapport à l'estimation"}
           </p>
         ) : (
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-1.5 text-xs text-gray-500">
             {type === 'expense' ? 'Dans les limites du budget' : "Dans les limites de l'estimation"}
           </p>
         )}

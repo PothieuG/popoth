@@ -39,11 +39,11 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
 
   if (isLoading) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         {[...Array(3)].map((_, i) => (
           <Card key={i} className="animate-pulse p-4">
             <div className="flex items-start justify-between">
-              <div className="flex-1 space-y-2">
+              <div className="flex-1 space-y-1.5">
                 <div className="h-4 w-1/3 rounded bg-gray-300"></div>
                 <div className="h-3 w-1/2 rounded bg-gray-200"></div>
                 <div className="h-3 w-1/4 rounded bg-gray-200"></div>
@@ -59,7 +59,7 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
   if (groups.length === 0) {
     return (
       <Card className="p-8 text-center">
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
             <svg
               className="h-8 w-8 text-gray-400"
@@ -85,7 +85,7 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Error Message */}
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 p-3">
@@ -97,8 +97,8 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
       {groups.map((group) => (
         <Card key={group.id} className="p-4">
           <div className="flex items-start justify-between">
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center space-x-2">
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-center space-x-1.5">
                 <h3 className="font-medium text-gray-900">{group.name}</h3>
                 {group.is_member && (
                   <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
@@ -127,7 +127,7 @@ export default function GroupSearchList({ groups, isLoading, onJoinGroup }: Grou
               </div>
             </div>
 
-            <div className="ml-4">
+            <div className="ml-3">
               {group.is_member ? (
                 <Button variant="outline" disabled className="border-green-300 text-green-600">
                   Déjà membre

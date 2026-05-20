@@ -124,7 +124,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
     <div className="flex h-full flex-col">
       {/* Header — same style as main settings panel */}
       <div className="flex items-center justify-between border-b border-gray-200 p-4">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1.5">
           <Button variant="ghost" size="sm" onClick={onBack} className="p-2" aria-label="Retour">
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -150,9 +150,9 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
       </div>
 
       {/* Content scrollable */}
-      <div className="flex-1 space-y-6 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {isInitialLoading ? (
-          <div className="animate-pulse space-y-3">
+          <div className="animate-pulse space-y-2">
             <div className="h-5 w-2/3 rounded bg-gray-200" />
             <div className="h-4 w-1/2 rounded bg-gray-200" />
             <div className="h-4 w-1/3 rounded bg-gray-200" />
@@ -164,7 +164,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
               type="button"
               onClick={() => setShowMembersModal(true)}
               disabled={isOperationLoading}
-              className="group flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-indigo-50 p-4 text-left shadow-xs transition-all hover:border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none active:scale-[0.98] disabled:opacity-50"
+              className="group flex w-full items-center gap-2 rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-indigo-50 p-4 text-left shadow-xs transition-all hover:border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none active:scale-[0.98] disabled:opacity-50"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white shadow-sm">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,7 +199,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
             </button>
 
             {/* Section Informations du groupe — flat, no Card wrapper */}
-            <section className="space-y-3">
+            <section className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Informations du groupe</h3>
                 {currentGroup.is_creator && (
@@ -209,7 +209,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
                 )}
               </div>
 
-              <dl className="space-y-2 text-sm">
+              <dl className="space-y-1.5 text-sm">
                 <div className="flex items-center justify-between border-b border-gray-100 py-2">
                   <dt className="text-gray-600">Nom</dt>
                   <dd className="font-medium text-gray-900">{currentGroup.name}</dd>
@@ -238,7 +238,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
         ) : (
           <>
             {/* Section Créer un groupe — flat */}
-            <section className="space-y-4">
+            <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Créer un groupe</h3>
                 <Button
@@ -258,11 +258,11 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
             </section>
 
             {/* Section Rejoindre un groupe — flat */}
-            <section className="space-y-4">
+            <section className="space-y-3">
               <h3 className="text-lg font-semibold text-gray-900">Rejoindre un groupe</h3>
 
-              <div className="space-y-3">
-                <div className="flex space-x-2">
+              <div className="space-y-2">
+                <div className="flex space-x-1.5">
                   <div className="flex-1">
                     <Label htmlFor="groupSearch" className="sr-only">
                       Rechercher un groupe
@@ -301,7 +301,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
               </div>
 
               {showSearch && (
-                <div className="space-y-3 pt-2">
+                <div className="space-y-2 pt-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-medium text-gray-900">
                       {hasSearched ? 'Résultats de recherche' : 'Groupes disponibles'}
@@ -332,7 +332,7 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
 
       {/* Footer — bouton Quitter le groupe (slot dédié comme "Se déconnecter" dans SettingsDrawer) */}
       {hasGroup && currentGroup && (
-        <div className="space-y-2 border-t border-gray-200 p-4">
+        <div className="space-y-1.5 border-t border-gray-200 p-4">
           {isCreatorBlocked && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
               En tant que créateur, vous ne pouvez pas quitter ce groupe tant qu&apos;il y a

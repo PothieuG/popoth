@@ -89,8 +89,8 @@ function AuthConfirmContent() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-8">
-        <div className="space-y-3 text-center">
+      <div className="w-full max-w-md space-y-6">
+        <div className="space-y-2 text-center">
           <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Confirmer
           </h1>
@@ -102,7 +102,7 @@ function AuthConfirmContent() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-          <div className="space-y-6 text-center">
+          <div className="space-y-4 text-center">
             <p className="text-sm text-gray-600">
               Pour des raisons de sécurité, ce clic est nécessaire pour empêcher les analyseurs de
               liens automatiques (antivirus, prévisualisation de mails) d&apos;invalider votre lien

@@ -149,8 +149,8 @@ function NouveauMotDePasseContent() {
   if (validatingToken) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md space-y-8">
-          <div className="space-y-3 text-center">
+        <div className="w-full max-w-md space-y-6">
+          <div className="space-y-2 text-center">
             <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
               Validation en cours...
             </h1>
@@ -167,9 +167,9 @@ function NouveauMotDePasseContent() {
   if (!isValidToken) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
           {/* Header */}
-          <div className="space-y-3 text-center">
+          <div className="space-y-2 text-center">
             <h1 className="bg-linear-to-r from-red-600 to-orange-600 bg-clip-text text-4xl font-bold text-transparent">
               Lien invalide
             </h1>
@@ -177,7 +177,7 @@ function NouveauMotDePasseContent() {
 
           {/* Error Message */}
           <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-            <div className="space-y-6 text-center">
+            <div className="space-y-4 text-center">
               {/* Error Icon */}
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100">
                 <svg
@@ -195,7 +195,7 @@ function NouveauMotDePasseContent() {
                 </svg>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <h2 className="text-xl font-semibold text-gray-900">
                   Lien de réinitialisation invalide
                 </h2>
@@ -220,9 +220,9 @@ function NouveauMotDePasseContent() {
   if (success) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-        <div className="w-full max-w-md space-y-8">
+        <div className="w-full max-w-md space-y-6">
           {/* Header */}
-          <div className="space-y-3 text-center">
+          <div className="space-y-2 text-center">
             <h1 className="bg-linear-to-r from-green-600 to-blue-600 bg-clip-text text-4xl font-bold text-transparent">
               Mot de passe mis à jour !
             </h1>
@@ -230,7 +230,7 @@ function NouveauMotDePasseContent() {
 
           {/* Success Message */}
           <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
-            <div className="space-y-6 text-center">
+            <div className="space-y-4 text-center">
               {/* Success Icon */}
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <svg
@@ -248,7 +248,7 @@ function NouveauMotDePasseContent() {
                 </svg>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <h2 className="text-xl font-semibold text-gray-900">
                   Mot de passe mis à jour avec succès
                 </h2>
@@ -277,9 +277,9 @@ function NouveauMotDePasseContent() {
   // Main form state
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-md space-y-8">
+      <div className="w-full max-w-md space-y-6">
         {/* Header */}
-        <div className="space-y-3 text-center">
+        <div className="space-y-2 text-center">
           <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
             Nouveau mot de passe
           </h1>
@@ -290,11 +290,11 @@ function NouveauMotDePasseContent() {
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-xl">
           <form
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-            className="space-y-6"
+            className="space-y-4"
             noValidate
           >
             {/* Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
                 Nouveau mot de passe
               </label>
@@ -317,7 +317,7 @@ function NouveauMotDePasseContent() {
             </div>
 
             {/* Confirm Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label
                 htmlFor="confirmPassword"
                 className="block text-sm font-semibold text-gray-700"
@@ -345,7 +345,7 @@ function NouveauMotDePasseContent() {
             {/* Password Requirements */}
             <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50 p-4">
               <div className="text-sm text-blue-800">
-                <p className="mb-2 font-medium">Critères du mot de passe :</p>
+                <p className="mb-1.5 font-medium">Critères du mot de passe :</p>
                 <ul className="list-inside list-disc space-y-1">
                   <li>Au moins 6 caractères</li>
                   <li>Évitez les mots de passe trop simples</li>
@@ -366,7 +366,7 @@ function NouveauMotDePasseContent() {
                       />
                     </svg>
                   </div>
-                  <div className="ml-3">
+                  <div className="ml-2">
                     <p className="font-medium text-red-800">{serverError}</p>
                   </div>
                 </div>

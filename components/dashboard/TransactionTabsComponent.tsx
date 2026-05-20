@@ -148,7 +148,7 @@ export default function TransactionTabsComponent({
   const renderLoading = () => (
     <div className="flex items-center justify-center py-8">
       <div className="text-center">
-        <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
+        <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
         <p className="text-sm text-gray-600">Chargement des transactions...</p>
       </div>
     </div>
@@ -159,7 +159,7 @@ export default function TransactionTabsComponent({
    */
   const renderError = (error: string) => (
     <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-1.5">
         <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -181,7 +181,7 @@ export default function TransactionTabsComponent({
    */
   const renderEmptyState = (type: 'expenses' | 'incomes') => (
     <div className="py-8 text-center">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
         {type === 'expenses' ? (
           <svg
             className="h-8 w-8 text-gray-400"
@@ -233,7 +233,7 @@ export default function TransactionTabsComponent({
       if (filteredExpenses.length === 0) return renderEmptyState('expenses')
 
       return (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {filteredExpenses.map((expense) => (
             <TransactionListItem
               key={expense.id}
@@ -253,7 +253,7 @@ export default function TransactionTabsComponent({
       if (filteredIncomes.length === 0) return renderEmptyState('incomes')
 
       return (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {filteredIncomes.map((income) => (
             <TransactionListItem
               key={income.id}
@@ -279,12 +279,12 @@ export default function TransactionTabsComponent({
     >
       {/* Tab Navigation */}
       <div className="shrink-0 border-b border-gray-200 p-3">
-        <div className="flex space-x-2 rounded-lg bg-gray-50 p-1">
+        <div className="flex space-x-1.5 rounded-lg bg-gray-50 p-1">
           <button
             onClick={() => setActiveTab('expenses')}
             className={getTabButtonClass('expenses')}
           >
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center space-x-1.5">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
@@ -303,7 +303,7 @@ export default function TransactionTabsComponent({
           </button>
 
           <button onClick={() => setActiveTab('incomes')} className={getTabButtonClass('incomes')}>
-            <div className="flex items-center justify-center space-x-2">
+            <div className="flex items-center justify-center space-x-1.5">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"

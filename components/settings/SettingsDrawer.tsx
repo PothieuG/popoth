@@ -98,11 +98,11 @@ export default function SettingsDrawer({
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4">
               {/* Navigation: gestion du groupe — menu item style iOS Settings */}
-              <div className="mb-6">
+              <div className="mb-4">
                 <button
                   type="button"
                   onClick={() => setView('group-management')}
-                  className="group flex w-full items-center gap-3 rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-indigo-50 p-4 text-left shadow-xs transition-all hover:border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none active:scale-[0.98]"
+                  className="group flex w-full items-center gap-2 rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 to-indigo-50 p-4 text-left shadow-xs transition-all hover:border-blue-300 hover:from-blue-100 hover:to-indigo-100 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none active:scale-[0.98]"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-600 to-purple-600 text-white shadow-sm">
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +137,7 @@ export default function SettingsDrawer({
 
               {/* Profile + bank balance sections */}
               {(showProfileCard || showBankBalanceLine) && (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {showProfileCard && (
                     <ProfileSettingsCard className="border-0 bg-transparent p-0 shadow-none" />
                   )}

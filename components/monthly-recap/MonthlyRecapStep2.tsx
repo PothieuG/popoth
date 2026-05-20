@@ -300,8 +300,8 @@ export default function MonthlyRecapStep2({
     return (
       <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
-          <h2 className="mb-2 text-xl font-semibold text-gray-900">Récupération des données</h2>
+          <div className="mx-auto mb-3 h-16 w-16 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <h2 className="mb-1.5 text-xl font-semibold text-gray-900">Récupération des données</h2>
           <p className="text-gray-600">Calcul de vos budgets...</p>
         </div>
       </div>
@@ -313,7 +313,7 @@ export default function MonthlyRecapStep2({
     return (
       <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
         <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
-          <div className="mb-4 text-red-600">
+          <div className="mb-3 text-red-600">
             <svg
               className="mx-auto h-12 w-12"
               fill="none"
@@ -328,8 +328,8 @@ export default function MonthlyRecapStep2({
               />
             </svg>
           </div>
-          <h2 className="mb-2 text-lg font-semibold text-gray-900">Erreur</h2>
-          <p className="mb-4 text-gray-600">{error}</p>
+          <h2 className="mb-1.5 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-3 text-gray-600">{error}</p>
           <Button
             onClick={() => {
               void refetch()
@@ -361,7 +361,7 @@ export default function MonthlyRecapStep2({
       </div>
 
       {/* Main Content */}
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         {/* Bouton de répartition automatique */}
         {budgetsWithSurplus.length > 0 && budgetsWithDeficit.length > 0 && (
           <Card className="border border-orange-200 bg-orange-50 p-4">
@@ -384,7 +384,7 @@ export default function MonthlyRecapStep2({
         )}
 
         {/* Résumé des totaux */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Card className="border border-purple-200 bg-purple-50 p-3">
             <div className="text-center">
               <h4 className="text-sm font-medium text-purple-900">Économies</h4>
@@ -438,9 +438,9 @@ export default function MonthlyRecapStep2({
 
         {/* Liste des budgets */}
         <Card className="bg-white p-4">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Détail par budget</h3>
+          <h3 className="mb-3 text-lg font-semibold text-gray-900">Détail par budget</h3>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {step2Data.budget_stats.map((budget) => (
               <div
                 key={budget.id}
@@ -468,7 +468,7 @@ export default function MonthlyRecapStep2({
                     disabled={isLoading || isProcessing}
                     variant="outline"
                     size="sm"
-                    className="ml-3"
+                    className="ml-2"
                   >
                     <svg
                       className="mr-1 h-4 w-4"
@@ -493,7 +493,7 @@ export default function MonthlyRecapStep2({
                     disabled={isLoading || isProcessing}
                     variant="outline"
                     size="sm"
-                    className="ml-3"
+                    className="ml-2"
                   >
                     <svg
                       className="mr-1 h-4 w-4"
@@ -525,25 +525,25 @@ export default function MonthlyRecapStep2({
         {/* Détail des déficits "Autres" (si présents) */}
         {(step2Data.deficit_autres || 0) > 0 && step2Data.detail_autres && (
           <Card className="border border-orange-200 bg-orange-50 p-4">
-            <h3 className="mb-4 text-lg font-semibold text-orange-900">
+            <h3 className="mb-3 text-lg font-semibold text-orange-900">
               Détail des déficits hors budgets
             </h3>
-            <p className="mb-4 text-sm text-orange-700">
+            <p className="mb-3 text-sm text-orange-700">
               Total: {formatCurrency(step2Data.deficit_autres)}
             </p>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Dépenses exceptionnelles */}
               {step2Data.detail_autres.depenses_exceptionnelles.total > 0 && (
                 <div className="rounded-lg border border-orange-200 bg-white p-3">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-1.5 flex items-center justify-between">
                     <h4 className="font-medium text-orange-800">Dépenses exceptionnelles</h4>
                     <span className="text-sm font-bold text-orange-600">
                       {formatCurrency(step2Data.detail_autres.depenses_exceptionnelles.total)}
                     </span>
                   </div>
                   {step2Data.detail_autres.depenses_exceptionnelles.items.length > 0 && (
-                    <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                    <ul className="mt-1.5 space-y-1 text-sm text-gray-600">
                       {step2Data.detail_autres.depenses_exceptionnelles.items.map((item) => (
                         <li key={item.id} className="flex justify-between">
                           <span>{item.description || 'Dépense sans budget'}</span>
@@ -608,7 +608,7 @@ export default function MonthlyRecapStep2({
             className="bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5">
                 <svg
                   className="h-4 w-4 animate-spin"
                   xmlns="http://www.w3.org/2000/svg"
@@ -650,7 +650,7 @@ export default function MonthlyRecapStep2({
           </div>
 
           {selectedFromBudget && (
-            <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
               {selectedFromBudget.surplus > 0 ? (
                 // Mode transfert (budget avec surplus)
                 <>
@@ -663,7 +663,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                       Budget de destination
                     </label>
                     <CustomDropdown
@@ -676,7 +676,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                       Montant à transférer
                     </label>
                     <input
@@ -712,7 +712,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                       Budget source (avec surplus)
                     </label>
                     <CustomDropdown
@@ -725,7 +725,7 @@ export default function MonthlyRecapStep2({
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
                       Montant à récupérer
                     </label>
                     <input
@@ -763,7 +763,7 @@ export default function MonthlyRecapStep2({
           )}
 
           {selectedFromBudget && (
-            <div className="flex shrink-0 justify-end space-x-2 border-t border-gray-200 px-6 py-4">
+            <div className="flex shrink-0 justify-end space-x-1.5 border-t border-gray-200 px-6 py-4">
               <Button
                 variant="outline"
                 onClick={() => setIsTransferModalOpen(false)}

@@ -119,7 +119,7 @@ export default function AvatarUpload({
   // Inline variant — horizontal, compact: avatar à gauche + text-link actions à droite
   if (variant === 'inline') {
     return (
-      <div className={`flex items-center gap-3 ${className}`}>
+      <div className={`flex items-center gap-2 ${className}`}>
         <div className="relative shrink-0">
           <UserAvatar
             profile={profile}
@@ -160,7 +160,7 @@ export default function AvatarUpload({
 
   // Stacked variant (default) — original vertical layout
   return (
-    <div className={`flex flex-col items-center space-y-4 ${className}`}>
+    <div className={`flex flex-col items-center space-y-3 ${className}`}>
       {/* Avatar Display */}
       <div className="relative">
         <UserAvatar
@@ -179,7 +179,7 @@ export default function AvatarUpload({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex w-full max-w-xs flex-col space-y-2">
+      <div className="flex w-full max-w-xs flex-col space-y-1.5">
         {/* Upload Button */}
         <button
           onClick={handleUploadClick}

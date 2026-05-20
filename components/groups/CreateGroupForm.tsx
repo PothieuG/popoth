@@ -61,11 +61,11 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
     <Card className="border-blue-200 bg-blue-50 p-4">
       <form
         onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-        className="space-y-4"
+        className="space-y-3"
         noValidate
       >
         {/* Group Name */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
             Nom du groupe *
           </Label>
@@ -95,7 +95,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end space-x-2">
+        <div className="flex justify-end space-x-1.5">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Annuler
           </Button>

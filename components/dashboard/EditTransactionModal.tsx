@@ -247,11 +247,11 @@ export default function EditTransactionModal({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-6 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
             {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
             {isOriginallyExceptional && (
-              <div className="flex flex-col items-center space-y-3">
-                <div className="flex items-center space-x-3">
+              <div className="flex flex-col items-center space-y-2">
+                <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="exceptional"
@@ -276,10 +276,10 @@ export default function EditTransactionModal({
 
             {/* Budget/Income Selection - Only shown if not exceptional */}
             {!isOriginallyExceptional && (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label className="text-sm font-medium text-gray-900">
                   {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                  <span className="ml-2 text-xs text-gray-500">(non modifiable)</span>
+                  <span className="ml-1.5 text-xs text-gray-500">(non modifiable)</span>
                 </Label>
                 {transactionType === 'expense' ? (
                   <Controller
@@ -316,7 +316,7 @@ export default function EditTransactionModal({
             )}
 
             {/* Description */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="description" className="text-sm font-medium text-gray-900">
                 Description <span className="text-red-500">*</span>
               </Label>
@@ -341,7 +341,7 @@ export default function EditTransactionModal({
             </div>
 
             {/* Amount */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
                 Montant (€) <span className="text-red-500">*</span>
               </Label>
@@ -362,7 +362,7 @@ export default function EditTransactionModal({
             </div>
 
             {/* Date */}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="date" className="text-sm font-medium text-gray-900">
                 Date <span className="text-red-500">*</span>
               </Label>
@@ -432,7 +432,7 @@ export default function EditTransactionModal({
           </div>
 
           {/* Actions */}
-          <div className="flex shrink-0 space-x-3 border-t border-gray-200 px-6 py-4">
+          <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
             <Button
               type="button"
               variant="outline"
@@ -453,7 +453,7 @@ export default function EditTransactionModal({
               )}
             >
               {isSubmitting ? (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-1.5">
                   <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   <span>Modification...</span>
                 </div>

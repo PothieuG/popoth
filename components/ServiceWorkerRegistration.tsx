@@ -62,7 +62,7 @@ export function ServiceWorkerRegistration() {
 
   return (
     <div className="animate-in slide-in-from-bottom-4 fixed right-4 bottom-4 left-4 z-50 duration-300">
-      <div className="mx-auto flex max-w-md items-center gap-3 rounded-xl border border-indigo-100 bg-white p-4 shadow-lg">
+      <div className="mx-auto flex max-w-md items-center gap-2 rounded-xl border border-indigo-100 bg-white p-4 shadow-lg">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-blue-600 to-purple-600">
           <span className="text-lg font-bold text-white">P</span>
         </div>

@@ -56,8 +56,8 @@ export default function UserContributionCard({ userId, className }: UserContribu
     return (
       <Card className={`p-6 ${className}`}>
         <div className="animate-pulse">
-          <div className="mb-4 h-6 rounded bg-gray-200"></div>
-          <div className="space-y-3">
+          <div className="mb-3 h-6 rounded bg-gray-200"></div>
+          <div className="space-y-2">
             <div className="h-4 w-3/4 rounded bg-gray-200"></div>
             <div className="h-4 w-1/2 rounded bg-gray-200"></div>
           </div>
@@ -71,7 +71,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
       <Card className={`border-red-200 p-6 ${className}`}>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="mb-2 text-lg font-semibold text-red-800">Erreur de contribution</h3>
+            <h3 className="mb-1.5 text-lg font-semibold text-red-800">Erreur de contribution</h3>
             <p className="text-sm text-red-600">{error}</p>
           </div>
           <Button
@@ -91,7 +91,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
   return (
     <Card className={`p-6 ${className}`}>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Votre contribution</h3>
         <Button
           variant="outline"
@@ -105,17 +105,17 @@ export default function UserContributionCard({ userId, className }: UserContribu
       </div>
 
       {userContribution ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Group Budget Info */}
           <div className="rounded-lg bg-gray-50 p-4">
-            <h4 className="mb-2 text-sm font-medium text-gray-700">Budget du groupe</h4>
+            <h4 className="mb-1.5 text-sm font-medium text-gray-700">Budget du groupe</h4>
             <p className="text-lg font-semibold text-gray-900">
               {formatCurrency(groupInfo.monthly_budget_estimate)} / mois
             </p>
           </div>
 
           {/* User Contribution Details */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {/* Contribution Amount */}
             <div className="rounded-lg bg-blue-50 p-4">
               <h4 className="mb-1 text-sm font-medium text-blue-700">Votre contribution</h4>
@@ -138,7 +138,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
           {/* Salary Info */}
           {userContribution.salary > 0 && (
             <div className="rounded-lg bg-gray-50 p-4">
-              <h4 className="mb-2 text-sm font-medium text-gray-700">Basé sur votre salaire</h4>
+              <h4 className="mb-1.5 text-sm font-medium text-gray-700">Basé sur votre salaire</h4>
               <p className="text-lg font-semibold text-gray-900">
                 {formatCurrency(userContribution.salary)} / mois
               </p>
@@ -147,8 +147,8 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
           {/* Group Statistics */}
           <div className="border-t border-gray-200 pt-4">
-            <h4 className="mb-3 text-sm font-medium text-gray-700">Statistiques du groupe</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Statistiques du groupe</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-gray-500">Total des salaires:</span>
                 <p className="font-medium">{formatCurrency(groupInfo.total_salaries)}</p>
@@ -170,7 +170,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
         </div>
       ) : (
         <div className="py-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100">
             <svg
               className="h-8 w-8 text-yellow-600"
               fill="none"
@@ -185,8 +185,8 @@ export default function UserContributionCard({ userId, className }: UserContribu
               />
             </svg>
           </div>
-          <h4 className="mb-2 text-lg font-medium text-gray-900">Contribution non calculée</h4>
-          <p className="mb-4 text-gray-600">
+          <h4 className="mb-1.5 text-lg font-medium text-gray-900">Contribution non calculée</h4>
+          <p className="mb-3 text-gray-600">
             Vos contributions ne sont pas encore calculées. Assurez-vous d&apos;avoir défini votre
             salaire.
           </p>

@@ -85,7 +85,7 @@ export default function ExpenseBreakdownPreview({
     return (
       <Card className="border-blue-200 bg-blue-50 p-4">
         <div className="animate-pulse">
-          <div className="mb-2 h-4 w-3/4 rounded bg-blue-200"></div>
+          <div className="mb-1.5 h-4 w-3/4 rounded bg-blue-200"></div>
           <div className="h-4 w-1/2 rounded bg-blue-200"></div>
         </div>
       </Card>
@@ -108,7 +108,7 @@ export default function ExpenseBreakdownPreview({
 
   return (
     <Card className="border-blue-200 bg-linear-to-br from-blue-50 to-purple-50 p-4">
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-blue-200 pb-2">
           <h4 className="font-semibold text-gray-900">Répartition de la dépense</h4>
@@ -118,10 +118,10 @@ export default function ExpenseBreakdownPreview({
         </div>
 
         {/* Source Breakdown */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {breakdown.from_piggy_bank > 0 && (
             <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <div className="h-2 w-2 rounded-full bg-purple-500"></div>
                 <span className="text-gray-700">De la tirelire</span>
               </div>
@@ -133,7 +133,7 @@ export default function ExpenseBreakdownPreview({
 
           {breakdown.from_budget_savings > 0 && (
             <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <div className="h-2 w-2 rounded-full bg-green-500"></div>
                 <span className="text-gray-700">Des économies du budget</span>
               </div>
@@ -145,7 +145,7 @@ export default function ExpenseBreakdownPreview({
 
           {breakdown.from_budget > 0 && (
             <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <div className="h-2 w-2 rounded-full bg-orange-500"></div>
                 <span className="text-gray-700">Du budget principal</span>
               </div>
@@ -158,8 +158,8 @@ export default function ExpenseBreakdownPreview({
 
         {/* Detailed Impact Table */}
         <div className="border-t border-blue-200 pt-3">
-          <h5 className="mb-2 text-xs font-medium text-gray-600">Impact détaillé :</h5>
-          <div className="space-y-2">
+          <h5 className="mb-1.5 text-xs font-medium text-gray-600">Impact détaillé :</h5>
+          <div className="space-y-1.5">
             {/* Piggy Bank */}
             {breakdown.from_piggy_bank > 0 && (
               <div className="rounded bg-white/80 p-2 text-xs">

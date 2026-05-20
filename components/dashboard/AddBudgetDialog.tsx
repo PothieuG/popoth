@@ -107,7 +107,7 @@ export default function AddBudgetDialog({
         {/* Header */}
         <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
                 <svg
                   className="h-4 w-4 text-white"
@@ -141,12 +141,12 @@ export default function AddBudgetDialog({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du budget */}
             <div>
               <label
                 htmlFor="add-budget-name"
-                className="mb-2 block text-sm font-medium text-gray-700"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
               >
                 Nom du budget <span className="text-red-500">*</span>
               </label>
@@ -192,7 +192,7 @@ export default function AddBudgetDialog({
             <div>
               <label
                 htmlFor="add-budget-amount"
-                className="mb-2 block text-sm font-medium text-gray-700"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
               >
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
@@ -250,7 +250,7 @@ export default function AddBudgetDialog({
               >
                 <h4
                   className={cn(
-                    'mb-2 font-semibold',
+                    'mb-1.5 font-semibold',
                     willBeNegative ? 'text-red-900' : 'text-orange-900',
                   )}
                 >
@@ -273,7 +273,7 @@ export default function AddBudgetDialog({
                     <span className="text-gray-600">Ce nouveau budget:</span>
                     <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
                   </div>
-                  <div className="mt-2 border-t border-gray-300 pt-1">
+                  <div className="mt-1.5 border-t border-gray-300 pt-1">
                     <div className="flex justify-between font-bold">
                       <span className={willBeNegative ? 'text-red-900' : 'text-gray-900'}>
                         Balance résultante:
@@ -299,7 +299,7 @@ export default function AddBudgetDialog({
 
           {/* Actions */}
           <div className="shrink-0 border-t border-gray-200 px-6 py-4">
-            <div className="flex space-x-3">
+            <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={handleClose}

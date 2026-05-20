@@ -98,9 +98,9 @@ export default function DeleteGroupModal({
         </div>
 
         {/* Body - scrollable */}
-        <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+        <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
           {/* Warning Content */}
-          <div className="flex items-start space-x-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div className="flex items-start space-x-2 rounded-lg border border-red-200 bg-red-50 p-4">
             <div className="shrink-0">
               <svg
                 className="h-6 w-6 text-red-500"
@@ -120,7 +120,7 @@ export default function DeleteGroupModal({
               <h3 className="text-sm font-medium text-red-800">
                 Attention ! Cette action est irréversible
               </h3>
-              <div className="mt-2 text-sm text-red-700">
+              <div className="mt-1.5 text-sm text-red-700">
                 <p>La suppression du groupe entraînera :</p>
                 <ul className="mt-1 list-inside list-disc space-y-1">
                   <li>
@@ -141,7 +141,7 @@ export default function DeleteGroupModal({
           </p>
 
           {/* Confirmation Input */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label htmlFor="confirmDelete" className="text-sm font-medium text-gray-700">
               Pour confirmer la suppression, tapez exactement :
             </Label>
@@ -176,7 +176,7 @@ export default function DeleteGroupModal({
         </div>
 
         {/* Footer - sticky */}
-        <div className="flex shrink-0 justify-end space-x-3 border-t border-gray-200 px-6 py-4">
+        <div className="flex shrink-0 justify-end space-x-2 border-t border-gray-200 px-6 py-4">
           <Button variant="outline" onClick={handleClose} disabled={isDeleting}>
             Annuler
           </Button>
@@ -186,7 +186,7 @@ export default function DeleteGroupModal({
             className="bg-red-600 text-white hover:bg-red-700"
           >
             {isDeleting ? (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                 <span>Suppression...</span>
               </div>

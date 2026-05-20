@@ -69,7 +69,7 @@ export default function ConfirmationDialog({
         <div className="min-h-0 flex-auto overflow-y-auto px-6 py-4 text-center">
           <div
             className={cn(
-              'mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full',
+              'mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full',
               variant === 'danger'
                 ? 'bg-red-100'
                 : variant === 'warning'
@@ -125,16 +125,16 @@ export default function ConfirmationDialog({
           </div>
 
           <DialogTitle asChild>
-            <h3 className="mb-2 text-lg font-bold text-gray-900">{title}</h3>
+            <h3 className="mb-1.5 text-lg font-bold text-gray-900">{title}</h3>
           </DialogTitle>
           <DialogDescription asChild>
             <p className="text-sm text-gray-600">{message}</p>
           </DialogDescription>
-          {details && <div className="mt-2 text-sm text-gray-700">{details}</div>}
+          {details && <div className="mt-1.5 text-sm text-gray-700">{details}</div>}
         </div>
 
         {/* Actions */}
-        <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
+        <div className="flex shrink-0 space-x-1.5 border-t border-gray-200 px-6 py-4">
           <button
             onClick={onClose}
             disabled={loading}

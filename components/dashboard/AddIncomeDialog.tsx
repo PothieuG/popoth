@@ -92,7 +92,7 @@ export default function AddIncomeDialog({
         {/* Header */}
         <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600">
                 <svg
                   className="h-4 w-4 text-white"
@@ -126,12 +126,12 @@ export default function AddIncomeDialog({
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du revenu */}
             <div>
               <label
                 htmlFor="add-income-name"
-                className="mb-2 block text-sm font-medium text-gray-700"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
               >
                 Nom du revenu <span className="text-red-500">*</span>
               </label>
@@ -177,7 +177,7 @@ export default function AddIncomeDialog({
             <div>
               <label
                 htmlFor="add-income-amount"
-                className="mb-2 block text-sm font-medium text-gray-700"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
               >
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
@@ -228,7 +228,7 @@ export default function AddIncomeDialog({
             {/* Aperçu du total avec nouveau revenu */}
             {showPreview && (
               <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                <h4 className="mb-2 text-sm font-medium text-green-900">
+                <h4 className="mb-1.5 text-sm font-medium text-green-900">
                   Calcul des revenus totaux
                 </h4>
                 <div className="space-y-1 text-sm">
@@ -244,7 +244,7 @@ export default function AddIncomeDialog({
                       {formatAmount(previewAmount)}
                     </span>
                   </div>
-                  <div className="mt-2 border-t border-green-200 pt-1">
+                  <div className="mt-1.5 border-t border-green-200 pt-1">
                     <div className="flex justify-between font-bold">
                       <span className="text-green-900">Total des revenus:</span>
                       <span className="text-green-700">
@@ -259,7 +259,7 @@ export default function AddIncomeDialog({
 
           {/* Actions */}
           <div className="shrink-0 border-t border-gray-200 px-6 py-4">
-            <div className="flex space-x-3">
+            <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={handleClose}
