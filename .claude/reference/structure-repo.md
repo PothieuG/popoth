@@ -55,7 +55,7 @@ hooks/                     # 20 hooks React — ✅ Sprint 1.5 : 11 hooks fetche
   useIncomeProgress.ts     # ✅ Sprint 1.5 — derived state via useMemo direct (pas Query, dépend de useRealIncomes)
 lib/
 lib/
-  query-client.ts          # ✅ Sprint 1.5 — createQueryClient() factory (staleTime 30s, refetchOnWindowFocus false, retry 1) ; consommé par components/providers/QueryProvider.tsx
+  query-client.ts          # ✅ Sprint 1.5 — createQueryClient() factory (staleTime 30s, refetchOnWindowFocus false, retry 1) ; consommé par components/providers/QueryProvider.tsx. ✅ Sprint 2 — `invalidateFinancialRefreshes(qc)` helper export (single source of truth, 4 keys initialement) + ✅ Sprint Group-Budget-Auto-Sync (2026-05-19) ajout `['group-contributions']` (5 keys totales pré-Delete-Budget) + ✅ Sprint Fix-Savings-Drawer-Stale-Cache (2026-05-20) ajout `['savings-data']` (5 keys finales : financial-summary / progress-data / budgets / group-contributions / savings-data)
   supabase-server.ts       # client serveur (service_role) — BYPASS RLS
   supabase-client.ts       # client browser (anon key) — soumis à RLS
   database.types.ts        # types Supabase générés (pnpm db:types) — Sprint DB D6 (inclut désormais les 4 RPC C3 depuis le regen Sprint Cleanup-Legacy / C1, augmentation lib/database.ts supprimée en Sprint Polish-CI / D3)
@@ -113,7 +113,7 @@ lib/
     budget-savings.ts      # updateBudgetCumulatedSavings
     budget-transfers.ts    # ✅ Sprint Refactor-I5-followup-v2 — transferWithSavingsDebit (composite RPC : INSERT budget_transfers + debit cumulated_savings en une tx Postgres)
     expenses.ts            # ✅ Sprint Atomicity-Expenses — addExpenseWithBreakdown (composite RPC : debit piggy + debit cumulated_savings + INSERT real_expenses en une tx Postgres atomique)
-    savings.ts             # ✅ Sprint Atomicity-Savings — transferSavingsBetweenBudgets (debit FROM + credit TO en 1 tx) + transferBudgetToPiggyBank (debit budget + UPSERT piggy_bank via partial unique index inference en 1 tx)
+    savings.ts             # ✅ Sprint Atomicity-Savings — transferSavingsBetweenBudgets (debit FROM + credit TO en 1 tx) + transferBudgetToPiggyBank (debit budget + UPSERT piggy_bank via partial unique index inference en 1 tx) + ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) deleteBudgetWithSavingsTransfer (UPSERT piggy + DELETE budget en 1 tx, skip-UPSERT si cumulated_savings=0)
     # Sprint Refactor-I4 — modules extraits de l'ex-god file lib/financial-calculations.ts
     types.ts               # FinancialData, BudgetSavings interfaces
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)
@@ -130,6 +130,7 @@ lib/
       transfer-with-savings.test.ts      # ✅ Sprint Refactor-I5-followup-v2 — gated SUPABASE_RPC_CONCURRENCY_TESTS=1, 4 cas atomicité transfer_with_savings_debit (happy / insufficient savings rollback / 100× concurrent / XOR validation)
       add-expense-with-breakdown.test.ts # ✅ Sprint Atomicity-Expenses — gated SUPABASE_RPC_CONCURRENCY_TESTS=1, 6 cas atomicité add_expense_with_breakdown (happy / insufficient piggy / insufficient savings = piggy rolled back / 100× concurrent / XOR / no-op zero piggy zero savings)
       transfer-savings.test.ts           # ✅ Sprint Atomicity-Savings — gated SUPABASE_RPC_CONCURRENCY_TESTS=1, 8 cas (4 transfer_savings_between_budgets : happy / insufficient FROM / 100× concurrent / XOR + 4 transfer_budget_to_piggy_bank : happy UPDATE / happy INSERT via ON CONFLICT / insufficient budget = piggy unchanged / 100× concurrent)
+      delete-budget-with-savings-transfer.test.ts # ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) — gated SUPABASE_RPC_CONCURRENCY_TESTS=1, 8 cas atomicité delete_budget_with_savings_transfer (happy profile UPDATE/INSERT/no-savings skip + group context + budget not found + XOR violation + ownership mismatch + 50× concurrent distincts budgets aggregate piggy exactement)
       calc-rtl.test.ts                   # ✅ I4 — 19 cas pure-unit non-gated, formules RAV/budget/cash
       snapshots.test.ts                  # ✅ I4 — 5 cas mocked supabase non-gated, validation + R1 fail-soft contract
   __tests__/               # ✅ Sprint Polish T3
@@ -160,6 +161,7 @@ supabase/
     20260516000000_create_transfer_with_savings_debit_rpc.sql  # ✅ Sprint Refactor-I5-followup-v2 — RPC composite INSERT budget_transfers + debit cumulated_savings en une tx (atomicité étape 2.4.2)
     20260517000000_create_add_expense_with_breakdown_rpc.sql   # ✅ Sprint Atomicity-Expenses — RPC composite debit piggy + debit cumulated_savings + INSERT real_expenses en une tx
     20260518000000_create_savings_transfer_rpcs.sql            # ✅ Sprint Atomicity-Savings — 2 RPCs composites : transfer_savings_between_budgets (debit FROM + credit TO) + transfer_budget_to_piggy_bank (debit budget + UPSERT piggy_bank avec partial unique index inference)
+    20260520120000_create_delete_budget_with_savings_transfer_rpc.sql # ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) — RPC composite delete_budget_with_savings_transfer (SELECT FOR UPDATE cumulated_savings + UPSERT piggy si > 0 via partial unique index + DELETE budget en 1 tx). FK cascades : real_expenses SET NULL, budget_transfers CASCADE
 docs/audit/                # Audit complet codebase 2026-04
   00-executive-summary.md  # vue d'ensemble + score
   06-action-plan.md        # plan multi-sprint
