@@ -34,7 +34,9 @@ interface UseBudgetsReturn {
     budgetId: string,
     budgetData: { name: string; estimatedAmount: number },
   ) => Promise<boolean>
-  deleteBudget: (budgetId: string) => Promise<boolean>
+  deleteBudget: (
+    budgetId: string,
+  ) => Promise<{ success: boolean; transferredAmount?: number; piggyAmount?: number | null }>
   refreshBudgets: () => Promise<void>
   totalBudgets: number
 }
@@ -135,7 +137,11 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     },
   })
 
-  const deleteMutation = useMutation<void, Error, string>({
+  const deleteMutation = useMutation<
+    { transferredAmount: number; piggyAmount: number | null },
+    Error,
+    string
+  >({
     mutationFn: async (budgetId) => {
       const response = await fetch(`/api/finance/budgets?id=${budgetId}`, {
         method: 'DELETE',
@@ -143,6 +149,14 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
       })
       if (!response.ok) {
         throw new Error('Erreur lors de la suppression du budget')
+      }
+      const data = await response.json()
+      return {
+        transferredAmount: Number(data.transferredAmount ?? 0),
+        piggyAmount:
+          data.piggyAmount !== null && data.piggyAmount !== undefined
+            ? Number(data.piggyAmount)
+            : null,
       }
     },
     onSuccess: (_, budgetId) => {
@@ -184,10 +198,14 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     },
     deleteBudget: async (budgetId) => {
       try {
-        await deleteMutation.mutateAsync(budgetId)
-        return true
+        const result = await deleteMutation.mutateAsync(budgetId)
+        return {
+          success: true,
+          transferredAmount: result.transferredAmount,
+          piggyAmount: result.piggyAmount,
+        }
       } catch {
-        return false
+        return { success: false }
       }
     },
     refreshBudgets: async () => {

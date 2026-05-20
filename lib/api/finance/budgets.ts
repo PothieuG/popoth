@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { saveRemainingToLiveSnapshot } from '@/lib/finance'
+import { asContextFilter, saveRemainingToLiveSnapshot } from '@/lib/finance'
+import { deleteBudgetWithSavingsTransfer } from '@/lib/finance/savings'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createBudgetBodySchema, updateBudgetBodySchema } from '@/lib/schemas/budget'
@@ -176,7 +177,7 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
     // Vérifier l'existence et les permissions
     const { data: existingBudget } = await supabase
       .from('estimated_budgets')
-      .select('*')
+      .select('id, profile_id, group_id, cumulated_savings')
       .eq('id', budgetId)
       .or(ownershipCondition)
       .single()
@@ -188,13 +189,16 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
       )
     }
 
-    // Supprimer le budget
-    const { error } = await supabase.from('estimated_budgets').delete().eq('id', budgetId)
-
-    if (error) {
-      logger.error('Erreur lors de la suppression du budget:', error)
-      return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
-    }
+    // Composite atomic: transfert cumulated_savings → piggy_bank (si > 0)
+    // puis DELETE budget en 1 transaction Postgres. transferred_amount = 0
+    // si pas d'économies, piggy_amount = null dans ce cas (skip UPSERT).
+    const filter = asContextFilter({
+      profile_id: existingBudget.profile_id,
+      group_id: existingBudget.group_id,
+    })
+    const { transferred_amount, piggy_amount } = await deleteBudgetWithSavingsTransfer(filter, {
+      budgetId,
+    })
 
     // Sauvegarder automatiquement le nouveau reste à vivre après suppression
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
@@ -207,8 +211,15 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
       logger.warn('Échec sauvegarde snapshot (non critique)')
     }
 
-    return NextResponse.json({ message: 'Budget supprimé avec succès' })
-  } catch {
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+    return NextResponse.json({
+      message: 'Budget supprimé avec succès',
+      transferredAmount: Number(transferred_amount),
+      piggyAmount: piggy_amount !== null ? Number(piggy_amount) : null,
+    })
+  } catch (error) {
+    const handled = handleBadRequest(error)
+    if (handled) return handled
+    logger.error('Erreur lors de la suppression du budget:', error)
+    return NextResponse.json({ error: 'Erreur lors de la suppression' }, { status: 500 })
   }
 })

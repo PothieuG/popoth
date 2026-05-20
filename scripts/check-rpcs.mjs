@@ -37,6 +37,7 @@ const EXPECTED_RPCS = [
   'transfer_budget_to_piggy_bank',
   'add_expense_with_cross_budget_cascade',
   'transfer_piggy_to_budget_with_insert',
+  'delete_budget_with_savings_transfer',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

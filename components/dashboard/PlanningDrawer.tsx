@@ -68,8 +68,13 @@ export default function PlanningDrawer({
     id: string
     name: string
     type: 'budget' | 'income'
+    cumulatedSavings: number
   } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Snackbar transient post-suppression (Pattern §8 ✅) — affiché quand
+  // les économies d'un budget supprimé sont transférées vers la tirelire.
+  const [transferSnackbar, setTransferSnackbar] = useState<{ amount: number } | null>(null)
 
   // États pour la popup d'information des budgets/revenus entamés
   const [isStartedItemInfoOpen, setIsStartedItemInfoOpen] = useState(false)
@@ -132,6 +137,13 @@ export default function PlanningDrawer({
       refreshIncomeProgress()
     }
   }, [isOpen, refreshBudgets, refreshIncomes, refreshBudgetProgress, refreshIncomeProgress])
+
+  // Auto-dismiss snackbar after 3s (Pattern §8 ✅ feedback transient).
+  useEffect(() => {
+    if (!transferSnackbar) return
+    const timer = setTimeout(() => setTransferSnackbar(null), 3000)
+    return () => clearTimeout(timer)
+  }, [transferSnackbar])
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
@@ -278,7 +290,10 @@ export default function PlanningDrawer({
   /**
    * Demande de confirmation de suppression
    */
-  const handleRequestDelete = (item: { id: string; name: string }, type: 'budget' | 'income') => {
+  const handleRequestDelete = (
+    item: { id: string; name: string; cumulated_savings?: number },
+    type: 'budget' | 'income',
+  ) => {
     // Vérifier si l'item est entamé
     const isStarted = type === 'budget' ? isBudgetStarted(item.id) : isIncomeStarted(item.id)
 
@@ -287,7 +302,12 @@ export default function PlanningDrawer({
       return
     }
 
-    setDeletingItem({ id: item.id, name: item.name, type })
+    setDeletingItem({
+      id: item.id,
+      name: item.name,
+      type,
+      cumulatedSavings: type === 'budget' ? (item.cumulated_savings ?? 0) : 0,
+    })
     setIsDeleteConfirmOpen(true)
   }
 
@@ -299,9 +319,12 @@ export default function PlanningDrawer({
 
     setIsDeleting(true)
     let success = false
+    let transferredAmount = 0
 
     if (deletingItem.type === 'budget') {
-      success = await deleteBudget(deletingItem.id)
+      const result = await deleteBudget(deletingItem.id)
+      success = result.success
+      transferredAmount = result.transferredAmount ?? 0
     } else {
       success = await deleteIncome(deletingItem.id)
     }
@@ -309,6 +332,11 @@ export default function PlanningDrawer({
     if (success) {
       setIsDeleteConfirmOpen(false)
       setDeletingItem(null)
+
+      // Snackbar transient si économies transférées (Pattern §8 ✅).
+      if (transferredAmount > 0) {
+        setTransferSnackbar({ amount: transferredAmount })
+      }
 
       // Rafraîchir les progressions selon le type
       if (deletingItem.type === 'budget') {
@@ -792,7 +820,21 @@ export default function PlanningDrawer({
           onConfirm={handleConfirmDelete}
           title="Confirmer la suppression"
           message={`Êtes-vous sûr de vouloir supprimer "${deletingItem?.name}" ? Cette action est irréversible.`}
-          confirmText="Supprimer"
+          details={
+            deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0 ? (
+              <p>
+                <span className="font-semibold text-purple-600">
+                  {formatAmount(deletingItem.cumulatedSavings)}
+                </span>{' '}
+                d&apos;économies sera transféré dans la tirelire.
+              </p>
+            ) : undefined
+          }
+          confirmText={
+            deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0
+              ? 'Supprimer et transférer'
+              : 'Supprimer'
+          }
           cancelText="Annuler"
           variant="danger"
           loading={isDeleting}
@@ -816,6 +858,18 @@ export default function PlanningDrawer({
           variant="info"
           loading={false}
         />
+
+        {/* Snackbar post-suppression — économies transférées dans la tirelire
+           (Pattern §8 ✅ feedback transient). Auto-dismiss via useEffect 3s. */}
+        {transferSnackbar && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="animate-in slide-in-from-bottom-4 fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-purple-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg"
+          >
+            {formatAmount(transferSnackbar.amount)} transféré dans la tirelire
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

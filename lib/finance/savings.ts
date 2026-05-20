@@ -71,3 +71,33 @@ export async function transferBudgetToPiggyBank(
   if (error) throw error
   return data as { from_savings: number; piggy_bank_amount: number }
 }
+
+/**
+ * Composite atomic helper for DELETE budget + transfer remaining
+ * cumulated_savings → piggy_bank. Used by DELETE /api/finance/budgets when
+ * the user removes a budget that still carries accumulated savings.
+ *
+ * Pre-fix behavior: the raw DELETE FROM estimated_budgets silently
+ * discarded cumulated_savings. Now the RPC reads the locked row, UPSERTs
+ * the piggy_bank with the savings amount (skip if zero), then DELETEs the
+ * budget — all in one Postgres transaction. Returns piggy_amount = null
+ * when no transfer happened (savings = 0), the new piggy balance otherwise.
+ *
+ * Pattern mirrors `transferBudgetToPiggyBank` above. Not exposed via the
+ * `lib/finance` barrel — consumers import directly (convention C3).
+ */
+export async function deleteBudgetWithSavingsTransfer(
+  filter: ContextFilter,
+  args: {
+    budgetId: string
+  },
+): Promise<{ transferred_amount: number; piggy_amount: number | null }> {
+  const { profile_id, group_id } = resolveContextIds(filter)
+  const { data, error } = await supabaseServer.rpc('delete_budget_with_savings_transfer', {
+    p_budget_id: args.budgetId,
+    p_profile_id: profile_id,
+    p_group_id: group_id,
+  })
+  if (error) throw error
+  return data as { transferred_amount: number; piggy_amount: number | null }
+}

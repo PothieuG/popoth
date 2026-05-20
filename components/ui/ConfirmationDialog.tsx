@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
@@ -10,6 +11,7 @@ interface ConfirmationDialogProps {
   onConfirm: () => void
   title: string
   message: string
+  details?: ReactNode
   confirmText?: string
   cancelText?: string
   variant?: 'danger' | 'warning' | 'info'
@@ -31,6 +33,7 @@ export default function ConfirmationDialog({
   onConfirm,
   title,
   message,
+  details,
   confirmText = 'Confirmer',
   cancelText = 'Annuler',
   variant = 'danger',
@@ -127,6 +130,7 @@ export default function ConfirmationDialog({
           <DialogDescription asChild>
             <p className="text-sm text-gray-600">{message}</p>
           </DialogDescription>
+          {details && <div className="mt-2 text-sm text-gray-700">{details}</div>}
         </div>
 
         {/* Actions */}

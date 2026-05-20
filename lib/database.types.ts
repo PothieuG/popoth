@@ -736,6 +736,14 @@ export type Database = {
         Args: { group_id_param: string }
         Returns: undefined
       }
+      delete_budget_with_savings_transfer: {
+        Args: {
+          p_budget_id: string
+          p_group_id?: string
+          p_profile_id?: string
+        }
+        Returns: Json
+      }
       transfer_budget_to_piggy_bank: {
         Args: {
           p_amount: number
