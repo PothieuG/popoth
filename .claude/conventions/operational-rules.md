@@ -84,8 +84,9 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | `transferBudgetToPiggyBank`        | `transfer_budget_to_piggy_bank`         | Atomicity-Savings           | Debit budget + UPSERT piggy_bank                                                       |
 | `transferPiggyToBudgetWithInsert`  | `transfer_piggy_to_budget_with_insert`  | Auto-Balance-Atomic-Phase-B | Debit piggy + INSERT budget_transfers (from_budget_id=NULL)                            |
 | `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                    | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
+| `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings       | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 10` pinnés dans [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs).
+`EXPECTED_RPCS = 11` pinnés dans [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
@@ -95,6 +96,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** appeler `updateBudgetCumulatedSavings` deux fois séparées avec un manual rollback compensatoire → utiliser `transferSavingsBetweenBudgets` (Sprint Atomicity-Savings).
 - ❌ **NE PAS** réintroduire le pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched` dans `auto-balance/route.ts` → utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
 - ❌ **NE PAS** réintroduire le pattern reversed `updatePiggyBank(aggregate) + INSERT batched budget_transfers (from_budget_id=NULL)` → utiliser `transferPiggyToBudgetWithInsert` per-pair (Sprint Auto-Balance-Atomic-Phase-B).
+- ❌ **NE PAS** appeler `supabase.from('estimated_budgets').delete()` directement dans la route DELETE — utiliser `deleteBudgetWithSavingsTransfer` qui DELETE + UPSERT piggy en 1 tx si `cumulated_savings > 0` (Sprint Delete-Budget-Savings). Le raw DELETE perd les économies silencieusement.
 
 ### God-files monthly-recap
 
