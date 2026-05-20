@@ -64,7 +64,7 @@ CLAUDE.md                                     37k    Index opérationnel + règl
 │   ├─ roadmap-detailed-10-p10-to-auto-balance-atomic.md       32k   P10 → Auto-Balance-Atomic (7)
 │   ├─ roadmap-detailed-11-phase-b-to-commitlint.md            30k   Phase-B → Commitlint (6)
 │   ├─ roadmap-detailed-12-cas3-to-refactor-recover.md         39k   Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) — over 38k, split if extended
-│   └─ roadmap-detailed-13-fix-empty-recap-tirelire.md         29k   Fix-Empty-Recap-Tirelire → Lazy-Mount-GroupManagementPanel (4)
+│   └─ roadmap-detailed-13-fix-empty-recap-tirelire.md         34k   Fix-Empty-Recap-Tirelire → GroupMembersModal-Show-Budget-Share-Pct (5)
 │
 ├─ reference/
 │   └─ structure-repo.md                              29k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -80,7 +80,7 @@ CLAUDE.md                                     37k    Index opérationnel + règl
     └─ size-policy.md                                 12k   (ce fichier)
 ```
 
-**Total contexte** : ~670k chars répartis sur 25 fichiers. CLAUDE.md (~38.7k) + roadmap-12 (~39k) restent légèrement au-delà du plafond 38k. À splitter dans un sprint dédié — pas urgent tant que l'overflow reste sous ~40k (limite Claude Code). operational-rules.md a franchi 33k post-Sprint Group-Budget-Auto-Sync (2026-05-19), à surveiller.
+**Total contexte** : ~676k chars répartis sur 25 fichiers. CLAUDE.md (~38.7k) + roadmap-12 (~39k) restent légèrement au-delà du plafond 38k. À splitter dans un sprint dédié — pas urgent tant que l'overflow reste sous ~40k (limite Claude Code). operational-rules.md a franchi 37k post-Sprint GroupMembersModal-Show-Budget-Share-Pct (2026-05-20), à split sérieusement au prochain sprint touchant §5 (proche du plafond, ~0.8k de marge avant les 38k).
 
 ## 5. Règles d'extension
 
@@ -180,7 +180,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **24 fichiers `.md`** chargés comme contexte par Claude Code :
 
 - 1× `CLAUDE.md` (~38.7k, légèrement au-delà du plafond — split déféré)
-- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 contient désormais 4 sprints : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync + Hygiene-Next-16-Migration + Lazy-Mount-GroupManagementPanel, ~29k)
+- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 contient désormais 5 sprints : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync + Hygiene-Next-16-Migration + Lazy-Mount-GroupManagementPanel + GroupMembersModal-Show-Budget-Share-Pct, ~34k)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (33k)

@@ -221,9 +221,15 @@ export default function GroupMembersWithContributionsModal({
                               </p>
                             </div>
                             <div>
-                              <span className="text-gray-600">Pourcentage:</span>
+                              <span className="text-gray-600">Part du budget:</span>
                               <p className="font-semibold text-green-600">
-                                {formatPercentage(contribution.contribution_percentage)}
+                                {formatPercentage(
+                                  group.monthly_budget_estimate > 0
+                                    ? (contribution.contribution_amount /
+                                        group.monthly_budget_estimate) *
+                                        100
+                                    : 0,
+                                )}
                               </p>
                             </div>
                           </div>
