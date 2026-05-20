@@ -332,18 +332,13 @@ export default function PlanningDrawer({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
-        {/* Drag Handle (decorative) */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="h-1 w-12 rounded-full bg-gray-300"></div>
-        </div>
-
-        {/* Header avec background color léger */}
-        <div className="border-b border-gray-200 bg-blue-50/80 px-4 py-3">
+        {/* Header - Sticky (harmonisé avec SavingsDistributionDrawer, couleur bleue) */}
+        <div className="shrink-0 border-b border-gray-200 bg-blue-50/30 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600">
                 <svg
-                  className="h-4 w-4 text-white"
+                  className="h-5 w-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -359,12 +354,17 @@ export default function PlanningDrawer({
               </div>
               <div>
                 <DialogTitle asChild>
-                  <h2 className="text-lg font-bold text-gray-900">Planification Financière</h2>
+                  <h2 className="text-xl font-bold text-gray-900">Planification Financière</h2>
                 </DialogTitle>
                 <p className="text-sm text-gray-600">Gérez vos budgets et revenus</p>
               </div>
             </div>
-            <ModalCloseX onClose={onClose} variant="circle" />
+            <ModalCloseX
+              onClose={onClose}
+              variant="circle"
+              className="h-10 w-10"
+              svgClassName="h-5 w-5 text-gray-600"
+            />
           </div>
         </div>
 
