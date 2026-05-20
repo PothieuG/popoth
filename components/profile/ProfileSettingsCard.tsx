@@ -33,12 +33,13 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   if (isLoading || !profile) {
     return (
       <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse">
-          <div className="mb-4 h-6 rounded bg-gray-200"></div>
-          <div className="space-y-3">
-            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
-            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
+        <div className="animate-pulse space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gray-200" />
+            <div className="h-4 w-32 rounded bg-gray-200" />
           </div>
+          <div className="h-4 w-3/4 rounded bg-gray-200" />
+          <div className="h-4 w-1/2 rounded bg-gray-200" />
         </div>
       </Card>
     )
@@ -240,22 +241,31 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
     }).format(amount)
   }
 
+  // Pre-compute contribution display (single source of truth for view-mode dl row)
+  const contributionDisplay = (() => {
+    if (!hasGroup || !currentGroup || !profile.salary || profile.salary <= 0) return null
+    const otherMembers = contributions
+      .filter((c) => c.profile_id !== profile.id)
+      .map((c) => ({ id: c.profile_id, salary: c.salary }))
+    const calc = calculateUserContribution(
+      profile.salary,
+      currentGroup.monthly_budget_estimate,
+      otherMembers,
+    )
+    return {
+      amount: calc.userContribution,
+      percentOfSalary: calc.userPercentage,
+      percentOfBudget:
+        currentGroup.monthly_budget_estimate > 0
+          ? (calc.userContribution / currentGroup.monthly_budget_estimate) * 100
+          : 0,
+    }
+  })()
+
+  const hasSalary = profile.salary !== null && profile.salary > 0
+
   return (
     <Card className={`p-6 ${className}`}>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900">Mon profil</h2>
-        {!isEditing && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditing(true)}
-            disabled={isSaving}
-          >
-            Modifier
-          </Button>
-        )}
-      </div>
-
       {/* Snackbar — fixed bottom, slide-in, auto-dismiss 3s. z-[60] passe au-dessus du drawer (z-50). */}
       {successMessage && (
         <div
@@ -267,191 +277,179 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* Avatar Upload Section */}
-        <div className="border-b border-gray-200 pb-6">
-          <h3 className="mb-4 text-sm font-medium text-gray-700">Photo de profil</h3>
-          <AvatarUpload
-            profile={profile}
-            onAvatarUpdate={handleAvatarUpdate}
-            isUpdating={isSaving}
-            className="mx-auto"
-          />
-        </div>
+      {/* Avatar block — compact inline (smaller avatar + text-link actions à côté) */}
+      <AvatarUpload
+        profile={profile}
+        onAvatarUpdate={handleAvatarUpdate}
+        isUpdating={isSaving}
+        size="md"
+        variant="inline"
+      />
 
-        {/* First Name */}
-        <div>
-          <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
-            Prénom
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <Input
-                id="firstName"
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Votre prénom"
-                className={errors.firstName ? 'border-red-300 focus:border-red-500' : ''}
-              />
-              {errors.firstName && <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>}
+      {/* Divider subtil entre avatar et infos */}
+      <div className="my-4 border-t border-gray-200" />
+
+      {!isEditing ? (
+        /* View mode — sous-titre + bouton Modifier inline, suivi des rows flat */
+        <>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Informations</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              disabled={isSaving}
+            >
+              Modifier
+            </Button>
+          </div>
+
+          <dl className="text-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">Prénom</dt>
+              <dd className="font-medium text-gray-900">
+                {profile.first_name || <span className="text-gray-400">Non défini</span>}
+              </dd>
             </div>
-          ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile.first_name || 'Non défini'}</p>
-          )}
-        </div>
-
-        {/* Last Name */}
-        <div>
-          <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
-            Nom
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <Input
-                id="lastName"
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Votre nom"
-                className={errors.lastName ? 'border-red-300 focus:border-red-500' : ''}
-              />
-              {errors.lastName && <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>}
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">Nom</dt>
+              <dd className="font-medium text-gray-900">
+                {profile.last_name || <span className="text-gray-400">Non défini</span>}
+              </dd>
             </div>
-          ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile.last_name || 'Non défini'}</p>
-          )}
-        </div>
-
-        {/* Salary */}
-        <div>
-          <Label htmlFor="salary" className="text-sm font-medium text-gray-700">
-            Salaire mensuel <span className="text-red-500">*</span>
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <div className="relative">
-                <Input
-                  id="salary"
-                  type="number"
-                  min="0"
-                  max="999999.99"
-                  step="0.01"
-                  value={salary}
-                  onChange={(e) => handleSalaryChange(e.target.value)}
-                  placeholder="Ex: 2500"
-                  className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
-                />
-                <span className="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm text-gray-500">
-                  €
-                </span>
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">
+                Salaire mensuel <span className="text-red-500">*</span>
+              </dt>
+              <dd className={hasSalary ? 'font-medium text-gray-900' : 'font-medium text-red-600'}>
+                {hasSalary && profile.salary !== null ? formatSalary(profile.salary) : 'Non défini'}
+              </dd>
+            </div>
+            {contributionDisplay && (
+              <div className="flex items-start justify-between py-2">
+                <dt className="pt-0.5 text-gray-600">Contribution</dt>
+                <dd className="text-right">
+                  <div className="font-semibold text-blue-700">
+                    {formatCurrency(contributionDisplay.amount)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatPercentage(contributionDisplay.percentOfSalary)} salaire ·{' '}
+                    {formatPercentage(contributionDisplay.percentOfBudget)} budget
+                  </div>
+                </dd>
               </div>
-              {errors.salary && <p className="mt-1 text-sm text-red-600">{errors.salary}</p>}
+            )}
+          </dl>
 
-              {/* Contribution Warning */}
-              {contributionWarning && !errors.salary && (
-                <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-3">
-                  <div className="flex items-start">
-                    <svg
-                      className="mt-0.5 mr-2 h-5 w-5 shrink-0 text-red-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <div className="flex-1">
-                      <p className="mb-2 text-sm font-medium text-red-800">
-                        {contributionWarning.message}
-                      </p>
-                      <div className="text-xs text-red-700">
-                        <p className="mb-1 font-medium">Solutions possibles :</p>
-                        <ul className="list-inside list-disc space-y-1">
-                          {contributionWarning.suggestions.map((suggestion, index) => (
-                            <li key={index}>{suggestion}</li>
-                          ))}
-                        </ul>
-                      </div>
+          {!hasSalary && (
+            <p className="mt-2 text-xs text-gray-500">
+              <span className="text-red-500">*</span> Requis pour calculer votre contribution au
+              groupe
+            </p>
+          )}
+        </>
+      ) : (
+        /* Edit mode — grid horizontal (label gauche, input droite) pour matcher le <dl> view-mode */
+        <>
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+            <Label htmlFor="firstName" className="text-sm text-gray-600">
+              Prénom
+            </Label>
+            <Input
+              id="firstName"
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Votre prénom"
+              className={errors.firstName ? 'border-red-300 focus:border-red-500' : ''}
+            />
+            {errors.firstName && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.firstName}</p>
+            )}
+
+            <Label htmlFor="lastName" className="text-sm text-gray-600">
+              Nom
+            </Label>
+            <Input
+              id="lastName"
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Votre nom"
+              className={errors.lastName ? 'border-red-300 focus:border-red-500' : ''}
+            />
+            {errors.lastName && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.lastName}</p>
+            )}
+
+            <Label htmlFor="salary" className="text-sm text-gray-600">
+              Salaire <span className="text-red-500">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="salary"
+                type="number"
+                min="0"
+                max="999999.99"
+                step="0.01"
+                value={salary}
+                onChange={(e) => handleSalaryChange(e.target.value)}
+                placeholder="Ex: 2500"
+                className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
+              />
+              <span className="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm text-gray-500">
+                €
+              </span>
+            </div>
+            {errors.salary && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.salary}</p>
+            )}
+
+            {/* Contribution Warning — span both columns */}
+            {contributionWarning && !errors.salary && (
+              <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-3">
+                <div className="flex items-start">
+                  <svg
+                    className="mt-0.5 mr-2 h-5 w-5 shrink-0 text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="mb-2 text-sm font-medium text-red-800">
+                      {contributionWarning.message}
+                    </p>
+                    <div className="text-xs text-red-700">
+                      <p className="mb-1 font-medium">Solutions possibles :</p>
+                      <ul className="list-inside list-disc space-y-1">
+                        {contributionWarning.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              <p className="mt-1 text-xs text-gray-500">
-                <span className="text-red-500">*</span> Requis pour calculer votre contribution au
-                budget du groupe
-              </p>
-            </div>
-          ) : (
-            <div className="mt-1 space-y-2">
-              <p className="text-sm text-gray-900">
-                {profile.salary && profile.salary > 0 ? (
-                  formatSalary(profile.salary)
-                ) : (
-                  <span className="text-red-600">Non défini (requis)</span>
-                )}
-              </p>
+            <p className="col-start-2 text-xs text-gray-500">
+              <span className="text-red-500">*</span> Requis pour la contribution au groupe
+            </p>
+          </div>
 
-              {/* Display contribution if user has a group and salary */}
-              {hasGroup && currentGroup && profile.salary && profile.salary > 0 && (
-                <div className="rounded-md bg-blue-50 p-2">
-                  <p className="mb-1 text-xs font-medium text-blue-700">
-                    Votre contribution au groupe :
-                  </p>
-                  {(() => {
-                    const otherMembers = contributions
-                      .filter((contrib) => contrib.profile_id !== profile.id)
-                      .map((contrib) => ({ id: contrib.profile_id, salary: contrib.salary }))
-
-                    const calculation = calculateUserContribution(
-                      profile.salary,
-                      currentGroup.monthly_budget_estimate,
-                      otherMembers,
-                    )
-
-                    return (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-blue-800">
-                          {formatCurrency(calculation.userContribution)}
-                        </span>
-                        <span className="text-xs text-blue-600">
-                          ({formatPercentage(calculation.userPercentage)} de votre salaire,{' '}
-                          {formatPercentage(
-                            currentGroup.monthly_budget_estimate > 0
-                              ? (calculation.userContribution /
-                                  currentGroup.monthly_budget_estimate) *
-                                  100
-                              : 0,
-                          )}{' '}
-                          du budget)
-                        </span>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-
-              {profile.salary && profile.salary > 0 && (
-                <p className="text-xs text-gray-500">
-                  <span className="text-red-500">*</span> Utilisé pour le calcul des contributions
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Action Buttons */}
-        {isEditing && (
-          <div className="flex space-x-3 border-t border-gray-200 pt-4">
+          {/* Action Buttons */}
+          <div className="mt-4 flex gap-2">
             <Button
               onClick={handleSave}
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
-              className="bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
@@ -459,8 +457,8 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
               Annuler
             </Button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </Card>
   )
 }

@@ -10,17 +10,25 @@ interface AvatarUploadProps {
   onAvatarUpdate: (avatarUrl: string | null) => Promise<void>
   isUpdating?: boolean
   className?: string
+  size?: 'sm' | 'md' | 'lg'
+  variant?: 'stacked' | 'inline'
 }
 
 /**
  * AvatarUpload Component - Allows users to upload and change their avatar
- * Supports both photo upload and removal to revert to initials
+ * Supports both photo upload and removal to revert to initials.
+ *
+ * Variants:
+ *  - 'stacked' (default): vertical layout, big avatar + full-width buttons + help text
+ *  - 'inline':            horizontal layout, smaller avatar + text-link actions next to it
  */
 export default function AvatarUpload({
   profile,
   onAvatarUpdate,
   isUpdating = false,
   className = '',
+  size = 'lg',
+  variant = 'stacked',
 }: AvatarUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -97,13 +105,67 @@ export default function AvatarUpload({
   const isLoading = isProcessing || isUpdating
   const hasCustomAvatar = profile?.avatar_url
 
+  // Hidden file input (shared by both variants)
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      onChange={handleFileSelect}
+      className="hidden"
+    />
+  )
+
+  // Inline variant — horizontal, compact: avatar à gauche + text-link actions à droite
+  if (variant === 'inline') {
+    return (
+      <div className={`flex items-center gap-3 ${className}`}>
+        <div className="relative shrink-0">
+          <UserAvatar
+            profile={profile}
+            size={size}
+            className="transition-opacity duration-200"
+            style={{ opacity: isLoading ? 0.6 : 1 }}
+          />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            </div>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <button
+            type="button"
+            onClick={handleUploadClick}
+            disabled={isLoading}
+            className="text-left text-sm font-medium text-blue-600 transition-colors hover:text-blue-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {hasCustomAvatar ? 'Changer la photo' : 'Ajouter une photo'}
+          </button>
+          {hasCustomAvatar && (
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              disabled={isLoading}
+              className="text-left text-xs text-gray-500 transition-colors hover:text-gray-700 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Supprimer
+            </button>
+          )}
+        </div>
+        {fileInput}
+      </div>
+    )
+  }
+
+  // Stacked variant (default) — original vertical layout
   return (
     <div className={`flex flex-col items-center space-y-4 ${className}`}>
       {/* Avatar Display */}
       <div className="relative">
         <UserAvatar
           profile={profile}
-          size="lg"
+          size={size}
           className="transition-opacity duration-200"
           style={{ opacity: isLoading ? 0.6 : 1 }}
         />
@@ -147,14 +209,7 @@ export default function AvatarUpload({
         )}
       </div>
 
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
+      {fileInput}
 
       {/* Help text */}
       <p className="max-w-xs text-center text-xs text-gray-500">
