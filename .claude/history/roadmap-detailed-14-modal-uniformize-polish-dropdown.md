@@ -113,3 +113,61 @@
   **Trade-off** : Ajouter `['savings-data']` aux 5 keys universellement invalidées impose un refetch network supplémentaire à toute mutation finance pour tous les users (même ceux qui n'ont jamais ouvert le drawer économies). Acceptable car (a) le payload `/api/savings/data` est lightweight, (b) si le drawer n'est pas ouvert, l'invalidation marque juste le cache stale sans déclencher de fetch (lazy invalidation TanStack — fetch seulement au prochain mount actif). Alternative considérée et écartée : passer un `onSuccess` callback du PlanningDrawer au useBudgets.deleteBudget pour invalider sélectivement — overkill, casse l'encapsulation single-source-of-truth de `invalidateFinancialRefreshes`.
 
   **Pattern à retenir** : Tout futur drawer/modal/sheet avec son propre useQuery côté UI doit (a) ajouter sa queryKey à `invalidateFinancialRefreshes` SI la donnée touche aux mutations finance, ET (b) ajouter un `useEffect` refetch on-isOpen pour double-safety (le user peut toujours laisser l'app ouverte longtemps et expect-er des données fraîches en ouvrant un drawer).
+
+- ✅ **Sprint Fix-Dashboards-Navbar-Switch** (livré 2026-05-20, déclenché par user "La navigation entre le profile de l'utilisateur de le group (dans la navbar en bas de l'écran) est DESASTREUSE : une fois sur deux ça ne marche pas, ou ne charge pas. Obligé de s'y reprendre à plusieurs fois. C'est lent. Reload total de la page. Loader qui prends toute la page, je préfererais conserver la navbar et le header affiché avec un loader informatif au milieu de l'écran"). 4 symptômes user → 4 root causes corrigées en un seul sprint structurel.
+
+  **Diagnostic** (3 Explore agents en parallèle + lecture des pages) :
+  - **Symptôme 1 (intermittent 1/2)** : race-condition entre l'`useEffect` `app/group-dashboard/page.tsx:84-88` qui fait `window.location.href = '/dashboard'` si `!profile?.group_id`, et le clic user sur la BottomNav qui fait aussi `window.location.href`. Deux hard reloads peuvent se chevaucher → comportement aléatoire.
+  - **Symptôme 2 (lent)** : `window.location.href` force un hard reload complet (FCP + parse + compile JS) ~500ms, puis `proxy.ts:71-91` invoque `checkRecapStatus()` qui fait 2 SELECTs Supabase synchrones (`profiles` + `monthly_recaps`) 200-500ms, puis re-mount de la page = 5 hooks fetchers parallèles. ~1s par switch.
+  - **Symptôme 3 (reload total)** : `window.location.href` est une assignation navigateur native (pas Next.js routing) → destruction de la SPA, du `QueryClient`, du state React.
+  - **Symptôme 4 (loader plein écran)** : `app/dashboard/page.tsx:164-169` + `app/group-dashboard/page.tsx:130-137` retournent `if (isLoading) return <div className="flex min-h-screen items-center justify-center ...">`. Ce return remplace **tout** le content rendu — pas de header, pas de footer, juste un spinner sur fond bleu. Combiné avec la duplication de navbar/footer in-page (pas dans un layout partagé), chaque navigation détruit le chrome.
+
+  **Root cause architecturale unifiée** : navbar (header) + footer (BottomNav) + drawer (SettingsDrawer) + modal (AddTransactionModal) étaient définis **dans chaque page**, pas dans un layout partagé. Conséquence : re-mountés à chaque navigation, masquables par le loader plein écran, et incapables de survivre à `window.location.href`.
+
+  **Fix structurel — 6 changements bundlés** :
+
+  **(1) Route group Next.js `app/(dashboards)/`** — `git mv app/dashboard app/(dashboards)/dashboard` + `git mv app/group-dashboard app/(dashboards)/group-dashboard`. Les parenthèses `()` au nom de dossier sont une convention Next.js App Router pour les [route groups](https://nextjs.org/docs/app/building-your-application/routing/route-groups) : N'AFFECTE PAS les URLs publiques (`/dashboard` reste `/dashboard`), mais permet à Next.js de réutiliser un layout entre les navigations soeurs **sans re-mount**.
+
+  **(2) Layout partagé `app/(dashboards)/layout.tsx`** — `'use client'` component, possède le state `isMenuOpen` (drawer) + `isAddTransactionModalOpen`, déduit le `context: 'profile' | 'group'` via `usePathname()`. Rend `<DashboardHeader>` + `<main>{children}</main>` + `<BottomNav>` + `<SettingsDrawer>` + `<AddTransactionModal>` (lazy via `dynamic({ ssr: false })`). Le pattern "adjust state during render" (React 19) est utilisé pour fermer auto le modal au changement de pathname (ESLint rule `react-hooks/set-state-in-effect` interdit `setState` dans `useEffect`) :
+  ```tsx
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
+    setIsAddTransactionModalOpen(false)
+  }
+  ```
+
+  **(3) `<BottomNav>` extrait** ([components/dashboard/BottomNav.tsx](../../components/dashboard/BottomNav.tsx), 110 LOC) — props `context`, `hasGroup`, `profileFirstName`, `groupName`, `onAddTransaction`. Utilise `useRouter().push('/dashboard' | '/group-dashboard')` (next/navigation) au lieu de `window.location.href`. Le tab actif est déduit du `context`. Variante grisée "Aucun groupe" si `!hasGroup`. Pattern : `aria-current={isActive ? 'page' : undefined}`. SVG icônes inchangées (reprises verbatim des pages legacy).
+
+  **(4) `<DashboardHeader>` extrait** ([components/dashboard/DashboardHeader.tsx](../../components/dashboard/DashboardHeader.tsx), 55 LOC) — props `context`, `onOpenMenu`. Rend `<UserInfoNavbar>` (context=profile, avec contributions + groupBudget via `useGroupContributions`) OU `<GroupInfoNavbar>` (context=group, avec members via `useGroupMembers`) + `<UserAvatar onClick={onOpenMenu}>`. Les hooks `useProfile` / `useGroupContributions` / `useGroupMembers` sont dédupés par TanStack Query entre layout et pages → pas de double fetch. `useGroupMembers` reste legacy useState (pas TanStack), `useEffect` fire `fetchGroupMembers(profile.group_id)` quand context=group.
+
+  **(5) `<CentralLoader>` extrait** ([components/ui/CentralLoader.tsx](../../components/ui/CentralLoader.tsx), 15 LOC) — `flex flex-1 items-center justify-center` (PAS `min-h-screen`, PAS `fixed inset-0`). Inline dans le `<main>` du layout parent (lui-même `flex-1`). Header + footer du layout restent visibles pendant le loading. Remplace les 2 `renderCentralLoader` dupliqués dans les pages legacy.
+
+  **(6) Pages allégées + redirection robuste** :
+  - `app/(dashboards)/dashboard/page.tsx` : 381 LOC → 143 LOC. Retire `<nav>`, `<footer>`, `<SettingsDrawer>`, `<AddTransactionModal>`, `isMenuOpen` state, `isAddTransactionModalOpen` state, le `if (isLoading) return <FullScreenDiv>` bloquant. Rend uniquement : `if (isLoading) return <CentralLoader>` → `if (!hasProfile) return <FirstTimeProfileDialog>` → `if (financialLoading) return <CentralLoader>` → contenu (FinancialIndicators + Suspense + TransactionTabsComponent). `EditTransactionModal` reste page-scoped (state local pour la transaction sélectionnée).
+  - `app/(dashboards)/group-dashboard/page.tsx` : 281 LOC → 124 LOC. Remplace `window.location.href = '/dashboard'` par `router.replace('/dashboard')` (next/navigation) + `useRef(false)` guard :
+  ```tsx
+  const redirected = useRef(false)
+  useEffect(() => {
+    if (!isLoading && profile && !profile.group_id && !redirected.current) {
+      redirected.current = true
+      router.replace('/dashboard')
+    }
+  }, [isLoading, profile, router])
+  ```
+  `router.replace` (vs push) évite que `back()` ne ramène sur `/group-dashboard` après redirection. Le `useRef` empêche double-fire si re-render avant que la nav commit.
+
+  **(7) Cookie cache `checkRecapStatus` dans proxy.ts** — wrap les 2 SELECTs Supabase de `lib/recap/check-status.ts` derrière un cookie `recap-ok-{context}-{month}-{year}` (TTL 5min, httpOnly, sameSite='lax', path='/'). Posé UNIQUEMENT si `status.required === false` (sinon l'user redirigé vers /monthly-recap puis cliquant "Personnel" serait coincé sans re-check). La clé inclut `month-year` → invalidation naturelle au changement de mois (le 1er du nouveau mois, cookie absent → re-check → voit qu'il manque le recap → redirect comme avant). Bénéfice : navigation 2 → N dans la même session = 0 round-trip Supabase pour le recap-check, gain de 200-500ms par navigation après la première.
+
+  **Vérification end-to-end** : `pnpm typecheck` exit 0 (clean `.next` cache requis car Next.js a généré des types pointant vers les anciens emplacements) ; `pnpm lint:check` 0/0 (après refactor `useEffect` → adjust-during-render pour passer la rule `react-hooks/set-state-in-effect`) ; `pnpm format:check` exit 0 ; `pnpm build` succeed (`/dashboard` + `/group-dashboard` listés Static dans le route manifest, layout détecté) ; `pnpm test:run` **500 passed / 98 skipped** stable. 1 test pré-existant échouait avant le sprint (`SavingsDistributionDrawer: Esc keydown invokes onClose` dans `components/__tests__/a11y-audit.test.tsx`) — vérifié sans rapport via `git stash` + re-run, à corriger dans un sprint séparé.
+
+  **Test browser manuel** (par l'user) : 1er load `/dashboard` cold = 59s de compile (route group jamais compilé → Next.js webpack chaîne tous les imports). HMR WebSocket throw `Connection closed` côté browser pendant le cold compile (effet de bord, pas un bug code) — un refresh suffit, 2e load doit être ~1-2s. Cliquer "Groupe" depuis dashboard → soft nav, header/footer persistent, loader inline visible si `financialLoading`. Spammer alternance Personnel↔Groupe 10× → 0 intermittence.
+
+  **Files livrés** :
+  - Créés : `app/(dashboards)/layout.tsx`, `components/dashboard/BottomNav.tsx`, `components/dashboard/DashboardHeader.tsx`, `components/ui/CentralLoader.tsx`.
+  - Déplacés via `git mv` (historique préservé) : `app/dashboard/` → `app/(dashboards)/dashboard/`, `app/group-dashboard/` → `app/(dashboards)/group-dashboard/`.
+  - Modifiés : `proxy.ts` (cookie cache recap-status), `app/(dashboards)/dashboard/page.tsx` (rewrite slim), `app/(dashboards)/group-dashboard/page.tsx` (rewrite slim + router.replace + useRef guard).
+
+  **Trade-off** : Le 1er load `/dashboard` cold = 59s de compile (long mais one-time per dev session) car Next.js compile tout le layout + ses transitive imports. Le passage en route group ajoute 1 niveau de hiérarchie de layout (RootLayout → DashboardsLayout → Page) → 1 React tree de plus à reconciler à chaque update, mais négligeable vu que le layout n'a pas de state qui change. Le `useEffect` legacy `useGroupMembers` n'a PAS été migré vers TanStack Query (out-of-scope) — fait 1 fetch au mount de DashboardHeader pour context=group, mais ne re-fire plus à chaque navigation soeur (le component ne re-mount plus, juste le children swap). Le `proxy.ts` cookie a TTL 5min (court mais suffisant pour amortir une session active) — si user complète un recap mid-session, le cookie le marque "ok" et reste valide jusqu'à 5min, donc le user pourrait théoriquement re-trigger le recap-check au prochain mois pile à 00:00 si le cookie était posé à 23:55:01 — acceptable car le check serait re-fire naturellement à 00:00:01 (cookie absent pour le nouveau mois-year).
+
+  **Pattern à retenir** : Pour tout futur set de pages soeurs partageant une chrome (navbar + footer + drawer + modal), créer un route group `app/(<group>)/` avec un layout partagé client component, déduire le contexte via `usePathname()`, faire vivre le state global (drawer open, modal open) dans le layout. Les pages enfants ne rendent que leur `<main>` content. Loader inline `<CentralLoader>` jamais un `if (loading) return <FullScreenDiv>`. Soft navigation `useRouter().push()` jamais `window.location.href` (sauf logout/OAuth callback où le full reload est désiré pour vider le state). Détails dans [.claude/conventions/operational-rules-ui-modals.md](../conventions/operational-rules-ui-modals.md) (5 nouvelles règles ❌).

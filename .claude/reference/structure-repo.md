@@ -16,6 +16,7 @@
 
 ```
 app/                       # App Router (pages + API routes)
+  (dashboards)/            # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — Next.js route group (les `()` n'affectent PAS les URLs). `layout.tsx` client component owne header + footer + drawer + add-modal (persistent à la nav soeur), déduit `context` via `usePathname()`. Pages allégées 381+281→143+124 LOC. Détails [@.claude/conventions/operational-rules-ui-modals.md](../conventions/operational-rules-ui-modals.md) (5 règles ❌ navigation).
   api/
     debug/                 # 6 routes seed/reset (post Sprint Polish T2) — BLOQUÉES en prod via blockInProduction()
     finance/               # ✅ Sprint Refactor-Architecture v1+v2 — namespace canonique unifié (12 routes)
@@ -28,6 +29,9 @@ app/                       # App Router (pages + API routes)
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
     docs/                  # ✅ Sprint OpenAPI-Schema-To-Docs — `/api/docs` sert un HTML Swagger UI (chargé via CDN unpkg, zéro dep) ; `/api/docs/openapi.json` sert le doc OpenAPI 3.1 généré depuis le registry. Public (pas d'auth) — DX gain pour les API consumers + onboarding nouveaux devs.
 components/                # UI (shadcn/ui sous components/ui/)
+  dashboard/BottomNav.tsx  # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — navbar bottom 3-tabs partagée par /dashboard et /group-dashboard. `useRouter().push()` au lieu de `window.location.href` (soft nav). Variante "Aucun groupe" si `!hasGroup`.
+  dashboard/DashboardHeader.tsx # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — header sticky partagé. Props `context`, `onOpenMenu`. Rend `<UserInfoNavbar>` (profile) OU `<GroupInfoNavbar>` (group) + `<UserAvatar>`. Hooks dédupés TanStack Query.
+  ui/CentralLoader.tsx     # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — loader inline `flex flex-1` (PAS `min-h-screen`, PAS `fixed inset-0`). Rendu dans `<main>` d'un layout parent `flex-1` — n'écrase pas le chrome. Prop `message?`.
   ui/DecimalFormInput.tsx  # ✅ Sprint Zod-Rollout v4 — composant générique <T extends FieldValues> qui wrap Controller + shadcn Input + regex décimal + comma→dot. Consommé par 8 sites post-v4 (EditBalance/AddIncome/EditIncome/AddBudget/EditBudget/AddTransaction/EditTransaction/CreateGroup). Pour tout nouveau form décimal validé via `z.coerce.number()`, utiliser ce composant plutôt que de réécrire le pattern inline.
   ui/modal-close-x.tsx     # ✅ Sprint Zod-Rollout v10 — composant `<ModalCloseX onClose disabled? variant='circle'|'ghost' className? svgClassName? ariaLabel?>` qui centralise le SVG path `M6 18L18 6M6 6l12 12` + `aria-label="Fermer"` + `aria-hidden` sur le `<svg>`. Consommé par 11 sites dans 10 fichiers post-v10 (Edit/Add Budget/Income + Add/EditTransaction + Planning/SavingsDistribution drawers + nested transfer + GroupMembers + DeleteGroup). Variantes : `circle` h-8 w-8 rounded-full bg-gray-100 (6 sites), `ghost` h-8 w-8 rounded-md hover:bg-accent (4 sites). Pour tout nouveau modal Radix-migré, utiliser ce composant plutôt que de dupliquer le raw button + SVG inline.
   ui/drawer-content-classes.ts # ✅ Sprint Zod-Rollout v9 — `DRAWER_CONTENT_CLASSES` constant single source of truth pour le drawer bottom-up fullscreen override de `<DialogContent>`. Consommé par PlanningDrawer + SavingsDistributionDrawer (2 sites). Pour tout nouveau drawer fullscreen bottom-up, importer cette constante plutôt que dupliquer l'override className inline.

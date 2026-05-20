@@ -98,3 +98,37 @@
   **Sub-règle max-height** : la max-height d'un menu portaled = `window.innerHeight - buttonRect.bottom - bottomMargin - 4` (avec `bottomMargin = window.innerHeight * 0.1` = 10% margin du bas du viewport, per design system). Plancher `Math.max(_, 120)` pour rester utilisable quand le button est très bas. Le bas du menu ne descend jamais en-dessous de 90% du viewport. Pas de fallback "open above" pour l'instant — ajouter `if spaceBelow < threshold && spaceAbove > spaceBelow → position bottom au lieu de top` si futur user report.
 
   **Sub-règle click-outside avec portal** : 2 refs nécessaires (`buttonRef` + `menuRef`) car le menu est dans un subtree DOM séparé. Le handler `document.addEventListener('mousedown', ...)` doit vérifier `.contains(target)` sur les DEUX refs avant de close. Sans ça, cliquer dans le menu portaled est considéré "outside du button container" et ferme le menu juste avant l'onClick de l'option.
+
+- ❌ **NE PAS** utiliser `window.location.href = '/<route>'` pour la nav SPA entre 2 pages soeurs partageant un layout (Sprint Fix-Dashboards-Navbar-Switch 2026-05-20). Le hard reload détruit le QueryClient cache, perd le state React, re-mount tout le layout (header + footer + drawer disparaissent puis re-rendent), re-déclenche le `proxy.ts checkRecapStatus` (2 SELECTs Supabase = 200-500ms). Pattern correct : `useRouter().push('/route')` (next/navigation) pour soft navigation. Pour les redirections programmatiques post-effect (ex: redirect si !profile.group_id), `router.replace()` + `useRef(false)` guard pour empêcher double-fire :
+
+  ```tsx
+  const router = useRouter()
+  const redirected = useRef(false)
+  useEffect(() => {
+    if (!isLoading && profile && !profile.group_id && !redirected.current) {
+      redirected.current = true
+      router.replace('/dashboard')
+    }
+  }, [isLoading, profile, router])
+  ```
+
+  Précédent : `app/dashboard/page.tsx:289` + `app/group-dashboard/page.tsx:86+198` faisaient 3× `window.location.href` → symptômes user "1 fois sur 2 ne marche pas, reload total, lent". Fix Sprint Fix-Dashboards-Navbar-Switch : extraction `<BottomNav>` partagé avec `router.push()` + soft nav via route group `app/(dashboards)/`. Le seul usage `window.location.href` toléré reste les redirections explicites (logout, OAuth callback) où le full reload est désiré pour vider le state.
+
+- ❌ **NE PAS** retourner `if (isLoading) return <div className="flex min-h-screen items-center justify-center ...">...</div>` depuis une page enfant d'un layout (Sprint Fix-Dashboards-Navbar-Switch 2026-05-20). Ce return remplace **tout** le content rendu par le layout — le header + le footer + le drawer **disparaissent** pendant le loading, ce qui rompt la persistence du chrome et fait flasher l'UI (root cause "loader plein écran qui masque la navbar" du sprint). Pattern correct : retourner `<CentralLoader message="..." />` ([components/ui/CentralLoader.tsx](../../components/ui/CentralLoader.tsx)) qui est `flex flex-1 items-center justify-center` (PAS `min-h-screen`, PAS `fixed inset-0`). Le loader s'inscrit naturellement dans le `<main>` du layout parent (qui est `flex-1`), et le header/footer du layout restent rendus. Triple cascade évitée : (a) loader plein écran masque chrome, (b) hard reload détruit chrome aussi, (c) re-mount cascade lente.
+
+- ❌ **NE PAS** dupliquer navbar/header/footer/drawer dans chaque page d'un set de pages soeurs partageant la même chrome — utiliser un **layout partagé via route group** Next.js App Router (Sprint Fix-Dashboards-Navbar-Switch 2026-05-20). Convention : dossier `(<group-name>)` au sein de `app/` n'affecte PAS les URLs publiques mais permet à Next.js de réutiliser le layout entre les navigations soeurs **sans re-mount** du header/footer/drawer. Précédent : `app/dashboard/page.tsx` (381 LOC, incluait `<nav>` + `<footer>` + `<SettingsDrawer>` + `<AddTransactionModal>` + state `isMenuOpen` + state `isAddTransactionModalOpen`) et `app/group-dashboard/page.tsx` (281 LOC, miroir avec navbar/footer dupliqués). Fix : `git mv app/dashboard app/(dashboards)/dashboard` + `git mv app/group-dashboard app/(dashboards)/group-dashboard` + `app/(dashboards)/layout.tsx` qui owne le chrome. Pages allégées à 143 + 124 LOC (juste main content + page-scoped state). Le `context: 'profile' | 'group'` est déduit dans le layout via `usePathname()`. Hooks (useProfile, useBankBalance, useFinancialData) dédupés par TanStack Query entre layout et pages — pas de double fetch.
+
+- ❌ **NE PAS** caller `setState` dans un `useEffect` synchronisé sur un changement de `pathname` (ou autre router state) — l'ESLint rule `react-hooks/set-state-in-effect` (active sur ce repo) refuse le pattern. Utiliser le pattern **"adjust state during render"** (React 19, [react.dev/learn/you-might-not-need-an-effect](https://react.dev/learn/you-might-not-need-an-effect)) :
+
+  ```tsx
+  const pathname = usePathname()
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname)
+    setIsModalOpen(false) // ou autre reset état router-dépendant
+  }
+  ```
+
+  Le check `pathname !== prevPathname` garantit la terminaison de la boucle (1 re-render). Pattern miroir `SettingsDrawer.tsx:38-41` (`hasBeenOpened` flag). Précédent Sprint Fix-Dashboards-Navbar-Switch 2026-05-20 : `useEffect(() => setIsAddTransactionModalOpen(false), [pathname])` dans `app/(dashboards)/layout.tsx` rejeté par lint baseline, migré vers le pattern adjust-during-render.
+
+- ❌ **NE PAS** rappeler `checkRecapStatus()` dans `proxy.ts` à chaque navigation protégée sans cookie cache — la fonction fait 2 SELECTs Supabase synchrones (profiles + monthly_recaps) coûtant 200-500ms par nav (Sprint Fix-Dashboards-Navbar-Switch 2026-05-20). Pattern : cookie `recap-ok-{context}-{month}-{year}` TTL 5min, posé uniquement quand `status.required === false`, scope `httpOnly + sameSite:'lax' + path:'/'`. Le `month-year` dans la clé garantit l'invalidation naturelle au changement de mois (le 1er du nouveau mois, le cookie absent re-déclenche le check, qui voit qu'il manque le recap → redirect /monthly-recap comme avant). Le cas `required:true` ne pose PAS le cookie — sinon l'user redirigé vers /monthly-recap puis cliquant "Personnel" serait coincé sans re-check. Référence : [proxy.ts:70-99](../../proxy.ts).

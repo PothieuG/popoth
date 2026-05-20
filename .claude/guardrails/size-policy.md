@@ -65,24 +65,24 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-11-phase-b-to-commitlint.md            30k   Phase-B → Commitlint (6)
 │   ├─ roadmap-detailed-12-cas3-to-refactor-recover.md         39k   Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) — over 38k, split if extended
 │   ├─ roadmap-detailed-13-fix-empty-recap-tirelire.md         37k   Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6)
-│   └─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 25k   Modal-Uniformize → Fix-Savings-Drawer-Stale-Cache (5) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer)
+│   └─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 36k   Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer + Fix-Dashboards-Navbar-Switch)
 │
 ├─ reference/
-│   └─ structure-repo.md                              29k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
+│   └─ structure-repo.md                              37k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
 │
 ├─ conventions/                                      (Patterns détaillés avec exemples code)
 │   ├─ zod-patterns.md                                18k   Patterns A-H + DecimalFormInput + ModalCloseX + tests
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   ├─ operational-rules.md                           39k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap post §6 chronologie extension Sprints Delete-Budget+Fix-Savings 2026-05-20, candidat §6 extraction
-│   └─ operational-rules-ui-modals.md                 15k   17 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Sprints Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21)
+│   ├─ operational-rules.md                           40k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap post §6 chronologie extension Sprints Delete-Budget+Fix-Savings+Fix-Dashboards-Navbar-Switch 2026-05-20, candidat §6 extraction
+│   └─ operational-rules-ui-modals.md                 20k   22 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21 + 5 règles nav SPA / loader inline / layout partagé Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
 │
 └─ guardrails/
     └─ size-policy.md                                 13k   (ce fichier)
 ```
 
-**Total contexte** : ~720k chars répartis sur 27 fichiers. CLAUDE.md (~39k post Sprints Delete-Budget + Fix-Savings 2026-05-20) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **39.4k** (Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 15k mais §6 chronologie sprints ré-étendue post-extraction → candidat extraction §6 vers `.claude/history/sprint-chronology.md` au prochain sprint touchant ces invariants). Roadmap-14 à 25k post-extension Delete-Budget + Fix-Savings (marge confortable). roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
+**Total contexte** : ~745k chars répartis sur 27 fichiers. CLAUDE.md (~39k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **39.8k** (Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 20k mais §6 chronologie sprints ré-étendue post-extraction → candidat extraction §6 vers `.claude/history/sprint-chronology.md` au prochain sprint touchant ces invariants). Roadmap-14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 (sous le cap 38k, marge confortable). roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
 
 ## 5. Règles d'extension
 
@@ -182,12 +182,12 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 
 **25 fichiers `.md`** chargés comme contexte par Claude Code :
 
-- 1× `CLAUDE.md` (~39k, légèrement au-delà du plafond post Sprints Delete-Budget + Fix-Savings — split déféré, sous limite 40k)
-- 14× `.claude/history/roadmap-detailed-01..14-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 à ~37k post-Drawer-Slide-Fix-And-Header-Harmonize, Part 14 à 25k post-extension Delete-Budget + Fix-Savings-Drawer-Stale 2026-05-20 — marge confortable)
+- 1× `CLAUDE.md` (~39k, légèrement au-delà du plafond — split déféré, sous limite 40k)
+- 14× `.claude/history/roadmap-detailed-01..14-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 à ~37k post-Drawer-Slide-Fix-And-Header-Harmonize, Part 14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 — sous le cap 38k, marge restante 2k)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (36k)
-- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-39k — operational-rules à 39k post-extension §6 chronologie Delete-Budget + Fix-Savings 2026-05-20, candidat extraction §6 prochain sprint ; operational-rules-ui-modals à 15k via Sprints Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21)
+- 1× `.claude/reference/structure-repo.md` (37k post Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
+- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-40k — operational-rules à ~40k post-extension §6 chronologie 2026-05-20, candidat extraction §6 prochain sprint ; operational-rules-ui-modals à 20k via Sprints Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21 + 5 règles nav Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
 - 1× `.claude/guardrails/size-policy.md` (~14k — ce fichier).
 
 Cf. inventaire détaillé via `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.

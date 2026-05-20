@@ -186,8 +186,9 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | Sprint Modal-Dropdown-Portal                   | 2026-05-21 | `createPortal` + `position:fixed` + max-h = `vh−bottom−10vh` + stopPropagation anti-Radix-close.                                                                                                                                                                                                                                       | CLAUDE.md §11 |
 | Sprint Delete-Budget-Savings-Transfer          | 2026-05-20 | RPC `delete_budget_with_savings_transfer` (UPSERT piggy + DELETE en 1 tx) + ConfirmationDialog `details?` + snackbar. EXPECTED_RPCS 10→11.                                                                                                                                                                                             | CLAUDE.md §11 |
 | Sprint Fix-Savings-Drawer-Stale-Cache          | 2026-05-20 | `invalidateFinancialRefreshes` 4→5 keys + `useEffect` refetch on-isOpen.                                                                                                                                                                                                                                                               | CLAUDE.md §11 |
+| Sprint Fix-Dashboards-Navbar-Switch            | 2026-05-20 | Route group `app/(dashboards)/` + layout partagé persistent + `<BottomNav>`/`<DashboardHeader>`/`<CentralLoader>` extraits + `router.push`/`replace` au lieu de `window.location.href` + cookie cache `checkRecapStatus` TTL 5min. Pages 381+281 LOC → 143+124 LOC.                                                                    | CLAUDE.md §11 |
 
-Pour la chronologie complète des 104 sprints, voir CLAUDE.md §11 (index des 14 parts `.claude/history/roadmap-detailed-NN-...md`).
+Pour la chronologie complète des 105 sprints, voir CLAUDE.md §11 (index des 14 parts `.claude/history/roadmap-detailed-NN-...md`).
 
 ## 7. Supabase Auth click-to-confirm gate — scanner-résistance
 
