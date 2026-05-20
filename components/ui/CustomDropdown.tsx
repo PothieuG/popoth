@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 
 export interface DropdownOption {
@@ -22,6 +23,13 @@ interface CustomDropdownProps {
   className?: string
   required?: boolean
   disabled?: boolean
+}
+
+interface MenuPosition {
+  top: number
+  left: number
+  width: number
+  maxHeight: number
 }
 
 /**
@@ -97,7 +105,27 @@ function OptionDisplay({ option }: { option: DropdownOption }) {
 }
 
 /**
- * Composant dropdown personnalisé avec formatage avancé
+ * Composant dropdown personnalisé avec formatage avancé.
+ *
+ * **Portal + fixed positioning (Sprint Modal-Dropdown-Portal 2026-05-21)** : le menu
+ * est rendu via React Portal directement dans `document.body` au lieu d'être un
+ * enfant de DialogContent. Raisons :
+ * - Radix DialogContent a `overflow-hidden` (pour respecter max-h-[85vh]) — un menu
+ *   en `position: absolute` y serait clipped.
+ * - `position: fixed` ne suffit pas car DialogContent a `transform: translateY(-50%)`
+ *   qui crée un containing-block pour les descendants fixed-positioned.
+ * - Donc le seul moyen d'échapper au clipping est de portaler hors du subtree.
+ *
+ * **Max-height dynamique** : à chaque ouverture (et sur scroll/resize), on calcule
+ * `viewport.height - button.bottom - 10vh - 4px` pour garantir 10% de marge au
+ * bas de l'écran (le menu peut atteindre le haut du viewport mais jamais sortir
+ * du bas).
+ *
+ * **Anti-Radix-close** : `onPointerDown` + `onMouseDown` stopPropagation sur le
+ * menu portaled empêchent DismissableLayer (utilisé par Radix Dialog) de
+ * détecter un "clic outside" qui fermerait la modal parente. Radix listen en
+ * bubble phase sur document — stopProp à l'élément menu empêche l'event d'y
+ * remonter.
  */
 export default function CustomDropdown({
   options,
@@ -109,29 +137,73 @@ export default function CustomDropdown({
   disabled = false,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState<MenuPosition | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
 
-  // Fermer le dropdown si on clique à l'extérieur
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
+  const computeMenuPosition = useCallback((): MenuPosition | null => {
+    if (!buttonRef.current) return null
+    const rect = buttonRef.current.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    const bottomMargin = viewportHeight * 0.1
+    const availableHeight = viewportHeight - rect.bottom - bottomMargin - 4
+    return {
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(availableHeight, 120),
     }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Trouver l'option sélectionnée
+  // Reposition the menu on scroll (any element) and viewport resize while open.
+  // The capture-phase listener catches scrolls inside the modal body too.
+  useEffect(() => {
+    if (!isOpen) return
+    const update = () => {
+      const next = computeMenuPosition()
+      if (next) setMenuPos(next)
+    }
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [isOpen, computeMenuPosition])
+
+  // Click outside (anywhere not inside the button or the portaled menu) closes
+  // the dropdown. Both refs are checked because the menu lives in a separate
+  // DOM subtree (document.body) via portal.
+  useEffect(() => {
+    if (!isOpen) return
+    const handler = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (buttonRef.current?.contains(target)) return
+      if (menuRef.current?.contains(target)) return
+      setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [isOpen])
+
+  const toggleOpen = () => {
+    if (disabled) return
+    if (!isOpen) {
+      const pos = computeMenuPosition()
+      if (pos) setMenuPos(pos)
+    }
+    setIsOpen((prev) => !prev)
+  }
+
   const selectedOption = options.find((option) => option.id === value)
 
   return (
-    <div ref={dropdownRef} className={cn('relative', className)}>
+    <div className={cn('relative', className)}>
       {/* Bouton principal */}
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         disabled={disabled}
         className={cn(
           'w-full rounded-lg border border-gray-300 bg-white p-3 pr-10 text-left transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500',
@@ -159,31 +231,51 @@ export default function CustomDropdown({
         </div>
       </button>
 
-      {/* Menu dropdown */}
-      {isOpen && !disabled && (
-        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-300 bg-white shadow-lg">
-          {options.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">Aucune option disponible</div>
-          ) : (
-            options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => {
-                  onChange(option.id)
-                  setIsOpen(false)
-                }}
-                className={cn(
-                  'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-hidden',
-                  value === option.id && 'bg-blue-50',
-                )}
-              >
-                <OptionDisplay option={option} />
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {/* Menu dropdown — portaled to document.body to escape the parent modal's
+          overflow:hidden + transform clipping. */}
+      {isOpen &&
+        !disabled &&
+        menuPos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="listbox"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: menuPos.top,
+              left: menuPos.left,
+              width: menuPos.width,
+              maxHeight: menuPos.maxHeight,
+            }}
+            className="z-[100] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg"
+          >
+            {options.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500">Aucune option disponible</div>
+            ) : (
+              options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="option"
+                  aria-selected={value === option.id}
+                  onClick={() => {
+                    onChange(option.id)
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50 focus:bg-gray-50 focus:outline-hidden',
+                    value === option.id && 'bg-blue-50',
+                  )}
+                >
+                  <OptionDisplay option={option} />
+                </button>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
 
       {/* Input caché pour la validation des formulaires */}
       <input

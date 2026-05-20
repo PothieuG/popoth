@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -229,14 +230,11 @@ export default function EditTransactionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="flex max-h-[80vh] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-xl"
-      >
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <DialogTitle asChild>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-gray-900">
               Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
             </h2>
           </DialogTitle>
@@ -246,191 +244,195 @@ export default function EditTransactionModal({
         {/* Form */}
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-          className="flex-1 space-y-6 overflow-y-auto p-6"
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
-          {isOriginallyExceptional && (
-            <div className="flex flex-col items-center space-y-3">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="exceptional"
-                  checked={true}
-                  disabled={true}
-                  className="h-4 w-4 cursor-not-allowed rounded border-gray-300 bg-gray-100 text-blue-600 opacity-50"
-                />
-                <Label
-                  htmlFor="exceptional"
-                  className="cursor-not-allowed text-sm font-medium text-gray-700 opacity-50"
-                >
-                  {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
-                </Label>
-              </div>
-              <p className="text-center text-xs text-gray-500">
-                Transaction originalement exceptionnelle (non modifiable)
-              </p>
-            </div>
-          )}
-
-          {/* Budget/Income Selection - Only shown if not exceptional */}
-          {!isOriginallyExceptional && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-900">
-                {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                <span className="ml-2 text-xs text-gray-500">(non modifiable)</span>
-              </Label>
-              {transactionType === 'expense' ? (
-                <Controller
-                  control={form.control}
-                  name="estimated_budget_id"
-                  render={({ field }) => (
-                    <CustomDropdown
-                      options={budgetOptions}
-                      value={field.value ?? ''}
-                      onChange={(value) => field.onChange(value || null)}
-                      placeholder="Sélectionner un budget"
-                      required={true}
-                      disabled={true}
-                    />
-                  )}
-                />
-              ) : (
-                <Controller
-                  control={form.control}
-                  name="estimated_income_id"
-                  render={({ field }) => (
-                    <CustomDropdown
-                      options={incomeOptions}
-                      value={field.value ?? ''}
-                      onChange={(value) => field.onChange(value || null)}
-                      placeholder="Sélectionner un revenu estimé"
-                      required={true}
-                      disabled={true}
-                    />
-                  )}
-                />
-              )}
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium text-gray-900">
-              Description <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="description"
-              type="text"
-              {...form.register('description')}
-              placeholder={
-                transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
-              }
-              aria-invalid={fieldErrors.description ? 'true' : 'false'}
-              aria-describedby={
-                fieldErrors.description ? 'edit-transaction-description-error' : undefined
-              }
-              className="w-full"
-            />
-            {fieldErrors.description && (
-              <p id="edit-transaction-description-error" className="text-sm text-red-600">
-                {fieldErrors.description.message}
-              </p>
-            )}
-          </div>
-
-          {/* Amount */}
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
-              Montant (€) <span className="text-red-500">*</span>
-            </Label>
-            <DecimalFormInput
-              control={form.control}
-              name="amount"
-              id="amount"
-              placeholder="0.00"
-              className="w-full"
-              ariaInvalid={!!fieldErrors.amount}
-              ariaDescribedby={fieldErrors.amount ? 'edit-transaction-amount-error' : undefined}
-            />
-            {fieldErrors.amount && (
-              <p id="edit-transaction-amount-error" className="text-sm text-red-600">
-                {fieldErrors.amount.message}
-              </p>
-            )}
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date" className="text-sm font-medium text-gray-900">
-              Date <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              {transactionType === 'expense' ? (
-                <Input
-                  id="date"
-                  type="date"
-                  {...form.register('expense_date')}
-                  aria-invalid={dateError ? 'true' : 'false'}
-                  aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
-                  className="w-full pl-10"
-                />
-              ) : (
-                <Input
-                  id="date"
-                  type="date"
-                  {...form.register('entry_date')}
-                  aria-invalid={dateError ? 'true' : 'false'}
-                  aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
-                  className="w-full pl-10"
-                />
-              )}
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                <svg
-                  className="h-4 w-4 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          <div className="min-h-0 flex-auto space-y-6 overflow-y-auto px-6 py-4">
+            {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
+            {isOriginallyExceptional && (
+              <div className="flex flex-col items-center space-y-3">
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="exceptional"
+                    checked={true}
+                    disabled={true}
+                    className="h-4 w-4 cursor-not-allowed rounded border-gray-300 bg-gray-100 text-blue-600 opacity-50"
                   />
-                </svg>
+                  <Label
+                    htmlFor="exceptional"
+                    className="cursor-not-allowed text-sm font-medium text-gray-700 opacity-50"
+                  >
+                    {transactionType === 'expense'
+                      ? 'Dépense exceptionnelle'
+                      : 'Revenu exceptionnel'}
+                  </Label>
+                </div>
+                <p className="text-center text-xs text-gray-500">
+                  Transaction originalement exceptionnelle (non modifiable)
+                </p>
               </div>
+            )}
+
+            {/* Budget/Income Selection - Only shown if not exceptional */}
+            {!isOriginallyExceptional && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-900">
+                  {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
+                  <span className="ml-2 text-xs text-gray-500">(non modifiable)</span>
+                </Label>
+                {transactionType === 'expense' ? (
+                  <Controller
+                    control={form.control}
+                    name="estimated_budget_id"
+                    render={({ field }) => (
+                      <CustomDropdown
+                        options={budgetOptions}
+                        value={field.value ?? ''}
+                        onChange={(value) => field.onChange(value || null)}
+                        placeholder="Sélectionner un budget"
+                        required={true}
+                        disabled={true}
+                      />
+                    )}
+                  />
+                ) : (
+                  <Controller
+                    control={form.control}
+                    name="estimated_income_id"
+                    render={({ field }) => (
+                      <CustomDropdown
+                        options={incomeOptions}
+                        value={field.value ?? ''}
+                        onChange={(value) => field.onChange(value || null)}
+                        placeholder="Sélectionner un revenu estimé"
+                        required={true}
+                        disabled={true}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium text-gray-900">
+                Description <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="description"
+                type="text"
+                {...form.register('description')}
+                placeholder={
+                  transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
+                }
+                aria-invalid={fieldErrors.description ? 'true' : 'false'}
+                aria-describedby={
+                  fieldErrors.description ? 'edit-transaction-description-error' : undefined
+                }
+                className="w-full"
+              />
+              {fieldErrors.description && (
+                <p id="edit-transaction-description-error" className="text-sm text-red-600">
+                  {fieldErrors.description.message}
+                </p>
+              )}
             </div>
-            {dateError && (
-              <p id="edit-transaction-date-error" className="text-sm text-red-600">
-                {dateError.message}
-              </p>
+
+            {/* Amount */}
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
+                Montant (€) <span className="text-red-500">*</span>
+              </Label>
+              <DecimalFormInput
+                control={form.control}
+                name="amount"
+                id="amount"
+                placeholder="0.00"
+                className="w-full"
+                ariaInvalid={!!fieldErrors.amount}
+                ariaDescribedby={fieldErrors.amount ? 'edit-transaction-amount-error' : undefined}
+              />
+              {fieldErrors.amount && (
+                <p id="edit-transaction-amount-error" className="text-sm text-red-600">
+                  {fieldErrors.amount.message}
+                </p>
+              )}
+            </div>
+
+            {/* Date */}
+            <div className="space-y-2">
+              <Label htmlFor="date" className="text-sm font-medium text-gray-900">
+                Date <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                {transactionType === 'expense' ? (
+                  <Input
+                    id="date"
+                    type="date"
+                    {...form.register('expense_date')}
+                    aria-invalid={dateError ? 'true' : 'false'}
+                    aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
+                    className="w-full pl-10"
+                  />
+                ) : (
+                  <Input
+                    id="date"
+                    type="date"
+                    {...form.register('entry_date')}
+                    aria-invalid={dateError ? 'true' : 'false'}
+                    aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
+                    className="w-full pl-10"
+                  />
+                )}
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <svg
+                    className="h-4 w-4 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+              </div>
+              {dateError && (
+                <p id="edit-transaction-date-error" className="text-sm text-red-600">
+                  {dateError.message}
+                </p>
+              )}
+            </div>
+
+            {/* Expense Breakdown Preview - only for budgeted expenses */}
+            {transactionType === 'expense' &&
+              previewSafe > 0 &&
+              !isOriginallyExceptional &&
+              watchedBudgetId &&
+              transaction && (
+                <ExpenseBreakdownPreview
+                  amount={previewSafe}
+                  budgetId={String(watchedBudgetId)}
+                  context={context}
+                  expenseId={transaction.id}
+                />
+              )}
+
+            {/* Server-side error */}
+            {serverError && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{serverError}</p>
+              </div>
             )}
           </div>
-
-          {/* Expense Breakdown Preview - only for budgeted expenses */}
-          {transactionType === 'expense' &&
-            previewSafe > 0 &&
-            !isOriginallyExceptional &&
-            watchedBudgetId &&
-            transaction && (
-              <ExpenseBreakdownPreview
-                amount={previewSafe}
-                budgetId={String(watchedBudgetId)}
-                context={context}
-                expenseId={transaction.id}
-              />
-            )}
-
-          {/* Server-side error */}
-          {serverError && (
-            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{serverError}</p>
-            </div>
-          )}
 
           {/* Actions */}
-          <div className="flex space-x-3 pt-4">
+          <div className="flex shrink-0 space-x-3 border-t border-gray-200 px-6 py-4">
             <Button
               type="button"
               variant="outline"

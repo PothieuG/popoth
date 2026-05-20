@@ -142,8 +142,8 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
     const amount = screen.getByLabelText(/montant/i)
     await user.clear(amount)
     await user.type(amount, '50')
-    // Go back to Step 2
-    await user.click(screen.getByRole('button', { name: /^Retour$/i }))
+    // Go back to Step 2 (back button is icon-only with aria-label)
+    await user.click(screen.getByRole('button', { name: /retour à l'étape précédente/i }))
     expect(screen.getByRole('button', { name: /Budgétée/i })).toBeInTheDocument()
     // Forward again → description + amount preserved
     await user.click(screen.getByRole('button', { name: /Budgétée/i }))

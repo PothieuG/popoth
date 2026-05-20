@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
@@ -92,12 +94,9 @@ export default function GroupMembersWithContributionsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="flex h-[80vh] max-h-[80vh] flex-col gap-0 overflow-hidden rounded-lg border-0 p-0 shadow-xl sm:max-w-2xl sm:rounded-lg"
-      >
+      <DialogContent hideCloseButton className={cn(MODAL_CONTENT_CLASSES, 'sm:max-w-2xl')}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 p-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
             <DialogTitle asChild>
               <h2 className="text-lg font-semibold text-gray-900">Membres et contributions</h2>
@@ -108,7 +107,7 @@ export default function GroupMembersWithContributionsModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="min-h-0 flex-auto overflow-y-auto px-6 py-4">
           {isLoading ? (
             /* Loading State */
             <div className="py-8 text-center">
@@ -268,7 +267,7 @@ export default function GroupMembersWithContributionsModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-6">
+        <div className="shrink-0 border-t border-gray-200 px-6 py-4">
           <Button onClick={onClose} className="w-full" variant="outline">
             Fermer
           </Button>

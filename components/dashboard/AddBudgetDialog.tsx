@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
@@ -102,12 +103,9 @@ export default function AddBudgetDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="overflow-hidden rounded-2xl border-0 p-0 shadow-2xl sm:max-w-md sm:rounded-2xl"
-      >
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
         {/* Header */}
-        <div className="border-b border-gray-200 p-6">
+        <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
@@ -140,150 +138,167 @@ export default function AddBudgetDialog({
         {/* Form */}
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-          className="space-y-4 p-6"
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          {/* Nom du budget */}
-          <div>
-            <label
-              htmlFor="add-budget-name"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Nom du budget <span className="text-red-500">*</span>
-            </label>
-            <Input
-              id="add-budget-name"
-              type="text"
-              {...form.register('name')}
-              placeholder="Ex: Alimentation, Transport, Loisirs..."
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.name ? 'true' : 'false'}
-              aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
-              className={cn(
-                'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
-                fieldErrors.name
-                  ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
-                  : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
-              )}
-            />
-            {fieldErrors.name && (
-              <p id="add-budget-name-error" className="mt-1 flex items-center text-sm text-red-600">
-                <svg className="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {fieldErrors.name.message}
-              </p>
-            )}
-          </div>
-
-          {/* Montant estimé */}
-          <div>
-            <label
-              htmlFor="add-budget-amount"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Montant estimé mensuel <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <DecimalFormInput
-                control={form.control}
-                name="estimatedAmount"
-                id="add-budget-amount"
-                placeholder="0.00"
-                ariaInvalid={!!fieldErrors.estimatedAmount}
-                ariaDescribedby={
-                  fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
-                }
+          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+            {/* Nom du budget */}
+            <div>
+              <label
+                htmlFor="add-budget-name"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Nom du budget <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="add-budget-name"
+                type="text"
+                {...form.register('name')}
+                placeholder="Ex: Alimentation, Transport, Loisirs..."
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
                 className={cn(
-                  'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
-                  fieldErrors.estimatedAmount
+                  'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                  fieldErrors.name
                     ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
                     : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
                 )}
               />
-              <span className="absolute top-3.5 right-4 text-sm font-medium text-gray-500">€</span>
-            </div>
-            {fieldErrors.estimatedAmount && (
-              <p
-                id="add-budget-amount-error"
-                className="mt-1 flex items-center text-sm text-red-600"
-              >
-                <svg className="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {fieldErrors.estimatedAmount.message}
-              </p>
-            )}
-          </div>
-
-          {/* Calcul en temps réel */}
-          {showPreview && (
-            <div
-              className={cn(
-                'rounded-xl border p-4',
-                willBeNegative ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50',
+              {fieldErrors.name && (
+                <p
+                  id="add-budget-name-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {fieldErrors.name.message}
+                </p>
               )}
-            >
-              <h4
+            </div>
+
+            {/* Montant estimé */}
+            <div>
+              <label
+                htmlFor="add-budget-amount"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Montant estimé mensuel <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <DecimalFormInput
+                  control={form.control}
+                  name="estimatedAmount"
+                  id="add-budget-amount"
+                  placeholder="0.00"
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
+                  }
+                  className={cn(
+                    'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                    fieldErrors.estimatedAmount
+                      ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                      : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
+                  )}
+                />
+                <span className="absolute top-3.5 right-4 text-sm font-medium text-gray-500">
+                  €
+                </span>
+              </div>
+              {fieldErrors.estimatedAmount && (
+                <p
+                  id="add-budget-amount-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  {fieldErrors.estimatedAmount.message}
+                </p>
+              )}
+            </div>
+
+            {/* Calcul en temps réel */}
+            {showPreview && (
+              <div
                 className={cn(
-                  'mb-2 font-semibold',
-                  willBeNegative ? 'text-red-900' : 'text-orange-900',
+                  'rounded-xl border p-4',
+                  willBeNegative ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50',
                 )}
               >
-                Calcul de la balance
-              </h4>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Revenus estimés totaux:</span>
-                  <span className="font-medium text-green-700">
-                    {formatAmount(totalEstimatedIncome)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Budgets actuels:</span>
-                  <span className="font-medium text-orange-700">
-                    {formatAmount(currentBudgetsTotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ce nouveau budget:</span>
-                  <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
-                </div>
-                <div className="mt-2 border-t border-gray-300 pt-1">
-                  <div className="flex justify-between font-bold">
-                    <span className={willBeNegative ? 'text-red-900' : 'text-gray-900'}>
-                      Balance résultante:
+                <h4
+                  className={cn(
+                    'mb-2 font-semibold',
+                    willBeNegative ? 'text-red-900' : 'text-orange-900',
+                  )}
+                >
+                  Calcul de la balance
+                </h4>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Revenus estimés totaux:</span>
+                    <span className="font-medium text-green-700">
+                      {formatAmount(totalEstimatedIncome)}
                     </span>
-                    <span
-                      className={cn(
-                        'font-bold',
-                        willBeNegative
-                          ? 'text-red-700'
-                          : resultingBalance > 0
-                            ? 'text-green-700'
-                            : 'text-gray-700',
-                      )}
-                    >
-                      {formatAmount(resultingBalance)}
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Budgets actuels:</span>
+                    <span className="font-medium text-orange-700">
+                      {formatAmount(currentBudgetsTotal)}
                     </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Ce nouveau budget:</span>
+                    <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
+                  </div>
+                  <div className="mt-2 border-t border-gray-300 pt-1">
+                    <div className="flex justify-between font-bold">
+                      <span className={willBeNegative ? 'text-red-900' : 'text-gray-900'}>
+                        Balance résultante:
+                      </span>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          willBeNegative
+                            ? 'text-red-700'
+                            : resultingBalance > 0
+                              ? 'text-green-700'
+                              : 'text-gray-700',
+                        )}
+                      >
+                        {formatAmount(resultingBalance)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Actions */}
-          <div className="-mx-6 mt-6 -mb-6 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-6 py-4">
+          <div className="shrink-0 border-t border-gray-200 px-6 py-4">
             <div className="flex space-x-3">
               <button
                 type="button"

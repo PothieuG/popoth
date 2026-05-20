@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 
 interface BudgetStat {
@@ -639,17 +640,17 @@ export default function MonthlyRecapStep2({
 
       {/* Modal de transfert/récupération */}
       <Dialog open={isTransferModalOpen} onOpenChange={setIsTransferModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className={MODAL_CONTENT_CLASSES}>
+          <div className="shrink-0 border-b border-gray-200 px-6 py-4">
             <DialogTitle>
               {(selectedFromBudget?.surplus ?? 0) > 0
                 ? 'Transférer des économies'
                 : 'Récupérer des fonds'}
             </DialogTitle>
-          </DialogHeader>
+          </div>
 
           {selectedFromBudget && (
-            <div className="space-y-4">
+            <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
               {selectedFromBudget.surplus > 0 ? (
                 // Mode transfert (budget avec surplus)
                 <>
@@ -758,41 +759,43 @@ export default function MonthlyRecapStep2({
                   </p>
                 </div>
               )}
+            </div>
+          )}
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsTransferModalOpen(false)}
-                  disabled={isProcessing}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleTransferSubmit}
-                  disabled={
-                    !selectedToBudget ||
-                    !transferAmount ||
-                    isProcessing ||
-                    !!(computedValidationError || validationError)
-                  }
-                  className={`text-white ${
-                    !selectedToBudget ||
-                    !transferAmount ||
-                    isProcessing ||
-                    !!(computedValidationError || validationError)
-                      ? 'cursor-not-allowed bg-gray-400'
-                      : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                >
-                  {isProcessing
-                    ? selectedFromBudget.surplus > 0
-                      ? 'Transfert...'
-                      : 'Récupération...'
-                    : selectedFromBudget.surplus > 0
-                      ? 'Confirmer'
-                      : 'Récupérer'}
-                </Button>
-              </div>
+          {selectedFromBudget && (
+            <div className="flex shrink-0 justify-end space-x-2 border-t border-gray-200 px-6 py-4">
+              <Button
+                variant="outline"
+                onClick={() => setIsTransferModalOpen(false)}
+                disabled={isProcessing}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleTransferSubmit}
+                disabled={
+                  !selectedToBudget ||
+                  !transferAmount ||
+                  isProcessing ||
+                  !!(computedValidationError || validationError)
+                }
+                className={`text-white ${
+                  !selectedToBudget ||
+                  !transferAmount ||
+                  isProcessing ||
+                  !!(computedValidationError || validationError)
+                    ? 'cursor-not-allowed bg-gray-400'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {isProcessing
+                  ? selectedFromBudget.surplus > 0
+                    ? 'Transfert...'
+                    : 'Récupération...'
+                  : selectedFromBudget.surplus > 0
+                    ? 'Confirmer'
+                    : 'Récupérer'}
+              </Button>
             </div>
           )}
         </DialogContent>

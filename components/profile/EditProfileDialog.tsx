@@ -3,13 +3,8 @@
 import { useState } from 'react'
 import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,10 +89,11 @@ export default function EditProfileDialog({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className="mx-4 sm:max-w-md"
+        className={MODAL_CONTENT_CLASSES}
         aria-describedby="edit-profile-dialog-description"
       >
-        <DialogHeader>
+        {/* Header */}
+        <div className="shrink-0 space-y-1.5 border-b border-gray-200 px-6 py-4">
           <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
             <User className="h-6 w-6 text-blue-600" />
             Modifier le profil
@@ -105,66 +101,70 @@ export default function EditProfileDialog({
           <DialogDescription id="edit-profile-dialog-description" className="text-gray-600">
             Modifiez votre prénom et votre nom de famille.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-          className="space-y-4"
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
-          {/* Prénom */}
-          <div className="space-y-2">
-            <Label htmlFor="editFirstName" className="text-sm font-medium">
-              Prénom *
-            </Label>
-            <Input
-              id="editFirstName"
-              type="text"
-              {...form.register('first_name')}
-              placeholder="Votre prénom"
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.first_name ? 'true' : 'false'}
-              aria-describedby={fieldErrors.first_name ? 'edit-first-name-error' : undefined}
-              className={fieldErrors.first_name ? 'border-red-500 focus:ring-red-500' : ''}
-            />
-            {fieldErrors.first_name && (
-              <p id="edit-first-name-error" className="text-sm text-red-600">
-                {fieldErrors.first_name.message}
-              </p>
-            )}
-          </div>
-
-          {/* Nom */}
-          <div className="space-y-2">
-            <Label htmlFor="editLastName" className="text-sm font-medium">
-              Nom *
-            </Label>
-            <Input
-              id="editLastName"
-              type="text"
-              {...form.register('last_name')}
-              placeholder="Votre nom de famille"
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.last_name ? 'true' : 'false'}
-              aria-describedby={fieldErrors.last_name ? 'edit-last-name-error' : undefined}
-              className={fieldErrors.last_name ? 'border-red-500 focus:ring-red-500' : ''}
-            />
-            {fieldErrors.last_name && (
-              <p id="edit-last-name-error" className="text-sm text-red-600">
-                {fieldErrors.last_name.message}
-              </p>
-            )}
-          </div>
-
-          {/* Erreur générale */}
-          {serverError && (
-            <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{serverError}</p>
+          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+            {/* Prénom */}
+            <div className="space-y-2">
+              <Label htmlFor="editFirstName" className="text-sm font-medium">
+                Prénom *
+              </Label>
+              <Input
+                id="editFirstName"
+                type="text"
+                {...form.register('first_name')}
+                placeholder="Votre prénom"
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.first_name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.first_name ? 'edit-first-name-error' : undefined}
+                className={fieldErrors.first_name ? 'border-red-500 focus:ring-red-500' : ''}
+              />
+              {fieldErrors.first_name && (
+                <p id="edit-first-name-error" className="text-sm text-red-600">
+                  {fieldErrors.first_name.message}
+                </p>
+              )}
             </div>
-          )}
+
+            {/* Nom */}
+            <div className="space-y-2">
+              <Label htmlFor="editLastName" className="text-sm font-medium">
+                Nom *
+              </Label>
+              <Input
+                id="editLastName"
+                type="text"
+                {...form.register('last_name')}
+                placeholder="Votre nom de famille"
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.last_name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.last_name ? 'edit-last-name-error' : undefined}
+                className={fieldErrors.last_name ? 'border-red-500 focus:ring-red-500' : ''}
+              />
+              {fieldErrors.last_name && (
+                <p id="edit-last-name-error" className="text-sm text-red-600">
+                  {fieldErrors.last_name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Erreur générale */}
+            {serverError && (
+              <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{serverError}</p>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500">* Champs obligatoires</p>
+          </div>
 
           {/* Boutons d'action */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-6 py-4">
             <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
               Annuler
             </Button>
@@ -184,8 +184,6 @@ export default function EditProfileDialog({
             </Button>
           </div>
         </form>
-
-        <p className="mt-4 text-xs text-gray-500">* Champs obligatoires</p>
       </DialogContent>
     </Dialog>
   )

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -82,6 +83,10 @@ export default function AddTransactionModal({
 }: AddTransactionModalProps) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [wizardStep, setWizardStep] = useState<WizardStep>('select-type')
+  // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
+  // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
+  // `setWizardStep` so the new step renders with the matching animate-in class.
+  const [stepAnimDir, setStepAnimDir] = useState<'forward' | 'backward'>('forward')
   const [useSavings, setUseSavings] = useState(false)
   // P4 Phase 2 — ordered list of budget IDs the user selected to source
   // cross-budget savings from. Drained first-fit in selection order to
@@ -247,6 +252,7 @@ export default function AddTransactionModal({
    */
   const handleSelectType = (newType: TransactionType) => {
     const current = form.getValues()
+    setStepAnimDir('forward')
     if (newType === 'expense') {
       form.reset({
         transactionType: 'expense',
@@ -283,6 +289,7 @@ export default function AddTransactionModal({
       form.setValue('estimated_budget_id', null)
       setUseSavings(false)
     }
+    setStepAnimDir('forward')
     setWizardStep('fields')
   }
 
@@ -290,6 +297,7 @@ export default function AddTransactionModal({
    * Back navigation: returns to previous step preserving form values.
    */
   const handleBack = () => {
+    setStepAnimDir('backward')
     if (wizardStep === 'fields') {
       // Income flow goes back to select-type ; expense flow goes back to select-expense-kind
       setWizardStep(transactionType === 'expense' ? 'select-expense-kind' : 'select-type')
@@ -398,21 +406,58 @@ export default function AddTransactionModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="flex max-h-[80vh] flex-col gap-0 overflow-hidden rounded-xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-xl"
-      >
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-6">
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header — iOS-like: back button (top-left) + centered title + close */}
+        <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+          {wizardStep === 'select-type' ? (
+            <div className="h-9 w-9 shrink-0" />
+          ) : (
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={isSubmitting}
+              aria-label="Retour à l'étape précédente"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+          )}
           <DialogTitle asChild>
-            <h2 className="text-xl font-semibold text-gray-900">{stepTitle}</h2>
+            <h2 className="flex-1 text-center text-base font-semibold text-gray-900">
+              {stepTitle}
+            </h2>
           </DialogTitle>
-          <ModalCloseX onClose={handleClose} disabled={isSubmitting} variant="ghost" />
+          <ModalCloseX
+            onClose={handleClose}
+            disabled={isSubmitting}
+            variant="ghost"
+            className="h-9 w-9"
+          />
         </div>
 
         {/* Step 1: select transaction type */}
         {wizardStep === 'select-type' && (
-          <div className="flex-1 space-y-4 overflow-y-auto p-6">
+          <div
+            key="step-select-type"
+            className={cn(
+              'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          >
             <p className="text-sm text-gray-600">Choisissez le type de transaction à ajouter.</p>
             <div className="flex flex-col space-y-3">
               <button
@@ -498,29 +543,14 @@ export default function AddTransactionModal({
 
         {/* Step 2: select expense kind (budgeted vs exceptional) */}
         {wizardStep === 'select-expense-kind' && (
-          <div className="flex-1 space-y-4 overflow-y-auto p-6">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-900"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              <span>Retour</span>
-            </button>
-
+          <div
+            key="step-select-expense-kind"
+            className={cn(
+              'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          >
             <p className="text-sm text-gray-600">
               La dépense est-elle rattachée à un budget existant ?
             </p>
@@ -585,354 +615,340 @@ export default function AddTransactionModal({
         {/* Step 3: fields */}
         {wizardStep === 'fields' && (
           <form
+            key="step-fields"
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
-            className="flex-1 space-y-6 overflow-y-auto p-6"
+            className={cn(
+              'flex min-h-0 flex-auto flex-col overflow-hidden',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
             noValidate
           >
-            <button
-              type="button"
-              onClick={handleBack}
-              disabled={isSubmitting}
-              className="flex items-center space-x-1 text-sm text-gray-600 hover:text-gray-900 disabled:opacity-50"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              <span>Retour</span>
-            </button>
-
-            {/* Summary chip: type + kind (for context) */}
-            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-xs">
-              <span
-                className={cn(
-                  'rounded-full px-2 py-0.5 font-medium',
-                  transactionType === 'expense'
-                    ? 'bg-red-100 text-red-700'
-                    : 'bg-green-100 text-green-700',
-                )}
-              >
-                {transactionType === 'expense' ? 'Dépense' : 'Revenu'}
-              </span>
-              {transactionType === 'expense' && (
+            <div className="min-h-0 flex-auto space-y-6 overflow-y-auto px-6 py-4">
+              {/* Summary chip: type + kind (for context) */}
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-xs">
                 <span
                   className={cn(
                     'rounded-full px-2 py-0.5 font-medium',
-                    isExceptional ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700',
+                    transactionType === 'expense'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-green-100 text-green-700',
                   )}
                 >
-                  {isExceptional ? 'Exceptionnelle' : 'Budgétée'}
+                  {transactionType === 'expense' ? 'Dépense' : 'Revenu'}
                 </span>
-              )}
-            </div>
-
-            {/* Budget/Income Selection - Only shown if not exceptional */}
-            {!isExceptional && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-900">
-                  {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                  <span className="ml-1 text-red-500">*</span>
-                </Label>
-                {transactionType === 'expense' ? (
-                  <Controller
-                    control={form.control}
-                    name="estimated_budget_id"
-                    render={({ field }) => (
-                      <CustomDropdown
-                        options={budgetOptions}
-                        value={field.value ?? ''}
-                        onChange={(value) => field.onChange(value || null)}
-                        placeholder="Sélectionner un budget"
-                        required={!isExceptional}
-                      />
+                {transactionType === 'expense' && (
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 font-medium',
+                      isExceptional ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700',
                     )}
-                  />
-                ) : (
-                  <Controller
-                    control={form.control}
-                    name="estimated_income_id"
-                    render={({ field }) => (
-                      <CustomDropdown
-                        options={incomeOptions}
-                        value={field.value ?? ''}
-                        onChange={(value) => field.onChange(value || null)}
-                        placeholder="Sélectionner un revenu estimé"
-                        required={!isExceptional}
-                      />
-                    )}
-                  />
+                  >
+                    {isExceptional ? 'Exceptionnelle' : 'Budgétée'}
+                  </span>
                 )}
-                {fkError && (
-                  <p id="add-transaction-fk-error" className="text-sm text-red-600">
-                    {fkError.message}
+              </div>
+
+              {/* Budget/Income Selection - Only shown if not exceptional */}
+              {!isExceptional && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-900">
+                    {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
+                    <span className="ml-1 text-red-500">*</span>
+                  </Label>
+                  {transactionType === 'expense' ? (
+                    <Controller
+                      control={form.control}
+                      name="estimated_budget_id"
+                      render={({ field }) => (
+                        <CustomDropdown
+                          options={budgetOptions}
+                          value={field.value ?? ''}
+                          onChange={(value) => field.onChange(value || null)}
+                          placeholder="Sélectionner un budget"
+                          required={!isExceptional}
+                        />
+                      )}
+                    />
+                  ) : (
+                    <Controller
+                      control={form.control}
+                      name="estimated_income_id"
+                      render={({ field }) => (
+                        <CustomDropdown
+                          options={incomeOptions}
+                          value={field.value ?? ''}
+                          onChange={(value) => field.onChange(value || null)}
+                          placeholder="Sélectionner un revenu estimé"
+                          required={!isExceptional}
+                        />
+                      )}
+                    />
+                  )}
+                  {fkError && (
+                    <p id="add-transaction-fk-error" className="text-sm text-red-600">
+                      {fkError.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label htmlFor="description" className="text-sm font-medium text-gray-900">
+                  Description <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="description"
+                  type="text"
+                  {...form.register('description')}
+                  placeholder={
+                    transactionType === 'expense'
+                      ? 'Ex: Achat de chaussures'
+                      : 'Ex: Salaire mensuel'
+                  }
+                  aria-invalid={fieldErrors.description ? 'true' : 'false'}
+                  aria-describedby={
+                    fieldErrors.description ? 'add-transaction-description-error' : undefined
+                  }
+                  className="w-full"
+                />
+                {fieldErrors.description && (
+                  <p id="add-transaction-description-error" className="text-sm text-red-600">
+                    {fieldErrors.description.message}
                   </p>
                 )}
               </div>
-            )}
 
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm font-medium text-gray-900">
-                Description <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="description"
-                type="text"
-                {...form.register('description')}
-                placeholder={
-                  transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
-                }
-                aria-invalid={fieldErrors.description ? 'true' : 'false'}
-                aria-describedby={
-                  fieldErrors.description ? 'add-transaction-description-error' : undefined
-                }
-                className="w-full"
-              />
-              {fieldErrors.description && (
-                <p id="add-transaction-description-error" className="text-sm text-red-600">
-                  {fieldErrors.description.message}
-                </p>
-              )}
-            </div>
-
-            {/* Amount */}
-            <div className="space-y-2">
-              <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
-                Montant (€) <span className="text-red-500">*</span>
-              </Label>
-              <DecimalFormInput
-                control={form.control}
-                name="amount"
-                id="amount"
-                placeholder="0.00"
-                className="w-full"
-                ariaInvalid={!!fieldErrors.amount}
-                ariaDescribedby={fieldErrors.amount ? 'add-transaction-amount-error' : undefined}
-              />
-              {fieldErrors.amount && (
-                <p id="add-transaction-amount-error" className="text-sm text-red-600">
-                  {fieldErrors.amount.message}
-                </p>
-              )}
-            </div>
-
-            {/* Date */}
-            <div className="space-y-2">
-              <Label htmlFor="date" className="text-sm font-medium text-gray-900">
-                Date <span className="text-red-500">*</span>
-              </Label>
-              <div className="relative">
-                {transactionType === 'expense' ? (
-                  <Input
-                    id="date"
-                    type="date"
-                    {...form.register('expense_date')}
-                    aria-invalid={dateError ? 'true' : 'false'}
-                    aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
-                    className="w-full pl-10"
-                  />
-                ) : (
-                  <Input
-                    id="date"
-                    type="date"
-                    {...form.register('entry_date')}
-                    aria-invalid={dateError ? 'true' : 'false'}
-                    aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
-                    className="w-full pl-10"
-                  />
+              {/* Amount */}
+              <div className="space-y-2">
+                <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
+                  Montant (€) <span className="text-red-500">*</span>
+                </Label>
+                <DecimalFormInput
+                  control={form.control}
+                  name="amount"
+                  id="amount"
+                  placeholder="0.00"
+                  className="w-full"
+                  ariaInvalid={!!fieldErrors.amount}
+                  ariaDescribedby={fieldErrors.amount ? 'add-transaction-amount-error' : undefined}
+                />
+                {fieldErrors.amount && (
+                  <p id="add-transaction-amount-error" className="text-sm text-red-600">
+                    {fieldErrors.amount.message}
+                  </p>
                 )}
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                  <svg
-                    className="h-4 w-4 text-gray-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
               </div>
-              {dateError && (
-                <p id="add-transaction-date-error" className="text-sm text-red-600">
-                  {dateError.message}
-                </p>
-              )}
-            </div>
 
-            {/* P5: "Utiliser les économies" toggle — only for budgeted expense
-                with a selected budget that has savings */}
-            {transactionType === 'expense' &&
-              !isExceptional &&
-              budgetId &&
-              savingsAvailable > 0 && (
-                <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                  <div className="flex items-start space-x-3">
-                    <input
-                      type="checkbox"
-                      id="use-savings"
-                      checked={useSavings}
-                      onChange={(e) => setUseSavings(e.target.checked)}
-                      disabled={isSubmitting}
-                      className="mt-1 h-4 w-4 rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
+              {/* Date */}
+              <div className="space-y-2">
+                <Label htmlFor="date" className="text-sm font-medium text-gray-900">
+                  Date <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  {transactionType === 'expense' ? (
+                    <Input
+                      id="date"
+                      type="date"
+                      {...form.register('expense_date')}
+                      aria-invalid={dateError ? 'true' : 'false'}
+                      aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
+                      className="w-full pl-10"
                     />
-                    <div className="flex-1">
-                      <Label
-                        htmlFor="use-savings"
-                        className="cursor-pointer text-sm font-medium text-purple-900"
-                      >
-                        Utiliser les économies de ce budget
-                      </Label>
-                      <p className="mt-0.5 text-xs text-purple-700">
-                        {savingsAvailable.toLocaleString('fr-FR', {
-                          style: 'currency',
-                          currency: 'EUR',
-                        })}{' '}
-                        disponibles. Activer pour puiser dans les économies avant le budget.
-                      </p>
-                    </div>
+                  ) : (
+                    <Input
+                      id="date"
+                      type="date"
+                      {...form.register('entry_date')}
+                      aria-invalid={dateError ? 'true' : 'false'}
+                      aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
+                      className="w-full pl-10"
+                    />
+                  )}
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg
+                      className="h-4 w-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
                   </div>
                 </div>
-              )}
-
-            {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
-            {overflow > 0 && availableCrossBudgets.length > 0 && (
-              <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-sm font-medium text-orange-900">
-                    Dépassement de{' '}
-                    {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                {dateError && (
+                  <p id="add-transaction-date-error" className="text-sm text-red-600">
+                    {dateError.message}
                   </p>
-                  <button
-                    type="button"
-                    onClick={resetCrossBudget}
-                    disabled={isSubmitting || crossBudgetSelected.length === 0}
-                    className="text-xs text-orange-700 underline disabled:opacity-50"
-                  >
-                    Réinitialiser
-                  </button>
-                </div>
-                <p className="text-xs text-orange-800">
-                  Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
-                  dépassement.
-                </p>
-                <ul className="space-y-2">
-                  {availableCrossBudgets.map((b) => {
-                    const isSelected = crossBudgetSelected.includes(b.id)
-                    const savings = b.cumulated_savings ?? 0
-                    return (
-                      <li key={b.id}>
-                        <button
-                          type="button"
-                          onClick={() => toggleCrossBudget(b.id)}
-                          disabled={isSubmitting}
-                          className={cn(
-                            'flex w-full items-center justify-between rounded-md border p-2 text-left text-sm transition-all disabled:opacity-50',
-                            isSelected
-                              ? 'border-orange-400 bg-orange-100 text-orange-900'
-                              : 'border-orange-200 bg-white hover:bg-orange-50',
-                          )}
-                          aria-pressed={isSelected}
+                )}
+              </div>
+
+              {/* P5: "Utiliser les économies" toggle — only for budgeted expense
+                with a selected budget that has savings */}
+              {transactionType === 'expense' &&
+                !isExceptional &&
+                budgetId &&
+                savingsAvailable > 0 && (
+                  <div className="space-y-2 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                    <div className="flex items-start space-x-3">
+                      <input
+                        type="checkbox"
+                        id="use-savings"
+                        checked={useSavings}
+                        onChange={(e) => setUseSavings(e.target.checked)}
+                        disabled={isSubmitting}
+                        className="mt-1 h-4 w-4 rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
+                      />
+                      <div className="flex-1">
+                        <Label
+                          htmlFor="use-savings"
+                          className="cursor-pointer text-sm font-medium text-purple-900"
                         >
-                          <span>
-                            <span className="font-medium">{b.name}</span>
-                            <span className="ml-2 text-xs text-orange-700">
-                              (
-                              {savings.toLocaleString('fr-FR', {
-                                style: 'currency',
-                                currency: 'EUR',
-                              })}{' '}
-                              dispo)
+                          Utiliser les économies de ce budget
+                        </Label>
+                        <p className="mt-0.5 text-xs text-purple-700">
+                          {savingsAvailable.toLocaleString('fr-FR', {
+                            style: 'currency',
+                            currency: 'EUR',
+                          })}{' '}
+                          disponibles. Activer pour puiser dans les économies avant le budget.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
+              {overflow > 0 && availableCrossBudgets.length > 0 && (
+                <div className="space-y-3 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-orange-900">
+                      Dépassement de{' '}
+                      {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetCrossBudget}
+                      disabled={isSubmitting || crossBudgetSelected.length === 0}
+                      className="text-xs text-orange-700 underline disabled:opacity-50"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                  <p className="text-xs text-orange-800">
+                    Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
+                    dépassement.
+                  </p>
+                  <ul className="space-y-2">
+                    {availableCrossBudgets.map((b) => {
+                      const isSelected = crossBudgetSelected.includes(b.id)
+                      const savings = b.cumulated_savings ?? 0
+                      return (
+                        <li key={b.id}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCrossBudget(b.id)}
+                            disabled={isSubmitting}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-md border p-2 text-left text-sm transition-all disabled:opacity-50',
+                              isSelected
+                                ? 'border-orange-400 bg-orange-100 text-orange-900'
+                                : 'border-orange-200 bg-white hover:bg-orange-50',
+                            )}
+                            aria-pressed={isSelected}
+                          >
+                            <span>
+                              <span className="font-medium">{b.name}</span>
+                              <span className="ml-2 text-xs text-orange-700">
+                                (
+                                {savings.toLocaleString('fr-FR', {
+                                  style: 'currency',
+                                  currency: 'EUR',
+                                })}{' '}
+                                dispo)
+                              </span>
                             </span>
-                          </span>
-                          {isSelected && (
-                            <span className="text-xs font-medium text-orange-700">✓</span>
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-                <div className="flex items-center justify-between rounded bg-white/60 p-2 text-xs">
-                  <span className="text-orange-900">
-                    Couvert :{' '}
-                    {crossBudgetTotal.toLocaleString('fr-FR', {
-                      style: 'currency',
-                      currency: 'EUR',
+                            {isSelected && (
+                              <span className="text-xs font-medium text-orange-700">✓</span>
+                            )}
+                          </button>
+                        </li>
+                      )
                     })}
-                  </span>
-                  {remainingOvershoot > 0 && (
-                    <span className="font-medium text-red-700">
-                      Reste à découvert :{' '}
-                      {remainingOvershoot.toLocaleString('fr-FR', {
+                  </ul>
+                  <div className="flex items-center justify-between rounded bg-white/60 p-2 text-xs">
+                    <span className="text-orange-900">
+                      Couvert :{' '}
+                      {crossBudgetTotal.toLocaleString('fr-FR', {
                         style: 'currency',
                         currency: 'EUR',
                       })}
                     </span>
-                  )}
+                    {remainingOvershoot > 0 && (
+                      <span className="font-medium text-red-700">
+                        Reste à découvert :{' '}
+                        {remainingOvershoot.toLocaleString('fr-FR', {
+                          style: 'currency',
+                          currency: 'EUR',
+                        })}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Preview for expenses - show breakdown */}
-            {previewSafe > 0 && transactionType === 'expense' && !isExceptional && budgetId && (
-              <ExpenseBreakdownPreview
-                amount={previewSafe}
-                budgetId={budgetId}
-                context={context}
-                useSavings={useSavings}
-              />
-            )}
+              {/* Preview for expenses - show breakdown */}
+              {previewSafe > 0 && transactionType === 'expense' && !isExceptional && budgetId && (
+                <ExpenseBreakdownPreview
+                  amount={previewSafe}
+                  budgetId={budgetId}
+                  context={context}
+                  useSavings={useSavings}
+                />
+              )}
 
-            {/* Preview for incomes or exceptional expenses - show remaining to live */}
-            {previewSafe > 0 && (transactionType === 'income' || isExceptional) && (
-              <RemainingToLivePreview
-                amount={previewSafe}
-                type={transactionType}
-                isExceptional={isExceptional}
-                selectedId={transactionType === 'expense' ? budgetId : incomeId}
-                context={context}
-              />
-            )}
+              {/* Preview for incomes or exceptional expenses - show remaining to live */}
+              {previewSafe > 0 && (transactionType === 'income' || isExceptional) && (
+                <RemainingToLivePreview
+                  amount={previewSafe}
+                  type={transactionType}
+                  isExceptional={isExceptional}
+                  selectedId={transactionType === 'expense' ? budgetId : incomeId}
+                  context={context}
+                />
+              )}
 
-            {/* RAV Negative Warning */}
-            {ravValidation.blocked && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-700">
-                  Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies)
-                  deviendrait négatif (
-                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
-                    ravValidation.newRav,
-                  )}
-                  ). Réduisez le montant de la dépense.
-                </p>
-              </div>
-            )}
+              {/* RAV Negative Warning */}
+              {ravValidation.blocked && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-700">
+                    Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies)
+                    deviendrait négatif (
+                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
+                      ravValidation.newRav,
+                    )}
+                    ). Réduisez le montant de la dépense.
+                  </p>
+                </div>
+              )}
 
-            {/* Server-side error */}
-            {serverError && (
-              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-700">{serverError}</p>
-              </div>
-            )}
+              {/* Server-side error */}
+              {serverError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-700">{serverError}</p>
+                </div>
+              )}
+            </div>
 
             {/* Actions */}
-            <div className="flex space-x-3 pt-4">
+            <div className="flex shrink-0 space-x-3 border-t border-gray-200 px-6 py-4">
               <Button
                 type="button"
                 variant="outline"

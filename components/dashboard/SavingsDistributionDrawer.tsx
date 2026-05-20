@@ -4,12 +4,25 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
+
+/**
+ * Wizard step for the nested transfer modal (Sprint Modal-Uniformize 2026-05-21).
+ * - `'select-destination'`: choose Tirelire vs Autre budget (always first step)
+ * - `'fields'`: amount input + (if Autre budget) destination dropdown
+ *
+ * Mirror of [AddTransactionModal](./AddTransactionModal.tsx)'s wizard pattern :
+ * step 1 always selects a discrete option, step 2 collects the variable fields.
+ * Form state preserved across step transitions ; back navigation resets the
+ * destination selection so the dropdown doesn't show with stale data.
+ */
+type TransferWizardStep = 'select-destination' | 'fields'
 
 interface BudgetSavings {
   id: string
@@ -60,6 +73,10 @@ export default function SavingsDistributionDrawer({
   onSavingsChange,
 }: SavingsDistributionDrawerProps) {
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+  const [transferWizardStep, setTransferWizardStep] =
+    useState<TransferWizardStep>('select-destination')
+  // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
+  const [stepAnimDir, setStepAnimDir] = useState<'forward' | 'backward'>('forward')
   const [selectedFromBudget, setSelectedFromBudget] = useState<BudgetSavings | null>(null)
   const [selectedToBudget, setSelectedToBudget] = useState<string>('')
   const [transferAmount, setTransferAmount] = useState<string>('')
@@ -113,7 +130,38 @@ export default function SavingsDistributionDrawer({
     setTransferAmount('')
     setTransferDestinationType(null)
     setValidationError('')
+    setStepAnimDir('forward')
+    setTransferWizardStep('select-destination')
     setIsTransferModalOpen(true)
+  }
+
+  /**
+   * Step 1: handle destination type selection. Sets the destination + navigates
+   * to step 2. Mirror of [AddTransactionModal](./AddTransactionModal.tsx)'s
+   * `handleSelectType` (Sprint Modal-Uniformize 2026-05-21).
+   */
+  const handleSelectTransferDestination = (type: 'piggy_bank' | 'budget') => {
+    setTransferDestinationType(type)
+    if (type === 'piggy_bank') {
+      // Tirelire is a singleton destination — clear stale budget selection.
+      setSelectedToBudget('')
+    }
+    setValidationError('')
+    setStepAnimDir('forward')
+    setTransferWizardStep('fields')
+  }
+
+  /**
+   * Back navigation: returns to destination selection. Preserves amount typed
+   * so the user doesn't lose data when switching destinations.
+   */
+  const handleTransferBack = () => {
+    setStepAnimDir('backward')
+    setTransferWizardStep('select-destination')
+    // Reset destination selection — picking it again drives the next step.
+    setTransferDestinationType(null)
+    setSelectedToBudget('')
+    setValidationError('')
   }
 
   const handleTransferSubmit = async () => {
@@ -155,6 +203,7 @@ export default function SavingsDistributionDrawer({
 
       // Fermer la modale et réinitialiser
       setIsTransferModalOpen(false)
+      setTransferWizardStep('select-destination')
       setSelectedFromBudget(null)
       setSelectedToBudget('')
       setTransferAmount('')
@@ -331,7 +380,7 @@ export default function SavingsDistributionDrawer({
                             Budget: {formatCurrency(budget.estimated_amount)}
                           </div>
                           <div className="mt-1 text-lg font-bold text-green-600">
-                            {formatCurrency(budget.cumulated_savings || 0)} d&apos;économies
+                            {formatCurrency(budget.cumulated_savings || 0)}&nbsp;d&apos;économies
                           </div>
                         </div>
                         <Button
@@ -415,175 +464,288 @@ export default function SavingsDistributionDrawer({
         </div>
       </DialogContent>
 
-      {/* Modal de transfert — nested Radix Dialog (centered modal, not drawer) */}
+      {/* Modal de transfert — nested Radix Dialog (centered modal, not drawer).
+          2-step wizard mirror of AddTransactionModal (Sprint Modal-Uniformize 2026-05-21) :
+          step 1 picks the destination (Tirelire | Autre budget), step 2 collects the
+          amount + (for Autre budget) the destination dropdown. */}
       <Dialog open={isTransferModalOpen} onOpenChange={handleTransferModalOpenChange}>
-        <DialogContent
-          hideCloseButton
-          className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-2xl"
-        >
+        <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
           {selectedFromBudget && (
             <>
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-100 p-4">
+              {/* Header — iOS-like: back button (top-left) + centered title + close */}
+              <div className="flex shrink-0 items-center gap-2 border-b border-gray-200 px-4 py-3">
+                {transferWizardStep === 'select-destination' ? (
+                  <div className="h-9 w-9 shrink-0" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleTransferBack}
+                    disabled={isProcessing}
+                    aria-label="Retour à l'étape précédente"
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M15 19l-7-7 7-7"
+                      />
+                    </svg>
+                  </button>
+                )}
                 <DialogTitle asChild>
-                  <h3 className="text-lg font-semibold text-gray-900">Transférer des économies</h3>
+                  <h3 className="flex-1 text-center text-base font-semibold text-gray-900">
+                    {transferWizardStep === 'select-destination'
+                      ? 'Destination du transfert'
+                      : 'Montant à transférer'}
+                  </h3>
                 </DialogTitle>
                 <ModalCloseX
                   onClose={() => setIsTransferModalOpen(false)}
                   disabled={isProcessing}
-                  variant="circle"
+                  variant="ghost"
+                  className="h-9 w-9"
                 />
               </div>
 
-              {/* Body - scrollable */}
-              <div className="flex-1 space-y-4 overflow-y-auto p-4">
-                {/* 1. Budget source */}
-                <div className="rounded-xl bg-purple-50 p-3">
-                  <p className="text-xs font-medium tracking-wide text-purple-500 uppercase">
-                    Budget source
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-purple-900">
-                    {selectedFromBudget.name}
-                  </p>
-                  <p className="text-sm font-medium text-purple-600">
-                    {formatCurrency(selectedFromBudget.cumulated_savings || 0)} disponibles
-                  </p>
-                </div>
-
-                {/* 2. Montant */}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Montant à transférer
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={transferAmount}
-                    onChange={(e) => {
-                      const v = e.target.value
-                      if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                        setTransferAmount(v.replace(',', '.'))
-                      }
-                    }}
-                    placeholder="0.00"
-                    className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-base outline-hidden focus:border-purple-500 focus:ring-2 focus:ring-purple-500"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Maximum: {formatCurrency(selectedFromBudget.cumulated_savings || 0)}
-                  </p>
-                </div>
-
-                {/* 3. Toggle destination */}
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Destination
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTransferDestinationType('piggy_bank')
-                        setSelectedToBudget('')
-                      }}
-                      className={cn(
-                        'flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all',
-                        transferDestinationType === 'piggy_bank'
-                          ? 'border-purple-600 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                      )}
-                    >
-                      <svg
-                        className="h-5 w-5 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
-                        />
-                      </svg>
-                      Tirelire
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTransferDestinationType('budget')}
-                      className={cn(
-                        'flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-3 text-sm font-medium transition-all',
-                        transferDestinationType === 'budget'
-                          ? 'border-purple-600 bg-purple-50 text-purple-700'
-                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50',
-                      )}
-                    >
-                      <svg
-                        className="h-5 w-5 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                        />
-                      </svg>
-                      Autre budget
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4. Dropdown budget (conditionnel) */}
-                {transferDestinationType === 'budget' && (
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                      Budget de destination
-                    </label>
-                    <CustomDropdown
-                      options={getTransferDestinationOptions()}
-                      value={selectedToBudget}
-                      onChange={setSelectedToBudget}
-                      placeholder="Sélectionner un budget"
-                      required
-                    />
-                  </div>
-                )}
-
-                {(computedValidationError || validationError) && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                    <p className="text-sm font-medium text-red-600">
-                      {computedValidationError || validationError}
+              {/* Step 1: choose destination */}
+              {transferWizardStep === 'select-destination' && (
+                <div
+                  key="transfer-step-select-destination"
+                  className={cn(
+                    'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+                    'animate-in fade-in duration-200',
+                    stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+                  )}
+                >
+                  {/* Budget source */}
+                  <div className="rounded-xl bg-purple-50 p-3">
+                    <p className="text-xs font-medium tracking-wide text-purple-500 uppercase">
+                      Budget source
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-purple-900">
+                      {selectedFromBudget.name}
+                    </p>
+                    <p className="text-sm font-medium text-purple-600">
+                      {formatCurrency(selectedFromBudget.cumulated_savings || 0)} disponibles
                     </p>
                   </div>
-                )}
-              </div>
 
-              {/* Footer - sticky */}
-              <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsTransferModalOpen(false)}
-                  disabled={isProcessing}
-                  className="rounded-xl"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleTransferSubmit}
-                  disabled={
-                    !transferAmount ||
-                    !transferDestinationType ||
-                    (transferDestinationType === 'budget' && !selectedToBudget) ||
-                    isProcessing ||
-                    !!(computedValidationError || validationError)
-                  }
-                  className="rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isProcessing ? 'Transfert...' : 'Confirmer'}
-                </Button>
-              </div>
+                  <p className="text-sm text-gray-600">Choisissez la destination du transfert.</p>
+
+                  <div className="flex flex-col space-y-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTransferDestination('piggy_bank')}
+                      className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 p-4 text-left transition-all hover:bg-purple-100 focus-visible:outline-2 focus-visible:outline-purple-500"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <svg
+                          className="h-6 w-6 text-purple-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                          />
+                        </svg>
+                        <div>
+                          <p className="font-medium text-purple-700">Tirelire</p>
+                          <p className="text-xs text-purple-600">
+                            Mettre de côté dans la tirelire commune
+                          </p>
+                        </div>
+                      </div>
+                      <svg
+                        className="h-5 w-5 text-purple-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTransferDestination('budget')}
+                      className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <svg
+                          className="h-6 w-6 text-blue-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                          />
+                        </svg>
+                        <div>
+                          <p className="font-medium text-blue-700">Autre budget</p>
+                          <p className="text-xs text-blue-600">
+                            Renforcer un autre budget avec ces économies
+                          </p>
+                        </div>
+                      </div>
+                      <svg
+                        className="h-5 w-5 text-blue-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: fields (amount + conditional destination dropdown) */}
+              {transferWizardStep === 'fields' && (
+                <>
+                  <div
+                    key="transfer-step-fields"
+                    className={cn(
+                      'min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4',
+                      'animate-in fade-in duration-200',
+                      stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+                    )}
+                  >
+                    {/* Summary chip: source + destination */}
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-gray-50 p-3 text-xs">
+                      <span className="rounded-full bg-purple-100 px-2 py-0.5 font-medium text-purple-700">
+                        {selectedFromBudget.name}
+                      </span>
+                      <svg
+                        className="h-3 w-3 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M14 5l7 7m0 0l-7 7m7-7H3"
+                        />
+                      </svg>
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-0.5 font-medium',
+                          transferDestinationType === 'piggy_bank'
+                            ? 'bg-purple-100 text-purple-700'
+                            : 'bg-blue-100 text-blue-700',
+                        )}
+                      >
+                        {transferDestinationType === 'piggy_bank' ? 'Tirelire' : 'Autre budget'}
+                      </span>
+                    </div>
+
+                    {/* Montant */}
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Montant à transférer
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={transferAmount}
+                        onChange={(e) => {
+                          const v = e.target.value
+                          if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
+                            setTransferAmount(v.replace(',', '.'))
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full rounded-xl border border-gray-300 px-3 py-2.5 text-base outline-hidden focus:border-purple-500 focus:ring-2 focus:ring-purple-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Maximum: {formatCurrency(selectedFromBudget.cumulated_savings || 0)}
+                      </p>
+                    </div>
+
+                    {/* Destination dropdown (only for budget) */}
+                    {transferDestinationType === 'budget' && (
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                          Budget de destination
+                        </label>
+                        <CustomDropdown
+                          options={getTransferDestinationOptions()}
+                          value={selectedToBudget}
+                          onChange={setSelectedToBudget}
+                          placeholder="Sélectionner un budget"
+                          required
+                        />
+                      </div>
+                    )}
+
+                    {(computedValidationError || validationError) && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                        <p className="text-sm font-medium text-red-600">
+                          {computedValidationError || validationError}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer - sticky */}
+                  <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-6 py-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsTransferModalOpen(false)}
+                      disabled={isProcessing}
+                      className="rounded-xl"
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={handleTransferSubmit}
+                      disabled={
+                        !transferAmount ||
+                        !transferDestinationType ||
+                        (transferDestinationType === 'budget' && !selectedToBudget) ||
+                        isProcessing ||
+                        !!(computedValidationError || validationError)
+                      }
+                      className="rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isProcessing ? 'Transfert...' : 'Confirmer'}
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </DialogContent>

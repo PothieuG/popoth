@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 
 interface ConfirmationDialogProps {
   isOpen: boolean
@@ -60,12 +61,9 @@ export default function ConfirmationDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="overflow-hidden rounded-2xl border-0 p-0 shadow-xl sm:max-w-md sm:rounded-2xl"
-      >
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
         {/* Header avec icône */}
-        <div className="p-6 text-center">
+        <div className="min-h-0 flex-auto overflow-y-auto px-6 py-4 text-center">
           <div
             className={cn(
               'mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full',
@@ -132,7 +130,7 @@ export default function ConfirmationDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-2 px-5 pb-5">
+        <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
           <button
             onClick={onClose}
             disabled={loading}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -82,80 +83,71 @@ export default function DeleteGroupModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className="overflow-hidden border-0 bg-white p-0 shadow-xl sm:max-w-md"
-      >
-        <div className="p-6">
-          {/* Header */}
-          <div className="mb-6 flex items-center justify-between">
-            <DialogTitle asChild>
-              <h2 className="text-xl font-semibold text-red-600">Supprimer le groupe</h2>
-            </DialogTitle>
-            <ModalCloseX
-              onClose={handleClose}
-              disabled={isDeleting}
-              variant="ghost"
-              className="p-1"
-            />
-          </div>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <DialogTitle asChild>
+            <h2 className="text-lg font-semibold text-red-600">Supprimer le groupe</h2>
+          </DialogTitle>
+          <ModalCloseX
+            onClose={handleClose}
+            disabled={isDeleting}
+            variant="ghost"
+            className="p-1"
+          />
+        </div>
 
+        {/* Body - scrollable */}
+        <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
           {/* Warning Content */}
-          <div className="mb-6 space-y-4">
-            <div className="flex items-start space-x-3 rounded-lg border border-red-200 bg-red-50 p-4">
-              <div className="shrink-0">
-                <svg
-                  className="h-6 w-6 text-red-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.98-.833-2.75 0L4.064 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-red-800">
-                  Attention ! Cette action est irréversible
-                </h3>
-                <div className="mt-2 text-sm text-red-700">
-                  <p>La suppression du groupe entraînera :</p>
-                  <ul className="mt-1 list-inside list-disc space-y-1">
-                    <li>
-                      La suppression définitive du groupe &quot;<strong>{group.name}</strong>
-                      &quot;
-                    </li>
-                    <li>La suppression de tous les membres du groupe</li>
-                    <li>La perte de toutes les données associées</li>
-                  </ul>
-                </div>
-              </div>
+          <div className="flex items-start space-x-3 rounded-lg border border-red-200 bg-red-50 p-4">
+            <div className="shrink-0">
+              <svg
+                className="h-6 w-6 text-red-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.98-.833-2.75 0L4.064 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
+              </svg>
             </div>
-
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                Le groupe contient actuellement <strong>{group.member_count || 1} membre(s)</strong>{' '}
-                avec un budget estimé de{' '}
-                <strong>{group.monthly_budget_estimate.toFixed(2)} €/mois</strong>.
-              </p>
+            <div>
+              <h3 className="text-sm font-medium text-red-800">
+                Attention ! Cette action est irréversible
+              </h3>
+              <div className="mt-2 text-sm text-red-700">
+                <p>La suppression du groupe entraînera :</p>
+                <ul className="mt-1 list-inside list-disc space-y-1">
+                  <li>
+                    La suppression définitive du groupe &quot;<strong>{group.name}</strong>
+                    &quot;
+                  </li>
+                  <li>La suppression de tous les membres du groupe</li>
+                  <li>La perte de toutes les données associées</li>
+                </ul>
+              </div>
             </div>
           </div>
+
+          <p className="text-sm text-gray-600">
+            Le groupe contient actuellement <strong>{group.member_count || 1} membre(s)</strong>{' '}
+            avec un budget estimé de{' '}
+            <strong>{group.monthly_budget_estimate.toFixed(2)} €/mois</strong>.
+          </p>
 
           {/* Confirmation Input */}
-          <div className="mb-6 space-y-4">
-            <div>
-              <Label htmlFor="confirmDelete" className="text-sm font-medium text-gray-700">
-                Pour confirmer la suppression, tapez exactement :
-              </Label>
-              <div className="mt-1 rounded border bg-gray-100 p-2 font-mono text-sm text-gray-800">
-                Delete {group.name}
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirmDelete" className="text-sm font-medium text-gray-700">
+              Pour confirmer la suppression, tapez exactement :
+            </Label>
+            <div className="rounded border bg-gray-100 p-2 font-mono text-sm text-gray-800">
+              Delete {group.name}
             </div>
-
             <Input
               id="confirmDelete"
               type="text"
@@ -168,7 +160,6 @@ export default function DeleteGroupModal({
               className={`w-full ${isConfirmValid ? 'border-green-300 bg-green-50' : 'border-gray-300'}`}
               disabled={isDeleting}
             />
-
             {confirmText && !isConfirmValid && (
               <p className="text-xs text-red-500">
                 Le texte ne correspond pas. Vérifiez l&apos;orthographe et les majuscules.
@@ -178,31 +169,31 @@ export default function DeleteGroupModal({
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3">
+            <div className="rounded-md border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-3">
-            <Button variant="outline" onClick={handleClose} disabled={isDeleting}>
-              Annuler
-            </Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={!isConfirmValid || isDeleting}
-              className="bg-red-600 text-white hover:bg-red-700"
-            >
-              {isDeleting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  <span>Suppression...</span>
-                </div>
-              ) : (
-                'Supprimer définitivement'
-              )}
-            </Button>
-          </div>
+        {/* Footer - sticky */}
+        <div className="flex shrink-0 justify-end space-x-3 border-t border-gray-200 px-6 py-4">
+          <Button variant="outline" onClick={handleClose} disabled={isDeleting}>
+            Annuler
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            disabled={!isConfirmValid || isDeleting}
+            className="bg-red-600 text-white hover:bg-red-700"
+          >
+            {isDeleting ? (
+              <div className="flex items-center space-x-2">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                <span>Suppression...</span>
+              </div>
+            ) : (
+              'Supprimer définitivement'
+            )}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
