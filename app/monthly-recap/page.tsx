@@ -29,7 +29,7 @@ function MonthlyRecapPageContent() {
   // synchronous, so no loading state is needed here.
   const context: 'profile' | 'group' = searchParams.get('context') === 'group' ? 'group' : 'profile'
 
-  // Note : la redirection conditionnelle "récap requis" est gérée par le middleware.
+  // Note : la redirection conditionnelle "récap requis" est gérée par le proxy.
 
   // Gestionnaire de fin de récap
   const handleRecapComplete = () => {

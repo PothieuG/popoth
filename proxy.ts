@@ -16,11 +16,11 @@ const authRoutes = [
 const specialRoutes = ['/monthly-recap'] // Routes spéciales qui ont leur propre logique
 
 /**
- * Next.js Middleware for token-based authentication
+ * Next.js Proxy for token-based authentication
  * Protects routes by verifying session tokens and redirects unauthorized users
  * Handles token refresh and expiration automatically
  */
-export default async function middleware(req: NextRequest) {
+export default async function proxy(req: NextRequest) {
   // Get the current path
   const path = req.nextUrl.pathname
 
@@ -29,7 +29,7 @@ export default async function middleware(req: NextRequest) {
   const isAuthRoute = authRoutes.some((route) => path.startsWith(route))
   const isSpecialRoute = specialRoutes.some((route) => path.startsWith(route))
 
-  // Skip middleware for static files and Next.js internals
+  // Skip proxy for static files and Next.js internals
   if (path.startsWith('/_next') || path.startsWith('/api') || path.includes('.')) {
     return NextResponse.next()
   }
@@ -75,7 +75,7 @@ export default async function middleware(req: NextRequest) {
         const status = await checkRecapStatus(session.userId, context)
 
         if (status.required) {
-          logger.debug(`📅 [Middleware] Récap mensuel requis pour ${context}, redirection`)
+          logger.debug(`📅 [Proxy] Récap mensuel requis pour ${context}, redirection`)
           const recapUrl = new URL('/monthly-recap', req.url)
           recapUrl.searchParams.set('context', context)
           return NextResponse.redirect(recapUrl)
@@ -84,7 +84,7 @@ export default async function middleware(req: NextRequest) {
         if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
           // Pas de groupe attaché : l'utilisateur n'est pas concerné par le récap groupe
         } else {
-          logger.error('❌ [Middleware] Erreur lors de la vérification du récap mensuel:', error)
+          logger.error('❌ [Proxy] Erreur lors de la vérification du récap mensuel:', error)
         }
         // En cas d'erreur, continuer normalement plutôt que de bloquer l'utilisateur
       }
@@ -97,7 +97,7 @@ export default async function middleware(req: NextRequest) {
 
     return NextResponse.next()
   } catch (error) {
-    logger.error('Middleware authentication error:', error)
+    logger.error('Proxy authentication error:', error)
 
     // If there's an error decrypting the session on a protected route, redirect to login
     if (isProtectedRoute) {
@@ -110,7 +110,7 @@ export default async function middleware(req: NextRequest) {
   }
 }
 
-// Configure which routes the middleware should run on
+// Configure which routes the proxy should run on
 export const config = {
   matcher: [
     '/((?!api|_next/static|_next/image|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.svg$|.*\\.ico$).*)',

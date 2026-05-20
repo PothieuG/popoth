@@ -8,7 +8,7 @@ import { contextOnlyQuerySchema } from '@/lib/schemas/common'
  * API GET /api/monthly-recap/status
  *
  * Vérifie si un récapitulatif mensuel est requis pour l'utilisateur.
- * Logique métier dans lib/recap/check-status.ts (réutilisée par le middleware
+ * Logique métier dans lib/recap/check-status.ts (réutilisée par le proxy
  * en appel direct sans aller-retour HTTP).
  */
 export const GET = withAuth(async (request, { userId }) => {

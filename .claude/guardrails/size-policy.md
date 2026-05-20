@@ -180,7 +180,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **24 fichiers `.md`** chargés comme contexte par Claude Code :
 
 - 1× `CLAUDE.md` (~38.7k, légèrement au-delà du plafond — split déféré)
-- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 contient désormais 2 sprints : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync, ~16k)
+- 13× `.claude/history/roadmap-detailed-01..13-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 contient désormais 3 sprints : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync + Hygiene-Next-16-Migration, ~19k)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (33k)

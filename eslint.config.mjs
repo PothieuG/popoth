@@ -42,7 +42,7 @@ const eslintConfig = [
   },
   {
     files: [
-      'middleware.ts',
+      'proxy.ts',
       'lib/expense-allocation.ts',
       'lib/logger.ts',
       'app/api/auth/**',
