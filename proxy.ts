@@ -67,11 +67,25 @@ export default async function proxy(req: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
 
-    // Check for monthly recap requirement on protected routes (but not on monthly-recap page itself)
+    // Check for monthly recap requirement on protected routes (but not on monthly-recap page itself).
+    // Le check fait 2 SELECTs Supabase synchrones (profiles + monthly_recaps) à chaque
+    // navigation protégée, soit ~200-500ms. On le cache via cookie scopé au mois/année
+    // courants pour ne payer ce coût qu'1 fois par tranche de 5 min (TTL court mais
+    // suffisant pour amortir une session active de switch profile↔group). Le cookie
+    // n'est posé que si `required=false` ; en cas de `required=true` on laisse l'absence
+    // de cookie déclencher un re-check au prochain GET (sinon le user redirigerait
+    // vers /monthly-recap puis cliquerait "Personnel" et serait coincé sans re-check).
     if (isProtectedRoute && session?.userId && !isSpecialRoute) {
-      try {
-        const context = path.startsWith('/group-dashboard') ? 'group' : 'profile'
+      const context = path.startsWith('/group-dashboard') ? 'group' : 'profile'
+      const now = new Date()
+      const cookieKey = `recap-ok-${context}-${now.getMonth() + 1}-${now.getFullYear()}`
 
+      if (req.cookies.get(cookieKey)?.value === '1') {
+        // Skip Supabase round-trip — déjà vérifié récemment ce mois-ci.
+        return NextResponse.next()
+      }
+
+      try {
         const status = await checkRecapStatus(session.userId, context)
 
         if (status.required) {
@@ -80,6 +94,16 @@ export default async function proxy(req: NextRequest) {
           recapUrl.searchParams.set('context', context)
           return NextResponse.redirect(recapUrl)
         }
+
+        // status.required === false → poser le cookie pour amortir les nav suivantes.
+        const response = NextResponse.next()
+        response.cookies.set(cookieKey, '1', {
+          maxAge: 300, // 5 minutes
+          httpOnly: true,
+          sameSite: 'lax',
+          path: '/',
+        })
+        return response
       } catch (error) {
         if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
           // Pas de groupe attaché : l'utilisateur n'est pas concerné par le récap groupe
