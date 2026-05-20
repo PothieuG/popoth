@@ -74,13 +74,14 @@ CLAUDE.md                                     37k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   └─ operational-rules.md                           33k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules
+│   ├─ operational-rules.md                           35k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite)
+│   └─ operational-rules-ui-modals.md                  7k   11 règles ❌ Modals & UI (extraite de operational-rules.md §5 au Sprint Drawer-Slide-Fix 2026-05-20)
 │
 └─ guardrails/
     └─ size-policy.md                                 12k   (ce fichier)
 ```
 
-**Total contexte** : ~676k chars répartis sur 25 fichiers. CLAUDE.md (~38.7k) + roadmap-12 (~39k) restent légèrement au-delà du plafond 38k. À splitter dans un sprint dédié — pas urgent tant que l'overflow reste sous ~40k (limite Claude Code). operational-rules.md a franchi 37k post-Sprint GroupMembersModal-Show-Budget-Share-Pct (2026-05-20), à split sérieusement au prochain sprint touchant §5 (proche du plafond, ~0.8k de marge avant les 38k).
+**Total contexte** : ~683k chars répartis sur 26 fichiers. CLAUDE.md (~38.7k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md splitté au Sprint Drawer-Slide-Fix (2026-05-20) : ramené à 35k via extraction de la sous-section "Modals & UI" (11 règles ❌) vers `operational-rules-ui-modals.md` (7k). Marges confortables sur les deux. roadmap-12 (~39k) à splitter au prochain sprint touchant Refactor-Recover.
 
 ## 5. Règles d'extension
 
@@ -155,7 +156,8 @@ Pour les fichiers de référence à splitter (mode hors-CLAUDE.md) : compter les
 | `conventions/typescript.md`                                      | ~4k           | 38k     |
 | `conventions/logs-cleanup.md`                                    | ~10k          | 38k     |
 | `conventions/git-workflow.md`                                    | ~9k           | 38k     |
-| `conventions/operational-rules.md`                               | ~18k          | 38k     |
+| `conventions/operational-rules.md`                               | ~35k          | 38k     |
+| `conventions/operational-rules-ui-modals.md`                     | ~7k           | 38k     |
 | `guardrails/size-policy.md`                                      | ~7k           | 38k     |
 
 **Plafond dur 38k** s'applique uniformément. Cible 35-38k pour les fichiers "denses" (CLAUDE.md, roadmap parts). "Naturel" pour les autres (peuvent rester en-dessous sans gonflage).
@@ -184,7 +186,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (33k)
-- 5× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules}.md` (4-37k — operational-rules désormais le plus gros à ~37k post-Sprint Lazy-Mount-GroupManagementPanel, à surveiller, split envisageable au prochain sprint touchant §5 Modals & UI)
+- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-35k — operational-rules splitté au Sprint Drawer-Slide-Fix 2026-05-20, sous-section Modals & UI extraite vers operational-rules-ui-modals.md, marge confortable sur les deux)
 - 1× `.claude/guardrails/size-policy.md` (~12k — ce fichier).
 
 Cf. inventaire détaillé via `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
