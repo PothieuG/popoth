@@ -2,6 +2,8 @@
 
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 
 interface UserContributionCardProps {
@@ -16,6 +18,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
   const {
     groupInfo,
     isLoading,
+    isFetching,
     error,
     fetchContributions,
     getUserContribution,
@@ -52,15 +55,13 @@ export default function UserContributionCard({ userId, className }: UserContribu
     return null
   }
 
-  if (isLoading) {
+  if (isLoading || isFetching) {
     return (
       <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse">
-          <div className="mb-3 h-6 rounded bg-gray-200"></div>
-          <div className="space-y-2">
-            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
-            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
-          </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
         </div>
       </Card>
     )
@@ -100,6 +101,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
           disabled={isRecalculating}
           className="border-blue-300 text-blue-600 hover:bg-blue-50"
         >
+          {isRecalculating && <InlineSpinner className="mr-1.5" />}
           {isRecalculating ? 'Recalcul...' : 'Actualiser'}
         </Button>
       </div>
@@ -195,6 +197,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
             disabled={isRecalculating}
             className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
+            {isRecalculating && <InlineSpinner className="mr-1.5" />}
             {isRecalculating ? 'Calcul en cours...' : 'Calculer maintenant'}
           </Button>
         </div>

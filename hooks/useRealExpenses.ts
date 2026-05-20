@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
@@ -45,6 +46,7 @@ export interface UpdateRealExpenseRequest {
 interface UseRealExpensesReturn {
   expenses: RealExpense[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   totalExpenses: number
   addExpense: (expenseData: CreateRealExpenseRequest) => Promise<boolean>
@@ -64,6 +66,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
   const {
     data: expenses = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<RealExpense[]>({
@@ -176,9 +179,17 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
   const error = latestError instanceof Error ? latestError.message : null
 
+  // Stable refresh reference — useBudgetProgress wraps this in its own
+  // useCallback with refreshExpenses in deps. Without stability here that
+  // chain reboots every render → useEffect dep churn → refetch loop.
+  const refreshExpenses = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
   return {
     expenses,
     loading: isLoading,
+    isFetching,
     error,
     totalExpenses,
     addExpense: async (expenseData) => {
@@ -205,8 +216,6 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         return false
       }
     },
-    refreshExpenses: async () => {
-      await refetch()
-    },
+    refreshExpenses,
   }
 }

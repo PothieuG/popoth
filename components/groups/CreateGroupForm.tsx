@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import {
   createGroupFormSchema,
   type CreateGroupForm as CreateGroupFormOutput,
@@ -104,6 +105,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
             disabled={isSubmitting}
             className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
+            {isSubmitting && <InlineSpinner className="mr-1.5" />}
             {isSubmitting ? 'Création...' : 'Créer le groupe'}
           </Button>
         </div>

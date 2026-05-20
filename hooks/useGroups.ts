@@ -16,6 +16,7 @@ export function useGroups() {
   const {
     data: groups = [],
     isLoading,
+    isFetching,
     error: queryError,
     isFetched,
     refetch,
@@ -181,6 +182,7 @@ export function useGroups() {
   return {
     groups,
     isLoading,
+    isFetching,
     error,
     hasBeenFetched: isFetched,
     fetchGroups: async () => {

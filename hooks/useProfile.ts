@@ -15,6 +15,7 @@ export function useProfile() {
   const {
     data: profile = null,
     isLoading,
+    isFetching,
     error: queryError,
     isFetched,
     refetch,
@@ -104,6 +105,7 @@ export function useProfile() {
   return {
     profile,
     isLoading,
+    isFetching,
     error,
     hasBeenFetched: isFetched,
     fetchProfile: async () => {

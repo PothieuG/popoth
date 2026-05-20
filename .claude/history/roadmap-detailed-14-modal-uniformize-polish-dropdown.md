@@ -129,6 +129,7 @@
   **(1) Route group Next.js `app/(dashboards)/`** — `git mv app/dashboard app/(dashboards)/dashboard` + `git mv app/group-dashboard app/(dashboards)/group-dashboard`. Les parenthèses `()` au nom de dossier sont une convention Next.js App Router pour les [route groups](https://nextjs.org/docs/app/building-your-application/routing/route-groups) : N'AFFECTE PAS les URLs publiques (`/dashboard` reste `/dashboard`), mais permet à Next.js de réutiliser un layout entre les navigations soeurs **sans re-mount**.
 
   **(2) Layout partagé `app/(dashboards)/layout.tsx`** — `'use client'` component, possède le state `isMenuOpen` (drawer) + `isAddTransactionModalOpen`, déduit le `context: 'profile' | 'group'` via `usePathname()`. Rend `<DashboardHeader>` + `<main>{children}</main>` + `<BottomNav>` + `<SettingsDrawer>` + `<AddTransactionModal>` (lazy via `dynamic({ ssr: false })`). Le pattern "adjust state during render" (React 19) est utilisé pour fermer auto le modal au changement de pathname (ESLint rule `react-hooks/set-state-in-effect` interdit `setState` dans `useEffect`) :
+
   ```tsx
   const [prevPathname, setPrevPathname] = useState(pathname)
   if (pathname !== prevPathname) {
@@ -146,6 +147,7 @@
   **(6) Pages allégées + redirection robuste** :
   - `app/(dashboards)/dashboard/page.tsx` : 381 LOC → 143 LOC. Retire `<nav>`, `<footer>`, `<SettingsDrawer>`, `<AddTransactionModal>`, `isMenuOpen` state, `isAddTransactionModalOpen` state, le `if (isLoading) return <FullScreenDiv>` bloquant. Rend uniquement : `if (isLoading) return <CentralLoader>` → `if (!hasProfile) return <FirstTimeProfileDialog>` → `if (financialLoading) return <CentralLoader>` → contenu (FinancialIndicators + Suspense + TransactionTabsComponent). `EditTransactionModal` reste page-scoped (state local pour la transaction sélectionnée).
   - `app/(dashboards)/group-dashboard/page.tsx` : 281 LOC → 124 LOC. Remplace `window.location.href = '/dashboard'` par `router.replace('/dashboard')` (next/navigation) + `useRef(false)` guard :
+
   ```tsx
   const redirected = useRef(false)
   useEffect(() => {
@@ -155,6 +157,7 @@
     }
   }, [isLoading, profile, router])
   ```
+
   `router.replace` (vs push) évite que `back()` ne ramène sur `/group-dashboard` après redirection. Le `useRef` empêche double-fire si re-render avant que la nav commit.
 
   **(7) Cookie cache `checkRecapStatus` dans proxy.ts** — wrap les 2 SELECTs Supabase de `lib/recap/check-status.ts` derrière un cookie `recap-ok-{context}-{month}-{year}` (TTL 5min, httpOnly, sameSite='lax', path='/'). Posé UNIQUEMENT si `status.required === false` (sinon l'user redirigé vers /monthly-recap puis cliquant "Personnel" serait coincé sans re-check). La clé inclut `month-year` → invalidation naturelle au changement de mois (le 1er du nouveau mois, cookie absent → re-check → voit qu'il manque le recap → redirect comme avant). Bénéfice : navigation 2 → N dans la même session = 0 round-trip Supabase pour le recap-check, gain de 200-500ms par navigation après la première.
@@ -171,3 +174,5 @@
   **Trade-off** : Le 1er load `/dashboard` cold = 59s de compile (long mais one-time per dev session) car Next.js compile tout le layout + ses transitive imports. Le passage en route group ajoute 1 niveau de hiérarchie de layout (RootLayout → DashboardsLayout → Page) → 1 React tree de plus à reconciler à chaque update, mais négligeable vu que le layout n'a pas de state qui change. Le `useEffect` legacy `useGroupMembers` n'a PAS été migré vers TanStack Query (out-of-scope) — fait 1 fetch au mount de DashboardHeader pour context=group, mais ne re-fire plus à chaque navigation soeur (le component ne re-mount plus, juste le children swap). Le `proxy.ts` cookie a TTL 5min (court mais suffisant pour amortir une session active) — si user complète un recap mid-session, le cookie le marque "ok" et reste valide jusqu'à 5min, donc le user pourrait théoriquement re-trigger le recap-check au prochain mois pile à 00:00 si le cookie était posé à 23:55:01 — acceptable car le check serait re-fire naturellement à 00:00:01 (cookie absent pour le nouveau mois-year).
 
   **Pattern à retenir** : Pour tout futur set de pages soeurs partageant une chrome (navbar + footer + drawer + modal), créer un route group `app/(<group>)/` avec un layout partagé client component, déduire le contexte via `usePathname()`, faire vivre le state global (drawer open, modal open) dans le layout. Les pages enfants ne rendent que leur `<main>` content. Loader inline `<CentralLoader>` jamais un `if (loading) return <FullScreenDiv>`. Soft navigation `useRouter().push()` jamais `window.location.href` (sauf logout/OAuth callback où le full reload est désiré pour vider le state). Détails dans [.claude/conventions/operational-rules-ui-modals.md](../conventions/operational-rules-ui-modals.md) (5 nouvelles règles ❌).
+
+> **Suite chronologique** → [Part 15](roadmap-detailed-15-skeleton-refetch-loaders.md) (Sprint Skeleton-Refetch-Loaders 2026-05-21).

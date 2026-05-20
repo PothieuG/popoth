@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupSearch } from '@/hooks/useGroupSearch'
 import CreateGroupForm from '@/components/groups/CreateGroupForm'
@@ -17,7 +19,14 @@ interface GroupManagementPanelProps {
 }
 
 export default function GroupManagementPanel({ onBack, onClose }: GroupManagementPanelProps) {
-  const { currentGroup, hasGroup, isLoading: groupsLoading, createGroup, leaveGroup } = useGroups()
+  const {
+    currentGroup,
+    hasGroup,
+    isLoading: groupsLoading,
+    isFetching: groupsFetching,
+    createGroup,
+    leaveGroup,
+  } = useGroups()
   const {
     searchResults,
     isLoading: searchLoading,
@@ -117,7 +126,11 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
   }
 
   const memberCount = currentGroup?.member_count || 1
-  const isInitialLoading = groupsLoading && !hasGroup && !currentGroup
+  // Skeleton tant qu'un fetch est en cours (initial ou refetch post-mutation
+  // create/join/leave). Le pattern "skeleton remplace" évite que l'utilisateur
+  // voie le panel précédent (e.g. "Vous appartenez au groupe X") pendant que
+  // l'invalidation post-leave commit le retrait.
+  const isInitialLoading = groupsLoading || groupsFetching
   const isCreatorBlocked = !!currentGroup?.is_creator && memberCount > 1
 
   return (
@@ -152,10 +165,11 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
       {/* Content scrollable */}
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
         {isInitialLoading ? (
-          <div className="animate-pulse space-y-2">
-            <div className="h-5 w-2/3 rounded bg-gray-200" />
-            <div className="h-4 w-1/2 rounded bg-gray-200" />
-            <div className="h-4 w-1/3 rounded bg-gray-200" />
+          <div className="space-y-3">
+            <Skeleton className="h-16 w-full rounded-xl" />
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-4 w-1/2" />
+            <Skeleton className="h-4 w-1/3" />
           </div>
         ) : hasGroup && currentGroup ? (
           <>
@@ -286,7 +300,8 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
                     disabled={searchLoading}
                     className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
                   >
-                    {searchLoading ? '...' : 'Rechercher'}
+                    {searchLoading && <InlineSpinner className="mr-1.5" />}
+                    {searchLoading ? 'Recherche...' : 'Rechercher'}
                   </Button>
                 </div>
 
@@ -346,7 +361,8 @@ export default function GroupManagementPanel({ onBack, onClose }: GroupManagemen
             variant="outline"
             className="w-full border-orange-300 text-orange-600 hover:border-orange-400 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
           >
-            {isOperationLoading ? 'Chargement...' : 'Quitter le groupe'}
+            {isOperationLoading && <InlineSpinner className="mr-1.5" />}
+            {isOperationLoading ? 'Traitement...' : 'Quitter le groupe'}
           </Button>
         </div>
       )}

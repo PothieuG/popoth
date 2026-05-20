@@ -10,6 +10,7 @@ import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface AddBudgetDialogProps {
@@ -311,9 +312,10 @@ export default function AddBudgetDialog({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 rounded-xl bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-1 items-center justify-center rounded-xl bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ajouter le budget
+                {isSubmitting && <InlineSpinner className="mr-1.5" />}
+                {isSubmitting ? 'Ajout...' : 'Ajouter le budget'}
               </button>
             </div>
           </div>

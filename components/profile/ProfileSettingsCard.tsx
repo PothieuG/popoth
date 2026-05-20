@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
@@ -28,18 +30,18 @@ interface ProfileSettingsCardProps {
  * underlying profile identity changes (e.g. account swap).
  */
 export default function ProfileSettingsCard({ className }: ProfileSettingsCardProps) {
-  const { profile, isLoading } = useProfile()
+  const { profile, isLoading, isFetching } = useProfile()
 
-  if (isLoading || !profile) {
+  if (isLoading || isFetching || !profile) {
     return (
       <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse space-y-2">
+        <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-full bg-gray-200" />
-            <div className="h-4 w-32 rounded bg-gray-200" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-4 w-32" />
           </div>
-          <div className="h-4 w-3/4 rounded bg-gray-200" />
-          <div className="h-4 w-1/2 rounded bg-gray-200" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
         </div>
       </Card>
     )
@@ -451,6 +453,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
               className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
+              {isSaving && <InlineSpinner className="mr-1.5" />}
               {isSaving ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
             <Button variant="outline" onClick={handleCancel} disabled={isSaving}>

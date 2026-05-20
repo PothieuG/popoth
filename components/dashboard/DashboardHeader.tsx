@@ -27,8 +27,12 @@ interface DashboardHeaderProps {
  */
 export default function DashboardHeader({ context, onOpenMenu }: DashboardHeaderProps) {
   const { profile } = useProfile()
-  const { getUserContribution, groupInfo } = useGroupContributions()
-  const { members, fetchGroupMembers } = useGroupMembers()
+  const {
+    getUserContribution,
+    groupInfo,
+    isFetching: contributionsFetching,
+  } = useGroupContributions()
+  const { members, fetchGroupMembers, isLoading: membersLoading } = useGroupMembers()
 
   // Hydrate les membres uniquement en context group, dès que le profile a un group_id.
   // useGroupMembers est legacy (useState + useEffect) ; cet useEffect couvre le cas
@@ -47,9 +51,10 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
             profile={profile}
             userContribution={profile?.id ? getUserContribution(profile.id) : null}
             groupBudget={groupInfo?.monthly_budget_estimate ?? null}
+            isFetching={contributionsFetching}
           />
         ) : (
-          <GroupInfoNavbar profile={profile} members={members} />
+          <GroupInfoNavbar profile={profile} members={members} isFetching={membersLoading} />
         )}
         <UserAvatar profile={profile} onClick={onOpenMenu} size="md" />
       </div>

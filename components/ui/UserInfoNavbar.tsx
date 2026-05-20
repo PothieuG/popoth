@@ -1,5 +1,6 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileData } from '@/app/api/profile/route'
 import type { GroupContributionData } from '@/app/api/groups/contributions/route'
 
@@ -13,6 +14,12 @@ interface UserInfoNavbarProps {
    * Group-Budget-Auto-Sync 2026-05-19).
    */
   groupBudget?: number | null
+  /**
+   * True dès que les contributions sont en cours de refetch (post-mutation
+   * budget ou switch de contexte). Remplace le montant + les % par skeletons
+   * tout en conservant le "Bonjour".
+   */
+  isFetching?: boolean
 }
 
 /**
@@ -29,6 +36,7 @@ export default function UserInfoNavbar({
   profile,
   userContribution,
   groupBudget,
+  isFetching = false,
 }: UserInfoNavbarProps) {
   if (!profile) {
     return <div className="text-sm text-gray-500">Chargement...</div>
@@ -74,7 +82,14 @@ export default function UserInfoNavbar({
 
       {/* Second line: Group contribution amount */}
       <div className="mt-0.5 flex items-center space-x-1">
-        {profile.group_name && userContribution ? (
+        {isFetching && profile.group_name ? (
+          <>
+            <div className="truncate text-xs text-gray-600">
+              Contribution au groupe {profile.group_name} :
+            </div>
+            <Skeleton className="h-3 w-12" />
+          </>
+        ) : profile.group_name && userContribution ? (
           hasPositiveContribution ? (
             <>
               <div className="truncate text-xs text-gray-600">
@@ -100,24 +115,31 @@ export default function UserInfoNavbar({
 
       {/* Third line: percentages (small, with bold numbers). Hidden if both are
           unavailable (e.g. salary missing AND budget missing). */}
-      {hasPercentRow && (
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] text-gray-500">
-          {salaryPercent != null && salaryPercent > 0 && (
-            <span className="whitespace-nowrap">
-              <strong className="font-semibold text-gray-700">{salaryPercent}%</strong> de votre
-              salaire
-            </span>
-          )}
-          {salaryPercent != null &&
-            salaryPercent > 0 &&
-            budgetPercent != null &&
-            budgetPercent > 0 && <span className="text-gray-300">·</span>}
-          {budgetPercent != null && budgetPercent > 0 && (
-            <span className="whitespace-nowrap">
-              <strong className="font-semibold text-gray-700">{budgetPercent}%</strong> du budget
-            </span>
-          )}
+      {isFetching && profile.group_name ? (
+        <div className="mt-0.5 flex items-center gap-x-1.5">
+          <Skeleton className="h-2.5 w-20" />
+          <Skeleton className="h-2.5 w-16" />
         </div>
+      ) : (
+        hasPercentRow && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[10px] text-gray-500">
+            {salaryPercent != null && salaryPercent > 0 && (
+              <span className="whitespace-nowrap">
+                <strong className="font-semibold text-gray-700">{salaryPercent}%</strong> de votre
+                salaire
+              </span>
+            )}
+            {salaryPercent != null &&
+              salaryPercent > 0 &&
+              budgetPercent != null &&
+              budgetPercent > 0 && <span className="text-gray-300">·</span>}
+            {budgetPercent != null && budgetPercent > 0 && (
+              <span className="whitespace-nowrap">
+                <strong className="font-semibold text-gray-700">{budgetPercent}%</strong> du budget
+              </span>
+            )}
+          </div>
+        )
       )}
     </div>
   )

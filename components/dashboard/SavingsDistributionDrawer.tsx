@@ -9,6 +9,8 @@ import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { logger } from '@/lib/logger'
 import { cn } from '@/lib/utils'
 
@@ -89,6 +91,7 @@ export default function SavingsDistributionDrawer({
   const {
     data: savingsData = null,
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<SavingsData>({
@@ -104,6 +107,18 @@ export default function SavingsDistributionDrawer({
     },
   })
   const error = queryError instanceof Error ? queryError.message : null
+  // Skeleton remplace pendant tout fetch (initial ou refetch post-transfer /
+  // post-budget-delete). isLoading seul = premier mount sans data ; isFetching
+  // = refetch background avec data en cache. On unifie pour cohérence visuelle.
+  const isBusy = isLoading || isFetching
+
+  const renderSkeletonBody = () => (
+    <div className="space-y-3 p-4">
+      <Skeleton className="h-32 w-full rounded-xl" />
+      <Skeleton className="h-44 w-full rounded-xl" />
+      <Skeleton className="h-24 w-full rounded-xl" />
+    </div>
+  )
 
   // Refetch on every open — surface fresh piggy_bank + cumulated_savings
   // even if a sibling mutation (e.g. budget delete) committed while the
@@ -305,13 +320,8 @@ export default function SavingsDistributionDrawer({
 
         {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <div className="text-center">
-                <div className="mx-auto mb-3 h-12 w-12 animate-spin rounded-full border-b-2 border-purple-600"></div>
-                <p className="text-gray-600">Chargement des économies...</p>
-              </div>
-            </div>
+          {isBusy ? (
+            renderSkeletonBody()
           ) : error ? (
             <div className="p-4">
               <Card className="border-red-200 bg-red-50 p-4">
@@ -754,6 +764,7 @@ export default function SavingsDistributionDrawer({
                       }
                       className="rounded-xl bg-purple-600 text-white hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+                      {isProcessing && <InlineSpinner className="mr-1.5" />}
                       {isProcessing ? 'Transfert...' : 'Confirmer'}
                     </Button>
                   </div>

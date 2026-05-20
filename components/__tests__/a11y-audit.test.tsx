@@ -204,7 +204,13 @@ vi.mock('@/hooks/useGroupContributions', () => ({
   }),
 }))
 vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => ({ data: undefined, isLoading: false, error: null }),
+  useQuery: () => ({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }))
 
 // ─── Imports (after mocks) ──────────────────────────────────────────────

@@ -1,18 +1,28 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileData } from '@/app/api/profile/route'
 import type { GroupMember } from '@/hooks/useGroupMembers'
 
 interface GroupInfoNavbarProps {
   profile: ProfileData | null
   members: GroupMember[]
+  /**
+   * True dès que la liste des membres est en cours de fetch (initial ou
+   * refetch post-switch context). Remplace la liste par un skeleton.
+   */
+  isFetching?: boolean
 }
 
 /**
  * GroupInfoNavbar Component - Displays group information in the navbar
  * Shows group greeting and members list in a two-line format
  */
-export default function GroupInfoNavbar({ profile, members }: GroupInfoNavbarProps) {
+export default function GroupInfoNavbar({
+  profile,
+  members,
+  isFetching = false,
+}: GroupInfoNavbarProps) {
   if (!profile || !profile.group_id) {
     return <div className="text-sm text-gray-500">Chargement...</div>
   }
@@ -46,7 +56,11 @@ export default function GroupInfoNavbar({ profile, members }: GroupInfoNavbarPro
       {/* Second line: Members list */}
       <div className="mt-0.5 flex items-center space-x-1">
         <div className="text-xs text-gray-600">Membres :</div>
-        <div className="truncate text-xs font-medium text-purple-600">{formatMembersList()}</div>
+        {isFetching ? (
+          <Skeleton className="h-3 w-32" />
+        ) : (
+          <div className="truncate text-xs font-medium text-purple-600">{formatMembersList()}</div>
+        )}
       </div>
     </div>
   )

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
@@ -24,6 +25,7 @@ export interface EstimatedBudget {
 interface UseBudgetsReturn {
   budgets: EstimatedBudget[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   addBudget: (budgetData: {
     name: string
@@ -52,6 +54,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   const {
     data: budgets = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<EstimatedBudget[]>({
@@ -176,9 +179,19 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
     addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
   const error = latestError instanceof Error ? latestError.message : null
 
+  // Stable refresh reference — refetch from TanStack Query is already stable,
+  // so wrapping with useCallback gives a stable function identity across renders.
+  // Required by consumers that pass refreshBudgets in a useEffect dep array
+  // (e.g. PlanningDrawer:154) — without this, exposing isFetching at the return
+  // triggers a re-render → new arrow ref → useEffect refire → refetch → loop.
+  const refreshBudgets = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
   return {
     budgets,
     loading: isLoading,
+    isFetching,
     error,
     addBudget: async (budgetData) => {
       try {
@@ -208,9 +221,7 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
         return { success: false }
       }
     },
-    refreshBudgets: async () => {
-      await refetch()
-    },
+    refreshBudgets,
     totalBudgets,
   }
 }

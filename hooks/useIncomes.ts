@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
@@ -19,6 +20,7 @@ export interface EstimatedIncome {
 interface UseIncomesReturn {
   incomes: EstimatedIncome[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   addIncome: (incomeData: {
     name: string
@@ -45,6 +47,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
   const {
     data: incomes = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<EstimatedIncome[]>({
@@ -155,9 +158,15 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
     addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
   const error = latestError instanceof Error ? latestError.message : null
 
+  // Stable refresh reference — see useBudgets.ts for the loop-breaking rationale.
+  const refreshIncomes = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
   return {
     incomes,
     loading: isLoading,
+    isFetching,
     error,
     addIncome: async (incomeData) => {
       try {
@@ -183,9 +192,7 @@ export function useIncomes(context?: 'profile' | 'group'): UseIncomesReturn {
         return false
       }
     },
-    refreshIncomes: async () => {
-      await refetch()
-    },
+    refreshIncomes,
     totalIncomes,
   }
 }

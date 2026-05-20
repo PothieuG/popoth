@@ -36,6 +36,7 @@ interface EstimatedBudget {
 interface UseBudgetProgressReturn {
   budgetProgresses: BudgetProgress[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   refreshProgress: () => Promise<void>
   getBudgetProgress: (budgetId: string) => BudgetProgress | undefined
@@ -87,6 +88,7 @@ export function useBudgetProgress(
   const {
     expenses,
     loading: expensesLoading,
+    isFetching: expensesFetching,
     error: expensesError,
     refreshExpenses,
   } = useRealExpenses(context)
@@ -183,6 +185,7 @@ export function useBudgetProgress(
   return {
     budgetProgresses,
     loading: expensesLoading,
+    isFetching: expensesFetching,
     error: expensesError,
     refreshProgress,
     getBudgetProgress,

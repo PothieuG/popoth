@@ -9,6 +9,7 @@ import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 
 interface AddIncomeDialogProps {
@@ -271,9 +272,10 @@ export default function AddIncomeDialog({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 rounded-xl bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex flex-1 items-center justify-center rounded-xl bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ajouter le revenu
+                {isSubmitting && <InlineSpinner className="mr-1.5" />}
+                {isSubmitting ? 'Ajout...' : 'Ajouter le revenu'}
               </button>
             </div>
           </div>

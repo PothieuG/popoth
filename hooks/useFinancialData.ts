@@ -6,6 +6,7 @@ import type { FinancialData } from '@/lib/finance'
 interface UseFinancialDataReturn {
   financialData: FinancialData | null
   loading: boolean
+  isFetching: boolean
   error: string | null
   context: 'profile' | 'group' | null
   refreshFinancialData: () => Promise<void>
@@ -39,6 +40,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
   const {
     data: apiResponse,
     isLoading,
+    isFetching,
     error,
     refetch,
   } = useQuery<FinancialApiResponse>({
@@ -66,6 +68,7 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
   return {
     financialData: apiResponse?.data ?? (error ? defaultFinancialData : null),
     loading: isLoading,
+    isFetching,
     error: error instanceof Error ? error.message : (apiResponse?.error ?? null),
     context: apiResponse?.context ?? null,
     refreshFinancialData: async () => {

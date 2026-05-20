@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { Skeleton } from '@/components/ui/skeleton'
 import DropdownMenu from '../ui/DropdownMenu'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
@@ -87,6 +88,7 @@ export default function PlanningDrawer({
   const {
     budgets,
     loading: budgetsLoading,
+    isFetching: budgetsFetching,
     error: budgetsError,
     addBudget,
     updateBudget,
@@ -98,6 +100,7 @@ export default function PlanningDrawer({
   const {
     incomes,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
     addIncome,
     updateIncome,
@@ -114,14 +117,33 @@ export default function PlanningDrawer({
   const {
     budgetProgresses,
     loading: budgetProgressLoading,
+    isFetching: budgetProgressFetching,
     refreshProgress: refreshBudgetProgress,
   } = useBudgetProgress(budgets, context, period)
 
   const {
     incomeProgresses,
     loading: incomeProgressLoading,
+    isFetching: incomeProgressFetching,
     refreshProgress: refreshIncomeProgress,
   } = useIncomeProgress(incomes, context)
+
+  // Skeleton remplace la liste pendant tout fetch (initial ou refetch
+  // post-mutation/switch context). Inclut le fetch des expenses/incomes qui
+  // alimentent les progress bars — sinon la liste serait visible avec des
+  // pourcentages stale.
+  const isBudgetsBusy =
+    budgetsLoading || budgetsFetching || budgetProgressLoading || budgetProgressFetching
+  const isIncomesBusy =
+    incomesLoading || incomesFetching || incomeProgressLoading || incomeProgressFetching
+
+  const renderSkeletonRows = (count = 3) => (
+    <div className="space-y-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-xl" />
+      ))}
+    </div>
+  )
 
   // Récupérer le salaire du profil pour l'injecter comme revenu read-only
   const { profile } = useProfile()
@@ -458,11 +480,6 @@ export default function PlanningDrawer({
           {/* Budgets Tab Content */}
           {activeTab === 'budgets' && (
             <div className="space-y-3 p-4">
-              {budgetsLoading && (
-                <div className="flex justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-orange-600"></div>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Budgets Estimés</h3>
                 <button
@@ -475,14 +492,21 @@ export default function PlanningDrawer({
 
               {/* Total discret */}
               <div className="rounded-lg border border-orange-100 bg-orange-50/50 px-3 py-2">
-                <p className="text-sm text-orange-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span>{' '}
-                  (sans les économies)
-                </p>
+                <div className="flex flex-wrap items-center gap-x-1 text-sm text-orange-700">
+                  <span>Total estimé:</span>
+                  {isBudgetsBusy ? (
+                    <Skeleton className="h-3 w-14" />
+                  ) : (
+                    <span className="font-medium">{formatAmount(totalBudgets)}</span>
+                  )}
+                  <span>(sans les économies)</span>
+                </div>
               </div>
 
               {/* Budgets List or Empty State */}
-              {!budgetsLoading && budgets.length === 0 ? (
+              {isBudgetsBusy ? (
+                renderSkeletonRows()
+              ) : budgets.length === 0 ? (
                 <div className="py-12 text-center">
                   <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
                     <svg
@@ -512,7 +536,7 @@ export default function PlanningDrawer({
                     Créer votre premier budget
                   </button>
                 </div>
-              ) : !budgetsLoading && !budgetProgressLoading ? (
+              ) : (
                 <div className="space-y-2">
                   {budgets.map((budget) => {
                     const progress = budgetProgresses.find((p) => p.budgetId === budget.id)
@@ -582,18 +606,13 @@ export default function PlanningDrawer({
                     )
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           )}
 
           {/* Revenus Tab Content */}
           {activeTab === 'revenus' && (
             <div className="space-y-3 p-4">
-              {incomesLoading && (
-                <div className="flex justify-center py-8">
-                  <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-green-600"></div>
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Revenus Estimés</h3>
                 <button
@@ -606,15 +625,21 @@ export default function PlanningDrawer({
 
               {/* Total discret */}
               <div className="rounded-lg border border-green-100 bg-green-50/50 px-3 py-2">
-                <p className="text-sm text-green-700">
-                  Total estimé:{' '}
-                  <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span> (sans
-                  les économies)
-                </p>
+                <div className="flex flex-wrap items-center gap-x-1 text-sm text-green-700">
+                  <span>Total estimé:</span>
+                  {isIncomesBusy ? (
+                    <Skeleton className="h-3 w-14" />
+                  ) : (
+                    <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span>
+                  )}
+                  <span>(sans les économies)</span>
+                </div>
               </div>
 
               {/* Incomes List or Empty State */}
-              {!incomesLoading && incomes.length === 0 && profileSalary === 0 ? (
+              {isIncomesBusy ? (
+                renderSkeletonRows()
+              ) : incomes.length === 0 && profileSalary === 0 ? (
                 <div className="py-12 text-center">
                   <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                     <svg
@@ -644,7 +669,7 @@ export default function PlanningDrawer({
                     Ajouter votre premier revenu
                   </button>
                 </div>
-              ) : !incomesLoading && !incomeProgressLoading ? (
+              ) : (
                 <div className="space-y-2">
                   {/* Salaire du profil (read-only) */}
                   {profileSalary > 0 && (
@@ -745,7 +770,7 @@ export default function PlanningDrawer({
                     )
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>

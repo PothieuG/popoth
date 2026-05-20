@@ -28,6 +28,7 @@ interface EstimatedIncome {
 interface UseIncomeProgressReturn {
   incomeProgresses: IncomeProgress[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   refreshProgress: () => Promise<void>
   getIncomeProgress: (incomeId: string) => IncomeProgress | undefined
@@ -99,6 +100,7 @@ export function useIncomeProgress(
   const {
     incomes: realIncomes,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
     refreshIncomes,
   } = useRealIncomes(context)
@@ -124,6 +126,7 @@ export function useIncomeProgress(
   return {
     incomeProgresses,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
     refreshProgress,
     getIncomeProgress,

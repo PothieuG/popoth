@@ -54,7 +54,7 @@ export default function DashboardPage() {
   const { profile, hasProfile, createProfile, isLoading } = useProfile()
   const {
     financialData,
-    loading: financialLoading,
+    isFetching: financialFetching,
     error: financialError,
     refreshFinancialData,
   } = useFinancialData()
@@ -98,10 +98,6 @@ export default function DashboardPage() {
     )
   }
 
-  if (financialLoading) {
-    return <CentralLoader message="Calcul des données financières..." />
-  }
-
   return (
     <div className="flex min-h-0 flex-1 flex-col space-y-3">
       {financialError ? (
@@ -135,6 +131,7 @@ export default function DashboardPage() {
               totalSavings={financialData?.totalSavings || 0}
               onPlanningChange={refreshFinancialData}
               context="profile"
+              isFetching={financialFetching}
             />
           </div>
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
@@ -38,6 +39,7 @@ export interface UpdateRealIncomeRequest {
 interface UseRealIncomesReturn {
   incomes: RealIncome[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   totalIncomes: number
   addIncome: (incomeData: CreateRealIncomeRequest) => Promise<boolean>
@@ -57,6 +59,7 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
   const {
     data: incomes = [],
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<RealIncome[]>({
@@ -166,9 +169,16 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
   const error = latestError instanceof Error ? latestError.message : null
 
+  // Stable refresh reference — useIncomeProgress depends on this for its own
+  // useCallback. See useBudgets.ts / useRealExpenses.ts.
+  const refreshIncomes = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
   return {
     incomes,
     loading: isLoading,
+    isFetching,
     error,
     totalIncomes,
     addIncome: async (incomeData) => {
@@ -195,8 +205,6 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         return false
       }
     },
-    refreshIncomes: async () => {
-      await refetch()
-    },
+    refreshIncomes,
   }
 }

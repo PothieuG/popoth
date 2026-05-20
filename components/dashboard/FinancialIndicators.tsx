@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import SavingsDrawer from './SavingsDrawer'
 
 const PlanningDrawer = dynamic(() => import('./PlanningDrawer'), { ssr: false })
@@ -14,6 +15,13 @@ interface FinancialIndicatorsProps {
   className?: string
   onPlanningChange?: () => Promise<void>
   context?: 'profile' | 'group'
+  /**
+   * True dès qu'un fetch (initial ou refetch background post-mutation/switch
+   * de contexte) est en cours. Quand true, les 3 montants sont remplacés par
+   * des `<Skeleton>` aux mêmes dimensions. Les icônes/labels restent visibles
+   * pour préserver le squelette structurel.
+   */
+  isFetching?: boolean
 }
 
 /**
@@ -28,6 +36,7 @@ export default function FinancialIndicators({
   className,
   onPlanningChange,
   context,
+  isFetching = false,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -106,11 +115,18 @@ export default function FinancialIndicators({
             {/* Content */}
             <div className="w-full min-w-0">
               <p className="mb-1 text-xs font-medium text-gray-600">Solde Disponible</p>
-              <p
-                className={cn('truncate text-lg font-bold', getAmountColorClass(availableBalance))}
-              >
-                {formatAmount(availableBalance)}
-              </p>
+              {isFetching ? (
+                <Skeleton className="mx-auto h-6 w-20" />
+              ) : (
+                <p
+                  className={cn(
+                    'truncate text-lg font-bold',
+                    getAmountColorClass(availableBalance),
+                  )}
+                >
+                  {formatAmount(availableBalance)}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -154,9 +170,15 @@ export default function FinancialIndicators({
             {/* Content */}
             <div className="w-full min-w-0">
               <p className="mb-1 text-xs font-medium text-gray-600">Reste à Vivre</p>
-              <p className={cn('truncate text-lg font-bold', getAmountColorClass(remainingToLive))}>
-                {formatAmount(remainingToLive)}
-              </p>
+              {isFetching ? (
+                <Skeleton className="mx-auto h-6 w-20" />
+              ) : (
+                <p
+                  className={cn('truncate text-lg font-bold', getAmountColorClass(remainingToLive))}
+                >
+                  {formatAmount(remainingToLive)}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -189,10 +211,13 @@ export default function FinancialIndicators({
             </div>
 
             {/* Content */}
-            <div>
-              <p className="text-sm font-medium text-purple-800">
-                Montant total de vos économies: {formatAmount(totalSavings)}
-              </p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium text-purple-800">Montant total de vos économies:</p>
+              {isFetching ? (
+                <Skeleton className="h-4 w-16 bg-purple-200/70" />
+              ) : (
+                <p className="text-sm font-medium text-purple-800">{formatAmount(totalSavings)}</p>
+              )}
             </div>
           </div>
         </div>

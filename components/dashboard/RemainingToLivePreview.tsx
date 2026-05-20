@@ -1,5 +1,6 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
 
@@ -41,7 +42,7 @@ export default function RemainingToLivePreview({
   selectedId,
   context = 'profile',
 }: RemainingToLivePreviewProps) {
-  const { financialData, loading } = useFinancialData(context)
+  const { financialData, loading, isFetching } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
 
   /**
@@ -151,12 +152,12 @@ export default function RemainingToLivePreview({
     }).format(value)
   }
 
-  if (loading || !financialData) {
+  if (loading || isFetching || !financialData) {
     return (
       <div className="rounded-lg border bg-gray-50 p-4">
-        <div className="animate-pulse">
-          <div className="mb-1.5 h-4 w-3/4 rounded bg-gray-200"></div>
-          <div className="h-6 w-1/2 rounded bg-gray-200"></div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-6 w-1/2" />
         </div>
       </div>
     )

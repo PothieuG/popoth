@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 
 interface BudgetStat {
   id: string
@@ -377,6 +378,7 @@ export default function MonthlyRecapStep2({
                 disabled={isProcessing || isLoading}
                 className="bg-orange-500 text-white hover:bg-orange-600"
               >
+                {isProcessing && <InlineSpinner className="mr-1.5" />}
                 {isProcessing ? 'Traitement...' : 'Auto-répartition'}
               </Button>
             </div>
@@ -609,26 +611,7 @@ export default function MonthlyRecapStep2({
           >
             {isSubmitting ? (
               <span className="flex items-center gap-1.5">
-                <svg
-                  className="h-4 w-4 animate-spin"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  ></path>
-                </svg>
+                <InlineSpinner />
                 Finalisation...
               </span>
             ) : (
@@ -788,6 +771,7 @@ export default function MonthlyRecapStep2({
                     : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
+                {isProcessing && <InlineSpinner className="mr-1.5" />}
                 {isProcessing
                   ? selectedFromBudget.surplus > 0
                     ? 'Transfert...'

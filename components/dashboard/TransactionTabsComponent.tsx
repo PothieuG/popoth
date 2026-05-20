@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
 import { logger } from '@/lib/logger'
@@ -46,6 +47,7 @@ export default function TransactionTabsComponent({
   const {
     expenses,
     loading: expensesLoading,
+    isFetching: expensesFetching,
     error: expensesError,
     deleteExpense,
   } = useRealExpenses(context)
@@ -53,6 +55,7 @@ export default function TransactionTabsComponent({
   const {
     incomes,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
     deleteIncome,
   } = useRealIncomes(context)
@@ -143,14 +146,17 @@ export default function TransactionTabsComponent({
   }
 
   /**
-   * Render loading state
+   * Render skeleton rows pendant `isLoading` (premier fetch) OU `isFetching`
+   * (refetch post-mutation/switch context). On affiche 3 rows skeleton aux
+   * dimensions approximatives d'un `<TransactionListItem>` (h-14) pour
+   * préserver la structure visuelle et indiquer clairement que les données
+   * se rechargent.
    */
-  const renderLoading = () => (
-    <div className="flex items-center justify-center py-8">
-      <div className="text-center">
-        <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
-        <p className="text-sm text-gray-600">Chargement des transactions...</p>
-      </div>
+  const renderSkeletonRows = () => (
+    <div className="space-y-1.5">
+      {[0, 1, 2].map((i) => (
+        <Skeleton key={i} className="h-14 w-full" />
+      ))}
     </div>
   )
 
@@ -228,7 +234,7 @@ export default function TransactionTabsComponent({
    */
   const renderTransactionsList = () => {
     if (activeTab === 'expenses') {
-      if (expensesLoading) return renderLoading()
+      if (expensesLoading || expensesFetching) return renderSkeletonRows()
       if (expensesError) return renderError(expensesError)
       if (filteredExpenses.length === 0) return renderEmptyState('expenses')
 
@@ -248,7 +254,7 @@ export default function TransactionTabsComponent({
         </div>
       )
     } else {
-      if (incomesLoading) return renderLoading()
+      if (incomesLoading || incomesFetching) return renderSkeletonRows()
       if (incomesError) return renderError(incomesError)
       if (filteredIncomes.length === 0) return renderEmptyState('incomes')
 

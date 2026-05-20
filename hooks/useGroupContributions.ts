@@ -28,6 +28,7 @@ export function useGroupContributions() {
   const {
     data,
     isLoading,
+    isFetching,
     error: queryError,
     refetch,
   } = useQuery<GroupContributionsResponse | null>({
@@ -140,6 +141,7 @@ export function useGroupContributions() {
 
     // Loading states
     isLoading,
+    isFetching,
     error: queryError instanceof Error ? queryError.message : null,
     isRecalculating: recalcMutation.isPending,
 

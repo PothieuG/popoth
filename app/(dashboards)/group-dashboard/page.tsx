@@ -48,7 +48,7 @@ export default function GroupDashboardPage() {
   const { profile, isLoading } = useProfile()
   const {
     financialData,
-    loading: financialLoading,
+    isFetching: financialFetching,
     error: financialError,
     refreshFinancialData,
   } = useFinancialData('group')
@@ -71,10 +71,6 @@ export default function GroupDashboardPage() {
   // Next.js commit la navigation.
   if (!profile?.group_id) {
     return <CentralLoader message="Redirection vers le dashboard personnel..." />
-  }
-
-  if (financialLoading) {
-    return <CentralLoader message="Calcul des données financières du groupe..." />
   }
 
   return (
@@ -112,6 +108,7 @@ export default function GroupDashboardPage() {
               totalSavings={financialData?.totalSavings || 0}
               onPlanningChange={refreshFinancialData}
               context="group"
+              isFetching={financialFetching}
             />
           </div>
 
