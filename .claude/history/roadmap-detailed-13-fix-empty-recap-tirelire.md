@@ -1,7 +1,7 @@
-# Roadmap détaillée — Part 13/13 : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync + Hygiene-Next-16-Migration
+# Roadmap détaillée — Part 13/13 : Fix-Empty-Recap-Tirelire + Group-Budget-Auto-Sync + Hygiene-Next-16-Migration + Lazy-Mount-GroupManagementPanel
 
 > Créée 2026-05-19 — Part 12 ayant déjà franchi le plafond 38k (cf. [@.claude/guardrails/size-policy.md](../guardrails/size-policy.md)), le sprint suivant ouvre une nouvelle part.
-> **Étendue** : Sprint Fix-Empty-Recap-Tirelire + Sprint Group-Budget-Auto-Sync + Sprint Hygiene-Next-16-Migration (3 sprints livrés).
+> **Étendue** : Sprint Fix-Empty-Recap-Tirelire + Sprint Group-Budget-Auto-Sync + Sprint Hygiene-Next-16-Migration + Sprint Lazy-Mount-GroupManagementPanel (4 sprints livrés).
 > Pour l'index complet et le résumé court, voir CLAUDE.md §11.
 > Navigation : [← Part précédente](roadmap-detailed-12-cas3-to-refactor-recover.md) | (pas de partie suivante)
 
@@ -69,3 +69,32 @@
   **Patterns à retenir** [@.claude/conventions/operational-rules.md](../conventions/operational-rules.md) §5 Forbidden absolus : (a) ❌ NE PAS réintroduire `middleware.ts` — file convention `proxy.ts` Next 16+, runtime nodejs non-configurable (cf. doc Next upgrading-v16 §"middleware to proxy") ; (b) ❌ NE PAS lancer `pnpm self-update` sans target version explicite — bumpe silencieusement le pin `packageManager` ; pattern correct = `pnpm self-update <version>` ou edit `package.json` manuellement + `pnpm install`. Une 3e leçon implicite : (c) toujours `git mv` plutôt que `mv` + `git add` pour préserver l'historique git lors d'un rename de file convention (Git détecte automatiquement le rename via similarity index sans hint, mais `git mv` rend l'intent explicit).
 
   **Trade-off** : Sprint chore 1-commit, zéro impact métier observable côté UX au-delà des 2 warnings dev éteints + flux dev plus propre. Documente 2 nouvelles règles ❌ pérennes (file convention + `pnpm self-update`) qui sauvent les futurs sprints d'une régression silencieuse. Score reste **~100 stable**.
+
+- ✅ **Sprint Lazy-Mount-GroupManagementPanel** (livré 2026-05-20, déclenché par user "j'ai 3 fetchs NS_BINDING_ABORTED au mount dashboard sur Firefox") : ferme un fetch `/api/groups` spéculatif systématique au mount du dashboard. `<SettingsDrawer>` rendait toujours `<GroupManagementPanel>` même drawer fermé (juste translaté off-screen via `-translate-x-full` pour préserver l'animation de slide entre vues main ↔ group-management) → le hook `useGroups()` du panel firait son `useQuery` à chaque mount du dashboard, alors que la donnée n'était jamais consommée tant que l'utilisateur n'ouvrait pas le drawer ET ne cliquait pas "Gestion du groupe".
+
+  **Diagnostic** : (1) En dev React Strict Mode (Next.js 16 défaut), le double-mount provoquait visiblement 3 `NS_BINDING_ABORTED` Firefox sur `/api/profile` + `/api/groups/contributions` + `/api/groups` — les 3 `useQuery` qui passent `signal` à leur `queryFn`. Strict Mode mount → `queryFn` start → unmount → `AbortController.abort()` propagé via `signal` → fetch annulé → remount → 2e fetch passe (200). (2) `useFinancialData` ([hooks/useFinancialData.ts:51](../../hooks/useFinancialData.ts)) et `useBankBalance` ne passent pas `signal` à leur `fetch(url, { method, credentials })` — leurs fetchs double-firent silencieusement en dev mais retournent 200 chacun. Pas dans la liste des aborts user, juste invisibles. (3) Le `credentials: "omit"` dans le copy-as-fetch Firefox des 2 premières requêtes est une bizarrerie d'affichage sur requêtes coupées avant que les headers soient complètement écrits (les `Sec-Fetch-*` manquent aussi). La 3e (`/api/groups`) coupée plus tard a tous ses headers + `credentials: "include"`. Le code envoie bien `credentials: 'include'` partout, vérifié via `Grep credentials:` sur 31 sites dans `hooks/`. (4) Les 2 autres aborts (`/api/profile` + `/api/groups/contributions`) viennent de hooks consommés directement par la page dashboard ([useProfile](../../hooks/useProfile.ts) + [useGroupContributions](../../hooks/useGroupContributions.ts)) → vrai usage métier, impossible à dropper. Restent normaux en dev Strict Mode, disparaissent en prod (Strict Mode ne double-mount plus).
+
+  **Fix appliqué** : lazy-mount `<GroupManagementPanel>` via flag `hasBeenOpened` dans [components/settings/SettingsDrawer.tsx](../../components/settings/SettingsDrawer.tsx). Initialement tenté en `useEffect(() => { if (isOpen) setHasBeenOpened(true) }, [isOpen])` → ESLint flat config rule `react-hooks/set-state-in-effect` (introduite par React 19 / `eslint-plugin-react-hooks` shipped with React 19) refuse : "Calling setState synchronously within an effect can trigger cascading renders. Avoid calling setState() directly within an effect." Pivot vers le pattern "adjust state during render" documenté par React docs (`react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes`) :
+
+  ```tsx
+  const [hasBeenOpened, setHasBeenOpened] = useState(false)
+  if (isOpen && !hasBeenOpened) {
+    setHasBeenOpened(true)
+  }
+  // ...
+  <div className={...}>
+    {hasBeenOpened && <GroupManagementPanel onBack={() => setView('main')} onClose={onClose} />}
+  </div>
+  ```
+
+  React détecte le `setState` synchrone dans le body de render, bail-out le commit du render en cours, schedule un re-render → un seul commit visible. Le panel monte à la 1re ouverture du drawer (n'importe quelle view), reste monté ensuite pour préserver l'animation de slide entre views et éviter les re-mounts/re-fetches sur ouvertures subséquentes. Le hook `useGroups()` du panel ne fire donc plus jamais avant la 1re ouverture du drawer.
+
+  **1 fichier modifié** (1 commit unique sur `cleanup`) : [components/settings/SettingsDrawer.tsx](../../components/settings/SettingsDrawer.tsx) — +9 LOC (state + conditional render + commentaire pattern) / -1 LOC (remove unconditional panel mount). Aucun test à modifier — pas de `SettingsDrawer*.test.*` ni `GroupManagementPanel*.test.*` dans le repo (composants drawer-orchestration peu testés directement, couverts via les pages dashboard / group-dashboard en E2E manuels).
+
+  **Verif end-to-end** : `pnpm typecheck` exit 0 ; `pnpm lint:check` 0 errors / 0 warnings stable (après pivot du `useEffect` vers "adjust state during render") ; `pnpm format:check` exit 0 ; `pnpm test:run` **494 passed / 90 skipped** (baseline identique pre-sprint, aucun test SettingsDrawer-adjacent). 0 migration DB. 0 nouvelle RPC. 0 nouveau `: any`. Counter `as unknown as SupabaseClient` reste à 0. Counter `declare global` reste à 0.
+
+  **Smoke browser deferred to user** : (1) login → arriver sur dashboard → ouvrir Firefox DevTools Network → vérifier qu'il n'y a plus de fetch `/api/groups` du tout (les 2 aborts `/api/profile` + `/api/groups/contributions` restent en dev Strict Mode, normaux et inéluctables sans dropper Strict Mode dev) ; (2) ouvrir le drawer paramètres → vérifier que `/api/groups` fire à ce moment (200, attendu, panel mount) ; (3) naviguer vers "Gestion du groupe" → vérifier que la liste est instantanée (donnée déjà cached) ; (4) fermer + rouvrir drawer plusieurs fois → vérifier que `/api/groups` ne re-fire pas (panel reste monté grâce à `hasBeenOpened` qui ne revient jamais à false, cache TanStack chaud).
+
+  **Patterns à retenir** [@.claude/conventions/operational-rules.md](../conventions/operational-rules.md) §5 Modals & UI : ❌ NE PAS toujours-mounter un composant lourd (qui fait des `useQuery` / `fetch`) à l'intérieur d'un drawer/modal masqué par défaut via CSS (translate, opacity, display visible-mais-pas-vu) — lazy-mount via state flag `hasBeenOpened` + pattern "adjust state during render" React 19 (PAS `useEffect` car bloqué par ESLint `react-hooks/set-state-in-effect`). Le coût d'un fetch HTTP spéculatif n'est pas négligeable au cold start (Next.js dev compile la route `/api/*` à la 1re requête → 200-500ms en dev). Pattern miroir applicable à tout panel "slot" d'un drawer (modals d'édition, panels de réglages, sub-views horizontales).
+
+  **Trade-off** : Sprint chirurgical 1-commit + 1-fichier déclenché par observation user. Bénéfice mesurable en prod (1 fetch en moins par mount dashboard) + dev plus propre (réduit le bruit `NS_BINDING_ABORTED` de 3 → 2 au mount). N'affecte pas le runtime Strict Mode lui-même (les 2 autres aborts restent — ils viennent de hooks consommés directement par la page dashboard, impossible à dropper sans tuer le fetch métier réel). Score reste **~100 stable**.

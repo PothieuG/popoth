@@ -31,6 +31,15 @@ export default function SettingsDrawer({
 }: SettingsDrawerProps) {
   const [view, setView] = useState<DrawerView>('main')
 
+  // Lazy-mount <GroupManagementPanel> : monte à la 1re ouverture pour éviter
+  // le fetch /api/groups spéculatif au mount du dashboard, jamais consommé
+  // tant que l'utilisateur n'a pas ouvert le drawer. Pattern "adjust state
+  // during render" (React 19 — react.dev/learn/you-might-not-need-an-effect).
+  const [hasBeenOpened, setHasBeenOpened] = useState(false)
+  if (isOpen && !hasBeenOpened) {
+    setHasBeenOpened(true)
+  }
+
   // Reset à 'main' après la fin de l'animation de close (300ms) pour ne pas
   // voir un snap visuel pendant la fermeture du drawer.
   useEffect(() => {
@@ -161,7 +170,9 @@ export default function SettingsDrawer({
             }`}
             aria-hidden={view !== 'group-management'}
           >
-            <GroupManagementPanel onBack={() => setView('main')} onClose={onClose} />
+            {hasBeenOpened && (
+              <GroupManagementPanel onBack={() => setView('main')} onClose={onClose} />
+            )}
           </div>
         </div>
       </div>
