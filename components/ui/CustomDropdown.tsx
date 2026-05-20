@@ -248,6 +248,12 @@ export default function CustomDropdown({
               left: menuPos.left,
               width: menuPos.width,
               maxHeight: menuPos.maxHeight,
+              // Override Radix DismissableLayer's `body.style.pointerEvents = 'none'`
+              // (set when a Dialog opens). Without this explicit auto, the portaled
+              // menu is hit-test-transparent — pointer events fall through to the
+              // form inputs underneath, and option clicks never reach the listbox.
+              // Radix itself uses the same workaround on its own Content layer.
+              pointerEvents: 'auto',
             }}
             className="z-[100] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg"
           >
