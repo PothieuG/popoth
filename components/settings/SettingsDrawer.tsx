@@ -51,10 +51,10 @@ export default function SettingsDrawer({
 
   return (
     <>
-      {/* Overlay */}
+      {/* Overlay — Tailwind v4: use bg-black/50 + opacity-* (legacy bg-opacity-* utilities removed) */}
       <div
-        className={`fixed inset-0 z-50 bg-black transition-all duration-300 ease-in-out ${
-          isOpen ? 'bg-opacity-50 visible' : 'bg-opacity-0 invisible'
+        className={`fixed inset-0 z-50 bg-black/50 transition-all duration-300 ease-in-out ${
+          isOpen ? 'visible opacity-100' : 'invisible opacity-0'
         }`}
         onClick={onClose}
       />
