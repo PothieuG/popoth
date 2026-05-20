@@ -44,14 +44,18 @@ export function useLogin() {
         const returnPath = urlParams.get('from')
         const destination = returnPath || '/dashboard'
         router.push(destination)
+        // Keep isSubmitting=true: router.push is non-blocking, the page
+        // stays mounted for a brief moment before nav unmounts it. Resetting
+        // here re-enables the inputs and causes a visible flicker.
+        return result
       }
 
+      setIsSubmitting(false)
       return result
     } catch (err) {
       logger.error('Login error:', err)
-      return { success: false, error: 'Erreur de connexion inattendue' }
-    } finally {
       setIsSubmitting(false)
+      return { success: false, error: 'Erreur de connexion inattendue' }
     }
   }
 
