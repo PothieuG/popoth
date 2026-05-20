@@ -260,7 +260,12 @@ export default function CustomDropdown({
                   type="button"
                   role="option"
                   aria-selected={value === option.id}
-                  onClick={() => {
+                  onPointerDown={(e) => {
+                    // Commit selection on pointerdown to win the race against any
+                    // higher-level close-on-outside handler (DismissableLayer, our own
+                    // mousedown click-outside in this component). preventDefault avoids
+                    // focus-shift to <body> that would also blur the open state.
+                    e.preventDefault()
                     onChange(option.id)
                     setIsOpen(false)
                   }}
