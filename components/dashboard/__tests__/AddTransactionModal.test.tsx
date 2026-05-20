@@ -81,7 +81,7 @@ import AddTransactionModal from '../AddTransactionModal'
 async function navigateToFieldsExpense(user: UserEvent, opts: { exceptional?: boolean } = {}) {
   // Step 1: select-type → click Dépense card
   await user.click(screen.getByRole('button', { name: /Dépense/i }))
-  // Step 2: select-expense-kind → click Budgétée OR Exceptionnelle
+  // Step 2: select-kind → click Budgétée OR Exceptionnelle
   if (opts.exceptional) {
     await user.click(screen.getByRole('button', { name: /Exceptionnelle/i }))
   } else {
@@ -89,9 +89,15 @@ async function navigateToFieldsExpense(user: UserEvent, opts: { exceptional?: bo
   }
 }
 
-async function navigateToFieldsIncome(user: UserEvent) {
-  // Step 1: select-type → click Revenu card (skips expense-kind step for income)
+async function navigateToFieldsIncome(user: UserEvent, opts: { exceptional?: boolean } = {}) {
+  // Step 1: select-type → click Revenu card
   await user.click(screen.getByRole('button', { name: /Revenu/i }))
+  // Step 2: select-kind → click Régulier OR Exceptionnel
+  if (opts.exceptional) {
+    await user.click(screen.getByRole('button', { name: /Exceptionnel/i }))
+  } else {
+    await user.click(screen.getByRole('button', { name: /Régulier/i }))
+  }
 }
 
 describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () => {
@@ -122,15 +128,33 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
     expect(screen.queryByLabelText(/description/i)).not.toBeInTheDocument()
   })
 
-  it('Revenu → skips expense-kind step, lands directly on fields', async () => {
+  it('Revenu → Step 2 renders Régulier / Exceptionnel cards', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: /Revenu/i }))
+    expect(screen.getByRole('button', { name: /Régulier/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Exceptionnel/i })).toBeInTheDocument()
+    // The expense kind cards must NOT appear in the income flow
+    expect(screen.queryByRole('button', { name: /Budgétée/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Exceptionnelle/i })).not.toBeInTheDocument()
+    // Fields not yet rendered — we're still at the kind step
+    expect(screen.queryByLabelText(/description/i)).not.toBeInTheDocument()
+  })
+
+  it('Revenu Régulier → lands on fields with FK dropdown', async () => {
     const user = userEvent.setup()
     render(<AddTransactionModal onClose={vi.fn()} />)
     await navigateToFieldsIncome(user)
-    // Income fields visible
     expect(screen.getByLabelText(/description/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/montant/i)).toBeInTheDocument()
-    // The budget cards from Step 2 are NOT shown for income
-    expect(screen.queryByRole('button', { name: /Budgétée/i })).not.toBeInTheDocument()
+    expect(screen.getByTestId('fk-dropdown')).toBeInTheDocument()
+  })
+
+  it('Revenu Exceptionnel → lands on fields WITHOUT FK dropdown', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await navigateToFieldsIncome(user, { exceptional: true })
+    expect(screen.getByLabelText(/description/i)).toBeInTheDocument()
+    expect(screen.queryByTestId('fk-dropdown')).toBeNull()
   })
 
   it('back button preserves description + amount across step transitions', async () => {
@@ -300,6 +324,26 @@ describe('AddTransactionModal — submit flows', () => {
           description: 'Paie',
           amount: 1500,
           estimated_income_id: INCOME_UUID,
+        }),
+      )
+    })
+  })
+
+  it('exceptional income submit → addIncome called with estimated_income_id undefined', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await navigateToFieldsIncome(user, { exceptional: true })
+    await user.type(screen.getByLabelText(/description/i), 'Cadeau anniversaire')
+    const amount = screen.getByLabelText(/montant/i)
+    await user.clear(amount)
+    await user.type(amount, '150')
+    await user.click(screen.getByRole('button', { name: /^Ajouter le revenu$/i }))
+    await waitFor(() => {
+      expect(addIncome).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Cadeau anniversaire',
+          amount: 150,
+          estimated_income_id: undefined,
         }),
       )
     })

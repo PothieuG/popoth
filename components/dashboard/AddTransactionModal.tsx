@@ -39,15 +39,16 @@ interface AddTransactionModalProps {
 type TransactionType = 'expense' | 'income'
 
 /**
- * Wizard step state (Sprint P4-P5-P6 / Phase B1).
+ * Wizard step state (Sprint P4-P5-P6 / Phase B1, extended to income kind).
  * - `'select-type'`: choose expense vs income (always first step)
- * - `'select-expense-kind'`: choose budgeted vs exceptional (expense flow only)
+ * - `'select-kind'`: choose budgeted/regular vs exceptional. Polymorphic on
+ *   the active `transactionType` — labels and FK target differ.
  * - `'fields'`: form fields (description, amount, date, FK, savings toggle, etc.)
  *
- * Income flow skips `select-expense-kind`. Form state is preserved via the
- * single `useForm` at the top — step transitions only swap the render.
+ * Form state is preserved via the single `useForm` at the top — step
+ * transitions only swap the render.
  */
-type WizardStep = 'select-type' | 'select-expense-kind' | 'fields'
+type WizardStep = 'select-type' | 'select-kind' | 'fields'
 
 const todayIso = (): string => {
   const today = new Date().toISOString().split('T')[0]
@@ -263,7 +264,7 @@ export default function AddTransactionModal({
         estimated_budget_id: null,
       })
       setUseSavings(false)
-      setWizardStep('select-expense-kind')
+      setWizardStep('select-kind')
     } else {
       form.reset({
         transactionType: 'income',
@@ -274,19 +275,23 @@ export default function AddTransactionModal({
         estimated_income_id: null,
       })
       setUseSavings(false)
-      setWizardStep('fields')
+      setWizardStep('select-kind')
     }
   }
 
   /**
-   * Step 2: handle budgeted/exceptional selection for expenses.
-   * Sets is_exceptional and navigates to fields step.
+   * Step 2: handle regular/exceptional selection. Polymorphic on the active
+   * transactionType — expense clears `estimated_budget_id`, income clears
+   * `estimated_income_id` when exceptional.
    */
-  const handleSelectExpenseKind = (exceptional: boolean) => {
+  const handleSelectKind = (exceptional: boolean) => {
     form.setValue('is_exceptional', exceptional)
     if (exceptional) {
-      // Clear FK when switching to exceptional
-      form.setValue('estimated_budget_id', null)
+      if (transactionType === 'expense') {
+        form.setValue('estimated_budget_id', null)
+      } else {
+        form.setValue('estimated_income_id', null)
+      }
       setUseSavings(false)
     }
     setStepAnimDir('forward')
@@ -295,13 +300,13 @@ export default function AddTransactionModal({
 
   /**
    * Back navigation: returns to previous step preserving form values.
+   * Now uniform across expense/income flows since both go through select-kind.
    */
   const handleBack = () => {
     setStepAnimDir('backward')
     if (wizardStep === 'fields') {
-      // Income flow goes back to select-type ; expense flow goes back to select-expense-kind
-      setWizardStep(transactionType === 'expense' ? 'select-expense-kind' : 'select-type')
-    } else if (wizardStep === 'select-expense-kind') {
+      setWizardStep('select-kind')
+    } else if (wizardStep === 'select-kind') {
       setWizardStep('select-type')
     }
   }
@@ -398,8 +403,10 @@ export default function AddTransactionModal({
   const stepTitle =
     wizardStep === 'select-type'
       ? 'Type de transaction'
-      : wizardStep === 'select-expense-kind'
-        ? 'Type de dépense'
+      : wizardStep === 'select-kind'
+        ? transactionType === 'expense'
+          ? 'Type de dépense'
+          : 'Type de revenu'
         : transactionType === 'expense'
           ? 'Ajouter une dépense'
           : 'Ajouter un revenu'
@@ -541,74 +548,140 @@ export default function AddTransactionModal({
           </div>
         )}
 
-        {/* Step 2: select expense kind (budgeted vs exceptional) */}
-        {wizardStep === 'select-expense-kind' && (
+        {/* Step 2: select kind (budgeted/regular vs exceptional). Polymorphic
+            on transactionType — same step state, different cards + intro. */}
+        {wizardStep === 'select-kind' && (
           <div
-            key="step-select-expense-kind"
+            key="step-select-kind"
             className={cn(
               'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
               'animate-in fade-in duration-200',
               stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
             )}
           >
-            <p className="text-sm text-gray-600">
-              La dépense est-elle rattachée à un budget existant ?
-            </p>
-            <div className="flex flex-col space-y-2">
-              <button
-                type="button"
-                onClick={() => handleSelectExpenseKind(false)}
-                className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
-              >
-                <div className="flex items-center space-x-2">
-                  <svg
-                    className="h-6 w-6 text-blue-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+            {transactionType === 'expense' ? (
+              <>
+                <p className="text-sm text-gray-600">
+                  La dépense est-elle rattachée à un budget existant ?
+                </p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(false)}
+                    className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  <div>
-                    <p className="font-medium text-blue-700">Budgétée</p>
-                    <p className="text-xs text-blue-600">Rattachée à un budget existant</p>
-                  </div>
-                </div>
-              </button>
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-700">Budgétée</p>
+                        <p className="text-xs text-blue-600">Rattachée à un budget existant</p>
+                      </div>
+                    </div>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => handleSelectExpenseKind(true)}
-                className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
-              >
-                <div className="flex items-center space-x-2">
-                  <svg
-                    className="h-6 w-6 text-orange-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(true)}
+                    className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <div>
-                    <p className="font-medium text-orange-700">Exceptionnelle</p>
-                    <p className="text-xs text-orange-600">
-                      Hors budget (impacte directement le RAV)
-                    </p>
-                  </div>
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-orange-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-orange-700">Exceptionnelle</p>
+                        <p className="text-xs text-orange-600">
+                          Hors budget (impacte directement le RAV)
+                        </p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
-              </button>
-            </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  Le revenu est-il rattaché à un revenu estimé existant ?
+                </p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(false)}
+                    className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-700">Régulier</p>
+                        <p className="text-xs text-blue-600">Lié à un revenu estimé existant</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(true)}
+                    className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-orange-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-orange-700">Exceptionnel</p>
+                        <p className="text-xs text-orange-600">
+                          Hors revenu estimé (ajoute directement au RAV)
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
