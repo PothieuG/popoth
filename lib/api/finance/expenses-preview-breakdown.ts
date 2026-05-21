@@ -70,6 +70,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     // En mode edition: restaurer virtuellement l'allocation de la depense existante
     let existingExpense: {
+      amount: number
       amount_from_piggy_bank: number
       amount_from_budget_savings: number
       amount_from_budget: number
@@ -77,12 +78,13 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     if (expenseId) {
       const { data: expData } = await supabaseServer
         .from('real_expenses')
-        .select('amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
+        .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
         .eq('id', expenseId)
         .single()
 
       if (expData) {
         existingExpense = {
+          amount: expData.amount,
           amount_from_piggy_bank: expData.amount_from_piggy_bank || 0,
           amount_from_budget_savings: expData.amount_from_budget_savings || 0,
           amount_from_budget: expData.amount_from_budget || 0,
@@ -139,23 +141,53 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         return sum + amountFromBudget
       }, 0) || 0
 
-    // Mode EDIT (existingExpense fourni) : algorithme « preserve existing
-    // caps » — Sprint 2026-05-21 fix. Le serveur PUT (applyAllocation)
-    // applique le même algorithme : savings/piggy stockés sur la dépense
-    // existante sont des CEILINGS, budget absorbe le reste (incl. déficit).
-    // Mode ADD : P4-strict (ou P5 toggle) — budget first, savings cascade.
+    // Mode EDIT (existingExpense fourni) : algorithme « delta-based cascade »
+    // Sprint 2026-05-21 (refinement). Le serveur PUT (applyAllocation) applique
+    // le même algorithme — duplication inline car la route ne peut pas importer
+    // la version server (qui fait des UPDATE). Toute modif doit toucher les
+    // deux endroits. Mode ADD : P4-strict (ou P5 toggle) — budget first,
+    // savings cascade.
     let fromPiggyBank: number
     let fromBudgetSavings: number
     let fromBudget: number
     if (existingExpense) {
-      const existingPiggyCap = existingExpense.amount_from_piggy_bank
-      const existingSavingsCap = existingExpense.amount_from_budget_savings
-      let remaining = amount
-      fromPiggyBank = Math.min(remaining, existingPiggyCap)
-      remaining -= fromPiggyBank
-      fromBudgetSavings = Math.min(remaining, existingSavingsCap)
-      remaining -= fromBudgetSavings
-      fromBudget = remaining
+      const eP = existingExpense.amount_from_piggy_bank
+      const eS = existingExpense.amount_from_budget_savings
+      const eB = existingExpense.amount_from_budget
+      const existingAmount = existingExpense.amount
+      const delta = Math.round((amount - existingAmount) * 100) / 100
+
+      if (delta === 0) {
+        fromPiggyBank = eP
+        fromBudgetSavings = eS
+        fromBudget = eB
+      } else if (delta > 0) {
+        // Le delta supplémentaire pioche d'abord dans les économies libres
+        // (savingsBefore est le pool post-virtual-revert, donc on retire `eS`
+        // pour obtenir l'extra room non-claimed). Budget absorbe le reste.
+        // Piggy stays at `eP` — jamais auto-débitée même en EDIT (P4 strict).
+        const extraSavings = Math.max(0, savingsBefore - eS)
+        let remaining = delta
+        const addSavings = Math.min(remaining, extraSavings)
+        remaining -= addSavings
+        const addBudget = remaining
+        fromPiggyBank = eP
+        fromBudgetSavings = eS + addSavings
+        fromBudget = eB + addBudget
+      } else {
+        // delta < 0 : refund priorité reverse — budget vidé d'abord, puis
+        // savings (préserve la portion savings tant que le budget peut
+        // absorber le refund), puis piggy en dernier recours.
+        let remainingRefund = -delta
+        const refundFromBudget = Math.min(remainingRefund, eB)
+        remainingRefund -= refundFromBudget
+        const refundFromSavings = Math.min(remainingRefund, eS)
+        remainingRefund -= refundFromSavings
+        const refundFromPiggy = Math.min(remainingRefund, eP)
+        fromPiggyBank = eP - refundFromPiggy
+        fromBudgetSavings = eS - refundFromSavings
+        fromBudget = eB - refundFromBudget
+      }
     } else {
       const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
       const allocation = calculateBreakdown(amount, budgetRemaining, savingsBefore, {

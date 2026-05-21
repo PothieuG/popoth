@@ -28,6 +28,7 @@ export interface ApplyAllocationResult extends AllocationBreakdown {
 type ContextFilter = Record<string, string>
 
 interface ExpenseWithBreakdown {
+  amount?: number | null
   amount_from_piggy_bank?: number | null
   amount_from_budget_savings?: number | null
   amount_from_budget?: number | null
@@ -133,19 +134,56 @@ export async function applyAllocation(
 
   const budgetRemaining = budgetEstimated - budgetSpentBefore
 
-  // Mode EDIT (existingExpense fourni) : preserve existing per-source caps.
+  // Mode EDIT (existingExpense fourni) : algorithme « delta-based cascade ».
   // Mode ADD : P4 strict default — edit flow n'utilise pas le toggle P5.
   let breakdown: AllocationBreakdown
   if (existingExpense) {
-    const existingPiggyCap = existingExpense.amount_from_piggy_bank ?? 0
-    const existingSavingsCap = existingExpense.amount_from_budget_savings ?? 0
-    let remaining = amount
-    const fromPiggyBank = Math.min(remaining, existingPiggyCap)
-    remaining -= fromPiggyBank
-    const fromBudgetSavings = Math.min(remaining, existingSavingsCap)
-    remaining -= fromBudgetSavings
-    const fromBudget = remaining // absorbe le reste, incl. déficit éventuel
-    breakdown = { fromPiggyBank, fromBudgetSavings, fromBudget, overflow: 0 }
+    const eP = existingExpense.amount_from_piggy_bank ?? 0
+    const eS = existingExpense.amount_from_budget_savings ?? 0
+    const eB = existingExpense.amount_from_budget ?? 0
+    const existingAmount = existingExpense.amount ?? eP + eS + eB
+    // Round to nearest cent to absorb float-precision drift (e.g., 250.0000001
+    // typed via DecimalFormInput parses to 250.0000001 instead of 250).
+    const delta = Math.round((amount - existingAmount) * 100) / 100
+
+    if (delta === 0) {
+      breakdown = { fromPiggyBank: eP, fromBudgetSavings: eS, fromBudget: eB, overflow: 0 }
+    } else if (delta > 0) {
+      // Sprint 2026-05-21 (refinement) : on cascade le delta supplémentaire sur
+      // les économies AVANT le budget si le pool en a encore (extra room beyond
+      // existing claim). Sans ça, A=250 (eS=250, pool=50) édité à 275 mettait
+      // les 25€ supplémentaires sur le budget au lieu d'aller piocher dans les
+      // 50€ d'économies libres. User explicit : « si il existe encore des
+      // économies disponibles, il faut les utiliser ». Piggy reste à `eP` —
+      // jamais auto-débitée même en EDIT (P4 strict).
+      const extraSavings = Math.max(0, savingsBefore - eS)
+      let remaining = delta
+      const addSavings = Math.min(remaining, extraSavings)
+      remaining -= addSavings
+      const addBudget = remaining // absorbe le reste, incl. déficit éventuel
+      breakdown = {
+        fromPiggyBank: eP,
+        fromBudgetSavings: eS + addSavings,
+        fromBudget: eB + addBudget,
+        overflow: 0,
+      }
+    } else {
+      // delta < 0 : refund priorité reverse — budget d'abord (vidé à 0), puis
+      // savings (préserve la portion savings tant que budget peut absorber le
+      // refund), puis piggy en dernier recours.
+      let remainingRefund = -delta
+      const refundFromBudget = Math.min(remainingRefund, eB)
+      remainingRefund -= refundFromBudget
+      const refundFromSavings = Math.min(remainingRefund, eS)
+      remainingRefund -= refundFromSavings
+      const refundFromPiggy = Math.min(remainingRefund, eP)
+      breakdown = {
+        fromPiggyBank: eP - refundFromPiggy,
+        fromBudgetSavings: eS - refundFromSavings,
+        fromBudget: eB - refundFromBudget,
+        overflow: 0,
+      }
+    }
   } else {
     breakdown = calculateBreakdown(amount, budgetRemaining, savingsBefore)
   }
