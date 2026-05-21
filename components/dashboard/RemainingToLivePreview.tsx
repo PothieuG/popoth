@@ -1,11 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFinancialData } from '@/hooks/useFinancialData'
-import { calculateRemainingToLiveProfile, calculateRemainingToLiveGroup } from '@/lib/financial-calculations'
 import { useProgressData } from '@/hooks/useProgressData'
-import { useBudgets } from '@/hooks/useBudgets'
-import { useIncomes } from '@/hooks/useIncomes'
+import { BalanceRow, EntityLabel, ImpactRow } from '@/components/dashboard/recap-rows'
 
 interface RemainingToLivePreviewProps {
   /**
@@ -32,23 +30,35 @@ interface RemainingToLivePreviewProps {
    * Contexte (profile ou group)
    */
   context?: 'profile' | 'group'
+
+  /**
+   * En mode édition : montant stocké de la transaction existante. Permet de
+   * "back-out" la contribution actuelle (déjà incluse dans
+   * `progress.receivedAmount` ou dans l'état RAV courant) avant de calculer
+   * l'impact net du nouveau montant. Sprint 2026-05-22 / Income-Edit-Preview.
+   * Default 0 (mode ADD — pas d'existing à reverser).
+   */
+  existingAmount?: number
 }
 
 /**
- * Composant qui affiche un aperçu de l'impact d'une transaction
- * sur le reste à vivre avec code couleur
+ * Aperçu de l'impact d'une transaction (exceptionnelle ou revenu régulier)
+ * sur le reste à vivre. Sprint 2026-05-22 / Recap-Compact-And-Uniform :
+ * refondue pour utiliser les primitives `recap-rows` partagées avec
+ * `<ExpenseBreakdownPreview>` — même panel bleu, même header + divider
+ * "Après opération", même format de lignes (label coloré par entité +
+ * montant signé green/red en impact, balance noire en recap).
  */
 export default function RemainingToLivePreview({
   amount,
   type,
   isExceptional,
   selectedId,
-  context = 'profile'
+  context = 'profile',
+  existingAmount = 0,
 }: RemainingToLivePreviewProps) {
-  const { financialData, loading } = useFinancialData(context)
+  const { financialData, loading, isFetching } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
-  const { budgets } = useBudgets(context)
-  const { incomes } = useIncomes(context)
 
   /**
    * Calcule le nouveau reste à vivre avec la transaction ajoutée
@@ -60,12 +70,15 @@ export default function RemainingToLivePreview({
 
     const currentRemainingToLive = financialData.remainingToLive
 
-    // Pour les transactions exceptionnelles, l'impact est direct
+    // Pour les transactions exceptionnelles, l'impact est direct. En EDIT
+    // mode (existingAmount > 0), l'impact courant est déjà reflété dans le
+    // RAV → on calcule le delta net : (amount - existingAmount).
     if (isExceptional) {
-      const impact = type === 'expense' ? -amount : amount
+      const netAmount = amount - existingAmount
+      const impact = type === 'expense' ? -netAmount : netAmount
       return {
         newRemainingToLive: currentRemainingToLive + impact,
-        change: impact
+        change: impact,
       }
     }
 
@@ -87,36 +100,36 @@ export default function RemainingToLivePreview({
 
           return {
             newRemainingToLive: currentRemainingToLive - additionalOverrun,
-            change: -additionalOverrun
+            change: -additionalOverrun,
           }
         }
       }
 
       // Si pas de dépassement, pas d'impact (déjà budgété)
       return { newRemainingToLive: currentRemainingToLive, change: 0 }
-
     } else if (type === 'income' && selectedId) {
-      // Pour les revenus, vérifier si c'est un bonus
+      // Pour les revenus, vérifier si c'est un bonus. En EDIT mode, on
+      // "back-out" la transaction existante avant le calcul pour ne pas
+      // double-compter (progress.receivedAmount inclut déjà l'existing tx).
       const progress = incomeProgress[selectedId]
 
       if (progress) {
         const currentReceived = progress.receivedAmount
-        const newTotalReceived = currentReceived + amount
+        const effectiveCurrentReceived = currentReceived - existingAmount
+        const newTotalReceived = effectiveCurrentReceived + amount
         const estimatedAmount = progress.estimatedAmount
 
         // Calculer l'impact de cette transaction par rapport à l'estimation
-        const currentDifference = currentReceived - estimatedAmount
+        const currentDifference = effectiveCurrentReceived - estimatedAmount
         const newDifference = newTotalReceived - estimatedAmount
 
-        // Si aucun revenu n'a encore été reçu (currentReceived = 0),
-        // l'impact est la différence totale par rapport à l'estimation (newDifference)
-        // Sinon, c'est le changement différentiel normal
-
-        if (currentReceived === 0) {
+        // Si aucun revenu n'a encore été reçu (effectif = 0 après back-out),
+        // l'impact est la différence totale par rapport à l'estimation
+        if (effectiveCurrentReceived === 0) {
           // Premier revenu pour cette estimation : impact = différence totale vs estimation
           return {
             newRemainingToLive: currentRemainingToLive + newDifference,
-            change: newDifference
+            change: newDifference,
           }
         } else {
           // Revenus supplémentaires : impact = changement différentiel
@@ -125,7 +138,7 @@ export default function RemainingToLivePreview({
           if (additionalChange !== 0) {
             return {
               newRemainingToLive: currentRemainingToLive + additionalChange,
-              change: additionalChange
+              change: additionalChange,
             }
           }
         }
@@ -139,31 +152,12 @@ export default function RemainingToLivePreview({
     return { newRemainingToLive: currentRemainingToLive, change: 0 }
   })()
 
-  /**
-   * Détermine la couleur selon la valeur
-   */
-  const getColorClass = (value: number) => {
-    if (value > 0) return 'text-green-600'
-    if (value < 0) return 'text-red-600'
-    return 'text-gray-500'
-  }
-
-  /**
-   * Formate le montant en euros
-   */
-  const formatEur = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(value)
-  }
-
-  if (loading || !financialData) {
+  if (loading || isFetching || !financialData) {
     return (
-      <div className="bg-gray-50 rounded-lg p-4 border">
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-          <div className="h-6 bg-gray-200 rounded w-1/2"></div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-6 w-1/2" />
         </div>
       </div>
     )
@@ -174,75 +168,47 @@ export default function RemainingToLivePreview({
     return null
   }
 
+  // Caption explicative selon le cas
+  const captionText = isExceptional
+    ? `${type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel — impact direct sur le reste à vivre.`
+    : change !== 0
+      ? type === 'expense'
+        ? 'Dépassement de budget.'
+        : change > 0
+          ? "Bonus au-delà de l'estimation."
+          : "Déficit par rapport à l'estimation."
+      : type === 'expense'
+        ? 'Dans les limites du budget — pas d’impact sur le reste à vivre.'
+        : "Dans les limites de l'estimation — pas d'impact sur le reste à vivre."
+
   return (
-    <div className="bg-blue-50/50 rounded-lg p-4 border border-blue-200">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-gray-700">
-          Impact sur le reste à vivre :
-        </p>
+    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-gray-700">Impact sur le reste à vivre :</p>
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Actuel :</span>
-          <span className={`font-semibold ${getColorClass(financialData.remainingToLive)}`}>
-            {formatEur(financialData.remainingToLive)}
-          </span>
-        </div>
-
+        {/* Impact section — affiché seulement si delta != 0 */}
         {change !== 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">
-              {change > 0 ? 'Ajout :' : 'Déduction :'}
-            </span>
-            <span className={`font-semibold ${getColorClass(change)}`}>
-              {change > 0 ? '+' : ''}{formatEur(change)}
-            </span>
+          <div className="space-y-1">
+            <ImpactRow label={<EntityLabel type="rav" />} amount={change} />
           </div>
         )}
 
-        {/* Affichage spécial pour les déficits de revenus */}
-        {!isExceptional && type === 'income' && selectedId && amount > 0 && (
-          (() => {
-            const progress = incomeProgress[selectedId]
-            if (progress) {
-              const newTotalReceived = (progress.receivedAmount || 0) + amount
-              const totalDeficitOrBonus = newTotalReceived - progress.estimatedAmount
-              if (totalDeficitOrBonus < 0) {
-                return (
-                  <div className="flex items-center justify-between border-t border-blue-200 pt-2">
-                    <span className="text-xs text-gray-600">Déficit total :</span>
-                    <span className="text-xs font-semibold text-red-600">
-                      {formatEur(totalDeficitOrBonus)}
-                    </span>
-                  </div>
-                )
-              }
-            }
-            return null
-          })()
-        )}
-
-        <div className="pt-2 border-t border-blue-200">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">Nouveau :</span>
-            <span className={`text-lg font-bold ${getColorClass(newRemainingToLive)}`}>
-              {formatEur(newRemainingToLive)}
-            </span>
-          </div>
+        {/* Divider + Après opération */}
+        <div className="flex items-center gap-2 pt-1">
+          <div className="h-px flex-1 bg-blue-200" />
+          <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Après opération
+          </span>
+          <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {isExceptional ? (
-          <p className="text-xs text-blue-600 mt-2">
-            {type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel - Impact direct sur le reste à vivre
-          </p>
-        ) : change !== 0 ? (
-          <p className="text-xs text-amber-600 mt-2">
-            {type === 'expense' ? 'Dépassement de budget' : change > 0 ? 'Bonus au-delà de l\'estimation' : 'Déficit par rapport à l\'estimation'}
-          </p>
-        ) : (
-          <p className="text-xs text-gray-500 mt-2">
-            {type === 'expense' ? 'Dans les limites du budget' : 'Dans les limites de l\'estimation'}
-          </p>
-        )}
+        {/* Recap section — RAV après opération en noir */}
+        <div className="space-y-1">
+          <BalanceRow label={<EntityLabel type="rav" />} amount={newRemainingToLive} />
+        </div>
+
+        {/* Caption explicative */}
+        <p className="text-xs text-gray-500">{captionText}</p>
       </div>
     </div>
   )

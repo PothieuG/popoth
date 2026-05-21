@@ -1,4 +1,7 @@
+import type { Json, TablesInsert } from '@/lib/database.types'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { SnapshotPayloadV2 } from '@/lib/recap-snapshot.types'
+import { logger } from '@/lib/logger'
 
 /**
  * Crée un snapshot complet de toutes les données financières d'un utilisateur/groupe
@@ -13,13 +16,12 @@ import { supabaseServer } from '@/lib/supabase-server'
  * - group_contributions (si contexte groupe)
  * - groups (si contexte groupe)
  * - remaining_to_live_snapshots (historique RAV)
- * - financial_snapshots (cache calculs)
  */
 export async function createFullDatabaseSnapshot(
   contextId: string,
   context: 'profile' | 'group',
   snapshotMonth: number,
-  snapshotYear: number
+  snapshotYear: number,
 ): Promise<{ snapshotId: string | null; error: string | null }> {
   const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
 
@@ -33,7 +35,6 @@ export async function createFullDatabaseSnapshot(
       realExpenses,
       bankBalances,
       piggyBank,
-      financialSnapshots,
       budgetTransfers,
       monthlyRecaps,
       remainingToLiveSnapshots,
@@ -44,42 +45,14 @@ export async function createFullDatabaseSnapshot(
       context === 'profile'
         ? supabaseServer.from('profiles').select('*').eq('id', contextId)
         : supabaseServer.from('profiles').select('*').eq('group_id', contextId),
-      supabaseServer
-        .from('estimated_incomes')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('estimated_budgets')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('real_income_entries')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('real_expenses')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('bank_balances')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('piggy_bank')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('financial_snapshots')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('budget_transfers')
-        .select('*')
-        .eq(ownerField, contextId),
-      supabaseServer
-        .from('monthly_recaps')
-        .select('*')
-        .eq(ownerField, contextId),
+      supabaseServer.from('estimated_incomes').select('*').eq(ownerField, contextId),
+      supabaseServer.from('estimated_budgets').select('*').eq(ownerField, contextId),
+      supabaseServer.from('real_income_entries').select('*').eq(ownerField, contextId),
+      supabaseServer.from('real_expenses').select('*').eq(ownerField, contextId),
+      supabaseServer.from('bank_balances').select('*').eq(ownerField, contextId),
+      supabaseServer.from('piggy_bank').select('*').eq(ownerField, contextId),
+      supabaseServer.from('budget_transfers').select('*').eq(ownerField, contextId),
+      supabaseServer.from('monthly_recaps').select('*').eq(ownerField, contextId),
       supabaseServer
         .from('remaining_to_live_snapshots')
         .select('*')
@@ -97,10 +70,10 @@ export async function createFullDatabaseSnapshot(
 
     // Log les erreurs non-bloquantes
     const warnings: string[] = []
-    const checkError = (name: string, result: { error: any }) => {
+    const checkError = (name: string, result: { error: { message?: string } | null }) => {
       if (result.error) {
         warnings.push(`${name}: ${result.error.message}`)
-        console.warn(`⚠️ [Snapshot] Erreur sur ${name}:`, result.error.message)
+        logger.warn(`⚠️ [Snapshot] Erreur sur ${name}:`, result.error.message)
       }
     }
 
@@ -111,7 +84,6 @@ export async function createFullDatabaseSnapshot(
     checkError('real_expenses', realExpenses)
     checkError('bank_balances', bankBalances)
     checkError('piggy_bank', piggyBank)
-    checkError('financial_snapshots', financialSnapshots)
     checkError('budget_transfers', budgetTransfers)
     checkError('monthly_recaps', monthlyRecaps)
     checkError('remaining_to_live_snapshots', remainingToLiveSnapshots)
@@ -128,18 +100,19 @@ export async function createFullDatabaseSnapshot(
       real_expenses: realExpenses.data?.length ?? 0,
       bank_balances: bankBalances.data?.length ?? 0,
       piggy_bank: piggyBank.data?.length ?? 0,
-      financial_snapshots: financialSnapshots.data?.length ?? 0,
       budget_transfers: budgetTransfers.data?.length ?? 0,
       monthly_recaps: monthlyRecaps.data?.length ?? 0,
       remaining_to_live_snapshots: remainingToLiveSnapshots.data?.length ?? 0,
-      ...(context === 'group' ? {
-        groups: groupData.data ? 1 : 0,
-        group_contributions: groupContributions.data?.length ?? 0,
-      } : {}),
+      ...(context === 'group'
+        ? {
+            groups: groupData.data ? 1 : 0,
+            group_contributions: groupContributions.data?.length ?? 0,
+          }
+        : {}),
     }
 
     // Construire le JSONB complet
-    const snapshotData: Record<string, any> = {
+    const snapshotData: SnapshotPayloadV2 = {
       context,
       snapshot_version: 2,
       created_at: new Date().toISOString(),
@@ -156,7 +129,6 @@ export async function createFullDatabaseSnapshot(
       bank_balance: bankBalances.data?.[0]?.balance ?? null,
       piggy_bank: piggyBank.data || [],
       // Snapshots et historique
-      financial_snapshots: financialSnapshots.data || [],
       remaining_to_live_snapshots: remainingToLiveSnapshots.data || [],
       // Transferts et recaps existants
       budget_transfers: budgetTransfers.data || [],
@@ -173,11 +145,12 @@ export async function createFullDatabaseSnapshot(
     }
 
     // Insérer le snapshot
-    const insertData: Record<string, any> = {
-      [ownerField]: contextId,
+    const insertData: TablesInsert<'recap_snapshots'> = {
+      profile_id: context === 'profile' ? contextId : null,
+      group_id: context === 'group' ? contextId : null,
       snapshot_month: snapshotMonth,
       snapshot_year: snapshotYear,
-      snapshot_data: snapshotData,
+      snapshot_data: snapshotData as unknown as Json,
       is_active: true,
     }
 
@@ -188,24 +161,21 @@ export async function createFullDatabaseSnapshot(
       .single()
 
     if (insertError) {
-      console.error('❌ [Snapshot] Erreur insertion snapshot:', insertError)
+      logger.error('❌ [Snapshot] Erreur insertion snapshot:', insertError)
       return { snapshotId: null, error: insertError.message }
     }
 
-    const totalRecords = Object.values(tableCounts).reduce(
-      (sum, count) => sum + count,
-      0
-    )
+    const totalRecords = Object.values(tableCounts).reduce((sum, count) => sum + count, 0)
 
-    console.log(`📸 [Snapshot] Snapshot complet créé avec succès`)
-    console.log(`📸 [Snapshot] ID: ${inserted.id}`)
-    console.log(`📸 [Snapshot] Mois: ${snapshotMonth}/${snapshotYear}`)
-    console.log(`📸 [Snapshot] Total enregistrements capturés: ${totalRecords}`)
-    console.log(`📸 [Snapshot] Détail:`, tableCounts)
+    logger.info(`📸 [Snapshot] Snapshot complet créé avec succès`)
+    logger.info(`📸 [Snapshot] ID: ${inserted.id}`)
+    logger.info(`📸 [Snapshot] Mois: ${snapshotMonth}/${snapshotYear}`)
+    logger.info(`📸 [Snapshot] Total enregistrements capturés: ${totalRecords}`)
+    logger.info(`📸 [Snapshot] Détail:`, tableCounts)
 
     return { snapshotId: inserted.id, error: null }
-  } catch (err: any) {
-    console.error('❌ [Snapshot] Erreur inattendue:', err)
-    return { snapshotId: null, error: err.message || 'Erreur inattendue' }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erreur inattendue'
+    return { snapshotId: null, error: message }
   }
 }

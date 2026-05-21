@@ -1,7 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
+import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 
 interface AddIncomeDialogProps {
   isOpen: boolean
@@ -10,29 +20,30 @@ interface AddIncomeDialogProps {
   currentIncomesTotal: number
 }
 
+// z.coerce.number() schemas have a distinct input/output — see EditBalanceModal.
+type CreateIncomeFormInput = z.input<typeof createIncomeFormSchema>
+
 /**
  * Dialog pour ajouter un nouveau revenu estimé avec thème vert
- * Formulaire simplifié sans validation de balance complexe
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
+ *
+ * Uses react-hook-form + zodResolver(createIncomeFormSchema). Decimal field
+ * `estimatedAmount` via Controller dual-type pattern (Sprint Zod-Rollout v3).
  */
-export default function AddIncomeDialog({ 
-  isOpen, 
-  onClose, 
+export default function AddIncomeDialog({
+  isOpen,
+  onClose,
   onSave,
-  currentIncomesTotal
+  currentIncomesTotal,
 }: AddIncomeDialogProps) {
-  const [incomeName, setIncomeName] = useState('')
-  const [incomeAmount, setIncomeAmount] = useState('')
-  const errors = useMemo(() => {
-    const newErrors: { name?: string; amount?: string } = {}
-    if (incomeName.trim() && incomeName.trim().length < 2) {
-      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
-    }
-    const amount = parseFloat(incomeAmount)
-    if (incomeAmount && (isNaN(amount) || amount <= 0)) {
-      newErrors.amount = 'Le montant doit être un nombre positif'
-    }
-    return newErrors
-  }, [incomeName, incomeAmount])
+  const form = useForm<CreateIncomeFormInput, undefined, CreateIncomeForm>({
+    resolver: zodResolver(createIncomeFormSchema),
+    defaultValues: { name: '', estimatedAmount: 0 },
+    mode: 'onSubmit',
+  })
 
   /**
    * Formate un montant en euros
@@ -41,180 +52,213 @@ export default function AddIncomeDialog({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
-  /**
-   * Vérifie si le formulaire est valide pour la sauvegarde
-   */
-  const isFormValid = () => {
-    return (
-      incomeName.trim().length >= 2 &&
-      parseFloat(incomeAmount) > 0 &&
-      Object.keys(errors).length === 0
-    )
-  }
-
-  /**
-   * Gestion de la sauvegarde
-   */
-  const handleSave = () => {
-    if (!isFormValid()) return
-
-    onSave({
-      name: incomeName.trim(),
-      estimatedAmount: parseFloat(incomeAmount)
-    })
-
-    // Reset du formulaire et fermer le dialog
-    setIncomeName('')
-    setIncomeAmount('')
+  const onValidSubmit = (data: CreateIncomeForm) => {
+    onSave({ name: data.name, estimatedAmount: data.estimatedAmount })
+    form.reset({ name: '', estimatedAmount: 0 })
     onClose()
   }
 
-  /**
-   * Gestion de la fermeture
-   */
   const handleClose = () => {
-    setIncomeName('')
-    setIncomeAmount('')
+    form.reset({ name: '', estimatedAmount: 0 })
     onClose()
   }
 
-  /**
-   * Gestion de la soumission par Enter
-   */
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && isFormValid()) {
-      handleSave()
+  const onInvalidSubmit = (errors: FieldErrors<CreateIncomeFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<CreateIncomeFormInput>)
     }
   }
 
-  if (!isOpen) return null
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const showPreview = !isNaN(previewAmount) && previewAmount > 0
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
+      handleClose()
+    }
+  }
 
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-        onClick={handleClose}
-      >
-        {/* Dialog */}
-        <div 
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-200 scale-100"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Nouveau Revenu</h3>
-                  <p className="text-sm text-gray-600">Ajoutez une source de revenus</p>
-                </div>
-              </div>
-              <button
-                onClick={handleClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header */}
+        <div className="shrink-0 border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600">
+                <svg
+                  className="h-4 w-4 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
-              </button>
+              </div>
+              <div>
+                <DialogTitle asChild>
+                  <h3 className="text-lg font-bold text-gray-900">Nouveau Revenu</h3>
+                </DialogTitle>
+                <p className="text-sm text-gray-600">Ajoutez une source de revenus</p>
+              </div>
             </div>
+            <ModalCloseX onClose={handleClose} variant="circle" />
           </div>
+        </div>
 
-          {/* Form */}
-          <div className="p-6 space-y-4">
+        {/* Form */}
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du revenu */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="add-income-name"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
                 Nom du revenu <span className="text-red-500">*</span>
               </label>
-              <input
+              <Input
+                id="add-income-name"
                 type="text"
-                value={incomeName}
-                onChange={(e) => setIncomeName(e.target.value)}
-                onKeyPress={handleKeyPress}
+                {...form.register('name')}
                 placeholder="Ex: Salaire, Freelance, Prime..."
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'add-income-name-error' : undefined}
                 className={cn(
-                  "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors",
-                  errors.name 
-                    ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                    : "border-gray-300 focus:ring-green-500 focus:border-green-500"
+                  'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                  fieldErrors.name
+                    ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                    : 'border-gray-300 focus-visible:border-green-500 focus-visible:ring-green-500',
                 )}
               />
-              {errors.name && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {fieldErrors.name && (
+                <p
+                  id="add-income-name-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  {errors.name}
+                  {fieldErrors.name.message}
                 </p>
               )}
             </div>
 
             {/* Montant estimé */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="add-income-amount"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={incomeAmount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setIncomeAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  onKeyPress={handleKeyPress}
+                <DecimalFormInput
+                  control={form.control}
+                  name="estimatedAmount"
+                  id="add-income-amount"
                   placeholder="0.00"
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'add-income-amount-error' : undefined
+                  }
                   className={cn(
-                    "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors pr-12",
-                    errors.amount 
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                      : "border-gray-300 focus:ring-green-500 focus:border-green-500"
+                    'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                    fieldErrors.estimatedAmount
+                      ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                      : 'border-gray-300 focus-visible:border-green-500 focus-visible:ring-green-500',
                   )}
                 />
-                <span className="absolute right-4 top-3.5 text-gray-500 text-sm font-medium">€</span>
+                <span className="absolute top-3.5 right-4 text-sm font-medium text-gray-500">
+                  €
+                </span>
               </div>
-              {errors.amount && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {fieldErrors.estimatedAmount && (
+                <p
+                  id="add-income-amount-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  {errors.amount}
+                  {fieldErrors.estimatedAmount.message}
                 </p>
               )}
             </div>
 
-            {/* Aperçu du total avec nouveau revenu */}
-            {incomeAmount && parseFloat(incomeAmount) > 0 && !errors.amount && (
-              <div className="p-4 rounded-xl border bg-green-50 border-green-200">
-                <h4 className="text-sm font-medium text-green-900 mb-2">Calcul des revenus totaux</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Revenus actuels:</span>
-                    <span className="font-medium text-green-700">{formatAmount(currentIncomesTotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ce nouveau revenu:</span>
-                    <span className="font-medium text-green-700">{formatAmount(parseFloat(incomeAmount))}</span>
-                  </div>
-                  <div className="border-t border-green-200 pt-1 mt-2">
-                    <div className="flex justify-between font-bold">
-                      <span className="text-green-900">Total des revenus:</span>
-                      <span className="text-green-700">{formatAmount(currentIncomesTotal + parseFloat(incomeAmount))}</span>
+            {/* Aperçu du total — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
+            {showPreview && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Calcul des revenus totaux :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Revenus actuels</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(currentIncomesTotal)}
+                      </span>
                     </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce nouveau revenu</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewAmount)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
+                    </span>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Total des revenus</span>
+                    <span className="shrink-0 font-bold text-gray-900">
+                      {formatAmount(currentIncomesTotal + previewAmount)}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -222,30 +266,28 @@ export default function AddIncomeDialog({
           </div>
 
           {/* Actions */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
-            <div className="flex space-x-3">
+          <div className="shrink-0 border-t border-gray-200 px-6 py-4">
+            <div className="flex space-x-2">
               <button
+                type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                disabled={isSubmitting}
               >
                 Annuler
               </button>
               <button
-                onClick={handleSave}
-                disabled={!isFormValid()}
-                className={cn(
-                  "flex-1 px-4 py-2 rounded-xl font-medium transition-colors",
-                  isFormValid()
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                )}
+                type="submit"
+                disabled={isSubmitting}
+                className="flex flex-1 items-center justify-center rounded-xl bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ajouter le revenu
+                {isSubmitting && <InlineSpinner className="mr-1.5" />}
+                {isSubmitting ? 'Ajout...' : 'Ajouter le revenu'}
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

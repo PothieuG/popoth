@@ -1,0 +1,63 @@
+name: DB drift check (PR)
+
+# Runs the schema/RPC/function drift detectors on PRs that touch DB plumbing
+# so we don't wait until next Monday's cron to surface a regression.
+# Companion to .github/workflows/db-drift-check.yml (weekly cron).
+#
+# Path filter keeps Actions minutes low — only fires when migrations or the
+# detector scripts themselves change.
+#
+# Sprint Audit-Functions-v2 / B3.
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/check-*.mjs'
+      - 'scripts/audit-*.mjs'
+      - 'scripts/export-schema.mjs'
+      - 'scripts/dump-functions.sql'
+      - 'lib/database.types.ts'
+      - '.github/workflows/db-drift-pr.yml'
+      - '.github/workflows/db-drift-check.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Version is read from package.json#packageManager — explicit `with: version`
+      # would conflict (action-setup@v4 errors out when both are set, even on match).
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check schema drift (prod vs baseline)
+        run: pnpm db:check-drift
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Check RPC presence (4 finance RPCs)
+        if: always()
+        run: pnpm db:check-rpcs
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Check trigger functions presence (4 captured functions)
+        if: always()
+        run: pnpm db:check-functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Check generated types are fresh (lib/database.types.ts vs prod)
+        if: always()
+        run: pnpm db:check-types-fresh
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

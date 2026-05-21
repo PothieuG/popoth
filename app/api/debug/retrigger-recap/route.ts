@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { blockInProduction } from '@/lib/debug-guard'
 import { validateSessionToken } from '@/lib/session-server'
+import { retriggerRecapBodySchema } from '@/lib/schemas/debug'
+import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 /**
@@ -9,6 +12,8 @@ import { supabaseServer } from '@/lib/supabase-server'
  * NE MODIFIE PAS les données financières (budgets, dépenses, revenus, tirelire, économies)
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {
@@ -17,16 +22,24 @@ export async function POST(request: NextRequest) {
 
     const userId = sessionData.userId
 
-    // Récupérer le contexte depuis le body (optionnel, défaut: profile)
-    let context = 'profile'
+    // Récupérer le contexte depuis le body (optionnel, défaut: profile).
+    // Le body peut être absent — on parse vers {} dans ce cas et le schema
+    // applique son default. parseBody n'est pas utilisé ici parce qu'il
+    // rejette les bodies vides, alors que cette route accepte no-body.
+    let rawBody: unknown = {}
     try {
-      const body = await request.json()
-      if (body.context === 'group') {
-        context = 'group'
-      }
+      rawBody = await request.json()
     } catch {
-      // Pas de body, on utilise le défaut
+      // No body or malformed → use schema defaults
     }
+    const parsed = retriggerRecapBodySchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Body invalide', issues: parsed.error.issues },
+        { status: 400 },
+      )
+    }
+    const { context } = parsed.data
 
     // Récupérer le profil
     const { data: profile, error: profileError } = await supabaseServer
@@ -48,9 +61,6 @@ export async function POST(request: NextRequest) {
     const currentMonth = now.getMonth() + 1
     const currentYear = now.getFullYear()
 
-    console.log(`🔄 [RETRIGGER] Suppression du recap pour ${currentMonth}/${currentYear}`)
-    console.log(`   Contexte: ${context}, ID: ${contextId}`)
-
     // Supprimer le monthly recap du mois en cours
     const { data: deletedRecaps, error: deleteError } = await supabaseServer
       .from('monthly_recaps')
@@ -61,10 +71,10 @@ export async function POST(request: NextRequest) {
       .select('id')
 
     if (deleteError) {
-      console.error('❌ Erreur suppression recap:', deleteError)
+      logger.error('Erreur suppression recap:', deleteError)
       return NextResponse.json(
         { error: `Erreur suppression: ${deleteError.message}` },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -78,23 +88,22 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
 
     if (snapshotError) {
-      console.warn('⚠️ Erreur désactivation snapshots:', snapshotError)
+      logger.warn('Erreur désactivation snapshots:', snapshotError)
     }
-
-    console.log(`✅ [RETRIGGER] ${recapsDeleted} recap(s) supprimé(s)`)
 
     return NextResponse.json({
       success: true,
-      message: recapsDeleted > 0
-        ? `Monthly recap de ${currentMonth}/${currentYear} supprimé - Actualisez la page`
-        : `Aucun recap trouvé pour ${currentMonth}/${currentYear} - Monthly recap déjà prêt`,
+      message:
+        recapsDeleted > 0
+          ? `Monthly recap de ${currentMonth}/${currentYear} supprimé - Actualisez la page`
+          : `Aucun recap trouvé pour ${currentMonth}/${currentYear} - Monthly recap déjà prêt`,
       details: {
         context,
         contextId,
         month: currentMonth,
         year: currentYear,
         recaps_deleted: recapsDeleted,
-        snapshots_deactivated: !snapshotError
+        snapshots_deactivated: !snapshotError,
       },
       data_preserved: [
         'estimated_budgets',
@@ -102,15 +111,14 @@ export async function POST(request: NextRequest) {
         'real_expenses',
         'real_income_entries',
         'piggy_bank',
-        'cumulated_savings'
-      ]
+        'cumulated_savings',
+      ],
     })
-
   } catch (error) {
-    console.error('❌ [RETRIGGER] Erreur:', error)
+    logger.error('[RETRIGGER] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

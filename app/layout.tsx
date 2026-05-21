@@ -1,6 +1,7 @@
 import './globals.css'
 import { Roboto } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { QueryProvider } from '@/components/providers/QueryProvider'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
 import type { Metadata, Viewport } from 'next'
 
@@ -35,18 +36,17 @@ export const viewport: Viewport = {
  * Root layout component that wraps the entire application
  * Provides global authentication context and font configuration
  */
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="h-full overflow-hidden">
-      <body className={`${roboto.variable} font-roboto h-full overflow-hidden`} suppressHydrationWarning={true}>
+      <body
+        className={`${roboto.variable} font-roboto h-full overflow-hidden`}
+        suppressHydrationWarning={true}
+      >
         <ServiceWorkerRegistration />
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   )

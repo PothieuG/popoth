@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSession, updateSession, deleteSession, getSession } from '@/lib/session-server'
 import { supabase } from '@/lib/supabase-client'
+import { parseBody, BadRequestError } from '@/lib/api/parse-body'
+import { sessionActionBodySchema } from '@/lib/schemas/auth'
+import { logger } from '@/lib/logger'
 
 /**
  * API route for session management
@@ -9,27 +12,19 @@ import { supabase } from '@/lib/supabase-client'
 
 export async function POST(request: NextRequest) {
   try {
-    const { action, email, password } = await request.json()
+    const body = await parseBody(request, sessionActionBodySchema)
 
-    switch (action) {
-      case 'login':
-        if (!email || !password) {
-          return NextResponse.json(
-            { success: false, error: 'Email et mot de passe requis' },
-            { status: 400 }
-          )
-        }
-
-
+    switch (body.action) {
+      case 'login': {
         // Use Supabase for real authentication
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
+          email: body.email,
+          password: body.password,
         })
-        
+
         if (error) {
           let errorMessage = 'Erreur de connexion. Veuillez réessayer.'
-          
+
           if (error.message.includes('Invalid login credentials')) {
             errorMessage = 'Email ou mot de passe incorrect'
           } else if (error.message.includes('Email not confirmed')) {
@@ -37,87 +32,84 @@ export async function POST(request: NextRequest) {
           } else if (error.message.includes('Too many requests')) {
             errorMessage = 'Trop de tentatives. Veuillez réessayer dans quelques minutes.'
           }
-          
-          return NextResponse.json(
-            { success: false, error: errorMessage },
-            { status: 401 }
-          )
+
+          return NextResponse.json({ success: false, error: errorMessage }, { status: 401 })
         }
 
         if (data.user) {
           try {
             // Create server-side session
             await createSession(data.user.id, data.user.email!)
-            
+
             return NextResponse.json({
               success: true,
               user: {
                 id: data.user.id,
                 email: data.user.email,
-              }
+              },
             })
           } catch (sessionError) {
-            console.error('Session creation error:', sessionError)
+            // CLEANUP-ATTEMPT CRITIQUE: Supabase auth réussi mais JWT session fail → état inconsistant
+            logger.error('Session creation error:', sessionError)
             return NextResponse.json(
               { success: false, error: 'Erreur de création de session' },
-              { status: 500 }
+              { status: 500 },
             )
           }
         }
 
         return NextResponse.json(
           { success: false, error: 'Erreur de connexion inattendue' },
-          { status: 500 }
+          { status: 500 },
         )
+      }
 
-      case 'refresh':
+      case 'refresh': {
         const currentSession = await getSession()
         if (!currentSession) {
           return NextResponse.json(
             { success: false, error: 'Aucune session active' },
-            { status: 401 }
+            { status: 401 },
           )
         }
 
         // Update session with new expiration
         await updateSession(currentSession.userId, currentSession.email)
-        
+
         return NextResponse.json({
           success: true,
           user: {
             id: currentSession.userId,
             email: currentSession.email,
-          }
+          },
         })
+      }
 
-      case 'logout':
+      case 'logout': {
         await deleteSession()
         return NextResponse.json({ success: true })
-
-      default:
-        return NextResponse.json(
-          { success: false, error: 'Action non reconnue' },
-          { status: 400 }
-        )
+      }
     }
   } catch (error) {
-    console.error('Session API error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erreur serveur' },
-      { status: 500 }
-    )
+    // Risk #1 — auth/session uses { success, error } shape, not the v1
+    // { error, issues } convention. handleBadRequest is intercepted inline
+    // and re-emitted in the route's native shape to preserve client compat.
+    if (error instanceof BadRequestError) {
+      return NextResponse.json(
+        { success: false, error: error.message, issues: error.issues },
+        { status: 400 },
+      )
+    }
+    return NextResponse.json({ success: false, error: 'Erreur serveur' }, { status: 500 })
   }
 }
 
 export async function GET() {
   try {
     const session = await getSession()
-    
+
     if (!session) {
-      return NextResponse.json(
-        { success: false, authenticated: false },
-        { status: 401 }
-      )
+      return NextResponse.json({ success: false, authenticated: false }, { status: 401 })
     }
 
     // Check if session is expired
@@ -126,7 +118,7 @@ export async function GET() {
       await deleteSession()
       return NextResponse.json(
         { success: false, authenticated: false, error: 'Session expirée' },
-        { status: 401 }
+        { status: 401 },
       )
     }
 
@@ -136,13 +128,9 @@ export async function GET() {
       user: {
         id: session.userId,
         email: session.email,
-      }
+      },
     })
-  } catch (error) {
-    console.error('Session status error:', error)
-    return NextResponse.json(
-      { success: false, error: 'Erreur serveur' },
-      { status: 500 }
-    )
+  } catch {
+    return NextResponse.json({ success: false, error: 'Erreur serveur' }, { status: 500 })
   }
 }

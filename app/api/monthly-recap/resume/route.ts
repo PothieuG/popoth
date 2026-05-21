@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData } from '@/lib/finance'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
+import { logger } from '@/lib/logger'
 
 /**
  * API GET /api/monthly-recap/resume
@@ -13,46 +16,13 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
  *
  * Query: ?context=profile|group
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') || 'profile'
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
     const currentDate = new Date()
     const currentMonth = currentDate.getMonth() + 1
     const currentYear = currentDate.getFullYear()
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
-    }
 
     let contextId: string
     if (context === 'profile') {
@@ -60,8 +30,8 @@ export async function GET(request: NextRequest) {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
@@ -78,40 +48,36 @@ export async function GET(request: NextRequest) {
       .maybeSingle()
 
     if (recapCheckError) {
-      console.error('❌ Erreur lors de la vérification du récap existant:', recapCheckError)
+      logger.error('Erreur lors de la vérification du récap existant:', recapCheckError)
       return NextResponse.json(
         { error: 'Erreur lors de la vérification du récap existant' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Si aucun récap existant, retourner null
     if (!existingRecap) {
-      console.log(`📊 [Resume API] Aucun récap existant trouvé pour ${context}:${contextId}`)
       return NextResponse.json({
         exists: false,
-        message: 'Aucun récapitulatif en cours pour ce mois'
+        message: 'Aucun récapitulatif en cours pour ce mois',
       })
     }
 
     // Si le récap est déjà complété, l'utilisateur ne devrait pas être ici
     if (existingRecap.completed_at) {
-      console.log(`📊 [Resume API] Récap déjà complété pour ${context}:${contextId}`)
       return NextResponse.json({
         exists: false,
         completed: true,
-        message: 'Récapitulatif déjà complété pour ce mois'
+        message: 'Récapitulatif déjà complété pour ce mois',
       })
     }
 
-    console.log(`📊 [Resume API] Récap en cours trouvé pour ${context}:${contextId} à l'étape ${existingRecap.current_step}`)
-
     // Récupérer les données financières actuelles
-    let financialData: any
+    let financialData: Awaited<ReturnType<typeof getProfileFinancialData>>
     if (context === 'profile') {
       financialData = await getProfileFinancialData(profile.id)
     } else {
-      financialData = await getGroupFinancialData(profile.group_id)
+      financialData = await getGroupFinancialData(contextId)
     }
 
     // Récupérer les budgets estimés
@@ -121,10 +87,10 @@ export async function GET(request: NextRequest) {
       .eq(ownerField, contextId)
 
     if (budgetsError) {
-      console.error('❌ Erreur lors de la récupération des budgets:', budgetsError)
+      logger.error('Erreur lors de la récupération des budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -135,10 +101,10 @@ export async function GET(request: NextRequest) {
       .eq(ownerField, contextId)
 
     if (expensesError) {
-      console.error('❌ Erreur lors de la récupération des dépenses:', expensesError)
+      logger.error('Erreur lors de la récupération des dépenses:', expensesError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des dépenses' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
@@ -149,11 +115,10 @@ export async function GET(request: NextRequest) {
       .eq(ownerField, contextId)
 
     if (transfersError) {
-      console.error('❌ [Resume] Erreur lors de la récupération des transferts:', transfersError)
+      logger.error('[Resume] Erreur lors de la récupération des transferts:', transfersError)
     }
 
-    const transfers = transfersError ? [] : (existingTransfers || [])
-    console.log(`🔍 [Resume] ${transfers.length} transferts existants trouvés`)
+    const transfers = transfersError ? [] : existingTransfers || []
 
     // Calculer les économies/déficits des budgets pour ce mois (avec transferts)
     const budgetStats = []
@@ -162,28 +127,28 @@ export async function GET(request: NextRequest) {
       for (const budget of budgets) {
         // Calculer le montant dépensé de base pour ce budget
         const baseSpentAmount = expenses
-          .filter((expense: any) => expense.estimated_budget_id === budget.id)
-          .reduce((sum: number, expense: any) => sum + parseFloat(expense.amount), 0)
+          .filter((expense) => expense.estimated_budget_id === budget.id)
+          .reduce((sum, expense) => sum + expense.amount, 0)
 
         // Calculer les ajustements de transfert pour ce budget
         let transferAdjustment = 0
 
         // Transferts sortants (ce budget donne de l'argent) -> augmente le montant "dépensé"
         const outgoingTransfers = transfers
-          .filter(transfer => transfer.from_budget_id === budget.id)
-          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+          .filter((transfer) => transfer.from_budget_id === budget.id)
+          .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         // Transferts entrants (ce budget reçoit de l'argent) -> diminue le montant "dépensé"
         const incomingTransfers = transfers
-          .filter(transfer => transfer.to_budget_id === budget.id)
-          .reduce((sum, transfer) => sum + parseFloat(transfer.transfer_amount), 0)
+          .filter((transfer) => transfer.to_budget_id === budget.id)
+          .reduce((sum, transfer) => sum + transfer.transfer_amount, 0)
 
         transferAdjustment = outgoingTransfers - incomingTransfers
 
         // Montant dépensé final avec ajustements de transfert
         const adjustedSpentAmount = baseSpentAmount + transferAdjustment
 
-        const estimated = parseFloat(budget.estimated_amount)
+        const estimated = budget.estimated_amount
         const difference = estimated - adjustedSpentAmount
 
         const budgetStat = {
@@ -196,7 +161,7 @@ export async function GET(request: NextRequest) {
           difference, // Positif = économie, Négatif = déficit
           surplus: Math.max(0, difference), // Économies (budget - dépenses)
           deficit: Math.max(0, -difference), // Déficit (dépenses - budget)
-          cumulated_savings: budget.cumulated_savings || 0 // Économies cumulées existantes
+          cumulated_savings: budget.cumulated_savings || 0, // Économies cumulées existantes
         }
 
         budgetStats.push(budgetStat)
@@ -210,10 +175,6 @@ export async function GET(request: NextRequest) {
 
     // Créer une session_id simple pour le suivi de page
     const sessionId = `${context}_${contextId}_${currentMonth}_${currentYear}_${Date.now()}`
-
-    console.log(`📊 [Resume API] Données récupérées pour ${context}:${contextId}`)
-    console.log(`📊 [Resume API] Reste à vivre actuel: ${financialData.remainingToLive}€`)
-    console.log(`📊 [Resume API] Étape courante: ${existingRecap.current_step}`)
 
     // Retourner les données pour reprendre le récap
     return NextResponse.json({
@@ -229,14 +190,11 @@ export async function GET(request: NextRequest) {
       month: currentMonth,
       year: currentYear,
       user_name: `${profile.first_name} ${profile.last_name}`,
-      recap_id: existingRecap.id
+      recap_id: existingRecap.id,
     })
-
   } catch (error) {
-    console.error('❌ Erreur lors de la récupération du récap mensuel:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    const handled = handleBadRequest(error)
+    if (handled) return handled
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
-}
+})

@@ -1,5 +1,6 @@
 import { supabase } from './supabase-client'
 import { hasSessionCookie } from './session-client'
+import { logger } from './logger'
 
 // Auth response interfaces
 export interface AuthUser {
@@ -10,6 +11,18 @@ export interface AuthUser {
 
 export interface AuthResponse {
   success: boolean
+  user?: AuthUser
+  error?: string
+}
+
+// Tri-state auth check result. `'unknown'` couvre NetworkError, 5xx, ou
+// toute response.ok=false non-401 — le caller doit skip (retry plus tard)
+// plutôt que logout, sinon un hiccup réseau déconnecte l'utilisateur alors
+// que sa session est valide.
+export type AuthCheckOutcome = 'authenticated' | 'unauthenticated' | 'unknown'
+
+export interface RefreshSessionResult {
+  outcome: 'success' | 'unauthenticated' | 'unknown'
   user?: AuthUser
   error?: string
 }
@@ -28,26 +41,24 @@ export async function signInWithPassword(email: string, password: string): Promi
       body: JSON.stringify({
         action: 'login',
         email,
-        password
-      })
+        password,
+      }),
     })
 
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
         success: true,
         user: {
           id: result.user.id,
           email: result.user.email,
-        }
+        },
       }
     }
 
     return { success: false, error: result.error || 'Erreur de connexion' }
-    
-  } catch (error) {
-    console.error('Sign in error:', error)
+  } catch {
     return { success: false, error: 'Erreur de connexion. Veuillez réessayer.' }
   }
 }
@@ -60,7 +71,7 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
   try {
     const { data, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
     })
 
     if (error) {
@@ -69,7 +80,10 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
       } else if (error.message.includes('Password should be at least')) {
         return { success: false, error: 'Le mot de passe doit contenir au moins 6 caractères' }
       } else {
-        return { success: false, error: 'Erreur lors de la création du compte. Veuillez réessayer.' }
+        return {
+          success: false,
+          error: 'Erreur lors de la création du compte. Veuillez réessayer.',
+        }
       }
     }
 
@@ -79,15 +93,13 @@ export async function signUp(email: string, password: string): Promise<AuthRespo
         user: {
           id: data.user.id,
           email: data.user.email!,
-          email_confirmed_at: data.user.email_confirmed_at
-        }
+          email_confirmed_at: data.user.email_confirmed_at,
+        },
       }
     }
 
     return { success: false, error: 'Erreur de création de compte inattendue' }
-    
-  } catch (error) {
-    console.error('Sign up error:', error)
+  } catch {
     return { success: false, error: 'Erreur de création de compte. Veuillez réessayer.' }
   }
 }
@@ -105,18 +117,15 @@ export async function signOut(): Promise<void> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'logout'
-      })
+        action: 'logout',
+      }),
     })
-    
+
     // Also clear client-side cookie as fallback
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
     }
-    
-  } catch (error) {
-    console.error('Sign out error:', error)
-    
+  } catch {
     // Even if API fails, clear client-side cookie
     if (typeof document !== 'undefined') {
       document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
@@ -128,7 +137,7 @@ export async function signOut(): Promise<void> {
  * Refreshes the current user session via API
  * Updates the session cookie with new expiration time
  */
-export async function refreshSession(): Promise<AuthResponse> {
+export async function refreshSession(): Promise<RefreshSessionResult> {
   try {
     const response = await fetch('/api/auth/session', {
       method: 'POST',
@@ -136,27 +145,32 @@ export async function refreshSession(): Promise<AuthResponse> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        action: 'refresh'
-      })
+        action: 'refresh',
+      }),
     })
 
+    if (response.status === 401) {
+      return { outcome: 'unauthenticated' }
+    }
+    if (!response.ok) {
+      return { outcome: 'unknown' }
+    }
+
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
-        success: true,
+        outcome: 'success',
         user: {
           id: result.user.id,
           email: result.user.email,
-        }
+        },
       }
     }
 
-    return { success: false, error: result.error || 'Erreur de rafraîchissement' }
-    
-  } catch (error) {
-    console.error('Refresh session error:', error)
-    return { success: false, error: 'Erreur lors du rafraîchissement de la session' }
+    return { outcome: 'unauthenticated', error: result.error || 'Erreur de rafraîchissement' }
+  } catch {
+    return { outcome: 'unknown', error: 'Erreur lors du rafraîchissement de la session' }
   }
 }
 
@@ -170,7 +184,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     if (!hasSessionCookie()) {
       return null
     }
-    
+
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
@@ -180,100 +194,56 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
 
     const result = await response.json()
-    
+
     if (result.success && result.user) {
       return {
         id: result.user.id,
-        email: result.user.email
+        email: result.user.email,
       }
     }
-    
+
     return null
-    
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
-      console.error('Get current user error:', error)
+      logger.warn('Get current user error:', error)
     }
     return null
   }
 }
 
 /**
- * Checks if a user is currently authenticated via API
- * Returns true if valid session exists, false otherwise
+ * Checks if a user is currently authenticated via API.
+ * Tri-state: 'authenticated' (200 + valid session), 'unauthenticated' (401 or
+ * no cookie or body says false), 'unknown' (NetworkError, 5xx, or response.ok
+ * false non-401). The caller MUST treat 'unknown' as transient and skip — a
+ * dev-server hiccup or HMR rebuild ne doit pas déconnecter l'utilisateur.
  */
-export async function isAuthenticated(): Promise<boolean> {
+export async function isAuthenticated(): Promise<AuthCheckOutcome> {
+  // Quick client-side check first
+  if (!hasSessionCookie()) {
+    return 'unauthenticated'
+  }
+
   try {
-    // Quick client-side check first
-    if (!hasSessionCookie()) {
-      return false
-    }
-    
     const response = await fetch('/api/auth/session', {
       method: 'GET',
     })
 
+    if (response.status === 401) {
+      return 'unauthenticated'
+    }
     if (!response.ok) {
-      return false
+      return 'unknown'
     }
 
     const result = await response.json()
-    return result.success && result.authenticated
-    
+    return result.success && result.authenticated ? 'authenticated' : 'unauthenticated'
   } catch (error) {
     // Don't log 401 errors as they're expected for non-authenticated users
     if (!(error instanceof Error) || !error.message.includes('401')) {
-      console.error('Authentication check error:', error)
+      logger.warn('Authentication check error:', error)
     }
-    return false
-  }
-}
-
-/**
- * Sends password reset email using Supabase
- * Returns success/error response
- */
-export async function resetPassword(email: string): Promise<AuthResponse> {
-  try {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    })
-
-    if (error) {
-      console.error('Password reset error:', error)
-      return { success: false, error: 'Erreur lors de l\'envoi de l\'email de réinitialisation' }
-    }
-
-    return { success: true }
-    
-  } catch (error) {
-    console.error('Reset password error:', error)
-    return { success: false, error: 'Erreur lors de l\'envoi de l\'email de réinitialisation' }
-  }
-}
-
-/**
- * Updates user password with new password
- * Requires valid session for security
- */
-export async function updatePassword(newPassword: string): Promise<AuthResponse> {
-  try {
-    const { error } = await supabase.auth.updateUser({
-      password: newPassword
-    })
-
-    if (error) {
-      if (error.message.includes('same as the old password')) {
-        return { success: false, error: 'Le nouveau mot de passe doit être différent de l\'ancien' }
-      }
-      return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
-    }
-
-    return { success: true }
-    
-  } catch (error) {
-    console.error('Update password error:', error)
-    return { success: false, error: 'Erreur lors de la mise à jour du mot de passe' }
+    return 'unknown'
   }
 }

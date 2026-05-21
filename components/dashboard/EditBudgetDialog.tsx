@@ -1,7 +1,16 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface EstimatedBudget {
   id: string
@@ -10,7 +19,7 @@ interface EstimatedBudget {
 }
 
 interface EditBudgetDialogProps {
-  isOpen: boolean
+  isOpen?: boolean
   onClose: () => void
   onSave: (budgetData: { name: string; estimatedAmount: number }) => Promise<boolean>
   budget: EstimatedBudget | null
@@ -19,213 +28,264 @@ interface EditBudgetDialogProps {
 }
 
 /**
- * Dialog d'édition d'un budget existant
- * Permet de modifier le nom et le montant d'un budget
+ * Dialog d'édition d'un budget existant.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
+ *
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema({
+ *   currentBudgetAmount: budget.estimated_amount  // for delta calc
+ * })). Schema rebuilt on prop change via useMemo. Edit mode :
+ * defaultValues init from `budget` prop ; parent must use
+ * `key={budget.id}` to remount on target change.
+ *
+ * `isOpen` defaults to `true` to preserve the legacy parent pattern
+ * `{isOpen && budget && <Modal />}` until parents migrate to passing
+ * isOpen explicitly (Commit 5 PlanningDrawer migration).
  */
 export default function EditBudgetDialog({
-  isOpen,
+  isOpen = true,
   onClose,
   onSave,
   budget,
   currentBudgetsTotal,
-  totalEstimatedIncome
+  totalEstimatedIncome,
 }: EditBudgetDialogProps) {
-  const [name, setName] = useState('')
-  const [amount, setAmount] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
+  const currentBudgetAmount = budget?.estimated_amount ?? 0
+  const schema = useMemo(
+    () =>
+      makeBudgetClientSchema({
+        currentBudgetsTotal,
+        totalEstimatedIncome,
+        currentBudgetAmount,
+      }),
+    [currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount],
+  )
+  type FormInput = z.input<typeof schema>
+  type FormOutput = z.output<typeof schema>
 
-  // Reset form when dialog opens/closes or budget changes
-  useEffect(() => {
-    if (isOpen && budget) {
-      setName(budget.name)
-      setAmount(budget.estimated_amount.toString())
-    } else if (!isOpen) {
-      setName('')
-      setAmount('')
-      setIsLoading(false)
-    }
-  }, [isOpen, budget])
+  const form = useForm<FormInput, undefined, FormOutput>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: budget?.name ?? '',
+      estimatedAmount: budget?.estimated_amount ?? 0,
+    },
+    mode: 'onSubmit',
+  })
 
-  const validationError = useMemo(() => {
-    if (!name && !amount) return ''
-    const nameError = !name.trim() ? 'Le nom du budget est requis' : ''
-    const amountNum = parseFloat(amount)
-    const amountError = !amount || isNaN(amountNum) || amountNum <= 0
-      ? 'Le montant doit être supérieur à 0€' : ''
-    const budgetDifference = amountNum - (budget?.estimated_amount || 0)
-    const newBudgetsTotal = currentBudgetsTotal + budgetDifference
-    const newBalance = totalEstimatedIncome - newBudgetsTotal
-    const balanceError = newBalance < 0
-      ? `Cette modification créerait un déficit de ${Math.abs(newBalance).toFixed(2)}€` : ''
-    return nameError || amountError || balanceError
-  }, [name, amount, currentBudgetsTotal, totalEstimatedIncome, budget])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (validationError) return
-
-    setIsLoading(true)
+  const onValidSubmit = async (data: FormOutput) => {
     const success = await onSave({
-      name: name.trim(),
-      estimatedAmount: parseFloat(amount)
+      name: data.name,
+      estimatedAmount: data.estimatedAmount,
     })
 
     if (success) {
       onClose()
     }
-    setIsLoading(false)
   }
 
-  if (!isOpen || !budget) return null
+  const onInvalidSubmit = (errors: FieldErrors<FormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<FormInput>)
+    }
+  }
 
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
-  return (
-    <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
-          {/* Header */}
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Modifier le budget</h2>
-                  <p className="text-sm text-gray-600">Mettez à jour les informations</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const otherBudgets = currentBudgetsTotal - currentBudgetAmount
+  const newBalance = totalEstimatedIncome - otherBudgets - previewSafe
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
+      onClose()
+    }
+  }
+
+  if (!budget) return null
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header */}
+        <div className="shrink-0 border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100">
+                <svg
+                  className="h-4 w-4 text-orange-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <DialogTitle asChild>
+                  <h2 className="text-lg font-bold text-gray-900">Modifier le budget</h2>
+                </DialogTitle>
+                <p className="text-sm text-gray-600">Mettez à jour les informations</p>
+              </div>
+            </div>
+            <ModalCloseX onClose={onClose} variant="circle" />
+          </div>
+        </div>
+
+        {/* Form */}
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du budget */}
             <div>
-              <label htmlFor="budget-name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="budget-name" className="mb-1 block text-sm font-medium text-gray-700">
                 Nom du budget <span className="text-red-500">*</span>
               </label>
               <input
                 id="budget-name"
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                disabled={isLoading}
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'edit-budget-name-error' : undefined}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-orange-500 focus:ring-2 focus:ring-orange-500 focus:outline-hidden"
+                disabled={isSubmitting}
               />
+              {fieldErrors.name && (
+                <p id="edit-budget-name-error" className="mt-1 text-sm text-red-600">
+                  {fieldErrors.name.message}
+                </p>
+              )}
             </div>
 
             {/* Montant */}
             <div>
-              <label htmlFor="budget-amount" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="budget-amount"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
                 Montant mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
+                <DecimalFormInput
+                  control={form.control}
+                  name="estimatedAmount"
                   id="budget-amount"
-                  type="text"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setAmount(v.replace(',', '.'))
-                    }
-                  }}
                   placeholder="0.00"
-                  className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                  disabled={isLoading}
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'edit-budget-amount-error' : undefined
+                  }
+                  className="h-auto rounded-lg border-gray-300 px-3 py-2 pr-8 focus-visible:border-orange-500 focus-visible:ring-2 focus-visible:ring-orange-500"
+                  disabled={isSubmitting}
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 text-sm">€</span>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <span className="text-sm text-gray-500">€</span>
+                </div>
+              </div>
+              {fieldErrors.estimatedAmount && (
+                <p id="edit-budget-amount-error" className="mt-1 text-sm text-red-600">
+                  {fieldErrors.estimatedAmount.message}
+                </p>
+              )}
+            </div>
+
+            {/* Aperçu financier — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700">Aperçu :</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Revenus estimés</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(totalEstimatedIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Autres budgets</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(otherBudgets)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Ce budget</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(previewSafe)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-px flex-1 bg-blue-200" />
+                  <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    Résultat
+                  </span>
+                  <div className="h-px flex-1 bg-blue-200" />
+                </div>
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium text-gray-700">Reste disponible</span>
+                  <span
+                    className={cn(
+                      'shrink-0 font-bold',
+                      newBalance < 0 ? 'text-red-600' : 'text-gray-900',
+                    )}
+                  >
+                    {formatAmount(newBalance)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Aperçu financier */}
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <div className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Revenus estimés:</span>
-                  <span className="font-medium text-gray-900">{formatAmount(totalEstimatedIncome)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Autres budgets:</span>
-                  <span className="font-medium text-gray-900">
-                    {formatAmount(currentBudgetsTotal - (budget?.estimated_amount || 0))}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ce budget:</span>
-                  <span className="font-medium text-orange-700">
-                    {amount ? formatAmount(parseFloat(amount) || 0) : formatAmount(0)}
-                  </span>
-                </div>
-                <hr className="border-orange-200" />
-                <div className="flex justify-between font-bold">
-                  <span>Reste disponible:</span>
-                  <span className={cn(
-                    (totalEstimatedIncome - currentBudgetsTotal + (budget?.estimated_amount || 0) - (parseFloat(amount) || 0)) >= 0
-                      ? "text-green-700" : "text-red-700"
-                  )}>
-                    {formatAmount(totalEstimatedIncome - currentBudgetsTotal + (budget?.estimated_amount || 0) - (parseFloat(amount) || 0))}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Message d'erreur */}
-            {validationError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-800 text-sm font-medium">{validationError}</p>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex space-x-3 pt-2">
+          {/* Actions */}
+          <div className="shrink-0 border-t border-gray-200 px-6 py-4">
+            <div className="flex space-x-2">
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                disabled={isSubmitting}
+                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
               >
                 Annuler
               </button>
               <button
                 type="submit"
-                disabled={isLoading || !!validationError || !name.trim() || !amount}
-                className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                disabled={isSubmitting}
+                className="flex flex-1 items-center justify-center rounded-lg bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isLoading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                {isSubmitting ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                 ) : (
                   'Sauvegarder'
                 )}
               </button>
             </div>
-          </form>
-        </div>
-      </div>
-    </>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

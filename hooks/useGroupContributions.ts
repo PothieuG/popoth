@@ -1,181 +1,150 @@
-import { useState, useCallback, useRef } from 'react'
-import { GroupContributionData, GroupContributionsResponse } from '@/app/api/groups/contributions/route'
+'use client'
+
+import { useCallback, useMemo } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
+import type {
+  GroupContributionData,
+  GroupContributionsResponse,
+} from '@/app/api/groups/contributions/route'
 
 /**
- * Hook personnalisé pour gérer les contributions de groupe
- * Fournit des méthodes pour récupérer et recalculer les contributions proportionnelles
+ * Hook to fetch and manage group contributions.
+ *
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) — migrated from useState +
+ * AbortController to TanStack Query (queryKey: ['group-contributions'])
+ * to close the dette tech connue (cf. doc2/features/group-contributions.md
+ * §11). Public API preserved so existing consumers compile unchanged.
+ *
+ * The query is auto-invalidated by `invalidateFinancialRefreshes` (which
+ * fires from `useBudgets` / `useGroups` mutations), so creating/updating/
+ * deleting an estimated_budget for the group propagates here automatically
+ * without any cross-hook plumbing.
  */
 export function useGroupContributions() {
-  const [contributions, setContributions] = useState<GroupContributionData[]>([])
-  const [groupInfo, setGroupInfo] = useState<GroupContributionsResponse['group_info'] | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isRecalculating, setIsRecalculating] = useState(false)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const qc = useQueryClient()
 
-  /**
-   * Récupère les contributions du groupe de l'utilisateur
-   */
-  const fetchContributions = useCallback(async () => {
-    try {
-      // Cancel previous request if still pending
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-      
-      abortControllerRef.current = new AbortController()
-      setIsLoading(true)
-      setError(null)
-
-      const response = await fetch('/api/groups/contributions', {
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useQuery<GroupContributionsResponse | null>({
+    queryKey: ['group-contributions'],
+    queryFn: async ({ signal }) => {
+      const res = await fetch('/api/groups/contributions', {
         method: 'GET',
         credentials: 'include',
-        signal: abortControllerRef.current.signal
+        signal,
       })
 
-      const data = await response.json()
+      // 400 "Vous n'appartenez à aucun groupe" is not an error from the UI
+      // standpoint — fall through to null so consumers see hasGroup=false
+      // without raising a banner.
+      if (res.status === 400) {
+        return null
+      }
 
-      if (!response.ok) {
-        // Log détaillé uniquement pour le développement
-        if (process.env.NODE_ENV === 'development') {
-          console.error('Erreur API contributions:', {
-            status: response.status,
-            statusText: response.statusText,
-            data
-          })
-        }
+      const body = await res.json().catch(() => null)
 
-        // Gestion spécifique des erreurs communes
-        if (response.status === 401) {
+      if (!res.ok) {
+        if (res.status === 401) {
           throw new Error('Session expirée. Veuillez vous reconnecter.')
-        } else if (response.status === 400 && data.error?.includes('aucun groupe')) {
-          // Pas d'erreur si l'utilisateur n'a pas de groupe
-          setContributions([])
-          setGroupInfo(null)
-          return
         }
-        
-        throw new Error(data.error || `Erreur ${response.status}: ${response.statusText}`)
+        throw new Error(body?.error || `Erreur ${res.status}: ${res.statusText}`)
       }
 
-      const contributionsResponse = data as GroupContributionsResponse
-      setContributions(contributionsResponse.contributions || [])
-      setGroupInfo(contributionsResponse.group_info || null)
-    } catch (err) {
-      // Ignore aborted requests
-      if (err instanceof Error && err.name === 'AbortError') {
-        return
-      }
-      
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      
-      // Log uniquement en développement
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur lors de la récupération des contributions:', err)
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+      return body as GroupContributionsResponse
+    },
+  })
 
-  /**
-   * Déclenche un recalcul manuel des contributions
-   */
+  const recalcMutation = useMutation<boolean, Error>({
+    mutationFn: async () => {
+      const res = await fetch('/api/groups/contributions', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(body?.error || 'Erreur lors du recalcul des contributions')
+      }
+      return true
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['group-contributions'] })
+      invalidateFinancialRefreshes(qc)
+    },
+    onError: (err) => {
+      logger.error('Erreur lors du recalcul des contributions:', err)
+    },
+  })
+
+  // Stabilize references so downstream useCallback deps don't churn every
+  // render (queryFn returns a fresh object each refetch; the contributions
+  // array identity changes even when values are byte-identical).
+  const contributions = useMemo(() => data?.contributions ?? [], [data?.contributions])
+  const groupInfo = useMemo(() => data?.group_info ?? null, [data?.group_info])
+
+  const fetchContributions = useCallback(async () => {
+    await refetch()
+  }, [refetch])
+
   const recalculateContributions = useCallback(async (): Promise<boolean> => {
     try {
-      setIsRecalculating(true)
-      setError(null)
-
-      const response = await fetch('/api/groups/contributions', {
-        method: 'POST',
-        credentials: 'include'
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors du recalcul des contributions')
-      }
-
-      // Rafraîchir les données après le recalcul
-      await fetchContributions()
-      return true
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Erreur lors du recalcul des contributions:', err)
-      }
+      return await recalcMutation.mutateAsync()
+    } catch {
       return false
-    } finally {
-      setIsRecalculating(false)
     }
-  }, [fetchContributions])
+  }, [recalcMutation])
 
-  /**
-   * Trouve la contribution de l'utilisateur actuel dans la liste
-   */
-  const getUserContribution = useCallback((userId: string): GroupContributionData | null => {
-    return contributions.find(contrib => contrib.profile_id === userId) || null
-  }, [contributions])
+  const getUserContribution = useCallback(
+    (userId: string): GroupContributionData | null =>
+      contributions.find((contrib) => contrib.profile_id === userId) ?? null,
+    [contributions],
+  )
 
-  /**
-   * Calcule les statistiques du groupe
-   */
   const getGroupStats = useCallback(() => {
     if (!groupInfo || contributions.length === 0) {
       return {
         averageContribution: 0,
         highestContribution: 0,
         lowestContribution: 0,
-        memberCount: 0
+        memberCount: 0,
       }
     }
-
-    const amounts = contributions.map(c => c.contribution_amount)
+    const amounts = contributions.map((c) => c.contribution_amount)
     return {
       averageContribution: amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length,
       highestContribution: Math.max(...amounts),
       lowestContribution: Math.min(...amounts),
-      memberCount: contributions.length
+      memberCount: contributions.length,
     }
   }, [contributions, groupInfo])
 
-  /**
-   * Réinitialise l'état des contributions
-   */
+  // Legacy no-ops — TanStack Query handles request cancellation natively
+  // (via the AbortSignal passed to queryFn) and cache invalidation via
+  // queryClient.invalidateQueries. Consumers calling these still compile;
+  // they just become harmless.
   const resetContributions = useCallback(() => {
-    setContributions([])
-    setGroupInfo(null)
-    setError(null)
-    setIsLoading(false)
-    setIsRecalculating(false)
-    
-    // Cancel any pending request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
+    // no-op since TanStack manages cache
   }, [])
-
-  // Cleanup: abort any pending request on unmount
   const cleanup = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
+    // no-op since TanStack manages signal lifecycle
   }, [])
 
   return {
     // Data
     contributions,
     groupInfo,
-    
+
     // Loading states
     isLoading,
-    error,
-    isRecalculating,
-    
+    isFetching,
+    error: queryError instanceof Error ? queryError.message : null,
+    isRecalculating: recalcMutation.isPending,
+
     // Methods
     fetchContributions,
     recalculateContributions,
@@ -183,11 +152,11 @@ export function useGroupContributions() {
     getGroupStats,
     resetContributions,
     cleanup,
-    
+
     // Computed values
     hasContributions: contributions.length > 0,
     hasGroup: groupInfo !== null,
     totalMembers: contributions.length,
-    isOperationInProgress: isLoading || isRecalculating
+    isOperationInProgress: isLoading || recalcMutation.isPending,
   }
 }

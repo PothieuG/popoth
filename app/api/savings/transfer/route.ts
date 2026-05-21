@@ -1,94 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { transferBudgetToPiggyBank, transferSavingsBetweenBudgets } from '@/lib/finance/savings'
+import { withAuthAndProfile, type AuthedProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { isBudgetToPiggyBank, transferSavingsBodySchema } from '@/lib/schemas/savings'
+import type { Context } from '@/lib/schemas/common'
+import { logger } from '@/lib/logger'
 
 /**
- * API Transfer Savings Between Budgets OR Manipulate Piggy Bank
+ * API Transfer Savings Between Budgets OR Budget → Piggy Bank
  * POST /api/savings/transfer
  *
- * Body for budget transfer: {
- *   context: 'profile' | 'group',
- *   from_budget_id: string,
- *   to_budget_id: string,
- *   amount: number
- * }
- *
- * Body for piggy bank actions: {
- *   context: 'profile' | 'group',
- *   action: 'set_piggy_bank' | 'add_to_piggy_bank' | 'remove_from_piggy_bank',
- *   amount: number
- * }
+ * Body shapes validated by `transferSavingsBodySchema` (lib/schemas/savings.ts).
+ * See CLAUDE.md §6 "Validation Zod (parseBody)" for the convention.
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
-    const body = await request.json()
-    const { context = 'profile', action, from_budget_id, to_budget_id, amount } = body
-
-    // Si c'est une action tirelire, déléguer à la fonction appropriée
-    if (action && ['set_piggy_bank', 'add_to_piggy_bank', 'remove_from_piggy_bank'].includes(action)) {
-      return handlePiggyBankAction(userId, context, action, amount)
-    }
+    const body = await parseBody(request, transferSavingsBodySchema)
 
     // Transfert budget → tirelire
-    if (action === 'budget_to_piggy_bank') {
-      return handleBudgetToPiggyBank(userId, context, from_budget_id, amount)
+    if (isBudgetToPiggyBank(body)) {
+      return handleBudgetToPiggyBank(profile, body.context, body.from_budget_id, body.amount)
     }
 
-    // Sinon, c'est un transfert entre budgets
-    if (!context || !from_budget_id || !to_budget_id || !amount) {
-      return NextResponse.json(
-        { error: 'Paramètres manquants' },
-        { status: 400 }
-      )
-    }
-
-    if (amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant doit être positif' },
-        { status: 400 }
-      )
-    }
-
-    if (from_budget_id === to_budget_id) {
-      return NextResponse.json(
-        { error: 'Les budgets source et destination doivent être différents' },
-        { status: 400 }
-      )
-    }
-
-    console.log(``)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(`💸💸💸 [SAVINGS TRANSFER] DÉBUT DU TRANSFERT`)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(`💸 Contexte: ${context}`)
-    console.log(`💸 De budget: ${from_budget_id}`)
-    console.log(`💸 Vers budget: ${to_budget_id}`)
-    console.log(`💸 Montant: ${amount}€`)
-    console.log(`💸💸💸 ========================================================`)
-
-    // Get user profile to determine context
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
+    // Transfert budget → budget (action absent, narrowed by union)
+    const { context, from_budget_id, to_budget_id, amount } = body
 
     // Determine context filter
-    const contextFilter = context === 'group' && profile.group_id
-      ? { group_id: profile.group_id }
-      : { profile_id: profile.id }
+    const contextFilter =
+      context === 'group' && profile.group_id
+        ? { group_id: profile.group_id }
+        : { profile_id: profile.id }
 
     // 1. Get FROM budget with current savings
     const { data: fromBudget, error: fromError } = await supabaseServer
@@ -99,11 +41,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (fromError || !fromBudget) {
-      console.error('❌ Budget source non trouvé:', fromError)
-      return NextResponse.json(
-        { error: 'Budget source non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget source non trouvé' }, { status: 404 })
     }
 
     // 2. Get TO budget
@@ -115,77 +53,38 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (toError || !toBudget) {
-      console.error('❌ Budget destination non trouvé:', toError)
-      return NextResponse.json(
-        { error: 'Budget destination non trouvé' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budget destination non trouvé' }, { status: 404 })
     }
 
-    // 3. Validate that source budget has enough savings
+    // 3. Validate that source budget has enough savings (UX-friendly 400
+    //    instead of 500 from the atomic RPC)
     const currentSavings = fromBudget.cumulated_savings || 0
     if (amount > currentSavings) {
       return NextResponse.json(
         {
           error: `Le budget ${fromBudget.name} n'a que ${currentSavings}€ d'économies disponibles`,
-          available: currentSavings
+          available: currentSavings,
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
-    console.log(`✅ Validation OK:`)
-    console.log(`   - Budget source: ${fromBudget.name} - ${currentSavings}€ disponibles`)
-    console.log(`   - Budget destination: ${toBudget.name} - ${toBudget.cumulated_savings || 0}€ actuels`)
-
-    // 4. Update FROM budget (subtract savings)
-    const newFromSavings = currentSavings - amount
-    const { error: updateFromError } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: newFromSavings,
-        last_savings_update: new Date().toISOString()
+    // 4. Atomic transfer (debit FROM + credit TO in one tx) — overdraft
+    //    or any raise rolls back BOTH legs (Sprint Atomicity-Savings).
+    let from_savings: number
+    let to_savings: number
+    try {
+      const result = await transferSavingsBetweenBudgets(contextFilter, {
+        fromBudgetId: from_budget_id,
+        toBudgetId: to_budget_id,
+        amount,
       })
-      .eq('id', from_budget_id)
-
-    if (updateFromError) {
-      console.error('❌ Erreur mise à jour budget source:', updateFromError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la mise à jour du budget source' },
-        { status: 500 }
-      )
+      from_savings = result.from_savings
+      to_savings = result.to_savings
+    } catch (transferError) {
+      logger.error('❌ Erreur transfert entre budgets:', transferError)
+      return NextResponse.json({ error: 'Erreur lors du transfert entre budgets' }, { status: 500 })
     }
-
-    // 5. Update TO budget (add savings)
-    const newToSavings = (toBudget.cumulated_savings || 0) + amount
-    const { error: updateToError } = await supabaseServer
-      .from('estimated_budgets')
-      .update({
-        cumulated_savings: newToSavings,
-        last_savings_update: new Date().toISOString()
-      })
-      .eq('id', to_budget_id)
-
-    if (updateToError) {
-      console.error('❌ Erreur mise à jour budget destination:', updateToError)
-      // Rollback from budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', from_budget_id)
-
-      return NextResponse.json(
-        { error: 'Erreur lors de la mise à jour du budget destination' },
-        { status: 500 }
-      )
-    }
-
-    console.log(``)
-    console.log(`✅✅✅ TRANSFERT RÉUSSI`)
-    console.log(`   - ${fromBudget.name}: ${currentSavings}€ → ${newFromSavings}€`)
-    console.log(`   - ${toBudget.name}: ${toBudget.cumulated_savings || 0}€ → ${newToSavings}€`)
-    console.log(`💸💸💸 ========================================================`)
-    console.log(``)
 
     return NextResponse.json({
       success: true,
@@ -194,196 +93,42 @@ export async function POST(request: NextRequest) {
         budget_id: from_budget_id,
         budget_name: fromBudget.name,
         old_savings: currentSavings,
-        new_savings: newFromSavings
+        new_savings: from_savings,
       },
       to: {
         budget_id: to_budget_id,
         budget_name: toBudget.name,
         old_savings: toBudget.cumulated_savings || 0,
-        new_savings: newToSavings
-      }
+        new_savings: to_savings,
+      },
     })
-
   } catch (error) {
-    console.error('❌ Erreur dans POST /api/savings/transfer:', error)
-    return NextResponse.json(
-      { error: 'Erreur serveur lors du transfert' },
-      { status: 500 }
-    )
+    const handled = handleBadRequest(error)
+    if (handled) return handled
+    return NextResponse.json({ error: 'Erreur serveur lors du transfert' }, { status: 500 })
   }
-}
-
-/**
- * Handle Piggy Bank Actions (set, add, remove)
- */
-async function handlePiggyBankAction(
-  userId: string,
-  context: string,
-  action: string,
-  amount: number
-) {
-  if (typeof amount !== 'number' || isNaN(amount)) {
-    return NextResponse.json(
-      { error: 'Montant invalide' },
-      { status: 400 }
-    )
-  }
-
-  console.log(``)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(`🐷🐷🐷 [PIGGY BANK] ${action.toUpperCase()}`)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(`🐷 Action: ${action}`)
-  console.log(`🐷 Montant: ${amount}€`)
-  console.log(`🐷 Contexte: ${context}`)
-  console.log(`🐷 User ID: ${userId}`)
-
-  // Get user profile
-  const { data: profile, error: profileError } = await supabaseServer
-    .from('profiles')
-    .select('id, group_id')
-    .eq('id', userId)
-    .single()
-
-  if (profileError || !profile) {
-    console.error('❌ Erreur récupération profil:', profileError)
-    return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-  }
-
-  // Determine context filter
-  const contextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id, profile_id: null }
-    : { profile_id: profile.id, group_id: null }
-
-  const matchFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
-
-  console.log(`🐷 Filtre appliqué:`, matchFilter)
-
-  // Get current piggy bank
-  const { data: currentPiggyBank, error: getPiggyError } = await supabaseServer
-    .from('piggy_bank')
-    .select('id, amount')
-    .match(matchFilter)
-    .maybeSingle()
-
-  if (getPiggyError) {
-    console.error('❌ Erreur récupération tirelire:', getPiggyError)
-    return NextResponse.json(
-      { error: 'Erreur lors de la récupération de la tirelire' },
-      { status: 500 }
-    )
-  }
-
-  const currentAmount = currentPiggyBank?.amount || 0
-  console.log(`🐷 Montant actuel tirelire: ${currentAmount}€`)
-
-  let newAmount: number
-
-  switch (action) {
-    case 'set_piggy_bank':
-      newAmount = Math.max(0, amount)
-      break
-    case 'add_to_piggy_bank':
-      newAmount = currentAmount + Math.max(0, amount)
-      break
-    case 'remove_from_piggy_bank':
-      newAmount = Math.max(0, currentAmount - Math.max(0, amount))
-      break
-    default:
-      return NextResponse.json(
-        { error: `Action inconnue: ${action}` },
-        { status: 400 }
-      )
-  }
-
-  console.log(`🐷 Nouveau montant tirelire: ${newAmount}€`)
-
-  // Update or insert piggy bank
-  if (currentPiggyBank) {
-    // Update existing
-    const { error: updateError } = await supabaseServer
-      .from('piggy_bank')
-      .update({
-        amount: newAmount,
-        last_updated: new Date().toISOString()
-      })
-      .eq('id', currentPiggyBank.id)
-
-    if (updateError) {
-      console.error('❌ Erreur mise à jour tirelire:', updateError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la mise à jour de la tirelire' },
-        { status: 500 }
-      )
-    }
-  } else {
-    // Insert new
-    const { error: insertError } = await supabaseServer
-      .from('piggy_bank')
-      .insert({
-        ...contextFilter,
-        amount: newAmount,
-        last_updated: new Date().toISOString()
-      })
-
-    if (insertError) {
-      console.error('❌ Erreur création tirelire:', insertError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la création de la tirelire' },
-        { status: 500 }
-      )
-    }
-  }
-
-  console.log(`✅ Tirelire mise à jour avec succès`)
-  console.log(`🐷🐷🐷 ========================================================`)
-  console.log(``)
-
-  return NextResponse.json({
-    success: true,
-    action,
-    previous_amount: currentAmount,
-    new_amount: newAmount,
-    difference: newAmount - currentAmount,
-    context
-  })
-}
+})
 
 /**
  * Handle Budget → Piggy Bank Transfer
  * Removes savings from a budget and adds them to the piggy bank
+ * atomically via the composite RPC `transfer_budget_to_piggy_bank`
+ * (Sprint Atomicity-Savings). The UPSERT handles both "piggy exists"
+ * and "piggy missing" cases in a single SQL statement.
  */
 async function handleBudgetToPiggyBank(
-  userId: string,
-  context: string,
+  profile: AuthedProfile,
+  context: Context,
   fromBudgetId: string,
-  amount: number
+  amount: number,
 ) {
-  if (!fromBudgetId || typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
-    return NextResponse.json(
-      { error: 'Paramètres manquants ou invalides' },
-      { status: 400 }
-    )
-  }
+  const contextFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id }
+      : { profile_id: profile.id }
 
-  // Get user profile
-  const { data: profile, error: profileError } = await supabaseServer
-    .from('profiles')
-    .select('id, group_id')
-    .eq('id', userId)
-    .single()
-
-  if (profileError || !profile) {
-    return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-  }
-
-  const contextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
-
-  // 1. Get source budget
+  // 1. Get source budget (validates ownership + provides UX-friendly
+  //    error messages before the atomic RPC).
   const { data: fromBudget, error: fromError } = await supabaseServer
     .from('estimated_budgets')
     .select('id, name, cumulated_savings')
@@ -399,75 +144,52 @@ async function handleBudgetToPiggyBank(
   if (amount > currentSavings) {
     return NextResponse.json(
       { error: `Le budget ${fromBudget.name} n'a que ${currentSavings}€ d'économies disponibles` },
-      { status: 400 }
+      { status: 400 },
     )
   }
 
-  // 2. Remove from budget
-  const newBudgetSavings = currentSavings - amount
-  const { error: updateBudgetError } = await supabaseServer
-    .from('estimated_budgets')
-    .update({
-      cumulated_savings: newBudgetSavings,
-      last_savings_update: new Date().toISOString()
-    })
-    .eq('id', fromBudgetId)
-
-  if (updateBudgetError) {
-    return NextResponse.json({ error: 'Erreur mise à jour du budget' }, { status: 500 })
-  }
-
-  // 3. Add to piggy bank (upsert)
-  const piggyContextFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id, profile_id: null }
-    : { profile_id: profile.id, group_id: null }
-
-  const piggyMatchFilter = context === 'group' && profile.group_id
-    ? { group_id: profile.group_id }
-    : { profile_id: profile.id }
+  // 2. Read current piggy_bank amount for the response shape (pre-state).
+  //    The atomic RPC returns the post-state; we surface both.
+  const piggyMatchFilter =
+    context === 'group' && profile.group_id
+      ? { group_id: profile.group_id }
+      : { profile_id: profile.id }
 
   const { data: currentPiggyBank } = await supabaseServer
     .from('piggy_bank')
-    .select('id, amount')
+    .select('amount')
     .match(piggyMatchFilter)
     .maybeSingle()
 
   const currentPiggyAmount = currentPiggyBank?.amount || 0
-  const newPiggyAmount = currentPiggyAmount + amount
 
-  if (currentPiggyBank) {
-    const { error: updateError } = await supabaseServer
-      .from('piggy_bank')
-      .update({ amount: newPiggyAmount, last_updated: new Date().toISOString() })
-      .eq('id', currentPiggyBank.id)
-
-    if (updateError) {
-      // Rollback budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', fromBudgetId)
-      return NextResponse.json({ error: 'Erreur mise à jour tirelire' }, { status: 500 })
-    }
-  } else {
-    const { error: insertError } = await supabaseServer
-      .from('piggy_bank')
-      .insert({ ...piggyContextFilter, amount: newPiggyAmount, last_updated: new Date().toISOString() })
-
-    if (insertError) {
-      // Rollback budget
-      await supabaseServer
-        .from('estimated_budgets')
-        .update({ cumulated_savings: currentSavings })
-        .eq('id', fromBudgetId)
-      return NextResponse.json({ error: 'Erreur création tirelire' }, { status: 500 })
-    }
+  // 3. Atomic transfer (debit budget + UPSERT piggy in one tx) — any
+  //    raise rolls back BOTH legs (Sprint Atomicity-Savings).
+  let from_savings: number
+  let piggy_bank_amount: number
+  try {
+    const result = await transferBudgetToPiggyBank(contextFilter, {
+      fromBudgetId,
+      amount,
+    })
+    from_savings = result.from_savings
+    piggy_bank_amount = result.piggy_bank_amount
+  } catch (transferError) {
+    logger.error('❌ Erreur transfert budget → tirelire:', transferError)
+    return NextResponse.json(
+      { error: 'Erreur lors du transfert vers la tirelire' },
+      { status: 500 },
+    )
   }
 
   return NextResponse.json({
     success: true,
     action: 'budget_to_piggy_bank',
-    from_budget: { name: fromBudget.name, old_savings: currentSavings, new_savings: newBudgetSavings },
-    piggy_bank: { old_amount: currentPiggyAmount, new_amount: newPiggyAmount }
+    from_budget: {
+      name: fromBudget.name,
+      old_savings: currentSavings,
+      new_savings: from_savings,
+    },
+    piggy_bank: { old_amount: currentPiggyAmount, new_amount: piggy_bank_amount },
   })
 }

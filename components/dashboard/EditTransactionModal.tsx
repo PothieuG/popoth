@@ -1,23 +1,35 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
-import { RealExpense } from '@/hooks/useRealExpenses'
-import { RealIncome } from '@/hooks/useRealIncomes'
-import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealIncome } from '@/hooks/useRealIncomes'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
-import { useProgressData } from '@/hooks/useProgressData'
+import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import {
+  editTransactionFormSchema,
+  type EditTransactionFormInput,
+  type EditTransactionFormOutput,
+} from '@/lib/schemas/transactions'
 
 interface EditTransactionModalProps {
-  isOpen: boolean
+  isOpen?: boolean
   onClose: () => void
   transaction: RealExpense | RealIncome | null
   transactionType: 'expense' | 'income'
@@ -26,173 +38,166 @@ interface EditTransactionModalProps {
 }
 
 /**
- * Modal for editing existing transactions (expenses or income)
- * Pre-fills form with existing transaction data
+ * Modal for editing existing transactions (expenses or income).
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close
+ * + return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent. Sprint v8 also drops the parent's
+ * `key={transaction.id}` pattern — Radix unmount-on-close (when isOpen flips
+ * false AND editingTransaction nulls in the parent's onClose handler) replaces
+ * the force-reset.
+ *
+ * Uses react-hook-form + zodResolver(editTransactionFormSchema)
+ * (discriminated union on transactionType). transactionType is fixed at
+ * mount via prop — the form's defaultValues lock the branch ; the budget/
+ * income dropdown is read-only by design (post-creation FK changes are
+ * disallowed). Sprint Zod-Rollout v3.
+ *
+ * `isOpen` defaults to `true` to preserve the legacy parent pattern
+ * `{isOpen && editing && <Modal />}` (dashboard/page.tsx).
  */
 export default function EditTransactionModal({
-  isOpen,
+  isOpen = true,
   onClose,
   transaction,
   transactionType,
   context,
-  onTransactionUpdated
+  onTransactionUpdated,
 }: EditTransactionModalProps) {
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    date: '',
-    budgetId: '',
-    incomeId: ''
-  })
-  const [isExceptional, setIsExceptional] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
 
   // Hooks for managing data
   const { updateExpense, expenses: realExpenses } = useRealExpenses(context)
   const { updateIncome, incomes: realIncomes } = useRealIncomes(context)
-  const { expenseProgress, incomeProgress } = useProgressData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
 
-  // Calculer le montant pour le preview
-  const previewAmount = parseFloat(formData.amount) || 0
+  const isOriginallyExceptional = transaction?.is_exceptional ?? false
 
-  // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
+  // defaultValues built from the existing transaction. The discriminated
+  // union picks the right branch based on `transactionType`.
+  const form = useForm<EditTransactionFormInput, undefined, EditTransactionFormOutput>({
+    resolver: zodResolver(editTransactionFormSchema),
+    defaultValues:
+      transactionType === 'expense'
+        ? {
+            transactionType: 'expense',
+            description: transaction?.description ?? '',
+            amount: transaction?.amount ?? 0,
+            expense_date: (transaction as RealExpense | null)?.expense_date ?? '',
+            is_exceptional: isOriginallyExceptional,
+            estimated_budget_id: (transaction as RealExpense | null)?.estimated_budget_id ?? null,
+          }
+        : {
+            transactionType: 'income',
+            description: transaction?.description ?? '',
+            amount: transaction?.amount ?? 0,
+            entry_date: (transaction as RealIncome | null)?.entry_date ?? '',
+            is_exceptional: isOriginallyExceptional,
+            estimated_income_id: (transaction as RealIncome | null)?.estimated_income_id ?? null,
+          },
+    mode: 'onSubmit',
+  })
+
+  // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles.
+  // Ne compte QUE amount_from_budget (pas tirelire ni savings) — mirror AddTransactionModal.
+  // Sans ce fix, le dropdown affichait `sum(amount)` = 398€/200€ pour 2 dépenses dont
+  // les économies absorbaient la majorité (bug remonté 2026-05-21).
   const calculateRealSpentAmount = (budgetId: string): number => {
     return realExpenses
-      .filter(expense => expense.estimated_budget_id === budgetId)
-      .reduce((sum, expense) => sum + expense.amount, 0)
+      .filter((expense) => expense.estimated_budget_id === budgetId)
+      .reduce((sum, expense) => {
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? expense.amount_from_budget
+            : expense.amount
+        return sum + amountFromBudget
+      }, 0)
   }
 
   // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
   const calculateRealReceivedAmount = (incomeId: string): number => {
     return realIncomes
-      .filter(income => income.estimated_income_id === incomeId)
+      .filter((income) => income.estimated_income_id === incomeId)
       .reduce((sum, income) => sum + income.amount, 0)
   }
 
   // Préparer les options pour les dropdowns - TOUJOURS utiliser les calculs en temps réel
-  const budgetOptions: DropdownOption[] = budgets.map(budget => {
+  const budgetOptions: DropdownOption[] = budgets.map((budget) => {
     const realSpentAmount = calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
+      spentAmount: realSpentAmount,
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.cumulated_savings || 0
+      economyAmount: budget.cumulated_savings || 0,
     }
   })
 
-  const incomeOptions: DropdownOption[] = incomes.map(income => {
+  const incomeOptions: DropdownOption[] = incomes.map((income) => {
     const realReceivedAmount = calculateRealReceivedAmount(income.id)
     const bonusAmount = realReceivedAmount - income.estimated_amount
     return {
       id: income.id,
       name: income.name,
       type: 'income' as const,
-      receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
+      receivedAmount: realReceivedAmount,
       estimatedAmount: income.estimated_amount,
-      bonusAmount: bonusAmount // 🔥 Calcul en temps réel du bonus
+      bonusAmount: bonusAmount,
     }
   })
 
-  // Vérifier si c'est une transaction exceptionnelle originale
-  const isOriginallyExceptional = transaction?.is_exceptional || false
-
-  /**
-   * Load transaction data into form when modal opens or transaction changes
-   */
-  useEffect(() => {
-    if (isOpen && transaction) {
-      // Get the date field based on transaction type
-      const dateField = transactionType === 'expense'
-        ? (transaction as RealExpense).expense_date
-        : (transaction as RealIncome).entry_date
-
-      setFormData({
-        description: transaction.description || '',
-        amount: transaction.amount.toString(),
-        date: dateField,
-        budgetId: transactionType === 'expense'
-          ? (transaction as RealExpense).estimated_budget_id || ''
-          : '',
-        incomeId: transactionType === 'income'
-          ? (transaction as RealIncome).estimated_income_id || ''
-          : ''
-      })
-      setIsExceptional(transaction.is_exceptional || false)
-      setError(null)
-    }
-  }, [isOpen, transaction, transactionType])
+  // Read the FK dropdown value for the ExpenseBreakdownPreview (expense only)
+  const watchedBudgetId = useWatch({
+    control: form.control,
+    name: 'estimated_budget_id' as const,
+  })
+  const watchedAmount = useWatch({ control: form.control, name: 'amount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
 
   /**
    * Handle form submission
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
+  const onValidSubmit = async (data: EditTransactionFormOutput) => {
     if (!transaction) return
-
-    // Validation
-    if (!formData.description.trim()) {
-      setError('La description est requise')
-      return
-    }
-
-    const amount = parseFloat(formData.amount)
-    if (isNaN(amount) || amount <= 0) {
-      setError('Le montant doit être un nombre positif')
-      return
-    }
-
-    if (!isExceptional) {
-      if (transactionType === 'expense' && !formData.budgetId) {
-        setError('Veuillez sélectionner un budget')
-        return
-      }
-      if (transactionType === 'income' && !formData.incomeId) {
-        setError('Veuillez sélectionner un revenu estimé')
-        return
-      }
-    }
-
-    setIsSubmitting(true)
+    setServerError(null)
 
     try {
       let success = false
 
-      if (transactionType === 'expense') {
+      if (data.transactionType === 'expense') {
         success = await updateExpense({
           id: transaction.id,
-          description: formData.description.trim(),
-          amount,
-          expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId
+          description: data.description,
+          amount: data.amount,
+          expense_date: data.expense_date,
+          estimated_budget_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_budget_id ?? undefined),
         })
       } else {
         success = await updateIncome({
           id: transaction.id,
-          description: formData.description.trim(),
-          amount,
-          entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId
+          description: data.description,
+          amount: data.amount,
+          entry_date: data.entry_date,
+          estimated_income_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_income_id ?? undefined),
         })
       }
 
       if (success) {
-        // Le rafraîchissement automatique se charge de la mise à jour
         onTransactionUpdated?.()
         onClose()
       }
     } catch (err) {
-      console.error('Error updating transaction:', err)
-      setError('Erreur lors de la mise à jour de la transaction')
-    } finally {
-      setIsSubmitting(false)
+      logger.error('Error updating transaction:', err)
+      setServerError('Erreur lors de la mise à jour de la transaction')
     }
   }
 
@@ -200,168 +205,278 @@ export default function EditTransactionModal({
    * Handle modal close
    */
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!form.formState.isSubmitting) {
       onClose()
     }
   }
 
-  if (!isOpen || !transaction) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose()
+    }
+  }
+
+  // transactionType is fixed at mount via prop — only one branch is active.
+  // setFocus uses permissive FieldPath cast since the keys differ between
+  // branches at the type level.
+  const onInvalidSubmit = (errors: FieldErrors<EditTransactionFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<EditTransactionFormInput>)
+    }
+  }
+
+  if (!transaction) return null
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  // Discriminated union narrowing : fieldErrors.expense_date and
+  // .entry_date are only present in one branch each. We know which branch
+  // is active via the transactionType prop — index permissively so TS
+  // stops complaining about the absent key.
+  const dateError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'expense_date' : 'entry_date'
+  ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={handleClose}
-      />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[80vh] flex flex-col">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            disabled={isSubmitting}
-            className="p-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </Button>
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
+          <DialogTitle asChild>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Modifier {transactionType === 'expense' ? 'la dépense' : 'le revenu'}
+            </h2>
+          </DialogTitle>
+          <ModalCloseX onClose={handleClose} disabled={isSubmitting} variant="ghost" />
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
-          {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
-          {isOriginallyExceptional && (
-            <div className="flex flex-col items-center space-y-3">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="exceptional"
-                  checked={isExceptional}
-                  disabled={true} // Always readonly for originally exceptional
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded opacity-50 cursor-not-allowed"
-                />
-                <Label
-                  htmlFor="exceptional"
-                  className="text-sm text-gray-700 font-medium cursor-not-allowed opacity-50"
-                >
-                  {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+            {/* Exceptional Checkbox - Only show for originally exceptional transactions */}
+            {isOriginallyExceptional && (
+              <div className="flex flex-col items-center space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="exceptional"
+                    checked={true}
+                    disabled={true}
+                    className="h-4 w-4 cursor-not-allowed rounded border-gray-300 bg-gray-100 text-blue-600 opacity-50"
+                  />
+                  <Label
+                    htmlFor="exceptional"
+                    className="cursor-not-allowed text-sm font-medium text-gray-700 opacity-50"
+                  >
+                    {transactionType === 'expense'
+                      ? 'Dépense exceptionnelle'
+                      : 'Revenu exceptionnel'}
+                  </Label>
+                </div>
+                <p className="text-center text-xs text-gray-500">
+                  Transaction originalement exceptionnelle (non modifiable)
+                </p>
+              </div>
+            )}
+
+            {/* Budget/Income Selection - Only shown if not exceptional */}
+            {!isOriginallyExceptional && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium text-gray-900">
+                  {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
+                  <span className="ml-1.5 text-xs text-gray-500">(non modifiable)</span>
                 </Label>
+                {transactionType === 'expense' ? (
+                  <Controller
+                    control={form.control}
+                    name="estimated_budget_id"
+                    render={({ field }) => (
+                      <CustomDropdown
+                        options={budgetOptions}
+                        value={field.value ?? ''}
+                        onChange={(value) => field.onChange(value || null)}
+                        placeholder="Sélectionner un budget"
+                        required={true}
+                        disabled={true}
+                      />
+                    )}
+                  />
+                ) : (
+                  <Controller
+                    control={form.control}
+                    name="estimated_income_id"
+                    render={({ field }) => (
+                      <CustomDropdown
+                        options={incomeOptions}
+                        value={field.value ?? ''}
+                        onChange={(value) => field.onChange(value || null)}
+                        placeholder="Sélectionner un revenu estimé"
+                        required={true}
+                        disabled={true}
+                      />
+                    )}
+                  />
+                )}
               </div>
-              <p className="text-xs text-gray-500 text-center">
-                Transaction originalement exceptionnelle (non modifiable)
-              </p>
-            </div>
-          )}
+            )}
 
-          {/* Budget/Income Selection - Only shown if not exceptional */}
-          {!isExceptional && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-900">
-                {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                <span className="text-gray-500 text-xs ml-2">(non modifiable)</span>
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="text-sm font-medium text-gray-900">
+                Description <span className="text-red-500">*</span>
               </Label>
-              <CustomDropdown
-                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
-                value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value
-                }))}
-                placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
-                required={!isExceptional}
-                disabled={true} // En modification, le budget/revenu associé est readonly
-              />
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium text-gray-900">
-              Description <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="description"
-              type="text"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder={transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'}
-              required
-              className="w-full"
-            />
-          </div>
-
-          {/* Amount */}
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
-              Montant (€) <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              value={formData.amount}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                  setFormData(prev => ({ ...prev, amount: v.replace(',', '.') }))
-                }
-              }}
-              placeholder="0.00"
-              required
-              className="w-full"
-            />
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date" className="text-sm font-medium text-gray-900">
-              Date <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
               <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                required
-                className="w-full pl-10"
+                id="description"
+                type="text"
+                {...form.register('description')}
+                placeholder={
+                  transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'
+                }
+                aria-invalid={fieldErrors.description ? 'true' : 'false'}
+                aria-describedby={
+                  fieldErrors.description ? 'edit-transaction-description-error' : undefined
+                }
+                className="w-full"
               />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+              {fieldErrors.description && (
+                <p id="edit-transaction-description-error" className="text-sm text-red-600">
+                  {fieldErrors.description.message}
+                </p>
+              )}
+            </div>
+
+            {/* Amount */}
+            <div className="space-y-1.5">
+              <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
+                Montant (€) <span className="text-red-500">*</span>
+              </Label>
+              <DecimalFormInput
+                control={form.control}
+                name="amount"
+                id="amount"
+                placeholder="0.00"
+                className="w-full"
+                ariaInvalid={!!fieldErrors.amount}
+                ariaDescribedby={fieldErrors.amount ? 'edit-transaction-amount-error' : undefined}
+              />
+              {fieldErrors.amount && (
+                <p id="edit-transaction-amount-error" className="text-sm text-red-600">
+                  {fieldErrors.amount.message}
+                </p>
+              )}
+            </div>
+
+            {/* Date */}
+            <div className="space-y-1.5">
+              <Label htmlFor="date" className="text-sm font-medium text-gray-900">
+                Date <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                {transactionType === 'expense' ? (
+                  <Input
+                    id="date"
+                    type="date"
+                    {...form.register('expense_date')}
+                    aria-invalid={dateError ? 'true' : 'false'}
+                    aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
+                    className="w-full pl-10"
+                  />
+                ) : (
+                  <Input
+                    id="date"
+                    type="date"
+                    {...form.register('entry_date')}
+                    aria-invalid={dateError ? 'true' : 'false'}
+                    aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
+                    className="w-full pl-10"
+                  />
+                )}
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <svg
+                    className="h-4 w-4 text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
               </div>
+              {dateError && (
+                <p id="edit-transaction-date-error" className="text-sm text-red-600">
+                  {dateError.message}
+                </p>
+              )}
             </div>
+
+            {/* Expense Breakdown Preview - only for budgeted expenses.
+                Gated sur `previewSafe !== transaction.amount` (comparé en
+                cents pour éviter les floats) — Sprint 2026-05-21 : on ne
+                charge/affiche le recap QUE quand le montant change. À
+                l'ouverture (montant inchangé), l'utilisateur n'a pas besoin
+                de voir une re-allocation qui ne fait que reproduire l'état
+                actuel — le planificateur affiche déjà ces valeurs. */}
+            {transactionType === 'expense' &&
+              previewSafe > 0 &&
+              !isOriginallyExceptional &&
+              watchedBudgetId &&
+              transaction &&
+              Math.round(previewSafe * 100) !== Math.round(transaction.amount * 100) && (
+                <ExpenseBreakdownPreview
+                  amount={previewSafe}
+                  budgetId={String(watchedBudgetId)}
+                  context={context}
+                  expenseId={transaction.id}
+                />
+              )}
+
+            {/* Income/Exceptional Preview — Sprint 2026-05-22 / Income-Edit-Preview.
+                Pour les revenus (réguliers ou exceptionnels) et les dépenses
+                exceptionnelles, on montre `<RemainingToLivePreview>` avec
+                `existingAmount={transaction.amount}` pour back-out la
+                contribution déjà comptabilisée. Gated comme l'expense
+                preview sur un changement effectif du montant. */}
+            {previewSafe > 0 &&
+              transaction &&
+              (transactionType === 'income' ||
+                (transactionType === 'expense' && isOriginallyExceptional)) &&
+              Math.round(previewSafe * 100) !== Math.round(transaction.amount * 100) && (
+                <RemainingToLivePreview
+                  amount={previewSafe}
+                  type={transactionType}
+                  isExceptional={isOriginallyExceptional}
+                  selectedId={
+                    transactionType === 'income'
+                      ? ((transaction as RealIncome).estimated_income_id ?? undefined)
+                      : undefined
+                  }
+                  context={context}
+                  existingAmount={transaction.amount}
+                />
+              )}
+
+            {/* Server-side error */}
+            {serverError && (
+              <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{serverError}</p>
+              </div>
+            )}
           </div>
-
-
-          {/* Expense Breakdown Preview - only for budgeted expenses */}
-          {transactionType === 'expense' && previewAmount > 0 && !isExceptional && formData.budgetId && transaction && (
-            <ExpenseBreakdownPreview
-              amount={previewAmount}
-              budgetId={formData.budgetId}
-              context={context}
-              expenseId={transaction.id}
-            />
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
 
           {/* Actions */}
-          <div className="flex space-x-3 pt-4">
+          <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
             <Button
               type="button"
               variant="outline"
@@ -378,12 +493,12 @@ export default function EditTransactionModal({
                 'flex-1',
                 transactionType === 'expense'
                   ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-green-600 hover:bg-green-700'
+                  : 'bg-green-600 hover:bg-green-700',
               )}
             >
               {isSubmitting ? (
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="flex items-center space-x-1.5">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   <span>Modification...</span>
                 </div>
               ) : (
@@ -392,7 +507,7 @@ export default function EditTransactionModal({
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

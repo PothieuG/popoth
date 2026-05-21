@@ -1,17 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
+import { editBalanceFormSchema, type EditBalanceForm } from '@/lib/schemas/bank-balance'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { logger } from '@/lib/logger'
 
 interface EditBalanceModalProps {
   isOpen: boolean
   currentBalance: number
-  onSubmit: (newBalance: number) => void
+  onSubmit: (newBalance: number) => void | Promise<void>
   onCancel: () => void
 }
+
+// z.coerce.number() schemas have a distinct input/output : input accepts
+// string|number, output is always number. useForm needs both shapes.
+type EditBalanceFormInput = z.input<typeof editBalanceFormSchema>
 
 /**
  * Modal pour éditer le solde disponible avec explications
@@ -21,110 +32,137 @@ export default function EditBalanceModal({
   isOpen,
   currentBalance,
   onSubmit,
-  onCancel
+  onCancel,
 }: EditBalanceModalProps) {
-  const [balance, setBalance] = useState(currentBalance.toString())
-  const [isLoading, setIsLoading] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const form = useForm<EditBalanceFormInput, undefined, EditBalanceForm>({
+    resolver: zodResolver(editBalanceFormSchema),
+    defaultValues: { balance: currentBalance },
+    mode: 'onSubmit',
+  })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-
+  const handleValidSubmit = async (data: EditBalanceForm) => {
+    setServerError(null)
     try {
-      const newBalance = parseFloat(balance)
-      if (isNaN(newBalance)) {
-        throw new Error('Montant invalide')
-      }
-
-      await onSubmit(newBalance)
+      await onSubmit(data.balance)
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du solde:', error)
-      // Afficher l'erreur à l'utilisateur si nécessaire
-    } finally {
-      setIsLoading(false)
+      logger.error('Erreur lors de la mise à jour du solde:', error)
+      setServerError('Erreur lors de la mise à jour du solde')
     }
   }
 
   const handleCancel = () => {
-    setBalance(currentBalance.toString())
+    form.reset({ balance: currentBalance })
+    setServerError(null)
     onCancel()
   }
 
+  const onInvalidSubmit = (errors: FieldErrors<EditBalanceFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<EditBalanceFormInput>)
+    }
+  }
+
+  const balanceError = form.formState.errors.balance
+  const isSubmitting = form.formState.isSubmitting
+
   return (
     <Dialog open={isOpen} onOpenChange={handleCancel}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className={MODAL_CONTENT_CLASSES}>
+        {/* Header */}
+        <div className="shrink-0 border-b border-gray-200 px-6 py-4">
           <DialogTitle className="text-lg font-semibold text-gray-900">
             Modifier le solde disponible
           </DialogTitle>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Explication */}
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-start space-x-2">
-              <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div className="text-xs text-blue-800 leading-tight">
-                <p className="font-medium mb-1">À quoi sert cette modification ?</p>
-                <p className="mb-1">
-                  Cette édition permet de <strong>corriger</strong> ou <strong>créer un solde initial</strong> lors de la première utilisation.
-                </p>
-                <p className="text-blue-700">
-                  ⚠️ Ce montant doit refléter votre solde bancaire réel.
-                </p>
+        <form
+          onSubmit={form.handleSubmit(handleValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
+            {/* Explication */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+              <div className="flex items-start space-x-1.5">
+                <svg
+                  className="mt-0.5 h-4 w-4 shrink-0 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <div className="text-xs leading-tight text-blue-800">
+                  <p className="mb-1 font-medium">À quoi sert cette modification ?</p>
+                  <p className="mb-1">
+                    Cette édition permet de <strong>corriger</strong> ou{' '}
+                    <strong>créer un solde initial</strong> lors de la première utilisation.
+                  </p>
+                  <p className="text-blue-700">
+                    ⚠️ Ce montant doit refléter votre solde bancaire réel.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Champ de saisie */}
-          <div>
-            <Label htmlFor="balance" className="text-sm font-medium text-gray-700">
-              Nouveau solde disponible
-            </Label>
-            <div className="mt-1 relative">
-              <Input
-                id="balance"
-                type="text"
-                inputMode="decimal"
-                value={balance}
-                onChange={(e) => {
-                  const v = e.target.value
-                  if (v === '' || /^-?\d*[.,]?\d*$/.test(v)) {
-                    setBalance(v.replace(',', '.'))
-                  }
-                }}
-                placeholder="0.00"
-                className="pr-8"
-                disabled={isLoading}
-                required
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                <span className="text-gray-500 text-sm">€</span>
+            {/* Champ de saisie */}
+            <div>
+              <Label htmlFor="balance" className="text-sm font-medium text-gray-700">
+                Nouveau solde disponible
+              </Label>
+              <div className="relative mt-1">
+                <DecimalFormInput
+                  control={form.control}
+                  name="balance"
+                  id="balance"
+                  placeholder="0.00"
+                  className="pr-8"
+                  disabled={isSubmitting}
+                  allowNegative
+                  ariaInvalid={!!balanceError}
+                  ariaDescribedby={balanceError ? 'balance-error' : undefined}
+                />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  <span className="text-sm text-gray-500">€</span>
+                </div>
               </div>
+              {balanceError && (
+                <p id="balance-error" className="mt-1 text-xs text-red-600">
+                  {balanceError.message}
+                </p>
+              )}
             </div>
+
+            {serverError && (
+              <p role="alert" className="text-xs text-red-600">
+                {serverError}
+              </p>
+            )}
           </div>
 
           {/* Boutons d'action */}
-          <div className="flex space-x-3 pt-2">
+          <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
             <Button
               type="button"
               variant="outline"
               onClick={handleCancel}
               className="flex-1"
-              disabled={isLoading}
+              disabled={isSubmitting}
             >
               Annuler
             </Button>
-            <Button
-              type="submit"
-              className="flex-1"
-              disabled={isLoading}
-            >
-              {isLoading ? (
+            <Button type="submit" className="flex-1" disabled={isSubmitting}>
+              {isSubmitting ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   Sauvegarde...
                 </>
               ) : (

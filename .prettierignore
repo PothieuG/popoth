@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+build
+coverage
+public/sw.js
+public/workbox-*.js
+pnpm-lock.yaml
+lib/database.types.ts
+next-env.d.ts
+supabase/.temp/
+
+# Claude Code machine-local config (untracked or gitignored).
+.claude/settings.json
+.claude/settings.local.json

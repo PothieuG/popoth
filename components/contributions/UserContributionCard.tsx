@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 
 interface UserContributionCardProps {
@@ -15,21 +16,16 @@ interface UserContributionCardProps {
  */
 export default function UserContributionCard({ userId, className }: UserContributionCardProps) {
   const {
-    contributions,
     groupInfo,
     isLoading,
+    isFetching,
     error,
     fetchContributions,
     getUserContribution,
     hasGroup,
     isRecalculating,
-    recalculateContributions
+    recalculateContributions,
   } = useGroupContributions()
-
-  // Load contributions on mount
-  useEffect(() => {
-    fetchContributions()
-  }, [fetchContributions])
 
   /**
    * Formats currency amount for display
@@ -39,7 +35,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
       style: 'currency',
       currency: 'EUR',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -50,7 +46,7 @@ export default function UserContributionCard({ userId, className }: UserContribu
     return new Intl.NumberFormat('fr-FR', {
       style: 'percent',
       minimumFractionDigits: 1,
-      maximumFractionDigits: 1
+      maximumFractionDigits: 1,
     }).format(percentage / 100)
   }
 
@@ -59,15 +55,13 @@ export default function UserContributionCard({ userId, className }: UserContribu
     return null
   }
 
-  if (isLoading) {
+  if (isLoading || isFetching) {
     return (
       <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
         </div>
       </Card>
     )
@@ -75,10 +69,10 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
   if (error) {
     return (
-      <Card className={`p-6 border-red-200 ${className}`}>
-        <div className="flex justify-between items-start">
+      <Card className={`border-red-200 p-6 ${className}`}>
+        <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-red-800 mb-2">Erreur de contribution</h3>
+            <h3 className="mb-1.5 text-lg font-semibold text-red-800">Erreur de contribution</h3>
             <p className="text-sm text-red-600">{error}</p>
           </div>
           <Button
@@ -98,54 +92,55 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
   return (
     <Card className={`p-6 ${className}`}>
-      <div className="flex justify-between items-center mb-4">
+      <div className="mb-3 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">Votre contribution</h3>
         <Button
           variant="outline"
           size="sm"
           onClick={recalculateContributions}
           disabled={isRecalculating}
-          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+          className="border-blue-300 text-blue-600 hover:bg-blue-50"
         >
+          {isRecalculating && <InlineSpinner className="mr-1.5" />}
           {isRecalculating ? 'Recalcul...' : 'Actualiser'}
         </Button>
       </div>
 
       {userContribution ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* Group Budget Info */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Budget du groupe</h4>
+          <div className="rounded-lg bg-gray-50 p-4">
+            <h4 className="mb-1.5 text-sm font-medium text-gray-700">Budget du groupe</h4>
             <p className="text-lg font-semibold text-gray-900">
               {formatCurrency(groupInfo.monthly_budget_estimate)} / mois
             </p>
           </div>
 
           {/* User Contribution Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {/* Contribution Amount */}
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-700 mb-1">Votre contribution</h4>
+            <div className="rounded-lg bg-blue-50 p-4">
+              <h4 className="mb-1 text-sm font-medium text-blue-700">Votre contribution</h4>
               <p className="text-xl font-bold text-blue-900">
                 {formatCurrency(userContribution.contribution_amount)}
               </p>
-              <p className="text-xs text-blue-600 mt-1">par mois</p>
+              <p className="mt-1 text-xs text-blue-600">par mois</p>
             </div>
 
             {/* Contribution Percentage */}
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-green-700 mb-1">Pourcentage</h4>
+            <div className="rounded-lg bg-green-50 p-4">
+              <h4 className="mb-1 text-sm font-medium text-green-700">Pourcentage</h4>
               <p className="text-xl font-bold text-green-900">
                 {formatPercentage(userContribution.contribution_percentage)}
               </p>
-              <p className="text-xs text-green-600 mt-1">de votre salaire</p>
+              <p className="mt-1 text-xs text-green-600">de votre salaire</p>
             </div>
           </div>
 
           {/* Salary Info */}
           {userContribution.salary > 0 && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Basé sur votre salaire</h4>
+            <div className="rounded-lg bg-gray-50 p-4">
+              <h4 className="mb-1.5 text-sm font-medium text-gray-700">Basé sur votre salaire</h4>
               <p className="text-lg font-semibold text-gray-900">
                 {formatCurrency(userContribution.salary)} / mois
               </p>
@@ -154,8 +149,8 @@ export default function UserContributionCard({ userId, className }: UserContribu
 
           {/* Group Statistics */}
           <div className="border-t border-gray-200 pt-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-3">Statistiques du groupe</h4>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <h4 className="mb-2 text-sm font-medium text-gray-700">Statistiques du groupe</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <span className="text-gray-500">Total des salaires:</span>
                 <p className="font-medium">{formatCurrency(groupInfo.total_salaries)}</p>
@@ -168,26 +163,41 @@ export default function UserContributionCard({ userId, className }: UserContribu
           </div>
 
           {/* Last Updated */}
-          <div className="text-xs text-gray-500 text-center">
-            Dernière mise à jour: {new Date(userContribution.calculated_at).toLocaleString('fr-FR')}
+          <div className="text-center text-xs text-gray-500">
+            Dernière mise à jour:{' '}
+            {userContribution.calculated_at
+              ? new Date(userContribution.calculated_at).toLocaleString('fr-FR')
+              : '—'}
           </div>
         </div>
       ) : (
-        <div className="text-center py-8">
-          <div className="w-16 h-16 mx-auto bg-yellow-100 rounded-full flex items-center justify-center mb-4">
-            <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <div className="py-8 text-center">
+          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-yellow-100">
+            <svg
+              className="h-8 w-8 text-yellow-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
           </div>
-          <h4 className="text-lg font-medium text-gray-900 mb-2">Contribution non calculée</h4>
-          <p className="text-gray-600 mb-4">
-            Vos contributions ne sont pas encore calculées. Assurez-vous d'avoir défini votre salaire.
+          <h4 className="mb-1.5 text-lg font-medium text-gray-900">Contribution non calculée</h4>
+          <p className="mb-3 text-gray-600">
+            Vos contributions ne sont pas encore calculées. Assurez-vous d&apos;avoir défini votre
+            salaire.
           </p>
           <Button
             onClick={recalculateContributions}
             disabled={isRecalculating}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
+            {isRecalculating && <InlineSpinner className="mr-1.5" />}
             {isRecalculating ? 'Calcul en cours...' : 'Calculer maintenant'}
           </Button>
         </div>

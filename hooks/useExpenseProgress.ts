@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 interface ExpenseProgress {
   budgetId: string
@@ -21,59 +21,37 @@ interface UseExpenseProgressReturn {
  * Hook pour récupérer les données de progression des dépenses par budget
  */
 export function useExpenseProgress(context?: 'profile' | 'group'): UseExpenseProgressReturn {
-  const [expenseProgress, setExpenseProgress] = useState<Record<string, ExpenseProgress>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchExpenseProgress = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
+  const { data, isLoading, error, refetch } = useQuery<Record<string, ExpenseProgress>>({
+    queryKey: ['expense-progress', context ?? null],
+    queryFn: async () => {
       const url = context
-        ? `/api/finances/expenses/progress?context=${context}`
-        : '/api/finances/expenses/progress'
+        ? `/api/finance/expenses/progress?context=${context}`
+        : '/api/finance/expenses/progress'
 
       const response = await fetch(url, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
         throw new Error(`Erreur ${response.status}: ${response.statusText}`)
       }
 
-      const data = await response.json()
-
-      // Transformer les données en map pour un accès rapide
+      const items: ExpenseProgress[] = await response.json()
       const progressMap: Record<string, ExpenseProgress> = {}
-      data.forEach((item: ExpenseProgress) => {
+      items.forEach((item) => {
         progressMap[item.budgetId] = item
       })
-
-      setExpenseProgress(progressMap)
-
-    } catch (err) {
-      console.error('❌ Erreur dans useExpenseProgress:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      setExpenseProgress({})
-    } finally {
-      setLoading(false)
-    }
-  }, [context])
-
-  const refreshExpenseProgress = useCallback(async () => {
-    await fetchExpenseProgress()
-  }, [fetchExpenseProgress])
-
-  useEffect(() => {
-    fetchExpenseProgress()
-  }, [fetchExpenseProgress])
+      return progressMap
+    },
+  })
 
   return {
-    expenseProgress,
-    loading,
-    error,
-    refreshExpenseProgress
+    expenseProgress: data ?? {},
+    loading: isLoading,
+    error: error instanceof Error ? error.message : null,
+    refreshExpenseProgress: async () => {
+      await refetch()
+    },
   }
 }

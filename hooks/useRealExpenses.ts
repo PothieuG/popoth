@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { triggerFinancialRefresh } from '@/hooks/useFinancialData'
+import { useCallback } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { logger } from '@/lib/logger'
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface RealExpense {
   id: string
@@ -19,6 +21,12 @@ export interface RealExpense {
   estimated_budget?: {
     name: string
   }
+  created_by?: {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface CreateRealExpenseRequest {
@@ -27,6 +35,10 @@ export interface CreateRealExpenseRequest {
   expense_date?: string
   estimated_budget_id?: string
   is_for_group?: boolean
+  /** Sprint P4-P5-P6 / P5 toggle — see addExpenseWithLogicBodySchema. */
+  use_savings?: boolean
+  /** Sprint P4-P5-P6 / P4 Phase 2 — see addExpenseWithLogicBodySchema. */
+  cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
 }
 
 export interface UpdateRealExpenseRequest {
@@ -40,6 +52,7 @@ export interface UpdateRealExpenseRequest {
 interface UseRealExpensesReturn {
   expenses: RealExpense[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   totalExpenses: number
   addExpense: (expenseData: CreateRealExpenseRequest) => Promise<boolean>
@@ -53,192 +66,162 @@ interface UseRealExpensesReturn {
  * Handles database interactions and state management for actual expenses
  */
 export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesReturn {
-  const [expenses, setExpenses] = useState<RealExpense[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  
-  /**
-   * Calculate total amount of all expenses
-   */
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const queryClient = useQueryClient()
+  const queryKey = ['real-expenses', context ?? null]
 
-  /**
-   * Fetch all expenses from API
-   */
-  const fetchExpenses = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
+  const {
+    data: expenses = [],
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useQuery<RealExpense[]>({
+    queryKey,
+    queryFn: async () => {
       const params = new URLSearchParams()
       if (context === 'group') {
         params.append('group', 'true')
       }
-      params.append('limit', '100') // Get more items for transaction listing
+      params.append('limit', '100')
 
-      const response = await fetch(`/api/finances/expenses/real?${params.toString()}`, {
+      const response = await fetch(`/api/finance/expenses/real?${params.toString()}`, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
       })
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error fetching expenses:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
-
       const data = await response.json()
-      setExpenses(data.real_expenses || [])
-    } catch (err) {
-      console.error('Error in fetchExpenses:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-    } finally {
-      setLoading(false)
-    }
-  }, [context])
+      return (data.real_expenses ?? []) as RealExpense[]
+    },
+  })
 
-  /**
-   * Add a new expense with smart allocation logic
-   * Uses piggy bank → savings → budget priority
-   */
-  const addExpense = useCallback(async (expenseData: CreateRealExpenseRequest): Promise<boolean> => {
-    try {
-      setError(null)
-
+  const addMutation = useMutation<RealExpense | null, Error, CreateRealExpenseRequest>({
+    mutationFn: async (expenseData) => {
       const requestBody = {
         ...expenseData,
-        is_for_group: context === 'group'
+        is_for_group: context === 'group',
       }
-
-      // Use the new smart allocation endpoint
-      const response = await fetch('/api/finances/expenses/add-with-logic', {
+      const response = await fetch('/api/finance/expenses/add-with-logic', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
       })
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error adding expense:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
-
       const data = await response.json()
-
-      // Only add to state if a real expense was created (fromBudget > 0)
-      if (data.real_expense) {
-        setExpenses(prev => [data.real_expense, ...prev])
+      // Smart allocation may not create a real_expense (fully covered by piggy/savings)
+      return (data.real_expense ?? null) as RealExpense | null
+    },
+    onSuccess: (newExpense) => {
+      if (newExpense) {
+        queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) => [newExpense, ...prev])
       }
+      invalidateFinancialRefreshes(queryClient)
+    },
+    onError: (err) => {
+      // silently-swallowed côté UI (addExpense retourne false sans toast)
+      logger.error('Error in addExpense:', err)
+    },
+  })
 
-      // Refresh financial dashboard
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in addExpense:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [context])
-
-  /**
-   * Update an existing expense
-   */
-  const updateExpense = useCallback(async (expenseData: UpdateRealExpenseRequest): Promise<boolean> => {
-    try {
-      setError(null)
-
-      const response = await fetch(`/api/finances/expenses/real?id=${expenseData.id}`, {
+  const updateMutation = useMutation<RealExpense, Error, UpdateRealExpenseRequest>({
+    mutationFn: async (expenseData) => {
+      const response = await fetch(`/api/finance/expenses/real?id=${expenseData.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(expenseData)
+        body: JSON.stringify(expenseData),
       })
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('Error updating expense:', response.status, errorData)
         throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
       }
-
       const data = await response.json()
+      return data.real_expense as RealExpense
+    },
+    onSuccess: (updatedExpense, expenseData) => {
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.map((expense) => (expense.id === expenseData.id ? updatedExpense : expense)),
+      )
+      invalidateFinancialRefreshes(queryClient)
+    },
+    onError: (err) => {
+      // silently-swallowed côté UI (updateExpense retourne false sans toast)
+      logger.error('Error in updateExpense:', err)
+    },
+  })
 
-      // Update the expense in the list
-      setExpenses(prev => prev.map(expense =>
-        expense.id === expenseData.id ? data.real_expense : expense
-      ))
-
-      // Refresh financial data
-      triggerFinancialRefresh()
-
-      return true
-    } catch (err) {
-      console.error('Error in updateExpense:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
-
-  /**
-   * Delete an expense
-   */
-  const deleteExpense = useCallback(async (expenseId: string): Promise<boolean> => {
-    try {
-      setError(null)
-      console.log('🗑️ [useRealExpenses] Deleting expense:', expenseId)
-
-      const response = await fetch(`/api/finances/expenses/real?id=${expenseId}`, {
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: async (expenseId) => {
+      const response = await fetch(`/api/finance/expenses/real?id=${expenseId}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
       })
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)
-        console.error('❌ [useRealExpenses] API Error deleting expense:', response.status, errorData)
         throw new Error(errorData?.error || 'Erreur lors de la suppression de la dépense')
       }
+    },
+    onSuccess: (_, expenseId) => {
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.filter((expense) => expense.id !== expenseId),
+      )
+      invalidateFinancialRefreshes(queryClient)
+    },
+    onError: (err) => {
+      // silently-swallowed côté UI (deleteExpense retourne false sans toast)
+      logger.error('❌ [useRealExpenses] Error in deleteExpense:', err)
+    },
+  })
 
-      setExpenses(prev => prev.filter(expense => expense.id !== expenseId))
-      console.log('✅ [useRealExpenses] Expense removed from local state')
+  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
-      // Refresh financial data
-      console.log('🔄 [useRealExpenses] Refreshing financial data...')
-      triggerFinancialRefresh()
-      console.log('✅ [useRealExpenses] Financial data refreshed')
+  const latestError =
+    addMutation.error ?? updateMutation.error ?? deleteMutation.error ?? queryError
+  const error = latestError instanceof Error ? latestError.message : null
 
-      return true
-    } catch (err) {
-      console.error('❌ [useRealExpenses] Error in deleteExpense:', err)
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
-
-  /**
-   * Refresh the expenses list
-   */
+  // Stable refresh reference — useBudgetProgress wraps this in its own
+  // useCallback with refreshExpenses in deps. Without stability here that
+  // chain reboots every render → useEffect dep churn → refetch loop.
   const refreshExpenses = useCallback(async () => {
-    await fetchExpenses()
-  }, [fetchExpenses])
-
-  // Load expenses on component mount
-  useEffect(() => {
-    fetchExpenses()
-  }, [fetchExpenses])
+    await refetch()
+  }, [refetch])
 
   return {
     expenses,
-    loading,
+    loading: isLoading,
+    isFetching,
     error,
     totalExpenses,
-    addExpense,
-    updateExpense,
-    deleteExpense,
-    refreshExpenses
+    addExpense: async (expenseData) => {
+      try {
+        await addMutation.mutateAsync(expenseData)
+        return true
+      } catch {
+        return false
+      }
+    },
+    updateExpense: async (expenseData) => {
+      try {
+        await updateMutation.mutateAsync(expenseData)
+        return true
+      } catch {
+        return false
+      }
+    },
+    deleteExpense: async (expenseId) => {
+      try {
+        await deleteMutation.mutateAsync(expenseId)
+        return true
+      } catch {
+        return false
+      }
+    },
+    refreshExpenses,
   }
 }

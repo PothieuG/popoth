@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify } from 'jose'
+import { SESSION_EXPIRATION_JOSE, SESSION_EXPIRATION_SECONDS } from './constants/auth'
 
 // Secret key for JWT signing and verification
 const secretKey = process.env.JWT_SECRET_KEY || 'your-secret-key-here'
@@ -17,10 +18,10 @@ export interface SessionPayload {
  * Creates a signed JWT with user data and expiration
  */
 export async function encrypt(payload: SessionPayload): Promise<string> {
-  return new SignJWT(payload)
+  return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('1h')
+    .setExpirationTime(SESSION_EXPIRATION_JOSE)
     .sign(key)
 }
 
@@ -30,15 +31,14 @@ export async function encrypt(payload: SessionPayload): Promise<string> {
  */
 export async function decrypt(session: string | undefined = ''): Promise<SessionPayload | null> {
   if (!session) return null
-  
+
   try {
     const { payload } = await jwtVerify(session, key, {
       algorithms: ['HS256'],
     })
-    
-    return payload as SessionPayload
-  } catch (error) {
-    console.error('Failed to decrypt session:', error)
+
+    return payload as unknown as SessionPayload
+  } catch {
     return null
   }
 }
@@ -49,14 +49,14 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
  */
 export async function createSessionToken(userId: string, email: string): Promise<string> {
   const currentTime = Math.floor(Date.now() / 1000)
-  const expiresAt = currentTime + 3600 // 1 hour from now
-  
+  const expiresAt = currentTime + SESSION_EXPIRATION_SECONDS
+
   const sessionPayload: SessionPayload = {
     userId,
     email,
     createdAt: currentTime,
     expiresAt,
   }
-  
+
   return await encrypt(sessionPayload)
 }

@@ -1,6 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
+import { updatePiggyBank } from '@/lib/finance/piggy-bank'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { accumulatePiggyBankBodySchema } from '@/lib/schemas/recap'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/accumulate-piggy-bank
@@ -20,79 +25,30 @@ import { supabaseServer } from '@/lib/supabase-server'
  *   new_amount: number
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
-    const body = await request.json()
-    const { context = 'profile', amount } = body
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
-      )
-    }
-
-    // Validation du montant
-    if (typeof amount !== 'number' || amount < 0) {
-      return NextResponse.json(
-        { error: 'Montant invalide' },
-        { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur introuvable' },
-        { status: 404 }
-      )
-    }
+    const { context, amount } = await parseBody(request, accumulatePiggyBankBodySchema)
 
     // Déterminer le contexte (profile ou group)
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
     const contextId = context === 'profile' ? userId : profile.group_id
 
     if (!contextId) {
-      return NextResponse.json(
-        { error: `${context} introuvable` },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: `${context} introuvable` }, { status: 404 })
     }
-
-    console.log(`🐷 [Accumulate Piggy Bank] Démarrage pour ${context}:${contextId}`)
-    console.log(`🐷 [Accumulate Piggy Bank] Montant à ajouter: ${amount}€`)
 
     // Si le montant est 0, on ne fait rien
     if (amount === 0) {
-      console.log(`🐷 [Accumulate Piggy Bank] Montant nul, aucune action nécessaire`)
       return NextResponse.json({
         success: true,
         message: 'Aucun surplus à ajouter à la tirelire',
         old_amount: 0,
         added_amount: 0,
-        new_amount: 0
+        new_amount: 0,
       })
     }
 
-    // Récupérer la tirelire existante
+    // Vérifier si la tirelire existe (insert sinon, sinon increment via RPC atomique)
     const { data: piggyBankData, error: fetchError } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
@@ -100,52 +56,46 @@ export async function POST(request: NextRequest) {
       .maybeSingle()
 
     if (fetchError) {
-      console.error('❌ [Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:', fetchError)
+      logger.error(
+        '[Accumulate Piggy Bank] Erreur lors de la récupération de la tirelire:',
+        fetchError,
+      )
       return NextResponse.json(
         { error: 'Erreur lors de la récupération de la tirelire' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     const oldAmount = piggyBankData?.amount || 0
-    const newAmount = oldAmount + amount
+    let newAmount = oldAmount + amount
 
     if (piggyBankData) {
-      // Mettre à jour la tirelire existante
-      const { error: updateError } = await supabaseServer
-        .from('piggy_bank')
-        .update({
-          amount: newAmount
-        })
-        .eq(ownerField, contextId)
-
-      if (updateError) {
-        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la mise à jour:', updateError)
+      try {
+        const filter =
+          ownerField === 'profile_id' ? { profile_id: contextId } : { group_id: contextId }
+        newAmount = await updatePiggyBank(filter, amount)
+      } catch (error) {
+        logger.error('[Accumulate Piggy Bank] Erreur lors de la mise à jour:', error)
         return NextResponse.json(
           { error: 'Erreur lors de la mise à jour de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
-
-      console.log(`✅ [Accumulate Piggy Bank] Tirelire mise à jour: ${oldAmount}€ + ${amount}€ = ${newAmount}€`)
     } else {
-      // Créer une nouvelle entrée
-      const { error: insertError } = await supabaseServer
-        .from('piggy_bank')
-        .insert({
-          [ownerField]: contextId,
-          amount: newAmount
-        })
+      // Créer une nouvelle entrée (RPC ne crée pas la ligne)
+      const insertPayload: TablesInsert<'piggy_bank'> =
+        context === 'profile'
+          ? { profile_id: contextId, amount: newAmount }
+          : { group_id: contextId, amount: newAmount }
+      const { error: insertError } = await supabaseServer.from('piggy_bank').insert(insertPayload)
 
       if (insertError) {
-        console.error('❌ [Accumulate Piggy Bank] Erreur lors de la création:', insertError)
+        logger.error('[Accumulate Piggy Bank] Erreur lors de la création:', insertError)
         return NextResponse.json(
           { error: 'Erreur lors de la création de la tirelire' },
-          { status: 500 }
+          { status: 500 },
         )
       }
-
-      console.log(`✅ [Accumulate Piggy Bank] Tirelire créée: ${newAmount}€`)
     }
 
     return NextResponse.json({
@@ -153,14 +103,11 @@ export async function POST(request: NextRequest) {
       message: `${amount}€ ajoutés à la tirelire`,
       old_amount: oldAmount,
       added_amount: amount,
-      new_amount: newAmount
+      new_amount: newAmount,
     })
-
   } catch (error) {
-    console.error('❌ [Accumulate Piggy Bank] Erreur:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    const handled = handleBadRequest(error)
+    if (handled) return handled
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
-}
+})

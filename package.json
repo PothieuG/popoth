@@ -8,36 +8,117 @@
     "start": "next start",
     "lint": "eslint . --fix",
     "lint:check": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:types": "supabase gen types typescript --project-id jzmppreybwabaeycvasz --schema public > lib/database.types.ts",
+    "db:diff": "supabase db diff",
+    "db:reset": "supabase db reset",
+    "db:check-drift": "node scripts/check-drift.mjs",
+    "db:check-rpcs": "node scripts/check-rpcs.mjs",
+    "db:check-functions": "node scripts/check-trigger-functions.mjs",
+    "db:check-types-fresh": "node scripts/check-types-fresh.mjs",
+    "db:audit-functions": "node scripts/audit-functions.mjs",
+    "db:audit-objects": "node scripts/audit-db-objects.mjs",
+    "check:md-size": "node scripts/check-md-size.mjs",
+    "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
+    "ci": "pnpm typecheck && pnpm lint:check && pnpm format:check && pnpm test:run && pnpm build",
+    "prepare": "husky"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.63.0",
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-icons": "^1.3.2",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
-    "@supabase/supabase-js": "^2.57.4",
-    "autoprefixer": "^10.4.21",
+    "@supabase/supabase-js": "^2.105.4",
+    "@tanstack/react-query": "^5.100.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "jose": "^6.1.0",
     "lucide-react": "^0.544.0",
-    "next": "16.1.6",
+    "next": "16.2.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "tailwind-merge": "^3.3.1"
+    "react-hook-form": "^7.75.0",
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.1",
+    "@commitlint/config-conventional": "^21.0.1",
     "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@tanstack/react-query-devtools": "^5.100.9",
+    "@testing-library/jest-dom": "^6",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^20.19.14",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",
-    "eslint": "^8",
-    "eslint-config-next": "15.0.0",
-    "postcss": "^8",
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "@vitest/coverage-v8": "^4.1.6",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "16.2.6",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-unused-imports": "^4",
+    "husky": "^9.1.7",
+    "jest-axe": "^10.0.0",
+    "jsdom": "^25",
+    "lint-staged": "^17.0.3",
+    "postcss": "^8.5.14",
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0",
+    "supabase": "^2.98.2",
+    "tailwindcss": "^4.3.0",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5",
+    "vitest": "^4.1.6"
   },
-  "packageManager": "pnpm@9.15.5+sha512.845196026aab1cc3f098a0474b64dfbab2afe7a1b4e91dd86895d8e4aa32a7a6d03049e2d0ad770bbe4de023a7122fb68c1a1d6e0d033c7076085f9d5d4800d4"
+  "engines": {
+    "node": ">=20.10.0",
+    "pnpm": ">=9.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ],
+    "CLAUDE.md": [
+      "node scripts/check-md-size.mjs"
+    ],
+    ".claude/**/*.md": [
+      "node scripts/check-md-size.mjs"
+    ]
+  },
+  "packageManager": "pnpm@9.15.5",
+  "pnpm": {
+    "overrides": {
+      "ajv@6": "^6.14.0",
+      "brace-expansion@1": "^1.1.13",
+      "brace-expansion@2": "^2.0.3",
+      "flatted": "^3.4.2",
+      "glob@10": "^10.5.0",
+      "js-yaml": "^4.1.1",
+      "lodash": "^4.18.0",
+      "minimatch@3": "^3.1.4",
+      "minimatch@9": "^9.0.7",
+      "picomatch@2": "^2.3.2",
+      "picomatch@4": "^4.0.4",
+      "playwright": "^1.55.1",
+      "postcss": "^8.5.10",
+      "react": "19.1.1",
+      "react-dom": "19.1.1",
+      "serialize-javascript": "^7.0.5",
+      "yaml@2": "^2.8.3"
+    }
+  }
 }

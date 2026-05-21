@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-calculations'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 
 /**
  * API GET /api/monthly-recap/step1-data
@@ -19,43 +21,9 @@ import { getProfileFinancialData, getGroupFinancialData } from '@/lib/financial-
  * - total_savings_available: nombre
  * - can_balance: boolean (true si des fonds sont disponibles pour équilibrage)
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
-    const url = new URL(request.url)
-    const context = url.searchParams.get('context') || 'profile'
-
-    // Validation du contexte
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     // Déterminer l'ID du contexte
     let contextId: string
@@ -64,59 +32,32 @@ export async function GET(request: NextRequest) {
     } else {
       if (!profile.group_id) {
         return NextResponse.json(
-          { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-          { status: 400 }
+          { error: "Utilisateur ne fait partie d'aucun groupe" },
+          { status: 400 },
         )
       }
       contextId = profile.group_id
     }
 
-    console.log(`🔍 [DEBUG STEP1] ====================================`)
-    console.log(`🔍 [DEBUG STEP1] ÉTAPE 1 - RÉCUPÉRATION RAV POUR ${context.toUpperCase()}:${contextId}`)
-    console.log(`🔍 [DEBUG STEP1] TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(`🔍 [DEBUG STEP1] ====================================`)
-
     // 1. Récupérer le reste à vivre actuel DIRECTEMENT depuis les calculs financiers
-    let financialData: any
+    let financialData: FinancialData
     if (context === 'profile') {
-      console.log(`🔍 [DEBUG STEP1] Appel getProfileFinancialData pour ${contextId} - ${new Date().toISOString()}`)
       financialData = await getProfileFinancialData(contextId)
     } else {
-      console.log(`🔍 [DEBUG STEP1] Appel getGroupFinancialData pour ${contextId} - ${new Date().toISOString()}`)
       financialData = await getGroupFinancialData(contextId)
     }
 
     const currentRemainingToLive = financialData.remainingToLive
-    console.log(``)
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(`🎯🎯🎯 ÉTAPE 1 - RESTE À VIVRE INITIAL`)
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(`🎯 CONTEXTE: ${context.toUpperCase()}`)
-    console.log(`🎯 ID: ${contextId}`)
-    console.log(`🎯 TIMESTAMP: ${new Date().toISOString()}`)
-    console.log(``)
-    console.log(`💰 RESTE À VIVRE (RAV): ${currentRemainingToLive}€`)
-    console.log(``)
-    console.log(`📊 DÉTAILS FINANCIERS:`)
-    console.log(`   - Solde bancaire: ${financialData.bankBalance}€`)
-    console.log(`   - Revenus estimés: ${financialData.totalEstimatedIncome}€`)
-    console.log(`   - Revenus réels: ${financialData.totalRealIncome}€`)
-    console.log(`   - Budgets estimés: ${financialData.totalEstimatedBudget}€`)
-    console.log(`   - Dépenses réelles: ${financialData.totalRealExpenses}€`)
-    console.log(`   - Solde disponible: ${financialData.availableBalance}€`)
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(``)
 
     // 2. Récupérer le montant de la tirelire depuis la base de données
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
-    const { data: piggyBank, error: piggyBankError } = await supabaseServer
+    const { data: piggyBank } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
       .eq(ownerField, contextId)
-      .single()
+      .maybeSingle()
 
     const piggyBankAmount = piggyBank?.amount || 0
-    console.log(`🐷 [Step1 Data] Tirelire récupérée: ${piggyBankAmount}€`)
 
     // 3. Récupérer les budgets avec leurs données
     const { data: budgets, error: budgetsError } = await supabaseServer
@@ -148,7 +89,7 @@ export async function GET(request: NextRequest) {
     for (const budget of budgets) {
       // Calculer le montant dépensé pour ce budget
       const spentAmount = expenses
-        .filter(expense => expense.estimated_budget_id === budget.id)
+        .filter((expense) => expense.estimated_budget_id === budget.id)
         .reduce((sum, expense) => sum + expense.amount, 0)
 
       // Calculer l'excédent (budget estimé - dépensé)
@@ -157,8 +98,6 @@ export async function GET(request: NextRequest) {
       // Récupérer les économies existantes
       const savings = budget.cumulated_savings || 0
 
-      console.log(`📊 [Step1 Data] Budget "${budget.name}": estimé=${budget.estimated_amount}€, dépensé=${spentAmount}€, excédent=${surplus}€, économies=${savings}€`)
-
       // Ajouter aux listes si des montants sont disponibles
       if (surplus > 0) {
         budgetsWithSurplus.push({
@@ -166,7 +105,7 @@ export async function GET(request: NextRequest) {
           name: budget.name,
           estimated_amount: budget.estimated_amount,
           spent_amount: spentAmount,
-          surplus: surplus
+          surplus: surplus,
         })
         totalSurplusAvailable += surplus
       }
@@ -177,7 +116,7 @@ export async function GET(request: NextRequest) {
           name: budget.name,
           estimated_amount: budget.estimated_amount,
           spent_amount: spentAmount,
-          savings: savings
+          savings: savings,
         })
         totalSavingsAvailable += savings
       }
@@ -186,24 +125,14 @@ export async function GET(request: NextRequest) {
     const totalAvailable = piggyBankAmount + totalSavingsAvailable + totalSurplusAvailable
     const canBalance = totalAvailable > 0
 
-    console.log(`🐷 [Step1 Data] Tirelire disponible: ${piggyBankAmount}€`)
-    console.log(`💎 [Step1 Data] Total économies disponibles: ${totalSavingsAvailable}€`)
-    console.log(`📊 [Step1 Data] Total excédents disponibles: ${totalSurplusAvailable}€`)
-    console.log(`💰 [Step1 Data] Total disponible pour équilibrage: ${totalAvailable}€`)
-    console.log(`🎯 [Step1 Data] Peut équilibrer: ${canBalance}`)
-
     // 5. Déterminer la situation
     const isPositiveRAV = currentRemainingToLive >= 0
     const deficit = isPositiveRAV ? 0 : Math.abs(currentRemainingToLive)
     const canFullyBalance = totalAvailable >= deficit
 
-    console.log(`🎯 [Step1 Data] Situation:`)
-    console.log(`  - RAV positif: ${isPositiveRAV}`)
-    console.log(`  - Déficit: ${deficit}€`)
-    console.log(`  - Peut équilibrer complètement: ${canFullyBalance}`)
-
     // 6. Calculer le reste à vivre budgétaire (simple différence revenus estimés - budgets estimés)
-    const budgetaryRemainingToLive = financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
+    const budgetaryRemainingToLive =
+      financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets
 
     // 7. Le reste à vivre normal est le currentRemainingToLive (avec toutes les dépenses exceptionnelles, etc.)
     const normalRemainingToLive = currentRemainingToLive
@@ -216,33 +145,8 @@ export async function GET(request: NextRequest) {
     // Si RAV normal < RAV budgétaire → il faut combler l'écart (équilibrage nécessaire)
     // Si RAV normal >= RAV budgétaire → surplus disponible pour l'étape suivante
     const needsBalancing = normalRemainingToLive < budgetaryRemainingToLive
-    const balanceAmount = needsBalancing ? (budgetaryRemainingToLive - normalRemainingToLive) : 0
-    const surplus = !needsBalancing ? (normalRemainingToLive - budgetaryRemainingToLive) : 0
-
-    console.log(``)
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(`🎯🎯🎯 NOUVEAUX CALCULS - RESTE À VIVRE`)
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(`💰 RESTE À VIVRE BUDGÉTAIRE (CIBLE): ${budgetaryRemainingToLive}€`)
-    console.log(`   = Revenus estimés (${financialData.totalEstimatedIncome}€) - Budgets estimés (${financialData.totalEstimatedBudgets}€)`)
-    console.log(``)
-    console.log(`💰 RESTE À VIVRE NORMAL (RÉEL): ${normalRemainingToLive}€`)
-    console.log(`   = Calcul complet avec dépenses exceptionnelles, revenus réels, etc.`)
-    console.log(``)
-    console.log(`📊 RESTE À VIVRE FACTUEL (ÉCART): ${factualRemainingToLive}€`)
-    console.log(`   = RAV normal (${normalRemainingToLive}€) - RAV budgétaire (${budgetaryRemainingToLive}€)`)
-    console.log(``)
-    console.log(`🎯 OBJECTIF: Atteindre le RAV budgétaire de ${budgetaryRemainingToLive}€`)
-    console.log(`⚖️ BESOIN D'ÉQUILIBRAGE: ${needsBalancing ? 'OUI' : 'NON'}`)
-    if (needsBalancing) {
-      console.log(`💡 Montant à équilibrer pour atteindre la cible: ${balanceAmount}€`)
-      console.log(`   (il faut ajouter ${balanceAmount}€ au RAV normal pour atteindre le RAV budgétaire)`)
-    } else {
-      console.log(`✅ Surplus disponible pour l'étape suivante: ${surplus}€`)
-      console.log(`   (le RAV normal dépasse le RAV budgétaire de ${surplus}€)`)
-    }
-    console.log(`🎯🎯🎯 ========================================================`)
-    console.log(``)
+    const balanceAmount = needsBalancing ? budgetaryRemainingToLive - normalRemainingToLive : 0
+    const surplus = !needsBalancing ? normalRemainingToLive - budgetaryRemainingToLive : 0
 
     // Retourner les données structurées pour l'étape 1
     return NextResponse.json({
@@ -266,14 +170,14 @@ export async function GET(request: NextRequest) {
       can_fully_balance: canFullyBalance,
       context,
       user_name: `${profile.first_name} ${profile.last_name}`,
-      timestamp: Date.now() // Pour forcer le rafraîchissement
+      timestamp: Date.now(), // Pour forcer le rafraîchissement
     })
-
   } catch (error) {
-    console.error('❌ [Step1 Data] Erreur lors de la récupération des données:', error)
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne du serveur' },
-      { status: 500 }
+      { status: 500 },
     )
   }
-}
+})

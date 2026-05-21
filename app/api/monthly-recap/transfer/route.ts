@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import type { TablesInsert } from '@/lib/database.types'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
+import { manualTransferBodySchema } from '@/lib/schemas/recap'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/monthly-recap/transfer
@@ -34,79 +38,21 @@ import { supabaseServer } from '@/lib/supabase-server'
  *   }
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withAuthAndProfile(async (request, { profile }) => {
   try {
-    // Validation de la session
-    const sessionData = await validateSessionToken(request)
-    if (!sessionData?.userId) {
-      return NextResponse.json(
-        { error: 'Session invalide' },
-        { status: 401 }
-      )
-    }
-
-    const body = await request.json()
-    const {
-      context = 'profile',
-      from_budget_id,
-      to_budget_id,
-      amount,
-      monthly_recap_id
-    } = body
-
-    // Validations
-    if (!['profile', 'group'].includes(context)) {
-      return NextResponse.json(
-        { error: 'Contexte invalide. Utilisez "profile" ou "group"' },
-        { status: 400 }
-      )
-    }
-
-    if (!from_budget_id || !to_budget_id || !amount) {
-      return NextResponse.json(
-        { error: 'from_budget_id, to_budget_id et amount sont requis' },
-        { status: 400 }
-      )
-    }
-
-    if (from_budget_id === to_budget_id) {
-      return NextResponse.json(
-        { error: 'Les budgets source et destination doivent être différents' },
-        { status: 400 }
-      )
-    }
-
-    if (amount <= 0) {
-      return NextResponse.json(
-        { error: 'Le montant doit être positif' },
-        { status: 400 }
-      )
-    }
-
-    const userId = sessionData.userId
-
-    // Récupérer le profil utilisateur
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: 'Profil utilisateur non trouvé' },
-        { status: 404 }
-      )
-    }
-
-    const contextId = context === 'profile' ? profile.id : profile.group_id
+    const { context, from_budget_id, to_budget_id, amount, monthly_recap_id } = await parseBody(
+      request,
+      manualTransferBodySchema,
+    )
 
     if (context === 'group' && !profile.group_id) {
       return NextResponse.json(
-        { error: 'Utilisateur ne fait partie d\'aucun groupe' },
-        { status: 400 }
+        { error: "Utilisateur ne fait partie d'aucun groupe" },
+        { status: 400 },
       )
     }
+
+    const contextId: string = context === 'profile' ? profile.id : profile.group_id!
 
     // Vérifier que les deux budgets appartiennent au bon propriétaire
     const ownerField = context === 'profile' ? 'profile_id' : 'group_id'
@@ -120,18 +66,15 @@ export async function POST(request: NextRequest) {
     if (budgetsError || !budgets || budgets.length !== 2) {
       return NextResponse.json(
         { error: 'Un ou plusieurs budgets non trouvés ou non autorisés' },
-        { status: 404 }
+        { status: 404 },
       )
     }
 
-    const fromBudget = budgets.find(b => b.id === from_budget_id)
-    const toBudget = budgets.find(b => b.id === to_budget_id)
+    const fromBudget = budgets.find((b) => b.id === from_budget_id)
+    const toBudget = budgets.find((b) => b.id === to_budget_id)
 
     if (!fromBudget || !toBudget) {
-      return NextResponse.json(
-        { error: 'Budgets non trouvés' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Budgets non trouvés' }, { status: 404 })
     }
 
     // Calculer les montants dépensés réels pour chaque budget
@@ -148,15 +91,12 @@ export async function POST(request: NextRequest) {
       .eq(ownerField, contextId)
 
     if (fromExpensesError || toExpensesError) {
-      return NextResponse.json(
-        { error: 'Erreur lors du calcul des dépenses' },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: 'Erreur lors du calcul des dépenses' }, { status: 500 })
     }
 
     // Calculer les montants dépensés réels
-    const fromSpentAmount = (fromExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
-    const toSpentAmount = (toExpenses || []).reduce((sum, expense) => sum + parseFloat(expense.amount), 0)
+    const fromSpentAmount = (fromExpenses || []).reduce((sum, expense) => sum + expense.amount, 0)
+    const toSpentAmount = (toExpenses || []).reduce((sum, expense) => sum + expense.amount, 0)
 
     // Calculer le surplus disponible du budget source
     const fromBudgetSurplus = Math.max(0, fromBudget.estimated_amount - fromSpentAmount)
@@ -164,40 +104,37 @@ export async function POST(request: NextRequest) {
     if (fromBudgetSurplus < amount) {
       return NextResponse.json(
         {
-          error: `Budget source "${fromBudget.name}" n'a que ${fromBudgetSurplus.toFixed(2)}€ de surplus disponible`
+          error: `Budget source "${fromBudget.name}" n'a que ${fromBudgetSurplus.toFixed(2)}€ de surplus disponible`,
         },
-        { status: 400 }
+        { status: 400 },
       )
     }
-
-    // Effectuer le transfert
-    console.log(`💸 [Budget Transfer] ${fromBudget.name} → ${toBudget.name}: ${amount}€`)
-    console.log(`📊 [Transfer Debug] From: ${fromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${fromBudgetSurplus}€)`)
-    console.log(`📊 [Transfer Debug] To: ${toSpentAmount}€/${toBudget.estimated_amount}€`)
 
     // Enregistrer le transfert dans la table budget_transfers
     // Cela nous permet de calculer les ajustements sans modifier real_expenses
+    const transferBase = {
+      from_budget_id,
+      to_budget_id,
+      transfer_amount: amount,
+      transfer_reason: 'Manual transfer via monthly recap',
+      transfer_date: new Date().toISOString().split('T')[0]!,
+      monthly_recap_id: monthly_recap_id || null,
+    }
+    const transferPayload: TablesInsert<'budget_transfers'> =
+      context === 'profile'
+        ? { ...transferBase, profile_id: contextId }
+        : { ...transferBase, group_id: contextId }
     const { error: transferInsertError } = await supabaseServer
       .from('budget_transfers')
-      .insert({
-        [ownerField]: contextId,
-        from_budget_id,
-        to_budget_id,
-        transfer_amount: amount,
-        transfer_reason: 'Manual transfer via monthly recap',
-        transfer_date: new Date().toISOString().split('T')[0],
-        monthly_recap_id: monthly_recap_id || null
-      })
+      .insert(transferPayload)
 
     if (transferInsertError) {
-      console.error('❌ Erreur lors de l\'enregistrement du transfert:', transferInsertError)
+      logger.error("Erreur lors de l'enregistrement du transfert:", transferInsertError)
       return NextResponse.json(
-        { error: 'Erreur lors de l\'enregistrement du transfert' },
-        { status: 500 }
+        { error: "Erreur lors de l'enregistrement du transfert" },
+        { status: 500 },
       )
     }
-
-    console.log(`✅ Transfert enregistré: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`)
 
     // Calculer les nouveaux montants après transfert
     const newFromSpentAmount = fromSpentAmount + amount
@@ -206,10 +143,6 @@ export async function POST(request: NextRequest) {
     const newToSurplus = Math.max(0, toBudget.estimated_amount - newToSpentAmount)
     const newFromDeficit = Math.max(0, newFromSpentAmount - fromBudget.estimated_amount)
     const newToDeficit = Math.max(0, newToSpentAmount - toBudget.estimated_amount)
-
-    console.log(`✅ [Budget Transfer] Transfert terminé: ${amount}€ de "${fromBudget.name}" vers "${toBudget.name}"`)
-    console.log(`📊 [Transfer Result] From: ${newFromSpentAmount}€/${fromBudget.estimated_amount}€ (surplus: ${newFromSurplus}€, deficit: ${newFromDeficit}€)`)
-    console.log(`📊 [Transfer Result] To: ${newToSpentAmount}€/${toBudget.estimated_amount}€ (surplus: ${newToSurplus}€, deficit: ${newToDeficit}€)`)
 
     return NextResponse.json({
       success: true,
@@ -222,7 +155,7 @@ export async function POST(request: NextRequest) {
           new_spent: newFromSpentAmount,
           estimated_amount: fromBudget.estimated_amount,
           new_surplus: newFromSurplus,
-          new_deficit: newFromDeficit
+          new_deficit: newFromDeficit,
         },
         to_budget: {
           id: toBudget.id,
@@ -231,17 +164,14 @@ export async function POST(request: NextRequest) {
           new_spent: newToSpentAmount,
           estimated_amount: toBudget.estimated_amount,
           new_surplus: newToSurplus,
-          new_deficit: newToDeficit
+          new_deficit: newToDeficit,
         },
-        amount
-      }
+        amount,
+      },
     })
-
   } catch (error) {
-    console.error('❌ Erreur lors du transfert entre budgets:', error)
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    )
+    const handled = handleBadRequest(error)
+    if (handled) return handled
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })
   }
-}
+})

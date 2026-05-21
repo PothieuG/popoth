@@ -1,20 +1,27 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import AddBudgetDialog from './AddBudgetDialog'
-import AddIncomeDialog from './AddIncomeDialog'
-import EditBudgetDialog from './EditBudgetDialog'
-import EditIncomeDialog from './EditIncomeDialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { Skeleton } from '@/components/ui/skeleton'
 import DropdownMenu from '../ui/DropdownMenu'
-import ConfirmationDialog from '../ui/ConfirmationDialog'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
-import { useBudgets } from '@/hooks/useBudgets'
-import { useIncomes } from '@/hooks/useIncomes'
+
+const AddBudgetDialog = dynamic(() => import('./AddBudgetDialog'), { ssr: false })
+const AddIncomeDialog = dynamic(() => import('./AddIncomeDialog'), { ssr: false })
+const EditBudgetDialog = dynamic(() => import('./EditBudgetDialog'), { ssr: false })
+const EditIncomeDialog = dynamic(() => import('./EditIncomeDialog'), { ssr: false })
+const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
+import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
+import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProfile } from '@/hooks/useProfile'
+import { usePeriodParam } from '@/hooks/usePeriodParam'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -26,10 +33,26 @@ interface PlanningDrawerProps {
 type TabType = 'budgets' | 'revenus'
 
 /**
- * Drawer de planification financière qui s'ouvre du bas vers le haut
- * Contient deux tabs : budgets estimés et revenus estimés
+ * Drawer de planification financière qui s'ouvre du bas vers le haut.
+ * Contient deux tabs : budgets estimés et revenus estimés.
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) with heavy className override
+ * on `<DialogContent>` to preserve the bottom-up drawer feel : fullscreen sizing,
+ * border-less + radius-less + shadow-less, slide-from-bottom animation via
+ * `data-[state=open]:slide-in-from-bottom`. Native focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal acquis.
+ *
+ * Lazy-loaded child modals (Add/Edit Budget/Income, ConfirmationDialog) are
+ * themselves Radix Dialog instances ; Radix supports nested dialogs natively
+ * via portal stacking (Tab cycle confined to the topmost dialog, Esc closes
+ * the topmost first).
  */
-export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, context }: PlanningDrawerProps) {
+export default function PlanningDrawer({
+  isOpen,
+  onClose,
+  onPlanningChange,
+  context,
+}: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
@@ -37,57 +60,100 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   // États pour l'édition
   const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false)
   const [isEditIncomeOpen, setIsEditIncomeOpen] = useState(false)
-  const [editingBudget, setEditingBudget] = useState<any>(null)
-  const [editingIncome, setEditingIncome] = useState<any>(null)
+  const [editingBudget, setEditingBudget] = useState<EstimatedBudget | null>(null)
+  const [editingIncome, setEditingIncome] = useState<EstimatedIncome | null>(null)
 
   // États pour la confirmation de suppression
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
-  const [deletingItem, setDeletingItem] = useState<{ id: string; name: string; type: 'budget' | 'income' } | null>(null)
+  const [deletingItem, setDeletingItem] = useState<{
+    id: string
+    name: string
+    type: 'budget' | 'income'
+    cumulatedSavings: number
+    /**
+     * Estimated amount du budget ou du revenu — sert à afficher l'impact sur
+     * le total estimé dans la modal de confirmation suppression (Sprint
+     * 2026-05-22 / Delete-Header-And-Income-Concise). 0 si non disponible.
+     */
+    estimatedAmount: number
+  } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Snackbar transient post-suppression (Pattern §8 ✅) — affiché quand
+  // les économies d'un budget supprimé sont transférées vers la tirelire.
+  const [transferSnackbar, setTransferSnackbar] = useState<{ amount: number } | null>(null)
 
   // États pour la popup d'information des budgets/revenus entamés
   const [isStartedItemInfoOpen, setIsStartedItemInfoOpen] = useState(false)
-  const [startedItemInfo, setStartedItemInfo] = useState<{ name: string; type: 'budget' | 'income' } | null>(null)
-  
+  const [startedItemInfo, setStartedItemInfo] = useState<{
+    name: string
+    type: 'budget' | 'income'
+  } | null>(null)
+
   // Hooks pour la gestion des données
   const {
     budgets,
     loading: budgetsLoading,
+    isFetching: budgetsFetching,
     error: budgetsError,
     addBudget,
     updateBudget,
     deleteBudget,
     refreshBudgets,
-    totalBudgets
+    totalBudgets,
   } = useBudgets(context)
 
   const {
     incomes,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
     addIncome,
     updateIncome,
     deleteIncome,
     refreshIncomes,
-    totalIncomes
+    totalIncomes,
   } = useIncomes(context)
+
+  // Sprint P1 — lit la période depuis l'URL ?period= pour filtrer les progress
+  // bars budget. Hérité automatiquement du dashboard (PeriodSelector).
+  const { period } = usePeriodParam()
 
   // Hooks pour les calculs de progression
   const {
     budgetProgresses,
     loading: budgetProgressLoading,
-    refreshProgress: refreshBudgetProgress
-  } = useBudgetProgress(budgets, context)
+    isFetching: budgetProgressFetching,
+    refreshProgress: refreshBudgetProgress,
+  } = useBudgetProgress(budgets, context, period)
 
   const {
     incomeProgresses,
     loading: incomeProgressLoading,
-    refreshProgress: refreshIncomeProgress
+    isFetching: incomeProgressFetching,
+    refreshProgress: refreshIncomeProgress,
   } = useIncomeProgress(incomes, context)
+
+  // Skeleton remplace la liste pendant tout fetch (initial ou refetch
+  // post-mutation/switch context). Inclut le fetch des expenses/incomes qui
+  // alimentent les progress bars — sinon la liste serait visible avec des
+  // pourcentages stale.
+  const isBudgetsBusy =
+    budgetsLoading || budgetsFetching || budgetProgressLoading || budgetProgressFetching
+  const isIncomesBusy =
+    incomesLoading || incomesFetching || incomeProgressLoading || incomeProgressFetching
+
+  const renderSkeletonRows = (count = 3) => (
+    <div className="space-y-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-xl" />
+      ))}
+    </div>
+  )
 
   // Récupérer le salaire du profil pour l'injecter comme revenu read-only
   const { profile } = useProfile()
-  const profileSalary = (context !== 'group' && profile?.salary) ? profile.salary : 0
+  const profileSalary = context !== 'group' && profile?.salary ? profile.salary : 0
   const totalIncomesWithSalary = totalIncomes + profileSalary
 
   // Refresh des données quand le drawer s'ouvre
@@ -100,11 +166,18 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     }
   }, [isOpen, refreshBudgets, refreshIncomes, refreshBudgetProgress, refreshIncomeProgress])
 
+  // Auto-dismiss snackbar after 3s (Pattern §8 ✅ feedback transient).
+  useEffect(() => {
+    if (!transferSnackbar) return
+    const timer = setTimeout(() => setTransferSnackbar(null), 3000)
+    return () => clearTimeout(timer)
+  }, [transferSnackbar])
+
   const formatAmount = (amount: number): string => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -151,7 +224,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   /**
    * Gestion de l'édition d'un budget
    */
-  const handleEditBudget = (budget: any) => {
+  const handleEditBudget = (budget: EstimatedBudget) => {
     // Vérifier si le budget est entamé
     if (isBudgetStarted(budget.id)) {
       handleStartedItemAction(budget, 'budget')
@@ -165,7 +238,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   /**
    * Gestion de l'édition d'un revenu
    */
-  const handleEditIncome = (income: any) => {
+  const handleEditIncome = (income: EstimatedIncome) => {
     // Vérifier si le revenu est entamé
     if (isIncomeStarted(income.id)) {
       handleStartedItemAction(income, 'income')
@@ -222,7 +295,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Vérifie si un budget est "entamé" (a des dépenses associées)
    */
   const isBudgetStarted = (budgetId: string): boolean => {
-    const progress = budgetProgresses.find(p => p.budgetId === budgetId)
+    const progress = budgetProgresses.find((p) => p.budgetId === budgetId)
     return progress ? progress.spentAmount > 0 : false
   }
 
@@ -230,7 +303,7 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
    * Vérifie si un revenu est "entamé" (a des entrées associées)
    */
   const isIncomeStarted = (incomeId: string): boolean => {
-    const progress = incomeProgresses.find(p => p.incomeId === incomeId)
+    const progress = incomeProgresses.find((p) => p.incomeId === incomeId)
     return progress ? progress.receivedAmount > 0 : false
   }
 
@@ -245,7 +318,10 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
   /**
    * Demande de confirmation de suppression
    */
-  const handleRequestDelete = (item: { id: string; name: string }, type: 'budget' | 'income') => {
+  const handleRequestDelete = (
+    item: { id: string; name: string; cumulated_savings?: number; estimated_amount?: number },
+    type: 'budget' | 'income',
+  ) => {
     // Vérifier si l'item est entamé
     const isStarted = type === 'budget' ? isBudgetStarted(item.id) : isIncomeStarted(item.id)
 
@@ -254,7 +330,13 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
       return
     }
 
-    setDeletingItem({ id: item.id, name: item.name, type })
+    setDeletingItem({
+      id: item.id,
+      name: item.name,
+      type,
+      cumulatedSavings: type === 'budget' ? (item.cumulated_savings ?? 0) : 0,
+      estimatedAmount: item.estimated_amount ?? 0,
+    })
     setIsDeleteConfirmOpen(true)
   }
 
@@ -266,9 +348,12 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
 
     setIsDeleting(true)
     let success = false
+    let transferredAmount = 0
 
     if (deletingItem.type === 'budget') {
-      success = await deleteBudget(deletingItem.id)
+      const result = await deleteBudget(deletingItem.id)
+      success = result.success
+      transferredAmount = result.transferredAmount ?? 0
     } else {
       success = await deleteIncome(deletingItem.id)
     }
@@ -276,6 +361,11 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     if (success) {
       setIsDeleteConfirmOpen(false)
       setDeletingItem(null)
+
+      // Snackbar transient si économies transférées (Pattern §8 ✅).
+      if (transferredAmount > 0) {
+        setTransferSnackbar({ amount: transferredAmount })
+      }
 
       // Rafraîchir les progressions selon le type
       if (deletingItem.type === 'budget') {
@@ -292,66 +382,69 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
     setIsDeleting(false)
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) onClose()
+  }
+
   return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Drawer */}
-      <div className={cn(
-        'fixed inset-0 z-50 bg-white transition-transform duration-300 ease-out flex flex-col',
-        isOpen ? 'translate-y-0' : 'translate-y-full'
-      )}>
-        {/* Drag Handle */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-12 h-1 bg-gray-300 rounded-full"></div>
-        </div>
-
-        {/* Header avec background color léger */}
-        <div className="px-4 py-3 border-b border-gray-200 bg-blue-50/80">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
+        {/* Header - Sticky (harmonisé avec SavingsDistributionDrawer, couleur bleue) */}
+        <div className="shrink-0 border-b border-gray-200 bg-blue-50/30 px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            <div className="flex items-center space-x-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600">
+                <svg
+                  className="h-5 w-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                  />
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-bold text-gray-900">Planification Financière</h2>
+                <DialogTitle asChild>
+                  <h2 className="text-xl font-bold text-gray-900">Planification Financière</h2>
+                </DialogTitle>
                 <p className="text-sm text-gray-600">Gérez vos budgets et revenus</p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-            >
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <ModalCloseX
+              onClose={onClose}
+              variant="circle"
+              className="h-10 w-10"
+              svgClassName="h-5 w-5 text-gray-600"
+            />
           </div>
         </div>
 
         {/* Tabs Navigation */}
-        <div className="px-4 py-2 border-b border-gray-200">
-          <div className="flex bg-gray-100 rounded-lg p-1">
+        <div className="border-b border-gray-200 px-4 py-2">
+          <div className="flex rounded-lg bg-gray-100 p-1">
             <button
               onClick={() => setActiveTab('budgets')}
               className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200',
-                activeTab === 'budgets' 
-                  ? 'bg-white text-orange-700 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
+                activeTab === 'budgets'
+                  ? 'bg-white text-orange-700 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
               )}
             >
-              <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              <div className="flex items-center justify-center space-x-1.5">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
                 </svg>
                 <span>Budgets</span>
               </div>
@@ -359,15 +452,20 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
             <button
               onClick={() => setActiveTab('revenus')}
               className={cn(
-                'flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200',
-                activeTab === 'revenus' 
-                  ? 'bg-white text-green-700 shadow-sm' 
-                  : 'text-gray-600 hover:text-gray-900'
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
+                activeTab === 'revenus'
+                  ? 'bg-white text-green-700 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
               )}
             >
-              <div className="flex items-center justify-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              <div className="flex items-center justify-center space-x-1.5">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
                 <span>Revenus</span>
               </div>
@@ -376,101 +474,137 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
         </div>
 
         {/* Content Area - Scrollable */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {/* Error Messages */}
           {(budgetsError || incomesError) && (
             <div className="p-4">
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-800 text-sm font-medium">
-                  {budgetsError || incomesError}
-                </p>
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                <p className="text-sm font-medium text-red-800">{budgetsError || incomesError}</p>
               </div>
             </div>
           )}
 
           {/* Budgets Tab Content */}
           {activeTab === 'budgets' && (
-            <div className="p-4 space-y-4">
-              {budgetsLoading && (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
-                </div>
-              )}
+            <div className="space-y-3 p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Budgets Estimés</h3>
-                <button 
+                <button
                   onClick={() => setIsAddBudgetOpen(true)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                  className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700"
                 >
                   Ajouter un budget
                 </button>
               </div>
 
               {/* Total discret */}
-              <div className="px-3 py-2 bg-orange-50/50 rounded-lg border border-orange-100">
-                <p className="text-sm text-orange-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalBudgets)}</span> (sans les économies)
-                </p>
+              <div className="rounded-lg border border-orange-100 bg-orange-50/50 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-1 text-sm text-orange-700">
+                  <span>Total estimé:</span>
+                  {isBudgetsBusy ? (
+                    <Skeleton className="h-3 w-14" />
+                  ) : (
+                    <span className="font-medium">{formatAmount(totalBudgets)}</span>
+                  )}
+                  <span>(sans les économies)</span>
+                </div>
               </div>
-              
+
               {/* Budgets List or Empty State */}
-              {!budgetsLoading && budgets.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              {isBudgetsBusy ? (
+                renderSkeletonRows()
+              ) : budgets.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-orange-100">
+                    <svg
+                      className="h-8 w-8 text-orange-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                      />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun budget configuré</h4>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h4 className="mb-1.5 text-lg font-medium text-gray-900">
+                    Aucun budget configuré
+                  </h4>
+                  <p className="mb-3 text-sm text-gray-600">
                     Commencez par ajouter vos catégories de dépenses mensuelles
                   </p>
-                  <button 
+                  <button
                     onClick={() => setIsAddBudgetOpen(true)}
-                    className="px-6 py-2 bg-orange-600 text-white rounded-lg text-sm font-medium hover:bg-orange-700 transition-colors"
+                    className="rounded-lg bg-orange-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-orange-700"
                   >
                     Créer votre premier budget
                   </button>
                 </div>
-              ) : (!budgetsLoading && !budgetProgressLoading) ? (
-                <div className="space-y-3">
+              ) : (
+                <div className="space-y-2">
                   {budgets.map((budget) => {
-                    const progress = budgetProgresses.find(p => p.budgetId === budget.id)
+                    const progress = budgetProgresses.find((p) => p.budgetId === budget.id)
                     if (!progress) return null
 
                     return (
-                      <div key={budget.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
-                        <div className="flex justify-between items-center">
+                      <div
+                        key={budget.id}
+                        className="rounded-xl border border-gray-200 p-3 shadow-md"
+                      >
+                        <div className="flex items-center justify-between">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
                             <BudgetProgressIndicator progress={progress} />
                           </div>
 
                           {/* Menu dropdown */}
-                          <div className="ml-2">
+                          <div className="ml-1.5">
                             <DropdownMenu
                               items={[
                                 {
                                   label: 'Modifier',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleEditBudget(budget),
-                                  disabled: isBudgetStarted(budget.id)
+                                  disabled: isBudgetStarted(budget.id),
                                 },
                                 {
                                   label: 'Supprimer',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleRequestDelete(budget, 'budget'),
                                   variant: 'danger' as const,
-                                  disabled: isBudgetStarted(budget.id)
-                                }
+                                  disabled: isBudgetStarted(budget.id),
+                                },
                               ]}
                             />
                           </div>
@@ -479,112 +613,162 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     )
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           )}
 
           {/* Revenus Tab Content */}
           {activeTab === 'revenus' && (
-            <div className="p-4 space-y-4">
-              {incomesLoading && (
-                <div className="flex justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                </div>
-              )}
+            <div className="space-y-3 p-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Revenus Estimés</h3>
-                <button 
+                <button
                   onClick={() => setIsAddIncomeOpen(true)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
                 >
                   Ajouter un revenu
                 </button>
               </div>
 
               {/* Total discret */}
-              <div className="px-3 py-2 bg-green-50/50 rounded-lg border border-green-100">
-                <p className="text-sm text-green-700">
-                  Total estimé: <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span> (sans les économies)
-                </p>
+              <div className="rounded-lg border border-green-100 bg-green-50/50 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-1 text-sm text-green-700">
+                  <span>Total estimé:</span>
+                  {isIncomesBusy ? (
+                    <Skeleton className="h-3 w-14" />
+                  ) : (
+                    <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span>
+                  )}
+                  <span>(sans les économies)</span>
+                </div>
               </div>
-              
+
               {/* Incomes List or Empty State */}
-              {!incomesLoading && incomes.length === 0 && profileSalary === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center mb-4">
-                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              {isIncomesBusy ? (
+                renderSkeletonRows()
+              ) : incomes.length === 0 && profileSalary === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                    <svg
+                      className="h-8 w-8 text-green-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                      />
                     </svg>
                   </div>
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">Aucun revenu configuré</h4>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <h4 className="mb-1.5 text-lg font-medium text-gray-900">
+                    Aucun revenu configuré
+                  </h4>
+                  <p className="mb-3 text-sm text-gray-600">
                     Ajoutez vos sources de revenus mensuels récurrents
                   </p>
-                  <button 
+                  <button
                     onClick={() => setIsAddIncomeOpen(true)}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                    className="rounded-lg bg-green-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
                   >
                     Ajouter votre premier revenu
                   </button>
                 </div>
-              ) : (!incomesLoading && !incomeProgressLoading) ? (
-                <div className="space-y-3">
+              ) : (
+                <div className="space-y-2">
                   {/* Salaire du profil (read-only) */}
                   {profileSalary > 0 && (
-                    <div className="p-3 border border-green-200 rounded-xl shadow-md bg-green-50/30">
-                      <div className="flex justify-between items-center">
+                    <div className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md">
+                      <div className="flex items-center justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-sm font-semibold text-gray-900">Salaire</span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                              <svg
+                                className="h-3 w-3"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2"
+                                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
                               </svg>
                               Profil
                             </span>
                           </div>
-                          <p className="text-sm font-medium text-green-700 mt-1">{formatAmount(profileSalary)}</p>
+                          <p className="mt-1 text-sm font-medium text-green-700">
+                            {formatAmount(profileSalary)}
+                          </p>
                         </div>
                       </div>
                     </div>
                   )}
                   {incomes.map((income) => {
-                    const progress = incomeProgresses.find(p => p.incomeId === income.id)
+                    const progress = incomeProgresses.find((p) => p.incomeId === income.id)
                     if (!progress) return null
 
                     return (
-                      <div key={income.id} className="p-3 border border-gray-200 rounded-xl shadow-md">
-                        <div className="flex justify-between items-center">
+                      <div
+                        key={income.id}
+                        className="rounded-xl border border-gray-200 p-3 shadow-md"
+                      >
+                        <div className="flex items-center justify-between">
                           {/* Indicateur de progression intégré */}
                           <div className="flex-1">
                             <IncomeProgressIndicator progress={progress} />
                           </div>
 
                           {/* Menu dropdown */}
-                          <div className="ml-2">
+                          <div className="ml-1.5">
                             <DropdownMenu
                               items={[
                                 {
                                   label: 'Modifier',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleEditIncome(income),
-                                  disabled: isIncomeStarted(income.id)
+                                  disabled: isIncomeStarted(income.id),
                                 },
                                 {
                                   label: 'Supprimer',
                                   icon: (
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    <svg
+                                      className="h-4 w-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                      />
                                     </svg>
                                   ),
                                   onClick: () => handleRequestDelete(income, 'income'),
                                   variant: 'danger' as const,
-                                  disabled: isIncomeStarted(income.id)
-                                }
+                                  disabled: isIncomeStarted(income.id),
+                                },
                               ]}
                             />
                           </div>
@@ -593,24 +777,31 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
                     )
                   })}
                 </div>
-              ) : null}
+              )}
             </div>
           )}
         </div>
 
         {/* Bottom Summary - Always visible */}
-        <div className="px-4 py-3 bg-gray-100/80 border-t border-gray-200">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-600">Différence estimée (sans les économies)</span>
-            <span className={cn(
-              "text-lg font-bold",
-              totalIncomesWithSalary - totalBudgets > 0 ? "text-green-700" :
-              totalIncomesWithSalary - totalBudgets < 0 ? "text-red-700" : "text-gray-900"
-            )}>
+        <div className="border-t border-gray-200 bg-gray-100/80 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-600">
+              Différence estimée (sans les économies)
+            </span>
+            <span
+              className={cn(
+                'text-lg font-bold',
+                totalIncomesWithSalary - totalBudgets > 0
+                  ? 'text-green-700'
+                  : totalIncomesWithSalary - totalBudgets < 0
+                    ? 'text-red-700'
+                    : 'text-gray-900',
+              )}
+            >
               {formatAmount(totalIncomesWithSalary - totalBudgets)}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Revenus - Budgets</p>
+          <p className="mt-1 text-xs text-gray-500">Revenus - Budgets</p>
         </div>
 
         {/* Add Budget Dialog */}
@@ -630,24 +821,30 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           currentIncomesTotal={totalIncomesWithSalary}
         />
 
-        {/* Edit Budget Dialog */}
-        <EditBudgetDialog
-          isOpen={isEditBudgetOpen}
-          onClose={() => setIsEditBudgetOpen(false)}
-          onSave={handleSaveEditedBudget}
-          budget={editingBudget}
-          currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomesWithSalary}
-        />
+        {/* Edit Budget Dialog — conditional render + key on editingBudget.id
+           remounts the dialog cleanly when the user switches targets,
+           so lazy useState init re-runs from the new budget data. */}
+        {isEditBudgetOpen && editingBudget && (
+          <EditBudgetDialog
+            key={editingBudget.id}
+            onClose={() => setIsEditBudgetOpen(false)}
+            onSave={handleSaveEditedBudget}
+            budget={editingBudget}
+            currentBudgetsTotal={totalBudgets}
+            totalEstimatedIncome={totalIncomesWithSalary}
+          />
+        )}
 
-        {/* Edit Income Dialog */}
-        <EditIncomeDialog
-          isOpen={isEditIncomeOpen}
-          onClose={() => setIsEditIncomeOpen(false)}
-          onSave={handleSaveEditedIncome}
-          income={editingIncome}
-          currentIncomesTotal={totalIncomesWithSalary}
-        />
+        {/* Edit Income Dialog — same pattern as Edit Budget */}
+        {isEditIncomeOpen && editingIncome && (
+          <EditIncomeDialog
+            key={editingIncome.id}
+            onClose={() => setIsEditIncomeOpen(false)}
+            onSave={handleSaveEditedIncome}
+            income={editingIncome}
+            currentIncomesTotal={totalIncomesWithSalary}
+          />
+        )}
 
         {/* Confirmation Dialog */}
         <ConfirmationDialog
@@ -659,7 +856,50 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           onConfirm={handleConfirmDelete}
           title="Confirmer la suppression"
           message={`Êtes-vous sûr de vouloir supprimer "${deletingItem?.name}" ? Cette action est irréversible.`}
-          confirmText="Supprimer"
+          details={(() => {
+            if (!deletingItem) return undefined
+
+            // Income with estimated amount → show new total estimated income.
+            // Sprint 2026-05-22 / Delete-Header-And-Income-Concise.
+            if (deletingItem.type === 'income' && deletingItem.estimatedAmount > 0) {
+              const newTotal = totalIncomesWithSalary - deletingItem.estimatedAmount
+              return (
+                <div className="space-y-1.5 text-left">
+                  <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+                  <p>
+                    Vos revenus estimés passeront de{' '}
+                    <span className="font-semibold text-green-600">
+                      {formatAmount(totalIncomesWithSalary)}
+                    </span>{' '}
+                    à <span className="font-semibold text-green-600">{formatAmount(newTotal)}</span>
+                    .
+                  </p>
+                </div>
+              )
+            }
+
+            // Budget with savings to transfer → existing phrase + header.
+            if (deletingItem.type === 'budget' && deletingItem.cumulatedSavings > 0) {
+              return (
+                <div className="space-y-1.5 text-left">
+                  <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+                  <p>
+                    <span className="font-semibold text-purple-600">
+                      {formatAmount(deletingItem.cumulatedSavings)}
+                    </span>{' '}
+                    d&apos;économies sera transféré dans la tirelire.
+                  </p>
+                </div>
+              )
+            }
+
+            return undefined
+          })()}
+          confirmText={
+            deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0
+              ? 'Supprimer et transférer'
+              : 'Supprimer'
+          }
           cancelText="Annuler"
           variant="danger"
           loading={isDeleting}
@@ -679,11 +919,23 @@ export default function PlanningDrawer({ isOpen, onClose, onPlanningChange, cont
           title={`${startedItemInfo?.type === 'budget' ? 'Budget' : 'Revenu'} en cours d'utilisation`}
           message={`Le ${startedItemInfo?.type === 'budget' ? 'budget' : 'revenu'} "${startedItemInfo?.name}" ne peut pas être modifié ou supprimé car il est déjà en cours d'utilisation ce mois-ci. Vous pourrez le modifier le mois prochain.`}
           confirmText="Compris"
-          cancelText={null}
+          cancelText={undefined}
           variant="info"
           loading={false}
         />
-      </div>
-    </>
+
+        {/* Snackbar post-suppression — économies transférées dans la tirelire
+           (Pattern §8 ✅ feedback transient). Auto-dismiss via useEffect 3s. */}
+        {transferSnackbar && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="animate-in slide-in-from-bottom-4 fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-purple-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg"
+          >
+            {formatAmount(transferSnackbar.amount)} transféré dans la tirelire
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

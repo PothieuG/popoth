@@ -1,0 +1,81 @@
+name: Code checks (PR + post-merge)
+
+# Runs typecheck + tests on PRs that touch source code so we don't merge
+# a TypeScript regression or a broken test, AND on push to cleanup so
+# the post-merge state is also validated. Companion to
+# .github/workflows/db-drift-pr.yml (DB-side checks).
+#
+# Path filter keeps Actions minutes low — only fires when source code,
+# config, or dependencies change.
+#
+# Why both pull_request AND push: branches: [cleanup]?
+# When a Dependabot PR is merged via GitHub UI, the merge commit fast-
+# forwards the default branch but does NOT re-trigger pull_request
+# workflows (PR is closed). Without push:, nothing validates the post-
+# merge state — the user discovered the @supabase/supabase-js wave
+# break by running `pnpm verify` locally, not via CI. Sprint
+# Stabilize-Deps / S2 closes this gap.
+#
+# Sprint Code-CI / F1, extended Sprint Stabilize-Deps / S2.
+
+on:
+  pull_request:
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - 'next.config.*'
+      - 'eslint.config.*'
+      - '.eslintrc*'
+      - '.github/workflows/code-checks.yml'
+  push:
+    branches:
+      - cleanup
+    paths:
+      - '**/*.ts'
+      - '**/*.tsx'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'tsconfig.json'
+      - 'vitest.config.ts'
+      - 'next.config.*'
+      - 'eslint.config.*'
+      - '.eslintrc*'
+      - '.github/workflows/code-checks.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Version is read from package.json#packageManager — explicit
+      # `with: version` would conflict (action-setup@v4 errors out when
+      # both are set, even on match). Lesson Sprint Cleanup-Legacy / C3.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check (strict, blocking)
+        run: pnpm typecheck
+
+      - name: ESLint check (strict, blocking)
+        if: always()
+        run: pnpm lint:check
+
+      - name: Prettier format check
+        if: always()
+        run: pnpm format:check
+
+      - name: Vitest single run
+        if: always()
+        run: pnpm test:run

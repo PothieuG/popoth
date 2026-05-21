@@ -1,16 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { useRealExpenses } from '@/hooks/useRealExpenses'
-import { useRealIncomes } from '@/hooks/useRealIncomes'
-import { ProfileData } from '@/app/api/profile/route'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
+import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
+import { useIncomes } from '@/hooks/useIncomes'
+import { useBudgets } from '@/hooks/useBudgets'
+import { useFinancialData } from '@/hooks/useFinancialData'
+import { useProgressData } from '@/hooks/useProgressData'
+import { logger } from '@/lib/logger'
+import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 import TransactionListItem from './TransactionListItem'
+
+type EditableTransaction = RealExpense | RealIncome
 
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
-  userProfile?: ProfileData | null
-  onEditTransaction?: (transaction: any, type: 'expense' | 'income') => void
+  /**
+   * Sprint P1 — period filter for the listed transactions. When provided
+   * and not 'month', expenses are filtered by `expense_date` and incomes
+   * by `entry_date` to the ISO range computed by computePeriodDateRange
+   * (Europe/Paris timezone). 'month' = no filter (default behavior).
+   */
+  period?: Period
+  onEditTransaction?: (transaction: EditableTransaction, type: 'expense' | 'income') => void
   onTransactionDeleted?: () => void
   className?: string
 }
@@ -23,10 +37,10 @@ type TabType = 'expenses' | 'incomes'
  */
 export default function TransactionTabsComponent({
   context,
-  userProfile,
+  period,
   onEditTransaction,
   onTransactionDeleted,
-  className
+  className,
 }: TransactionTabsComponentProps) {
   const [activeTab, setActiveTab] = useState<TabType>('expenses')
 
@@ -34,35 +48,84 @@ export default function TransactionTabsComponent({
   const {
     expenses,
     loading: expensesLoading,
+    isFetching: expensesFetching,
     error: expensesError,
-    deleteExpense
+    deleteExpense,
   } = useRealExpenses(context)
 
   const {
     incomes,
     loading: incomesLoading,
+    isFetching: incomesFetching,
     error: incomesError,
-    deleteIncome
+    deleteIncome,
   } = useRealIncomes(context)
+
+  // For the precise RAV-delta details in the delete confirmation of a regular
+  // (estimated_income_id-linked) income, we need the estimated amount for the
+  // linked source. Fetched once + indexed by id below.
+  const { incomes: estimatedIncomes } = useIncomes(context)
+
+  // For the rich delete-confirmation details: budget snapshot (cumulated_savings
+  // + estimated_amount + spentAmount) and current RAV. All three hooks are
+  // already mounted elsewhere on the dashboard (cached by TanStack Query).
+  const { budgets: estimatedBudgets } = useBudgets(context)
+  const { financialData } = useFinancialData(context)
+  const { expenseProgress } = useProgressData(context, period)
+  const currentRemainingToLive = financialData?.remainingToLive ?? null
+
+  // Sprint P1 — filter CSR by period. Range null = no filter applied.
+  const dateRange = useMemo(() => (period ? computePeriodDateRange(period) : null), [period])
+  const filteredExpenses = useMemo(() => {
+    if (!dateRange) return expenses
+    return expenses.filter(
+      (e) => e.expense_date >= dateRange.startDate && e.expense_date <= dateRange.endDate,
+    )
+  }, [expenses, dateRange])
+  const filteredIncomes = useMemo(() => {
+    if (!dateRange) return incomes
+    return incomes.filter(
+      (i) => i.entry_date >= dateRange.startDate && i.entry_date <= dateRange.endDate,
+    )
+  }, [incomes, dateRange])
+
+  // Cumul des montants réels par source (estimated_income_id), filtré par la
+  // même période que la liste affichée. Sert au calcul du delta RAV dans la
+  // modal de confirmation de suppression d'un revenu régulier.
+  const cumulRealByIncomeSourceId = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const inc of filteredIncomes) {
+      if (inc.estimated_income_id) {
+        m.set(inc.estimated_income_id, (m.get(inc.estimated_income_id) ?? 0) + inc.amount)
+      }
+    }
+    return m
+  }, [filteredIncomes])
+
+  const estimatedAmountByIncomeSourceId = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const est of estimatedIncomes) {
+      m.set(est.id, est.estimated_amount)
+    }
+    return m
+  }, [estimatedIncomes])
 
   /**
    * Handle delete expense with callback
    */
   const handleDeleteExpense = async (expenseId: string): Promise<boolean> => {
-    console.log('🗑️ [TransactionTabs] Starting expense deletion:', expenseId)
     const success = await deleteExpense(expenseId)
 
     if (success) {
-      console.log('✅ [TransactionTabs] Expense deleted successfully, triggering financial refresh')
       if (onTransactionDeleted) {
         // Use setTimeout to avoid immediate re-render during deletion
         setTimeout(() => {
-          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
           onTransactionDeleted()
         }, 100)
       }
     } else {
-      console.log('❌ [TransactionTabs] Expense deletion failed')
+      // silently-swallowed côté UI (deleteExpense retourne false sans toast)
+      logger.warn('[TransactionTabs] Expense deletion failed', expenseId)
     }
 
     return success
@@ -72,20 +135,18 @@ export default function TransactionTabsComponent({
    * Handle delete income with callback
    */
   const handleDeleteIncome = async (incomeId: string): Promise<boolean> => {
-    console.log('🗑️ [TransactionTabs] Starting income deletion:', incomeId)
     const success = await deleteIncome(incomeId)
 
     if (success) {
-      console.log('✅ [TransactionTabs] Income deleted successfully, triggering financial refresh')
       if (onTransactionDeleted) {
         // Use setTimeout to avoid immediate re-render during deletion
         setTimeout(() => {
-          console.log('🔄 [TransactionTabs] Executing financial data refresh callback')
           onTransactionDeleted()
         }, 100)
       }
     } else {
-      console.log('❌ [TransactionTabs] Income deletion failed')
+      // silently-swallowed côté UI (deleteIncome retourne false sans toast)
+      logger.warn('[TransactionTabs] Income deletion failed', incomeId)
     }
 
     return success
@@ -94,7 +155,7 @@ export default function TransactionTabsComponent({
   /**
    * Handle edit transaction action
    */
-  const handleEditTransaction = (transaction: any, type: 'expense' | 'income') => {
+  const handleEditTransaction = (transaction: EditableTransaction, type: 'expense' | 'income') => {
     if (onEditTransaction) {
       onEditTransaction(transaction, type)
     }
@@ -104,14 +165,15 @@ export default function TransactionTabsComponent({
    * Get tab button styling
    */
   const getTabButtonClass = (tabType: TabType): string => {
-    const baseClass = 'flex-1 py-4 px-6 text-sm font-medium text-center rounded-lg transition-all duration-200'
+    const baseClass =
+      'flex-1 py-4 px-6 text-sm font-medium text-center rounded-lg transition-all duration-200'
 
     if (activeTab === tabType) {
       return cn(
         baseClass,
         tabType === 'expenses'
           ? 'bg-red-50 text-red-700 border border-red-200'
-          : 'bg-green-50 text-green-700 border border-green-200'
+          : 'bg-green-50 text-green-700 border border-green-200',
       )
     }
 
@@ -119,14 +181,17 @@ export default function TransactionTabsComponent({
   }
 
   /**
-   * Render loading state
+   * Render skeleton rows pendant `isLoading` (premier fetch) OU `isFetching`
+   * (refetch post-mutation/switch context). On affiche 3 rows skeleton aux
+   * dimensions approximatives d'un `<TransactionListItem>` (h-14) pour
+   * préserver la structure visuelle et indiquer clairement que les données
+   * se rechargent.
    */
-  const renderLoading = () => (
-    <div className="flex items-center justify-center py-8">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-        <p className="text-sm text-gray-600">Chargement des transactions...</p>
-      </div>
+  const renderSkeletonRows = () => (
+    <div className="space-y-1.5">
+      {[0, 1, 2].map((i) => (
+        <Skeleton key={i} className="h-14 w-full" />
+      ))}
     </div>
   )
 
@@ -134,14 +199,19 @@ export default function TransactionTabsComponent({
    * Render error state
    */
   const renderError = (error: string) => (
-    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-      <div className="flex items-center space-x-2">
-        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z" />
+    <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+      <div className="flex items-center space-x-1.5">
+        <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+          />
         </svg>
         <div>
-          <p className="text-red-800 font-medium">Erreur lors du chargement</p>
-          <p className="text-red-600 text-sm">{error}</p>
+          <p className="font-medium text-red-800">Erreur lors du chargement</p>
+          <p className="text-sm text-red-600">{error}</p>
         </div>
       </div>
     </div>
@@ -151,111 +221,171 @@ export default function TransactionTabsComponent({
    * Render empty state
    */
   const renderEmptyState = (type: 'expenses' | 'incomes') => (
-    <div className="text-center py-8">
-      <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+    <div className="py-8 text-center">
+      <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
         {type === 'expenses' ? (
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          <svg
+            className="h-8 w-8 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+            />
           </svg>
         ) : (
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+          <svg
+            className="h-8 w-8 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"
+            />
           </svg>
         )}
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-1">
+      <h3 className="mb-1 text-lg font-medium text-gray-900">
         {type === 'expenses' ? 'Aucune dépense' : 'Aucun revenu'}
       </h3>
-      <p className="text-gray-600 text-sm">
+      <p className="text-sm text-gray-600">
         {type === 'expenses'
           ? 'Commencez par ajouter vos première dépenses'
-          : 'Commencez par ajouter vos premiers revenus'
-        }
+          : 'Commencez par ajouter vos premiers revenus'}
       </p>
     </div>
   )
 
   /**
-   * Render transactions list
+   * Render transactions list (filteredExpenses/Incomes reflect period filter)
    */
   const renderTransactionsList = () => {
     if (activeTab === 'expenses') {
-      if (expensesLoading) return renderLoading()
+      if (expensesLoading || expensesFetching) return renderSkeletonRows()
       if (expensesError) return renderError(expensesError)
-      if (expenses.length === 0) return renderEmptyState('expenses')
+      if (filteredExpenses.length === 0) return renderEmptyState('expenses')
 
       return (
-        <div className="space-y-2">
-          {expenses.map((expense) => (
-            <TransactionListItem
-              key={expense.id}
-              transaction={expense}
-              type="expense"
-              context={context}
-              userProfile={userProfile}
-              onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
-              onDelete={handleDeleteExpense}
-            />
-          ))}
+        <div className="space-y-1.5">
+          {filteredExpenses.map((expense) => {
+            const budget = expense.estimated_budget_id
+              ? estimatedBudgets.find((b) => b.id === expense.estimated_budget_id)
+              : undefined
+            const progress = expense.estimated_budget_id
+              ? expenseProgress[expense.estimated_budget_id]
+              : undefined
+            const budgetSnapshot =
+              budget && progress
+                ? {
+                    cumulatedSavings: budget.cumulated_savings ?? 0,
+                    estimatedAmount: budget.estimated_amount,
+                    spentAmount: progress.spentAmount,
+                  }
+                : null
+            return (
+              <TransactionListItem
+                key={expense.id}
+                transaction={expense}
+                type="expense"
+                context={context}
+                currentRemainingToLive={currentRemainingToLive}
+                budgetSnapshot={budgetSnapshot}
+                onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
+                onDelete={handleDeleteExpense}
+              />
+            )
+          })}
         </div>
       )
     } else {
-      if (incomesLoading) return renderLoading()
+      if (incomesLoading || incomesFetching) return renderSkeletonRows()
       if (incomesError) return renderError(incomesError)
-      if (incomes.length === 0) return renderEmptyState('incomes')
+      if (filteredIncomes.length === 0) return renderEmptyState('incomes')
 
       return (
-        <div className="space-y-2">
-          {incomes.map((income) => (
-            <TransactionListItem
-              key={income.id}
-              transaction={income}
-              type="income"
-              context={context}
-              userProfile={userProfile}
-              onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
-              onDelete={handleDeleteIncome}
-            />
-          ))}
+        <div className="space-y-1.5">
+          {filteredIncomes.map((income) => {
+            const ctx =
+              income.estimated_income_id && !income.is_exceptional
+                ? {
+                    cumulRealAmount:
+                      cumulRealByIncomeSourceId.get(income.estimated_income_id) ?? income.amount,
+                    estimatedAmount:
+                      estimatedAmountByIncomeSourceId.get(income.estimated_income_id) ?? 0,
+                  }
+                : null
+            return (
+              <TransactionListItem
+                key={income.id}
+                transaction={income}
+                type="income"
+                context={context}
+                incomeSourceContext={ctx}
+                currentRemainingToLive={currentRemainingToLive}
+                onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
+                onDelete={handleDeleteIncome}
+              />
+            )
+          })}
         </div>
       )
     }
   }
 
   return (
-    <div className={cn('bg-white rounded-xl border border-gray-200 shadow-md flex flex-col', className)}>
+    <div
+      className={cn(
+        'flex flex-col rounded-xl border border-gray-200 bg-white shadow-md',
+        className,
+      )}
+    >
       {/* Tab Navigation */}
-      <div className="p-3 border-b border-gray-200 flex-shrink-0">
-        <div className="flex space-x-2 bg-gray-50/100 rounded-lg p-1">
+      <div className="shrink-0 border-b border-gray-200 p-3">
+        <div className="flex space-x-1.5 rounded-lg bg-gray-50 p-1">
           <button
             onClick={() => setActiveTab('expenses')}
             className={getTabButtonClass('expenses')}
           >
-            <div className="flex items-center justify-center space-x-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+            <div className="flex items-center justify-center space-x-1.5">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+                />
               </svg>
               <span className="font-medium">Dépenses</span>
-              {expenses.length > 0 && (
-                <span className="bg-red-200 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {expenses.length}
+              {filteredExpenses.length > 0 && (
+                <span className="rounded-full bg-red-200 px-2 py-0.5 text-xs font-medium text-red-800">
+                  {filteredExpenses.length}
                 </span>
               )}
             </div>
           </button>
 
-          <button
-            onClick={() => setActiveTab('incomes')}
-            className={getTabButtonClass('incomes')}
-          >
-            <div className="flex items-center justify-center space-x-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+          <button onClick={() => setActiveTab('incomes')} className={getTabButtonClass('incomes')}>
+            <div className="flex items-center justify-center space-x-1.5">
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M7 11l5-5m0 0l5 5m-5-5v12"
+                />
               </svg>
               <span className="font-medium">Revenus</span>
-              {incomes.length > 0 && (
-                <span className="bg-green-200 text-green-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {incomes.length}
+              {filteredIncomes.length > 0 && (
+                <span className="rounded-full bg-green-200 px-2 py-0.5 text-xs font-medium text-green-800">
+                  {filteredIncomes.length}
                 </span>
               )}
             </div>
@@ -264,10 +394,8 @@ export default function TransactionTabsComponent({
       </div>
 
       {/* Tab Content - Scrollable */}
-      <div className="p-3 flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto pb-2">
-          {renderTransactionsList()}
-        </div>
+      <div className="flex-1 overflow-hidden p-3">
+        <div className="h-full overflow-y-auto pb-2">{renderTransactionsList()}</div>
       </div>
     </div>
   )

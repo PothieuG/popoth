@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateSessionToken } from '@/lib/session-server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { blockInProduction } from '@/lib/debug-guard'
+import { resetAllBodySchema } from '@/lib/schemas/debug'
+import { logger } from '@/lib/logger'
 
 /**
  * API POST /api/debug/reset-all
@@ -10,21 +13,31 @@ import { supabaseServer } from '@/lib/supabase-server'
  * Supprime: budgets, revenus, dépenses, transferts, recaps, tirelire, économies
  */
 export async function POST(request: NextRequest) {
+  const blocked = blockInProduction()
+  if (blocked) return blocked
   try {
     const sessionData = await validateSessionToken(request)
     if (!sessionData?.userId) {
       return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
     }
 
-    const userId = sessionData.userId
-    console.log(`🗑️ [RESET ALL] Démarrage reset complet pour userId: ${userId}`)
+    // Body validation — schema vide, pattern miroir retrigger-recap pour
+    // accepter un body absent ou {} sans rejeter.
+    let rawBody: unknown = {}
+    try {
+      rawBody = await request.json()
+    } catch {
+      // No body or malformed → use empty default
+    }
+    const parsed = resetAllBodySchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Body invalide', issues: parsed.error.issues },
+        { status: 400 },
+      )
+    }
 
-    // Récupérer le profil pour avoir le group_id si besoin
-    const { data: profile } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id')
-      .eq('id', userId)
-      .single()
+    const userId = sessionData.userId
 
     const results: Record<string, string> = {}
 
@@ -89,30 +102,37 @@ export async function POST(request: NextRequest) {
       .from('bank_balances')
       .update({ balance: 0, updated_at: new Date().toISOString() })
       .eq('profile_id', userId)
-    results['bank_balances'] = bankBalanceError ? `❌ ${bankBalanceError.message}` : '✅ (remis à 0€)'
+    results['bank_balances'] = bankBalanceError
+      ? `❌ ${bankBalanceError.message}`
+      : '✅ (remis à 0€)'
 
-    // Log des résultats
-    console.log('📊 [RESET ALL] Résultats:')
-    for (const [table, status] of Object.entries(results)) {
-      console.log(`   ${table}: ${status}`)
-    }
-
-    const hasErrors = Object.values(results).some(r => r.startsWith('❌'))
+    const hasErrors = Object.values(results).some((r) => r.startsWith('❌'))
 
     return NextResponse.json({
       success: !hasErrors,
       message: hasErrors ? 'Reset partiellement réussi' : 'Reset complet effectué',
       results,
       preserved: ['profiles', 'groups', 'user_profiles'],
-      deleted: ['budget_transfers', 'real_expenses', 'real_income_entries', 'estimated_budgets', 'estimated_incomes', 'monthly_recaps'],
-      reset: ['piggy_bank → 0€', 'bank_balances → 0€', 'recap_snapshots → inactive', 'remaining_to_live → 0€ (calculé)']
+      deleted: [
+        'budget_transfers',
+        'real_expenses',
+        'real_income_entries',
+        'estimated_budgets',
+        'estimated_incomes',
+        'monthly_recaps',
+      ],
+      reset: [
+        'piggy_bank → 0€',
+        'bank_balances → 0€',
+        'recap_snapshots → inactive',
+        'remaining_to_live → 0€ (calculé)',
+      ],
     })
-
   } catch (error) {
-    console.error('❌ [RESET ALL] Erreur:', error)
+    logger.error('[RESET ALL] Erreur:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erreur interne' },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

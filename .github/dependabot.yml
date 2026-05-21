@@ -1,0 +1,76 @@
+# Dependabot — auto-PR weekly for outdated deps and GitHub Actions versions.
+# PRs are gated by code-checks.yml (Sprint Code-CI / F1) and db-drift-pr.yml
+# (Sprint Audit-Functions-v2 / B3) so we can merge with confidence.
+#
+# Sprint DX-Verify / G2.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: 'Europe/Paris'
+    open-pull-requests-limit: 5
+    target-branch: cleanup
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - npm
+    groups:
+      radix-ui:
+        patterns:
+          - '@radix-ui/*'
+      supabase:
+        patterns:
+          - '@supabase/*'
+          - 'supabase'
+      eslint:
+        patterns:
+          - 'eslint*'
+          - '@eslint/*'
+      test-stack:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
+      # react and react-dom must move in lockstep — version mismatch (e.g.
+      # react 19.2 + react-dom 19.1) is a runtime crash, not a typecheck
+      # error, so the PR-time gate misses it. Group both packages plus
+      # their @types siblings so a single PR carries the whole stack.
+      react-stack:
+        patterns:
+          - 'react'
+          - 'react-dom'
+          - '@types/react'
+          - '@types/react-dom'
+    ignore:
+      # Tailwind v4 migration completed Sprint Tailwind-v4 (2026-05-14)
+      # via `npx @tailwindcss/upgrade` + tw-animate-css for Radix animations.
+      # The 2026-05-07 follow-up ignore rule is now obsolete — Dependabot
+      # can resume normal version updates on tailwindcss + @tailwindcss/postcss.
+      #
+      # eslint-config-next 16+ — pinned to 15.0.0 (CLAUDE.md §2). v16
+      # requires ESLint 9 + flat config migration (Sprint 1 territory).
+      - dependency-name: 'eslint-config-next'
+        versions:
+          - '>=16.0.0'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: 'Europe/Paris'
+    open-pull-requests-limit: 5
+    target-branch: cleanup
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - github-actions

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
+import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 
 /**
  * Interface pour la progression d'un budget
@@ -35,6 +36,7 @@ interface EstimatedBudget {
 interface UseBudgetProgressReturn {
   budgetProgresses: BudgetProgress[]
   loading: boolean
+  isFetching: boolean
   error: string | null
   refreshProgress: () => Promise<void>
   getBudgetProgress: (budgetId: string) => BudgetProgress | undefined
@@ -48,7 +50,9 @@ interface UseBudgetProgressReturn {
  * - 100% : bleu
  * - >100% : rouge
  */
-const getBudgetColorClass = (percentage: number): { colorClass: string; textColorClass: string } => {
+const getBudgetColorClass = (
+  percentage: number,
+): { colorClass: string; textColorClass: string } => {
   if (percentage === 0) {
     return { colorClass: 'bg-gray-100', textColorClass: 'text-gray-900' }
   } else if (percentage > 0 && percentage < 100) {
@@ -64,23 +68,29 @@ const getBudgetColorClass = (percentage: number): { colorClass: string; textColo
  * Hook pour calculer la progression des budgets estimés
  * Calcule pour chaque budget le montant dépensé, pourcentage, économies et code couleur
  *
+ * Sprint P1 — accepte un `period` optionnel. Quand fourni et différent de
+ * 'month', les expenses sont filtrées CSR par `expense_date` dans le range
+ * calculé via computePeriodDateRange (lundi-dimanche pour 'week', today pour
+ * 'day'). 'month' = pas de filtre, sémantique "depuis dernier recap"
+ * préservée. Le `estimatedAmount` (budget mensuel) reste inchangé : le
+ * `spentAmount` reflète la sous-période vs cap mensuel.
+ *
  * @param budgets - Liste des budgets estimés
  * @param context - Contexte profile ou group
+ * @param period - Période optionnelle (default 'month' = no filter)
  */
 export function useBudgetProgress(
   budgets: EstimatedBudget[],
-  context?: 'profile' | 'group'
+  context?: 'profile' | 'group',
+  period?: Period,
 ): UseBudgetProgressReturn {
-  const [budgetProgresses, setBudgetProgresses] = useState<BudgetProgress[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
   // Hook pour récupérer les dépenses réelles
   const {
     expenses,
     loading: expensesLoading,
+    isFetching: expensesFetching,
     error: expensesError,
-    refreshExpenses
+    refreshExpenses,
   } = useRealExpenses(context)
 
   /**
@@ -88,29 +98,32 @@ export function useBudgetProgress(
    */
   const calculateBudgetProgresses = useCallback(
     (budgets: EstimatedBudget[], expenses: RealExpense[]): BudgetProgress[] => {
-      return budgets.map(budget => {
+      return budgets.map((budget) => {
         // Trouver toutes les dépenses liées à ce budget
         const relatedExpenses = expenses.filter(
-          expense => expense.estimated_budget_id === budget.id
+          (expense) => expense.estimated_budget_id === budget.id,
         )
 
         // Utiliser le montant déjà calculé par l'API (qui inclut le carryover)
         // ou recalculer si pas disponible
         // Ne compter QUE amount_from_budget (pas tirelire ni savings)
-        const spentAmount = budget.spent_this_month !== undefined
-          ? budget.spent_this_month
-          : relatedExpenses.reduce((sum, expense) => {
-              // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-              const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-                ? parseFloat(expense.amount_from_budget.toString())
-                : parseFloat(expense.amount.toString())
-              return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-            }, 0)
+        const spentAmount =
+          budget.spent_this_month !== undefined
+            ? budget.spent_this_month
+            : relatedExpenses.reduce((sum, expense) => {
+                // Use amount_from_budget if available, otherwise use amount (backward compatibility)
+                const amountFromBudget =
+                  expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+                    ? parseFloat(expense.amount_from_budget.toString())
+                    : parseFloat(expense.amount.toString())
+                return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
+              }, 0)
 
         // Calculer le pourcentage de consommation
-        const percentage = budget.estimated_amount > 0
-          ? Math.round((spentAmount / budget.estimated_amount) * 100 * 100) / 100 // 2 décimales
-          : 0
+        const percentage =
+          budget.estimated_amount > 0
+            ? Math.round((spentAmount / budget.estimated_amount) * 100 * 100) / 100 // 2 décimales
+            : 0
 
         // Utiliser les économies cumulées du budget
         const savings = budget.cumulated_savings || 0
@@ -126,27 +139,31 @@ export function useBudgetProgress(
           percentage,
           savings,
           colorClass,
-          textColorClass
+          textColorClass,
         }
       })
     },
-    []
+    [],
   )
 
-  // Calculer les progressions - toujours recalculer en temps réel
-  const calculatedProgresses = useMemo(() => {
+  // Filtre expenses par période (CSR) — Sprint P1.
+  // computePeriodDateRange retourne null pour 'month' = pas de filtre.
+  const filteredExpenses = useMemo<RealExpense[]>(() => {
+    if (!period || period === 'month') return expenses
+    const range = computePeriodDateRange(period)
+    if (!range) return expenses
+    return expenses.filter(
+      (e) => e.expense_date >= range.startDate && e.expense_date <= range.endDate,
+    )
+  }, [expenses, period])
+
+  // Source unique de vérité : calcul memorise a partir de budgets + filteredExpenses
+  const budgetProgresses = useMemo<BudgetProgress[]>(() => {
     if (!budgets.length || expensesLoading) {
       return []
     }
-    return calculateBudgetProgresses(budgets, expenses)
-  }, [budgets, expenses, expensesLoading, calculateBudgetProgresses])
-
-  // Mettre à jour l'état quand les calculs changent
-  useEffect(() => {
-    setBudgetProgresses(calculatedProgresses)
-    setLoading(expensesLoading)
-    setError(expensesError)
-  }, [calculatedProgresses, expensesLoading, expensesError])
+    return calculateBudgetProgresses(budgets, filteredExpenses)
+  }, [budgets, filteredExpenses, expensesLoading, calculateBudgetProgresses])
 
   /**
    * Rafraîchit les données de progression
@@ -158,15 +175,19 @@ export function useBudgetProgress(
   /**
    * Récupère la progression d'un budget spécifique par son ID
    */
-  const getBudgetProgress = useCallback((budgetId: string): BudgetProgress | undefined => {
-    return budgetProgresses.find(progress => progress.budgetId === budgetId)
-  }, [budgetProgresses])
+  const getBudgetProgress = useCallback(
+    (budgetId: string): BudgetProgress | undefined => {
+      return budgetProgresses.find((progress) => progress.budgetId === budgetId)
+    },
+    [budgetProgresses],
+  )
 
   return {
     budgetProgresses,
-    loading,
-    error,
+    loading: expensesLoading,
+    isFetching: expensesFetching,
+    error: expensesError,
     refreshProgress,
-    getBudgetProgress
+    getBudgetProgress,
   }
 }

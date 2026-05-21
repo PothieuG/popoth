@@ -1,7 +1,18 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import type { z } from 'zod'
 import { cn } from '@/lib/utils'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
+import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 
 interface AddBudgetDialogProps {
   isOpen: boolean
@@ -13,17 +24,38 @@ interface AddBudgetDialogProps {
 
 /**
  * Dialog pour ajouter un nouveau budget avec validation en temps réel
- * Empêche la création si le total des budgets dépasse les revenus estimés
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close +
+ * return-focus + role=dialog + aria-modal. Custom close X preserved via
+ * `hideCloseButton={true}` on DialogContent.
+ *
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema(...)). The
+ * factory refine gates the balance check (newTotal <= totalEstimatedIncome)
+ * — schema rebuilt on prop change via useMemo (Sprint Zod-Rollout v3).
+ *
+ * useWatch for the live preview avoids the form.watch react-compiler
+ * incompatibility warning.
  */
-export default function AddBudgetDialog({ 
-  isOpen, 
-  onClose, 
+export default function AddBudgetDialog({
+  isOpen,
+  onClose,
   onSave,
   currentBudgetsTotal,
-  totalEstimatedIncome 
+  totalEstimatedIncome,
 }: AddBudgetDialogProps) {
-  const [budgetName, setBudgetName] = useState('')
-  const [budgetAmount, setBudgetAmount] = useState('')
+  const schema = useMemo(
+    () => makeBudgetClientSchema({ currentBudgetsTotal, totalEstimatedIncome }),
+    [currentBudgetsTotal, totalEstimatedIncome],
+  )
+  type FormInput = z.input<typeof schema>
+  type FormOutput = z.output<typeof schema>
+
+  const form = useForm<FormInput, undefined, FormOutput>({
+    resolver: zodResolver(schema),
+    defaultValues: { name: '', estimatedAmount: 0 },
+    mode: 'onSubmit',
+  })
+
   /**
    * Formate un montant en euros
    */
@@ -31,273 +63,257 @@ export default function AddBudgetDialog({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
-  const newBudgetsTotal = currentBudgetsTotal + (parseFloat(budgetAmount) || 0)
+  const onValidSubmit = (data: FormOutput) => {
+    onSave({ name: data.name, estimatedAmount: data.estimatedAmount })
+    form.reset({ name: '', estimatedAmount: 0 })
+    onClose()
+  }
+
+  const handleClose = () => {
+    form.reset({ name: '', estimatedAmount: 0 })
+    onClose()
+  }
+
+  const onInvalidSubmit = (errors: FieldErrors<FormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<FormInput>)
+    }
+  }
+
+  const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const newBudgetsTotal = currentBudgetsTotal + previewSafe
   const resultingBalance = totalEstimatedIncome - newBudgetsTotal
   const willBeNegative = resultingBalance < 0
+  const showPreview = previewSafe > 0
 
-  const errors = useMemo(() => {
-    const newErrors: { name?: string; amount?: string; balance?: string } = {}
-    if (budgetName.trim() && budgetName.trim().length < 2) {
-      newErrors.name = 'Le nom doit contenir au moins 2 caractères'
-    }
-    const amount = parseFloat(budgetAmount)
-    if (budgetAmount && (isNaN(amount) || amount <= 0)) {
-      newErrors.amount = 'Le montant doit être un nombre positif'
-    }
-    if (budgetAmount && amount > 0 && willBeNegative) {
-      newErrors.balance = `Impossible d'ajouter ce budget : votre reste à vivre (sans économies) deviendrait négatif de ${formatAmount(Math.abs(resultingBalance))}. Réduisez le montant ou ajoutez des revenus.`
-    }
-    return newErrors
-  }, [budgetName, budgetAmount, resultingBalance, willBeNegative])
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
 
-  /**
-   * Vérifie si le formulaire est valide pour la sauvegarde
-   */
-  const isFormValid = () => {
-    return (
-      budgetName.trim().length >= 2 &&
-      parseFloat(budgetAmount) > 0 &&
-      !willBeNegative &&
-      Object.keys(errors).length === 0
-    )
-  }
-
-  /**
-   * Gestion de la sauvegarde
-   */
-  const handleSave = () => {
-
-    if (!isFormValid()) {
-      return
-    }
-
-    const budgetData = {
-      name: budgetName.trim(),
-      estimatedAmount: parseFloat(budgetAmount)
-    }
-
-    onSave(budgetData)
-
-    // Reset du formulaire et fermer le dialog
-    setBudgetName('')
-    setBudgetAmount('')
-    onClose()
-  }
-
-  /**
-   * Gestion de la fermeture
-   */
-  const handleClose = () => {
-    setBudgetName('')
-    setBudgetAmount('')
-    onClose()
-  }
-
-  /**
-   * Gestion de la soumission par Enter
-   */
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && isFormValid()) {
-      handleSave()
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !isSubmitting) {
+      handleClose()
     }
   }
-
-  if (!isOpen) return null
 
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-        onClick={handleClose}
-      >
-        {/* Dialog */}
-        <div 
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-200 scale-100"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Nouveau Budget</h3>
-                  <p className="text-sm text-gray-600">Ajoutez une catégorie de dépense</p>
-                </div>
-              </div>
-              <button
-                onClick={handleClose}
-                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header */}
+        <div className="shrink-0 border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-600">
+                <svg
+                  className="h-4 w-4 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
-              </button>
+              </div>
+              <div>
+                <DialogTitle asChild>
+                  <h3 className="text-lg font-bold text-gray-900">Nouveau Budget</h3>
+                </DialogTitle>
+                <p className="text-sm text-gray-600">Ajoutez une catégorie de dépense</p>
+              </div>
             </div>
+            <ModalCloseX onClose={handleClose} variant="circle" />
           </div>
+        </div>
 
-          {/* Form */}
-          <div className="p-6 space-y-4">
+        {/* Form */}
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
             {/* Nom du budget */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="add-budget-name"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
                 Nom du budget <span className="text-red-500">*</span>
               </label>
-              <input
+              <Input
+                id="add-budget-name"
                 type="text"
-                value={budgetName}
-                onChange={(e) => setBudgetName(e.target.value)}
-                onKeyPress={handleKeyPress}
+                {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
                 className={cn(
-                  "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors",
-                  errors.name 
-                    ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                    : "border-gray-300 focus:ring-orange-500 focus:border-orange-500"
+                  'h-auto rounded-xl px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                  fieldErrors.name
+                    ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                    : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
                 )}
               />
-              {errors.name && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {fieldErrors.name && (
+                <p
+                  id="add-budget-name-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  {errors.name}
+                  {fieldErrors.name.message}
                 </p>
               )}
             </div>
 
             {/* Montant estimé */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor="add-budget-amount"
+                className="mb-1.5 block text-sm font-medium text-gray-700"
+              >
                 Montant estimé mensuel <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={budgetAmount}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                      setBudgetAmount(v.replace(',', '.'))
-                    }
-                  }}
-                  onKeyPress={handleKeyPress}
+                <DecimalFormInput
+                  control={form.control}
+                  name="estimatedAmount"
+                  id="add-budget-amount"
                   placeholder="0.00"
+                  ariaInvalid={!!fieldErrors.estimatedAmount}
+                  ariaDescribedby={
+                    fieldErrors.estimatedAmount ? 'add-budget-amount-error' : undefined
+                  }
                   className={cn(
-                    "w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-colors pr-12",
-                    errors.amount 
-                      ? "border-red-300 focus:ring-red-500 focus:border-red-500" 
-                      : "border-gray-300 focus:ring-orange-500 focus:border-orange-500"
+                    'h-auto rounded-xl px-4 py-3 pr-12 transition-colors focus-visible:ring-2 focus-visible:outline-hidden',
+                    fieldErrors.estimatedAmount
+                      ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-500'
+                      : 'border-gray-300 focus-visible:border-orange-500 focus-visible:ring-orange-500',
                   )}
                 />
-                <span className="absolute right-4 top-3.5 text-gray-500 text-sm font-medium">€</span>
+                <span className="absolute top-3.5 right-4 text-sm font-medium text-gray-500">
+                  €
+                </span>
               </div>
-              {errors.amount && (
-                <p className="text-red-600 text-sm mt-1 flex items-center">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              {fieldErrors.estimatedAmount && (
+                <p
+                  id="add-budget-amount-error"
+                  className="mt-1 flex items-center text-sm text-red-600"
+                >
+                  <svg
+                    className="mr-1 h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  {errors.amount}
+                  {fieldErrors.estimatedAmount.message}
                 </p>
               )}
             </div>
 
-            {/* Calcul en temps réel */}
-            {budgetAmount && parseFloat(budgetAmount) > 0 && (
-              <div className={cn(
-                "p-4 rounded-xl border",
-                willBeNegative 
-                  ? "bg-red-50 border-red-200" 
-                  : "bg-orange-50 border-orange-200"
-              )}>
-                <h4 className={cn(
-                  "font-semibold mb-2",
-                  willBeNegative ? "text-red-900" : "text-orange-900"
-                )}>
-                  Calcul de la balance
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Revenus estimés totaux:</span>
-                    <span className="font-medium text-green-700">{formatAmount(totalEstimatedIncome)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Budgets actuels:</span>
-                    <span className="font-medium text-orange-700">{formatAmount(currentBudgetsTotal)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ce nouveau budget:</span>
-                    <span className="font-medium text-orange-700">{formatAmount(parseFloat(budgetAmount))}</span>
-                  </div>
-                  <div className="border-t border-gray-300 pt-1 mt-2">
-                    <div className="flex justify-between font-bold">
-                      <span className={willBeNegative ? "text-red-900" : "text-gray-900"}>Balance résultante:</span>
-                      <span className={cn(
-                        "font-bold",
-                        willBeNegative ? "text-red-700" : resultingBalance > 0 ? "text-green-700" : "text-gray-700"
-                      )}>
-                        {formatAmount(resultingBalance)}
+            {/* Calcul en temps réel — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
+            {showPreview && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Calcul de la balance :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Revenus estimés totaux</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(totalEstimatedIncome)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Budgets actuels</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(currentBudgetsTotal)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce nouveau budget</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewSafe)}
                       </span>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* Message d'erreur de balance */}
-            {errors.balance && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-800 text-sm font-medium flex items-start">
-                  <svg className="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>
-                    {errors.balance}
-                    <br />
-                    <span className="text-red-600 text-xs mt-1 block">
-                      Ajustez le montant ou ajoutez des revenus pour équilibrer votre budget.
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
                     </span>
-                  </span>
-                </p>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Balance résultante</span>
+                    <span
+                      className={cn(
+                        'shrink-0 font-bold',
+                        willBeNegative ? 'text-red-600' : 'text-gray-900',
+                      )}
+                    >
+                      {formatAmount(resultingBalance)}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
           {/* Actions */}
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-2xl">
-            <div className="flex space-x-3">
+          <div className="shrink-0 border-t border-gray-200 px-6 py-4">
+            <div className="flex space-x-2">
               <button
+                type="button"
                 onClick={handleClose}
-                className="flex-1 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+                className="flex-1 rounded-xl border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                disabled={isSubmitting}
               >
                 Annuler
               </button>
               <button
-                onClick={handleSave}
-                disabled={!isFormValid()}
-                className={cn(
-                  "flex-1 px-4 py-2 rounded-xl font-medium transition-colors",
-                  isFormValid()
-                    ? "bg-orange-600 text-white hover:bg-orange-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                )}
+                type="submit"
+                disabled={isSubmitting}
+                className="flex flex-1 items-center justify-center rounded-xl bg-orange-600 px-4 py-2 font-medium text-white transition-colors hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Ajouter le budget
+                {isSubmitting && <InlineSpinner className="mr-1.5" />}
+                {isSubmitting ? 'Ajout...' : 'Ajouter le budget'}
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }

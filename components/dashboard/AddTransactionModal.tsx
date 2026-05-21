@@ -1,10 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
+import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
+import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
@@ -13,10 +20,18 @@ import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePrevie
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
 import { useFinancialData } from '@/hooks/useFinancialData'
+import { useRavValidation } from '@/hooks/useRavValidation'
+import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import {
+  addTransactionFormSchema,
+  type AddTransactionFormInput,
+  type AddTransactionFormOutput,
+} from '@/lib/schemas/transactions'
 
 interface AddTransactionModalProps {
-  isOpen: boolean
+  isOpen?: boolean
   onClose: () => void
   context?: 'profile' | 'group'
   onTransactionAdded?: () => void
@@ -25,211 +40,325 @@ interface AddTransactionModalProps {
 type TransactionType = 'expense' | 'income'
 
 /**
- * Modal for adding new transactions (expenses or income)
- * Adaptive form based on transaction type and exceptional vs budgeted/estimated
+ * Wizard step state (Sprint P4-P5-P6 / Phase B1, extended to income kind).
+ * - `'select-type'`: choose expense vs income (always first step)
+ * - `'select-kind'`: choose budgeted/regular vs exceptional. Polymorphic on
+ *   the active `transactionType` — labels and FK target differ.
+ * - `'fields'`: form fields (description, amount, date, FK, savings toggle, etc.)
+ *
+ * Form state is preserved via the single `useForm` at the top — step
+ * transitions only swap the render.
+ */
+type WizardStep = 'select-type' | 'select-kind' | 'fields'
+
+const todayIso = (): string => {
+  const today = new Date().toISOString().split('T')[0]
+  return today as string
+}
+
+/**
+ * Modal for adding new transactions (expenses or income).
+ *
+ * **Sprint P4-P5-P6 wizard (Phase B1)** : 2-step flow for expenses, 1-step for income.
+ *   Step 1 (always): choose expense vs income
+ *   Step 2 (expense only): choose budgeted vs exceptional
+ *   Step 3: form fields + (for budgeted expense) "Utiliser les économies" toggle (P5)
+ *
+ * Form state preserved via single `useForm` — step transitions only swap render.
+ * Back navigation preserves values (description/amount/date typed earlier).
+ *
+ * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close
+ * + return-focus + role=dialog + aria-modal. Custom close X via ModalCloseX (v10).
+ *
+ * useRavValidation reads the savings toggle + savingsAvailable (Phase A5)
+ * to correctly predict RAV impact — savings cascade absorbs overflow,
+ * RAV not impacted as much as the pre-P4 cascade-aggressive logic predicted.
+ *
+ * `isOpen` defaults to `true` to preserve the legacy parent pattern
+ * `{isOpen && <Modal />}` (dashboard + group-dashboard pages).
  */
 export default function AddTransactionModal({
-  isOpen,
+  isOpen = true,
   onClose,
   context,
-  onTransactionAdded
+  onTransactionAdded,
 }: AddTransactionModalProps) {
-  const [transactionType, setTransactionType] = useState<TransactionType>('expense')
-  const [isExceptional, setIsExceptional] = useState(false)
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
-    budgetId: '',
-    incomeId: ''
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [wizardStep, setWizardStep] = useState<WizardStep>('select-type')
+  // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
+  // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
+  // `setWizardStep` so the new step renders with the matching animate-in class.
+  const [stepAnimDir, setStepAnimDir] = useState<'forward' | 'backward'>('forward')
+  // Sprint 2026-05-21 / Auto-Use-Savings : le toggle UI "Utiliser les économies"
+  // a été retiré — savings utilisées par défaut (mode P5 strict). La constante
+  // reste pour passer `use_savings: true` à l'API + `useSavingsToggle: true`
+  // aux helpers `calculateBreakdown` / `useRavValidation`.
+  const useSavings = true
+  // P4 Phase 2 — ordered list of budget IDs the user selected to source
+  // cross-budget savings from. Drained first-fit in selection order to
+  // cover the overflow (each entry takes min(remaining, its savings)).
+  const [crossBudgetSelected, setCrossBudgetSelected] = useState<string[]>([])
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
-  const { expenseProgress, incomeProgress } = useProgressData(context)
+  const { expenseProgress } = useProgressData(context)
   const { financialData } = useFinancialData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
 
-  // Calculer le montant pour le preview
-  const previewAmount = parseFloat(formData.amount) || 0
+  const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
+    resolver: zodResolver(addTransactionFormSchema),
+    defaultValues: {
+      transactionType: 'expense',
+      description: '',
+      amount: 0,
+      expense_date: todayIso(),
+      is_exceptional: false,
+      estimated_budget_id: null,
+    },
+    mode: 'onSubmit',
+  })
 
-  // Validation : vérifier si la dépense ferait passer le reste à vivre en négatif
-  const ravValidation = (() => {
-    if (transactionType !== 'expense' || !financialData || previewAmount <= 0) {
-      return { blocked: false, newRav: 0 }
+  // Watch reactive fields for previews + RAV validation
+  const watchedType = useWatch({ control: form.control, name: 'transactionType' })
+  const watchedExceptional = useWatch({ control: form.control, name: 'is_exceptional' })
+  const watchedAmount = useWatch({ control: form.control, name: 'amount' })
+  const watchedBudgetId = useWatch({ control: form.control, name: 'estimated_budget_id' })
+  const watchedIncomeId = useWatch({ control: form.control, name: 'estimated_income_id' })
+
+  const transactionType = (watchedType ?? 'expense') as TransactionType
+  const isExceptional = Boolean(watchedExceptional)
+  const previewAmount =
+    typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const budgetId = (watchedBudgetId as string | null) ?? ''
+  const incomeId = (watchedIncomeId as string | null) ?? ''
+
+  // P5 — local savings of selected budget (for cascade absorption preview + RAV calc)
+  const selectedBudget = budgets.find((b) => b.id === budgetId)
+  const savingsAvailable = selectedBudget?.cumulated_savings ?? 0
+
+  const ravValidation = useRavValidation({
+    transactionType,
+    isExceptional,
+    amount: previewSafe,
+    remainingToLive: financialData?.remainingToLive,
+    budgetId,
+    budgetProgress: expenseProgress[budgetId],
+    savingsAvailable,
+    useSavingsToggle: useSavings,
+  })
+
+  // P4 Phase 2 — compute the overflow (amount not covered by destination
+  // budget + its local savings). When > 0, the user is offered to draw
+  // from OTHER budgets' savings (cross-budget cascade). The list of
+  // currently-selected sources is allocated first-fit in selection order.
+  const budgetProgress = expenseProgress[budgetId]
+  const budgetRemainingLocal = budgetProgress
+    ? budgetProgress.estimatedAmount - budgetProgress.spentAmount
+    : 0
+  const localBreakdown =
+    transactionType === 'expense' && !isExceptional && budgetId
+      ? calculateBreakdown(previewSafe, budgetRemainingLocal, savingsAvailable, {
+          useSavingsToggle: useSavings,
+        })
+      : null
+  const overflow = localBreakdown?.overflow ?? 0
+
+  const { crossBudgetAllocations, crossBudgetTotal, remainingOvershoot } = useMemo(() => {
+    if (overflow <= 0) {
+      return { crossBudgetAllocations: [], crossBudgetTotal: 0, remainingOvershoot: 0 }
     }
-
-    const currentRav = financialData.remainingToLive
-
-    if (isExceptional) {
-      // Dépense exceptionnelle : impact direct sur le RAV
-      const newRav = currentRav - previewAmount
-      return { blocked: newRav < 0, newRav }
-    }
-
-    if (formData.budgetId) {
-      // Dépense budgétée : seul le dépassement impacte le RAV
-      const progress = expenseProgress[formData.budgetId]
-      if (progress) {
-        const currentSpent = progress.spentAmount
-        const newTotalSpent = currentSpent + previewAmount
-        const budgetAmount = progress.estimatedAmount
-
-        if (newTotalSpent > budgetAmount) {
-          const previousOverrun = Math.max(0, currentSpent - budgetAmount)
-          const newOverrun = newTotalSpent - budgetAmount
-          const additionalOverrun = newOverrun - previousOverrun
-          const newRav = currentRav - additionalOverrun
-          return { blocked: newRav < 0, newRav }
-        }
+    const allocations: Array<{ budget_id: string; amount: number }> = []
+    let remaining = overflow
+    for (const id of crossBudgetSelected) {
+      if (remaining <= 0) break
+      const b = budgets.find((x) => x.id === id)
+      const available = b?.cumulated_savings ?? 0
+      const take = Math.min(remaining, available)
+      if (take > 0) {
+        allocations.push({ budget_id: id, amount: take })
+        remaining -= take
       }
-      // Dans les limites du budget : pas d'impact
-      return { blocked: false, newRav: currentRav }
     }
+    const total = allocations.reduce((s, a) => s + a.amount, 0)
+    return {
+      crossBudgetAllocations: allocations,
+      crossBudgetTotal: total,
+      remainingOvershoot: Math.max(0, overflow - total),
+    }
+  }, [overflow, crossBudgetSelected, budgets])
 
-    return { blocked: false, newRav: 0 }
-  })()
+  const availableCrossBudgets = budgets.filter(
+    (b) => b.id !== budgetId && (b.cumulated_savings ?? 0) > 0,
+  )
+
+  const toggleCrossBudget = (id: string) => {
+    setCrossBudgetSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  // Reset cross-budget selection when key fields change (avoid stale state)
+  // when user changes the destination budget or the amount.
+  const resetCrossBudget = () => setCrossBudgetSelected([])
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
   const calculateRealSpentAmount = (budgetId: string): number => {
     return realExpenses
-      .filter(expense => expense.estimated_budget_id === budgetId)
+      .filter((expense) => expense.estimated_budget_id === budgetId)
       .reduce((sum, expense) => {
-        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-        const amountFromBudget = expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-          ? expense.amount_from_budget
-          : expense.amount
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? expense.amount_from_budget
+            : expense.amount
         return sum + amountFromBudget
       }, 0)
   }
 
-  // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
   const calculateRealReceivedAmount = (incomeId: string): number => {
     return realIncomes
-      .filter(income => income.estimated_income_id === incomeId)
+      .filter((income) => income.estimated_income_id === incomeId)
       .reduce((sum, income) => sum + income.amount, 0)
   }
 
-  // Préparer les options pour les dropdowns - TOUJOURS utiliser les calculs en temps réel
-  const budgetOptions: DropdownOption[] = budgets.map(budget => {
+  const budgetOptions: DropdownOption[] = budgets.map((budget) => {
     const realSpentAmount = calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount, // 🔥 Calcul en temps réel depuis les dépenses réelles
+      spentAmount: realSpentAmount,
       estimatedAmount: budget.estimated_amount,
-      economyAmount: budget.cumulated_savings || 0 // ✅ Utilise cumulated_savings depuis la base
+      economyAmount: budget.cumulated_savings || 0,
     }
   })
 
-  const incomeOptions: DropdownOption[] = incomes.map(income => {
+  const incomeOptions: DropdownOption[] = incomes.map((income) => {
     const realReceivedAmount = calculateRealReceivedAmount(income.id)
     const bonusAmount = realReceivedAmount - income.estimated_amount
     return {
       id: income.id,
       name: income.name,
       type: 'income' as const,
-      receivedAmount: realReceivedAmount, // 🔥 Calcul en temps réel depuis les revenus réels
+      receivedAmount: realReceivedAmount,
       estimatedAmount: income.estimated_amount,
-      bonusAmount: bonusAmount // 🔥 Calcul en temps réel du bonus
+      bonusAmount: bonusAmount,
     }
   })
 
+  /**
+   * Step 1: handle expense/income type selection.
+   * Resets the form to the new branch and navigates to the next step.
+   */
+  const handleSelectType = (newType: TransactionType) => {
+    const current = form.getValues()
+    setStepAnimDir('forward')
+    if (newType === 'expense') {
+      form.reset({
+        transactionType: 'expense',
+        description: current.description ?? '',
+        amount: current.amount as never,
+        expense_date: todayIso(),
+        is_exceptional: false,
+        estimated_budget_id: null,
+      })
+      setWizardStep('select-kind')
+    } else {
+      form.reset({
+        transactionType: 'income',
+        description: current.description ?? '',
+        amount: current.amount as never,
+        entry_date: todayIso(),
+        is_exceptional: false,
+        estimated_income_id: null,
+      })
+      setWizardStep('select-kind')
+    }
+  }
 
   /**
-   * Reset form when modal opens/closes and force refresh
+   * Step 2: handle regular/exceptional selection. Polymorphic on the active
+   * transactionType — expense clears `estimated_budget_id`, income clears
+   * `estimated_income_id` when exceptional.
    */
-  useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        description: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        budgetId: '',
-        incomeId: ''
-      })
-      setIsExceptional(false)
-      setTransactionType('expense')
-      setError(null)
-
+  const handleSelectKind = (exceptional: boolean) => {
+    form.setValue('is_exceptional', exceptional)
+    if (exceptional) {
+      if (transactionType === 'expense') {
+        form.setValue('estimated_budget_id', null)
+      } else {
+        form.setValue('estimated_income_id', null)
+      }
     }
-  }, [isOpen])
+    setStepAnimDir('forward')
+    setWizardStep('fields')
+  }
+
+  /**
+   * Back navigation: returns to previous step preserving form values.
+   * Now uniform across expense/income flows since both go through select-kind.
+   */
+  const handleBack = () => {
+    setStepAnimDir('backward')
+    if (wizardStep === 'fields') {
+      setWizardStep('select-kind')
+    } else if (wizardStep === 'select-kind') {
+      setWizardStep('select-type')
+    }
+  }
 
   /**
    * Handle form submission
    */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    // Validation
-    if (!formData.description.trim()) {
-      setError('La description est requise')
-      return
-    }
-
-    const amount = parseFloat(formData.amount)
-    if (isNaN(amount) || amount <= 0) {
-      setError('Le montant doit être un nombre positif')
-      return
-    }
-
-    if (!isExceptional) {
-      if (transactionType === 'expense' && !formData.budgetId) {
-        setError('Veuillez sélectionner un budget')
-        return
-      }
-      if (transactionType === 'income' && !formData.incomeId) {
-        setError('Veuillez sélectionner un revenu estimé')
-        return
-      }
-    }
+  const onValidSubmit = async (data: AddTransactionFormOutput) => {
+    setServerError(null)
 
     if (ravValidation.blocked) {
-      setError('Impossible d\'ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif. Réduisez le montant de la dépense.')
+      setServerError(
+        "Impossible d'ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif. Réduisez le montant de la dépense.",
+      )
       return
     }
-
-    setIsSubmitting(true)
 
     try {
       let success = false
 
-      if (transactionType === 'expense') {
+      if (data.transactionType === 'expense') {
         success = await addExpense({
-          description: formData.description.trim(),
-          amount,
-          expense_date: formData.date,
-          estimated_budget_id: isExceptional ? undefined : formData.budgetId,
-          is_for_group: context === 'group'
+          description: data.description,
+          amount: data.amount,
+          expense_date: data.expense_date,
+          estimated_budget_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_budget_id ?? undefined),
+          is_for_group: context === 'group',
+          use_savings: useSavings,
+          cross_budget_cascade:
+            crossBudgetAllocations.length > 0 ? crossBudgetAllocations : undefined,
         })
       } else {
         success = await addIncome({
-          description: formData.description.trim(),
-          amount,
-          entry_date: formData.date,
-          estimated_income_id: isExceptional ? undefined : formData.incomeId,
-          is_for_group: context === 'group'
+          description: data.description,
+          amount: data.amount,
+          entry_date: data.entry_date,
+          estimated_income_id: data.is_exceptional
+            ? undefined
+            : (data.estimated_income_id ?? undefined),
+          is_for_group: context === 'group',
         })
       }
 
       if (success) {
-        // Le rafraîchissement automatique se charge de la mise à jour
         onTransactionAdded?.()
         onClose()
       }
     } catch (err) {
-      console.error('Error adding transaction:', err)
-      setError('Erreur lors de l\'ajout de la transaction')
-    } finally {
-      setIsSubmitting(false)
+      logger.error('Error adding transaction:', err)
+      setServerError("Erreur lors de l'ajout de la transaction")
     }
   }
 
@@ -237,256 +366,660 @@ export default function AddTransactionModal({
    * Handle modal close
    */
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!form.formState.isSubmitting) {
       onClose()
     }
   }
 
-  if (!isOpen) return null
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      handleClose()
+    }
+  }
+
+  // Discriminated union : the error keys differ between expense/income
+  // branches. setFocus(firstErrorKey) handles this via permissive cast —
+  // RHF resolves the ref at runtime from the active branch.
+  const onInvalidSubmit = (errors: FieldErrors<AddTransactionFormInput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<AddTransactionFormInput>)
+    }
+  }
+
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  // Discriminated union narrowing : .expense_date and .entry_date live in
+  // different branches. Index permissively based on the live transactionType.
+  const dateError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'expense_date' : 'entry_date'
+  ]
+  const fkError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    transactionType === 'expense' ? 'estimated_budget_id' : 'estimated_income_id'
+  ]
+
+  // Step title for the dialog header (a11y + i18n future-proof)
+  const stepTitle =
+    wizardStep === 'select-type'
+      ? 'Type de transaction'
+      : wizardStep === 'select-kind'
+        ? transactionType === 'expense'
+          ? 'Type de dépense'
+          : 'Type de revenu'
+        : transactionType === 'expense'
+          ? 'Ajouter une dépense'
+          : 'Ajouter un revenu'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
-      <div
-        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity"
-        onClick={handleClose}
-      />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-md mx-4 bg-white rounded-xl shadow-xl max-h-[80vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Ajouter une transaction
-          </h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent hideCloseButton className={MODAL_CONTENT_CLASSES}>
+        {/* Header — iOS-like: back button (top-left) + centered title + close */}
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-gray-200 px-4 py-3">
+          {wizardStep === 'select-type' ? (
+            <div className="h-9 w-9 shrink-0" />
+          ) : (
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={isSubmitting}
+              aria-label="Retour à l'étape précédente"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+          )}
+          <DialogTitle asChild>
+            <h2 className="flex-1 text-center text-base font-semibold text-gray-900">
+              {stepTitle}
+            </h2>
+          </DialogTitle>
+          <ModalCloseX
+            onClose={handleClose}
             disabled={isSubmitting}
-            className="p-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </Button>
+            variant="ghost"
+            className="h-9 w-9"
+          />
         </div>
 
-        {/* Form - Scrollable */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
-          {/* Transaction Type Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium text-gray-900">Type de transaction</Label>
-            <div className="flex space-x-3">
+        {/* Step 1: select transaction type */}
+        {wizardStep === 'select-type' && (
+          <div
+            key="step-select-type"
+            className={cn(
+              'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          >
+            <p className="text-sm text-gray-600">Choisissez le type de transaction à ajouter.</p>
+            <div className="flex flex-col space-y-2">
               <button
                 type="button"
-                onClick={() => setTransactionType('expense')}
-                className={cn(
-                  'flex-1 p-4 rounded-lg border text-sm font-medium transition-all',
-                  transactionType === 'expense'
-                    ? 'bg-red-50 border-red-200 text-red-700'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                )}
+                onClick={() => handleSelectType('expense')}
+                className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4 text-left transition-all hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-red-500"
               >
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                  </svg>
-                  <span className="font-medium">Dépense</span>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setTransactionType('income')}
-                className={cn(
-                  'flex-1 p-4 rounded-lg border text-sm font-medium transition-all',
-                  transactionType === 'income'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
-                )}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
-                  </svg>
-                  <span className="font-medium">Revenu</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Exceptional Checkbox */}
-          <div className="flex flex-col items-center space-y-3">
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="exceptional"
-                checked={isExceptional}
-                onChange={(e) => setIsExceptional(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <Label htmlFor="exceptional" className="text-sm text-gray-700 cursor-pointer font-medium">
-                {transactionType === 'expense' ? 'Dépense exceptionnelle' : 'Revenu exceptionnel'}
-              </Label>
-            </div>
-            <p className="text-xs text-gray-500 text-center">
-              {transactionType === 'expense'
-                ? 'Non associée à un budget estimé'
-                : 'Non associé à un revenu estimé'
-              }
-            </p>
-          </div>
-
-          {/* Budget/Income Selection - Only shown if not exceptional */}
-          {!isExceptional && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-gray-900">
-                {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
-                <span className="text-red-500 ml-1">*</span>
-              </Label>
-              <CustomDropdown
-                options={transactionType === 'expense' ? budgetOptions : incomeOptions}
-                value={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-                onChange={(value) => setFormData(prev => ({
-                  ...prev,
-                  [transactionType === 'expense' ? 'budgetId' : 'incomeId']: value
-                }))}
-                placeholder={transactionType === 'expense' ? 'Sélectionner un budget' : 'Sélectionner un revenu estimé'}
-                required={!isExceptional}
-              />
-            </div>
-          )}
-
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium text-gray-900">
-              Description <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="description"
-              type="text"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              placeholder={transactionType === 'expense' ? 'Ex: Achat de chaussures' : 'Ex: Salaire mensuel'}
-              required
-              className="w-full"
-            />
-          </div>
-
-          {/* Amount */}
-          <div className="space-y-2">
-            <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
-              Montant (€) <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="amount"
-              type="text"
-              inputMode="decimal"
-              value={formData.amount}
-              onChange={(e) => {
-                const v = e.target.value
-                if (v === '' || /^\d*[.,]?\d*$/.test(v)) {
-                  setFormData(prev => ({ ...prev, amount: v.replace(',', '.') }))
-                }
-              }}
-              placeholder="0.00"
-              required
-              className="w-full"
-            />
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date" className="text-sm font-medium text-gray-900">
-              Date <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                required
-                className="w-full pl-10"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Preview for expenses - show breakdown */}
-          {previewAmount > 0 && transactionType === 'expense' && !isExceptional && formData.budgetId && (
-            <ExpenseBreakdownPreview
-              amount={previewAmount}
-              budgetId={formData.budgetId}
-              context={context}
-            />
-          )}
-
-          {/* Preview for incomes or exceptional expenses - show remaining to live */}
-          {previewAmount > 0 && (transactionType === 'income' || isExceptional) && (
-            <RemainingToLivePreview
-              amount={previewAmount}
-              type={transactionType}
-              isExceptional={isExceptional}
-              selectedId={transactionType === 'expense' ? formData.budgetId : formData.incomeId}
-              context={context}
-            />
-          )}
-
-          {/* RAV Negative Warning */}
-          {ravValidation.blocked && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700 font-medium">
-                Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif ({new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(ravValidation.newRav)}). Réduisez le montant de la dépense.
-              </p>
-            </div>
-          )}
-
-          {/* Error Display */}
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex space-x-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              Annuler
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || ravValidation.blocked}
-              className={cn(
-                'flex-1',
-                transactionType === 'expense'
-                  ? 'bg-red-600 hover:bg-red-700'
-                  : 'bg-green-600 hover:bg-green-700'
-              )}
-            >
-              {isSubmitting ? (
                 <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Ajout...</span>
+                  <svg
+                    className="h-6 w-6 text-red-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"
+                    />
+                  </svg>
+                  <div>
+                    <p className="font-medium text-red-700">Dépense</p>
+                    <p className="text-xs text-red-600">Sortie d&apos;argent</p>
+                  </div>
                 </div>
-              ) : (
-                `Ajouter ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
-              )}
-            </Button>
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectType('income')}
+                className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-left transition-all hover:bg-green-100 focus-visible:outline-2 focus-visible:outline-green-500"
+              >
+                <div className="flex items-center space-x-2">
+                  <svg
+                    className="h-6 w-6 text-green-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M7 11l5-5m0 0l5 5m-5-5v12"
+                    />
+                  </svg>
+                  <div>
+                    <p className="font-medium text-green-700">Revenu</p>
+                    <p className="text-xs text-green-600">Entrée d&apos;argent</p>
+                  </div>
+                </div>
+                <svg
+                  className="h-5 w-5 text-green-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
-        </form>
-      </div>
-    </div>
+        )}
+
+        {/* Step 2: select kind (budgeted/regular vs exceptional). Polymorphic
+            on transactionType — same step state, different cards + intro. */}
+        {wizardStep === 'select-kind' && (
+          <div
+            key="step-select-kind"
+            className={cn(
+              'min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          >
+            {transactionType === 'expense' ? (
+              <>
+                <p className="text-sm text-gray-600">
+                  La dépense est-elle rattachée à un budget existant ?
+                </p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(false)}
+                    className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-700">Budgétée</p>
+                        <p className="text-xs text-blue-600">Rattachée à un budget existant</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(true)}
+                    className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-orange-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-orange-700">Exceptionnelle</p>
+                        <p className="text-xs text-orange-600">
+                          Hors budget (impacte directement le RAV)
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">
+                  Le revenu est-il rattaché à un revenu estimé existant ?
+                </p>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(false)}
+                    className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-4 text-left transition-all hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-blue-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-blue-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-blue-700">Régulier</p>
+                        <p className="text-xs text-blue-600">Lié à un revenu estimé existant</p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectKind(true)}
+                    className="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4 text-left transition-all hover:bg-orange-100 focus-visible:outline-2 focus-visible:outline-orange-500"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <svg
+                        className="h-6 w-6 text-orange-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="font-medium text-orange-700">Exceptionnel</p>
+                        <p className="text-xs text-orange-600">
+                          Hors revenu estimé (ajoute directement au RAV)
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: fields */}
+        {wizardStep === 'fields' && (
+          <form
+            key="step-fields"
+            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            onKeyDown={preventEnterSubmit}
+            className={cn(
+              'flex min-h-0 flex-auto flex-col overflow-hidden',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+            noValidate
+          >
+            <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+              {/* Summary chip: type + kind (for context) */}
+              <div className="flex flex-wrap items-center gap-1.5 rounded-lg bg-gray-50 p-3 text-xs">
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 font-medium',
+                    transactionType === 'expense'
+                      ? 'bg-red-100 text-red-700'
+                      : 'bg-green-100 text-green-700',
+                  )}
+                >
+                  {transactionType === 'expense' ? 'Dépense' : 'Revenu'}
+                </span>
+                {transactionType === 'expense' && (
+                  <span
+                    className={cn(
+                      'rounded-full px-2 py-0.5 font-medium',
+                      isExceptional ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700',
+                    )}
+                  >
+                    {isExceptional ? 'Exceptionnelle' : 'Budgétée'}
+                  </span>
+                )}
+              </div>
+
+              {/* Budget/Income Selection - Only shown if not exceptional */}
+              {!isExceptional && (
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-medium text-gray-900">
+                    {transactionType === 'expense' ? 'Budget associé' : 'Revenu estimé associé'}
+                    <span className="ml-1 text-red-500">*</span>
+                  </Label>
+                  {transactionType === 'expense' ? (
+                    <Controller
+                      control={form.control}
+                      name="estimated_budget_id"
+                      render={({ field }) => (
+                        <CustomDropdown
+                          options={budgetOptions}
+                          value={field.value ?? ''}
+                          onChange={(value) => field.onChange(value || null)}
+                          placeholder="Sélectionner un budget"
+                          required={!isExceptional}
+                        />
+                      )}
+                    />
+                  ) : (
+                    <Controller
+                      control={form.control}
+                      name="estimated_income_id"
+                      render={({ field }) => (
+                        <CustomDropdown
+                          options={incomeOptions}
+                          value={field.value ?? ''}
+                          onChange={(value) => field.onChange(value || null)}
+                          placeholder="Sélectionner un revenu estimé"
+                          required={!isExceptional}
+                        />
+                      )}
+                    />
+                  )}
+                  {fkError && (
+                    <p id="add-transaction-fk-error" className="text-sm text-red-600">
+                      {fkError.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <Label htmlFor="description" className="text-sm font-medium text-gray-900">
+                  Description <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="description"
+                  type="text"
+                  {...form.register('description')}
+                  placeholder={
+                    transactionType === 'expense'
+                      ? 'Ex: Achat de chaussures'
+                      : 'Ex: Salaire mensuel'
+                  }
+                  aria-invalid={fieldErrors.description ? 'true' : 'false'}
+                  aria-describedby={
+                    fieldErrors.description ? 'add-transaction-description-error' : undefined
+                  }
+                  className="w-full"
+                />
+                {fieldErrors.description && (
+                  <p id="add-transaction-description-error" className="text-sm text-red-600">
+                    {fieldErrors.description.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Amount */}
+              <div className="space-y-1.5">
+                <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
+                  Montant (€) <span className="text-red-500">*</span>
+                </Label>
+                <DecimalFormInput
+                  control={form.control}
+                  name="amount"
+                  id="amount"
+                  placeholder="0.00"
+                  className="w-full"
+                  ariaInvalid={!!fieldErrors.amount}
+                  ariaDescribedby={fieldErrors.amount ? 'add-transaction-amount-error' : undefined}
+                />
+                {fieldErrors.amount && (
+                  <p id="add-transaction-amount-error" className="text-sm text-red-600">
+                    {fieldErrors.amount.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Date */}
+              <div className="space-y-1.5">
+                <Label htmlFor="date" className="text-sm font-medium text-gray-900">
+                  Date <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  {transactionType === 'expense' ? (
+                    <Input
+                      id="date"
+                      type="date"
+                      {...form.register('expense_date')}
+                      aria-invalid={dateError ? 'true' : 'false'}
+                      aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
+                      className="w-full pl-10"
+                    />
+                  ) : (
+                    <Input
+                      id="date"
+                      type="date"
+                      {...form.register('entry_date')}
+                      aria-invalid={dateError ? 'true' : 'false'}
+                      aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
+                      className="w-full pl-10"
+                    />
+                  )}
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg
+                      className="h-4 w-4 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                {dateError && (
+                  <p id="add-transaction-date-error" className="text-sm text-red-600">
+                    {dateError.message}
+                  </p>
+                )}
+              </div>
+
+              {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
+              {overflow > 0 && availableCrossBudgets.length > 0 && (
+                <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <p className="text-sm font-medium text-orange-900">
+                      Dépassement de{' '}
+                      {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetCrossBudget}
+                      disabled={isSubmitting || crossBudgetSelected.length === 0}
+                      className="text-xs text-orange-700 underline disabled:opacity-50"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                  <p className="text-xs text-orange-800">
+                    Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
+                    dépassement.
+                  </p>
+                  <ul className="space-y-1.5">
+                    {availableCrossBudgets.map((b) => {
+                      const isSelected = crossBudgetSelected.includes(b.id)
+                      const savings = b.cumulated_savings ?? 0
+                      return (
+                        <li key={b.id}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCrossBudget(b.id)}
+                            disabled={isSubmitting}
+                            className={cn(
+                              'flex w-full items-center justify-between rounded-md border p-2 text-left text-sm transition-all disabled:opacity-50',
+                              isSelected
+                                ? 'border-orange-400 bg-orange-100 text-orange-900'
+                                : 'border-orange-200 bg-white hover:bg-orange-50',
+                            )}
+                            aria-pressed={isSelected}
+                          >
+                            <span>
+                              <span className="font-medium">{b.name}</span>
+                              <span className="ml-1.5 text-xs text-orange-700">
+                                (
+                                {savings.toLocaleString('fr-FR', {
+                                  style: 'currency',
+                                  currency: 'EUR',
+                                })}{' '}
+                                dispo)
+                              </span>
+                            </span>
+                            {isSelected && (
+                              <span className="text-xs font-medium text-orange-700">✓</span>
+                            )}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <div className="flex items-center justify-between rounded bg-white/60 p-2 text-xs">
+                    <span className="text-orange-900">
+                      Couvert :{' '}
+                      {crossBudgetTotal.toLocaleString('fr-FR', {
+                        style: 'currency',
+                        currency: 'EUR',
+                      })}
+                    </span>
+                    {remainingOvershoot > 0 && (
+                      <span className="font-medium text-red-700">
+                        Reste à découvert :{' '}
+                        {remainingOvershoot.toLocaleString('fr-FR', {
+                          style: 'currency',
+                          currency: 'EUR',
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview for expenses - show breakdown */}
+              {previewSafe > 0 && transactionType === 'expense' && !isExceptional && budgetId && (
+                <ExpenseBreakdownPreview
+                  amount={previewSafe}
+                  budgetId={budgetId}
+                  context={context}
+                  useSavings={useSavings}
+                />
+              )}
+
+              {/* Preview for incomes or exceptional expenses - show remaining to live */}
+              {previewSafe > 0 && (transactionType === 'income' || isExceptional) && (
+                <RemainingToLivePreview
+                  amount={previewSafe}
+                  type={transactionType}
+                  isExceptional={isExceptional}
+                  selectedId={transactionType === 'expense' ? budgetId : incomeId}
+                  context={context}
+                />
+              )}
+
+              {/* RAV Negative Warning */}
+              {ravValidation.blocked && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm font-medium text-red-700">
+                    Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies)
+                    deviendrait négatif (
+                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
+                      ravValidation.newRav,
+                    )}
+                    ). Réduisez le montant de la dépense.
+                  </p>
+                </div>
+              )}
+
+              {/* Server-side error */}
+              {serverError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-700">{serverError}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={isSubmitting}
+                className="flex-1"
+              >
+                Annuler
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || ravValidation.blocked}
+                className={cn(
+                  'flex-1',
+                  transactionType === 'expense'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-green-600 hover:bg-green-700',
+                )}
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center space-x-1.5">
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                    <span>Ajout...</span>
+                  </div>
+                ) : (
+                  `Ajouter ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
+                )}
+              </Button>
+            </div>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

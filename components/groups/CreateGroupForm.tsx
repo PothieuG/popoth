@@ -1,135 +1,121 @@
 'use client'
 
 import { useState } from 'react'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import {
+  createGroupFormSchema,
+  type CreateGroupForm as CreateGroupFormOutput,
+} from '@/lib/schemas/groups'
 
 interface CreateGroupFormProps {
-  onSubmit: (name: string, budget: number) => Promise<boolean>
+  onSubmit: (name: string) => Promise<boolean>
   onCancel: () => void
 }
 
 /**
- * Form component for creating a new group
+ * Form component for creating a new group.
+ *
+ * Sprint Group-Budget-Auto-Sync (2026-05-19) — the manual "Budget mensuel"
+ * input is gone. `groups.monthly_budget_estimate` is now auto-synced from
+ * `SUM(estimated_budgets WHERE group_id = X)` by the DB trigger
+ * `estimated_budgets_sync_group_budget`. The group starts at budget 0 and
+ * inflates as items are added to it.
  */
 export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormProps) {
-  const [name, setName] = useState('')
-  const [budget, setBudget] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
 
-  /**
-   * Handles form submission
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    // Validation
-    if (!name.trim()) {
-      setError('Le nom du groupe est requis')
-      return
-    }
-    
-    const budgetNumber = parseFloat(budget)
-    if (!budget || isNaN(budgetNumber) || budgetNumber <= 0) {
-      setError('Veuillez entrer un budget valide (nombre positif)')
-      return
-    }
+  const form = useForm<CreateGroupFormOutput>({
+    resolver: zodResolver(createGroupFormSchema),
+    defaultValues: { name: '' },
+    mode: 'onSubmit',
+  })
 
-    setIsSubmitting(true)
-    setError(null)
-
+  const onValidSubmit = async (data: CreateGroupFormOutput) => {
+    setServerError(null)
     try {
-      const success = await onSubmit(name.trim(), budgetNumber)
+      const success = await onSubmit(data.name)
       if (success) {
-        // Reset form
-        setName('')
-        setBudget('')
+        form.reset({ name: '' })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors de la création')
-    } finally {
-      setIsSubmitting(false)
+      setServerError(err instanceof Error ? err.message : 'Erreur lors de la création')
     }
   }
 
-  return (
-    <Card className="p-4 bg-blue-50 border-blue-200">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Group Name */}
-          <div className="space-y-2">
-            <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
-              Nom du groupe *
-            </Label>
-            <Input
-              id="groupName"
-              type="text"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                if (error) setError(null)
-              }}
-              placeholder="Ex: Famille Dupont"
-              className="w-full"
-              disabled={isSubmitting}
-              maxLength={100}
-            />
-          </div>
+  const onInvalidSubmit = (errors: FieldErrors<CreateGroupFormOutput>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<CreateGroupFormOutput>)
+    }
+  }
 
-          {/* Monthly Budget */}
-          <div className="space-y-2">
-            <Label htmlFor="monthlyBudget" className="text-sm font-medium text-gray-700">
-              Budget mensuel estimé (€) *
-            </Label>
-            <Input
-              id="monthlyBudget"
-              type="number"
-              value={budget}
-              onChange={(e) => {
-                setBudget(e.target.value)
-                if (error) setError(null)
-              }}
-              placeholder="Ex: 2500"
-              className="w-full"
-              disabled={isSubmitting}
-              min="0"
-              step="0.01"
-            />
-          </div>
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
+
+  return (
+    <Card className="border-blue-200 bg-blue-50 p-4">
+      <form
+        onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+        onKeyDown={preventEnterSubmit}
+        className="space-y-3"
+        noValidate
+      >
+        {/* Group Name */}
+        <div className="space-y-1.5">
+          <Label htmlFor="groupName" className="text-sm font-medium text-gray-700">
+            Nom du groupe *
+          </Label>
+          <Input
+            id="groupName"
+            type="text"
+            {...form.register('name')}
+            placeholder="Ex: Famille Dupont"
+            className="w-full"
+            disabled={isSubmitting}
+            maxLength={100}
+            aria-invalid={fieldErrors.name ? 'true' : 'false'}
+            aria-describedby={fieldErrors.name ? 'group-name-error' : undefined}
+          />
+          {fieldErrors.name && (
+            <p id="group-name-error" className="text-sm text-red-600">
+              {fieldErrors.name.message}
+            </p>
+          )}
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-600">{error}</p>
+        {/* Server-side error */}
+        {serverError && (
+          <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-600">{serverError}</p>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end space-x-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
+        <div className="flex justify-end space-x-1.5">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
             Annuler
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting || !name.trim() || !budget}
-            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+            disabled={isSubmitting}
+            className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
           >
+            {isSubmitting && <InlineSpinner className="mr-1.5" />}
             {isSubmitting ? 'Création...' : 'Créer le groupe'}
           </Button>
         </div>
 
         {/* Helper Text */}
         <div className="text-xs text-gray-500">
-          * Champs obligatoires. Le budget est utilisé pour les statistiques et peut être modifié plus tard.
+          * Champs obligatoires. Le budget du groupe se met à jour automatiquement à mesure que vous
+          créez des items de budget.
         </div>
       </form>
     </Card>

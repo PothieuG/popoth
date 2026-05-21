@@ -1,0 +1,4 @@
+export const SESSION_EXPIRATION_SECONDS = 3600
+export const SESSION_EXPIRATION_JOSE = '1h' as const
+export const SESSION_REFRESH_INTERVAL_MS = 50 * 60 * 1000
+export const AUTH_CHECK_INTERVAL_MS = 5 * 60 * 1000

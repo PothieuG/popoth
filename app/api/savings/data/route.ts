@@ -1,56 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateSessionToken } from '@/lib/session-server'
+import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
+import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { contextOnlyQuerySchema } from '@/lib/schemas/common'
+import { logger } from '@/lib/logger'
 
 /**
  * API Get Savings Data
  * Returns all estimated budgets with their cumulated savings
  * GET /api/savings/data?context=profile|group
  */
-export async function GET(request: NextRequest) {
+export const GET = withAuthAndProfile(async (request, { profile }) => {
   try {
-    const sessionData = await validateSessionToken(request)
-    const userId = sessionData?.userId
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-    }
-
-    const { searchParams } = new URL(request.url)
-    const context = searchParams.get('context') as 'profile' | 'group' | null
-
-    if (!context || (context !== 'profile' && context !== 'group')) {
-      return NextResponse.json(
-        { error: 'Contexte invalide' },
-        { status: 400 }
-      )
-    }
-
-    console.log(``)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(`💰💰💰 [SAVINGS DATA] RÉCUPÉRATION DES ÉCONOMIES`)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(`💰 Contexte: ${context}`)
-    console.log(`💰 User ID: ${userId}`)
-
-    // Get user profile
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('profiles')
-      .select('id, group_id, first_name, last_name')
-      .eq('id', userId)
-      .single()
-
-    if (profileError || !profile) {
-      console.error('❌ Erreur récupération profil:', profileError)
-      return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
-    }
+    const { context } = parseQuery(request, contextOnlyQuerySchema)
 
     // Determine context filter
-    const contextFilter = context === 'group' && profile.group_id
-      ? { group_id: profile.group_id }
-      : { profile_id: profile.id }
-
-    console.log(`💰 Filtre appliqué:`, contextFilter)
+    const contextFilter =
+      context === 'group' && profile.group_id
+        ? { group_id: profile.group_id }
+        : { profile_id: profile.id }
 
     // Get all estimated budgets with their savings
     const { data: budgets, error: budgetsError } = await supabaseServer
@@ -60,17 +28,17 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
 
     if (budgetsError) {
-      console.error('❌ Erreur récupération budgets:', budgetsError)
+      logger.error('❌ Erreur récupération budgets:', budgetsError)
       return NextResponse.json(
         { error: 'Erreur lors de la récupération des budgets' },
-        { status: 500 }
+        { status: 500 },
       )
     }
 
     // Calculate totals from budgets
     const budgetsSavings = budgets?.reduce((sum, b) => sum + (b.cumulated_savings || 0), 0) || 0
-    const budgetsWithSavings = budgets?.filter(b => (b.cumulated_savings || 0) > 0) || []
-    const budgetsWithoutSavings = budgets?.filter(b => (b.cumulated_savings || 0) === 0) || []
+    const budgetsWithSavings = budgets?.filter((b) => (b.cumulated_savings || 0) > 0) || []
+    const budgetsWithoutSavings = budgets?.filter((b) => (b.cumulated_savings || 0) === 0) || []
 
     // Get piggy bank amount using the same context filter
     const { data: piggyBankData, error: piggyBankError } = await supabaseServer
@@ -82,21 +50,11 @@ export async function GET(request: NextRequest) {
     const piggyBankAmount = piggyBankData?.amount || 0
 
     if (piggyBankError) {
-      console.warn('⚠️ Erreur récupération tirelire:', piggyBankError)
+      logger.warn('⚠️ Erreur récupération tirelire:', piggyBankError)
     }
 
     // Total savings = budgets savings + piggy bank
     const totalSavings = budgetsSavings + piggyBankAmount
-
-    console.log(``)
-    console.log(`📊 RÉSULTAT:`)
-    console.log(`   - Total budgets: ${budgets?.length || 0}`)
-    console.log(`   - Budgets avec économies: ${budgetsWithSavings.length}`)
-    console.log(`   - Économies budgets: ${budgetsSavings}€`)
-    console.log(`   - Tirelire: ${piggyBankAmount}€`)
-    console.log(`   - Total économies: ${totalSavings}€`)
-    console.log(`💰💰💰 ========================================================`)
-    console.log(``)
 
     return NextResponse.json({
       success: true,
@@ -110,15 +68,15 @@ export async function GET(request: NextRequest) {
         budgets_without_savings: budgetsWithoutSavings.length,
         budgets_savings: budgetsSavings,
         piggy_bank: piggyBankAmount,
-        total_savings: totalSavings
-      }
+        total_savings: totalSavings,
+      },
     })
-
   } catch (error) {
-    console.error('❌ Erreur dans GET /api/savings/data:', error)
+    const handled = handleBadRequest(error)
+    if (handled) return handled
     return NextResponse.json(
       { error: 'Erreur serveur lors de la récupération des données' },
-      { status: 500 }
+      { status: 500 },
     )
   }
-}
+})

@@ -1,11 +1,16 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useState } from 'react'
+import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User } from 'lucide-react'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { profileNameFormFieldsSchema, type ProfileNameFormFields } from '@/lib/schemas/profile'
 
 interface FirstTimeProfileDialogProps {
   /** Indique si la dialog est ouverte */
@@ -19,168 +24,141 @@ interface FirstTimeProfileDialogProps {
 /**
  * Dialog affichée lors de la première connexion pour collecter les informations du profil
  * Permet à l'utilisateur d'entrer son prénom et son nom de famille
+ *
+ * Uses react-hook-form + zodResolver(profileNameFormFieldsSchema). Per-field
+ * errors inline (Sprint Zod-Rollout v3). Modal non-dismissible preserved.
  */
-export default function FirstTimeProfileDialog({ 
-  isOpen, 
-  onSubmit, 
-  onError 
+export default function FirstTimeProfileDialog({
+  isOpen,
+  onSubmit,
+  onError,
 }: FirstTimeProfileDialogProps) {
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [errors, setErrors] = useState<{
-    firstName?: string
-    lastName?: string
-    general?: string
-  }>({})
+  const [serverError, setServerError] = useState<string | null>(null)
 
-  /**
-   * Valide les champs du formulaire
-   */
-  const validateForm = useCallback(() => {
-    const newErrors: typeof errors = {}
+  const form = useForm<ProfileNameFormFields>({
+    resolver: zodResolver(profileNameFormFieldsSchema),
+    defaultValues: { first_name: '', last_name: '' },
+    mode: 'onSubmit',
+  })
 
-    if (!firstName.trim()) {
-      newErrors.firstName = 'Le prénom est requis'
-    } else if (firstName.trim().length < 2) {
-      newErrors.firstName = 'Le prénom doit contenir au moins 2 caractères'
-    }
-
-    if (!lastName.trim()) {
-      newErrors.lastName = 'Le nom est requis'
-    } else if (lastName.trim().length < 2) {
-      newErrors.lastName = 'Le nom doit contenir au moins 2 caractères'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }, [firstName, lastName])
-
-  /**
-   * Gère la soumission du formulaire
-   */
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!validateForm()) {
-      return
-    }
-
-    setIsSubmitting(true)
-    setErrors({})
-
+  const onValidSubmit = async ({ first_name, last_name }: ProfileNameFormFields) => {
+    setServerError(null)
     try {
-      const success = await onSubmit(firstName.trim(), lastName.trim())
-      
+      const success = await onSubmit(first_name, last_name)
+
       if (!success) {
-        setErrors({ general: 'Erreur lors de la création du profil' })
+        setServerError('Erreur lors de la création du profil')
         onError?.('Erreur lors de la création du profil')
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
-      setErrors({ general: errorMessage })
+      setServerError(errorMessage)
       onError?.(errorMessage)
-    } finally {
-      setIsSubmitting(false)
     }
-  }, [validateForm, onSubmit, firstName, lastName, onError])
+  }
 
-  /**
-   * Réinitialise le formulaire
-   */
-  const resetForm = useCallback(() => {
-    setFirstName('')
-    setLastName('')
-    setErrors({})
-    setIsSubmitting(false)
-  }, [])
+  const onInvalidSubmit = (errors: FieldErrors<ProfileNameFormFields>) => {
+    const firstErrorKey = Object.keys(errors)[0]
+    if (firstErrorKey) {
+      form.setFocus(firstErrorKey as FieldPath<ProfileNameFormFields>)
+    }
+  }
 
-  // Memoized CSS classes to prevent forced reflows
-  const firstNameInputClasses = useMemo(() => 
-    errors.firstName ? 'border-red-500 focus:ring-red-500' : '', 
-    [errors.firstName]
-  )
-  
-  const lastNameInputClasses = useMemo(() => 
-    errors.lastName ? 'border-red-500 focus:ring-red-500' : '', 
-    [errors.lastName]
-  )
+  const fieldErrors = form.formState.errors
+  const isSubmitting = form.formState.isSubmitting
 
   return (
     <Dialog open={isOpen} modal={true}>
-      <DialogContent 
-        className="sm:max-w-md mx-4" 
-        aria-describedby="profile-dialog-description" 
+      <DialogContent
+        className={MODAL_CONTENT_CLASSES}
+        aria-describedby="profile-dialog-description"
         hideCloseButton={true}
-        onInteractOutside={(e) => e.preventDefault()} 
+        onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl font-semibold">
+        {/* Header */}
+        <div className="shrink-0 space-y-1 border-b border-gray-200 px-6 py-4">
+          <DialogTitle className="flex items-center gap-1.5 text-xl font-semibold">
             <User className="h-6 w-6 text-blue-600" />
             Bienvenue !
           </DialogTitle>
           <DialogDescription id="profile-dialog-description" className="text-gray-600">
-            Pour terminer la configuration de votre compte, veuillez entrer votre prénom et votre nom.
+            Pour terminer la configuration de votre compte, veuillez entrer votre prénom et votre
+            nom.
           </DialogDescription>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Prénom */}
-          <div className="space-y-2">
-            <Label htmlFor="firstName" className="text-sm font-medium">
-              Prénom *
-            </Label>
-            <Input
-              id="firstName"
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="Votre prénom"
-              disabled={isSubmitting}
-              className={firstNameInputClasses}
-            />
-            {errors.firstName && (
-              <p className="text-sm text-red-600">{errors.firstName}</p>
-            )}
-          </div>
-
-          {/* Nom */}
-          <div className="space-y-2">
-            <Label htmlFor="lastName" className="text-sm font-medium">
-              Nom *
-            </Label>
-            <Input
-              id="lastName"
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              placeholder="Votre nom de famille"
-              disabled={isSubmitting}
-              className={lastNameInputClasses}
-            />
-            {errors.lastName && (
-              <p className="text-sm text-red-600">{errors.lastName}</p>
-            )}
-          </div>
-
-          {/* Erreur générale */}
-          {errors.general && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-700">{errors.general}</p>
+        <form
+          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
+          className="flex min-h-0 flex-auto flex-col overflow-hidden"
+          noValidate
+        >
+          <div className="min-h-0 flex-auto space-y-3 overflow-y-auto px-6 py-4">
+            {/* Prénom */}
+            <div className="space-y-1.5">
+              <Label htmlFor="firstName" className="text-sm font-medium">
+                Prénom *
+              </Label>
+              <Input
+                id="firstName"
+                type="text"
+                {...form.register('first_name')}
+                placeholder="Votre prénom"
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.first_name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.first_name ? 'first-name-error' : undefined}
+                className={fieldErrors.first_name ? 'border-red-500 focus:ring-red-500' : ''}
+              />
+              {fieldErrors.first_name && (
+                <p id="first-name-error" className="text-sm text-red-600">
+                  {fieldErrors.first_name.message}
+                </p>
+              )}
             </div>
-          )}
+
+            {/* Nom */}
+            <div className="space-y-1.5">
+              <Label htmlFor="lastName" className="text-sm font-medium">
+                Nom *
+              </Label>
+              <Input
+                id="lastName"
+                type="text"
+                {...form.register('last_name')}
+                placeholder="Votre nom de famille"
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.last_name ? 'true' : 'false'}
+                aria-describedby={fieldErrors.last_name ? 'last-name-error' : undefined}
+                className={fieldErrors.last_name ? 'border-red-500 focus:ring-red-500' : ''}
+              />
+              {fieldErrors.last_name && (
+                <p id="last-name-error" className="text-sm text-red-600">
+                  {fieldErrors.last_name.message}
+                </p>
+              )}
+            </div>
+
+            {/* Erreur générale */}
+            {serverError && (
+              <div role="alert" className="rounded-md border border-red-200 bg-red-50 p-3">
+                <p className="text-sm text-red-700">{serverError}</p>
+              </div>
+            )}
+
+            <p className="text-xs text-gray-500">* Champs obligatoires</p>
+          </div>
 
           {/* Bouton de soumission */}
-          <div className="flex justify-end pt-4">
+          <div className="flex shrink-0 justify-end border-t border-gray-200 px-6 py-4">
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              className="w-full bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 sm:w-auto"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   Création en cours...
                 </>
               ) : (
@@ -189,10 +167,6 @@ export default function FirstTimeProfileDialog({
             </Button>
           </div>
         </form>
-
-        <p className="text-xs text-gray-500 mt-4">
-          * Champs obligatoires
-        </p>
       </DialogContent>
     </Dialog>
   )

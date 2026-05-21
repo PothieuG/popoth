@@ -22,9 +22,8 @@ interface BudgetProgressIndicatorProps {
  */
 export default function BudgetProgressIndicator({
   progress,
-  className
+  className,
 }: BudgetProgressIndicatorProps) {
-
   /**
    * Formate un montant en euros avec 2 décimales
    */
@@ -32,7 +31,7 @@ export default function BudgetProgressIndicator({
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 2,
     }).format(amount)
   }
 
@@ -56,35 +55,33 @@ export default function BudgetProgressIndicator({
   const textColorClass = getBudgetTextColor()
 
   return (
-    <div className={cn('flex flex-col w-full', className)}>
+    <div className={cn('flex w-full flex-col', className)}>
       {/* Montant dépensé/total sur toute la largeur */}
-      <div className="text-base font-black leading-tight flex items-center mb-2 w-full">
-        <span className={cn(
-          'font-black mr-1',
-          textColorClass
-        )}>
+      <div className="mb-1.5 flex w-full items-center text-base leading-tight font-black">
+        <span className={cn('mr-1 font-black', textColorClass)}>
           {formatAmount(progress.spentAmount).split(' ')[0]}
         </span>
-        <span className="text-gray-600 font-black">
-          {formatAmount(progress.spentAmount).split(' ')[1]} / {formatAmount(progress.estimatedAmount)}
+        <span className="font-black text-gray-600">
+          {formatAmount(progress.spentAmount).split(' ')[1]} /{' '}
+          {formatAmount(progress.estimatedAmount)}
         </span>
       </div>
 
       {/* Ligne du bas : pourcentage et budget/eco avec espace */}
-      <div className="flex items-stretch w-full flex-1">
+      <div className="flex w-full flex-1 items-stretch">
         {/* Pourcentage avec code couleur - prend toute la hauteur restante */}
-        <div className={cn(
-          'text-lg font-bold leading-tight flex items-center mr-3',
-          textColorClass
-        )}>
+        <div
+          className={cn('mr-2 flex items-center text-lg leading-tight font-bold', textColorClass)}
+        >
           {Math.round(progress.percentage)}%
         </div>
 
         {/* Nom du budget et économies - alignés à gauche */}
-        <div className="flex-1 flex flex-col justify-center">
-          <h5 className="font-medium text-gray-900 text-sm text-left">{progress.budgetName}</h5>
-          <div className="text-xs font-medium text-purple-600 text-left">
-            Economies: <span className="font-bold text-purple-800">{formatAmount(progress.savings)}</span>
+        <div className="flex flex-1 flex-col justify-center">
+          <h5 className="text-left text-sm font-medium text-gray-900">{progress.budgetName}</h5>
+          <div className="text-left text-xs font-medium text-purple-600">
+            Economies:{' '}
+            <span className="font-bold text-purple-800">{formatAmount(progress.savings)}</span>
           </div>
         </div>
       </div>

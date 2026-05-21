@@ -69,11 +69,20 @@ lerna-debug.log*
 # Local env files
 .env*.local
 
+# Claude Code local settings — machine-specific allow rules.
+# Has historically embedded secret values (SUPABASE_ACCESS_TOKEN /
+# SUPABASE_DB_PASSWORD) when the user approved a Bash invocation
+# containing them inline. Untracked to prevent secret leakage.
+.claude/settings.local.json
+
 # Supabase
 .supabase/
 
 # IDEs and editors
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo

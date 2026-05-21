@@ -1,32 +1,76 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
+import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
-import { calculateUserContribution, formatCurrency, formatPercentage } from '@/lib/contribution-calculator'
+import {
+  calculateUserContribution,
+  formatCurrency,
+  formatPercentage,
+} from '@/lib/contribution-calculator'
+import { logger } from '@/lib/logger'
 import AvatarUpload from '@/components/ui/AvatarUpload'
+import type { ProfileData } from '@/app/api/profile/route'
 
 interface ProfileSettingsCardProps {
   className?: string
 }
 
 /**
- * Component for managing user profile settings including personal information and salary
+ * Outer wrapper: fetches the profile and gates the form on a non-null
+ * profile, so the inner form can lazy-init its useState from `profile.*`
+ * without a sync effect. The `key={profile.id}` remounts the form if the
+ * underlying profile identity changes (e.g. account swap).
  */
 export default function ProfileSettingsCard({ className }: ProfileSettingsCardProps) {
-  const { profile, isLoading, updateProfile, hasProfile, fetchProfile } = useProfile()
+  const { profile, isLoading, isFetching } = useProfile()
+
+  if (isLoading || isFetching || !profile) {
+    return (
+      <Card className={`p-6 ${className}`}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </Card>
+    )
+  }
+
+  return <ProfileSettingsForm key={profile.id} profile={profile} className={className} />
+}
+
+interface ProfileSettingsFormProps {
+  profile: ProfileData
+  className?: string
+}
+
+/**
+ * Inner form: receives a non-null profile prop and lazy-inits the form
+ * fields from it. Remounts cleanly via `key={profile.id}` if the outer
+ * swaps profile identity.
+ */
+function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
+  const { updateProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
-  const { contributions, fetchContributions } = useGroupContributions()
-  
-  // Form state
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [salary, setSalary] = useState('')
+  const { contributions } = useGroupContributions()
+
+  // Form state — lazy init from the (non-null) profile prop. The outer
+  // gates rendering until profile is loaded, so the legacy sync effect
+  // (and its eslint-disable) is no longer needed.
+  const [firstName, setFirstName] = useState(() => profile.first_name || '')
+  const [lastName, setLastName] = useState(() => profile.last_name || '')
+  const [salary, setSalary] = useState(() => (profile.salary ? profile.salary.toString() : ''))
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -35,22 +79,6 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
     message: string
     suggestions: string[]
   } | null>(null)
-
-  // Initialize form with profile data
-  useEffect(() => {
-    if (profile) {
-      setFirstName(profile.first_name || '')
-      setLastName(profile.last_name || '')
-      setSalary(profile.salary ? profile.salary.toString() : '')
-    }
-  }, [profile])
-
-  // Load contributions when component mounts and user has a group
-  useEffect(() => {
-    if (hasGroup && currentGroup) {
-      fetchContributions()
-    }
-  }, [hasGroup, currentGroup, fetchContributions])
 
   /**
    * Validates salary against potential contribution
@@ -70,23 +98,23 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
 
     // Get other group members' salaries (excluding current user)
     const otherMembers = contributions
-      .filter(contrib => contrib.profile_id !== profile?.id)
-      .map(contrib => ({
+      .filter((contrib) => contrib.profile_id !== profile.id)
+      .map((contrib) => ({
         id: contrib.profile_id,
-        salary: contrib.salary
+        salary: contrib.salary,
       }))
 
     // Calculate what the contribution would be
     const calculation = calculateUserContribution(
       salaryNum,
       currentGroup.monthly_budget_estimate,
-      otherMembers
+      otherMembers,
     )
 
     if (!calculation.isValid && calculation.errorMessage && calculation.suggestions) {
       setContributionWarning({
         message: calculation.errorMessage,
-        suggestions: calculation.suggestions
+        suggestions: calculation.suggestions,
       })
     }
   }
@@ -134,20 +162,16 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
   const handleAvatarUpdate = async (avatarUrl: string | null) => {
     try {
       const updates = {
-        avatar_url: avatarUrl
+        avatar_url: avatarUrl,
       }
 
       const success = await updateProfile(updates)
       if (success) {
-        setSuccessMessage('Photo de profil mise à jour avec succès')
-
-        // Force page refresh after a short delay to show success message
-        setTimeout(() => {
-          window.location.reload()
-        }, 1000)
+        setSuccessMessage('Photo de profil mise à jour')
+        setTimeout(() => setSuccessMessage(''), 3000)
       }
     } catch (error) {
-      console.error('Error updating avatar:', error)
+      logger.error('Error updating avatar:', error)
       throw error
     }
   }
@@ -167,7 +191,7 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       const updates = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        salary: salary.trim() ? parseFloat(salary) : 0
+        salary: salary.trim() ? parseFloat(salary) : 0,
       }
 
       const success = await updateProfile(updates)
@@ -179,21 +203,19 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
         setTimeout(() => setSuccessMessage(''), 3000)
       }
     } catch (error) {
-      console.error('Error saving profile:', error)
+      logger.error('Error saving profile:', error)
     } finally {
       setIsSaving(false)
     }
   }
 
   /**
-   * Handles edit cancellation
+   * Handles edit cancellation — revert form to current profile values.
    */
   const handleCancel = () => {
-    if (profile) {
-      setFirstName(profile.first_name || '')
-      setLastName(profile.last_name || '')
-      setSalary(profile.salary ? profile.salary.toString() : '')
-    }
+    setFirstName(profile.first_name || '')
+    setLastName(profile.last_name || '')
+    setSalary(profile.salary ? profile.salary.toString() : '')
     setIsEditing(false)
     setErrors({})
     setSuccessMessage('')
@@ -217,229 +239,229 @@ export default function ProfileSettingsCard({ className }: ProfileSettingsCardPr
       style: 'currency',
       currency: 'EUR',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
+      maximumFractionDigits: 0,
     }).format(amount)
   }
 
-  if (isLoading || !hasProfile) {
-    return (
-      <Card className={`p-6 ${className}`}>
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded mb-4"></div>
-          <div className="space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </div>
-      </Card>
+  // Pre-compute contribution display (single source of truth for view-mode dl row)
+  const contributionDisplay = (() => {
+    if (!hasGroup || !currentGroup || !profile.salary || profile.salary <= 0) return null
+    const otherMembers = contributions
+      .filter((c) => c.profile_id !== profile.id)
+      .map((c) => ({ id: c.profile_id, salary: c.salary }))
+    const calc = calculateUserContribution(
+      profile.salary,
+      currentGroup.monthly_budget_estimate,
+      otherMembers,
     )
-  }
+    return {
+      amount: calc.userContribution,
+      percentOfSalary: calc.userPercentage,
+      percentOfBudget:
+        currentGroup.monthly_budget_estimate > 0
+          ? (calc.userContribution / currentGroup.monthly_budget_estimate) * 100
+          : 0,
+    }
+  })()
+
+  const hasSalary = profile.salary !== null && profile.salary > 0
 
   return (
     <Card className={`p-6 ${className}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Mon profil</h2>
-        {!isEditing && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditing(true)}
-            disabled={isSaving}
-          >
-            Modifier
-          </Button>
-        )}
-      </div>
-
-      {/* Success Message */}
+      {/* Snackbar — fixed bottom, slide-in, auto-dismiss 3s. z-[60] passe au-dessus du drawer (z-50). */}
       {successMessage && (
-        <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded">
+        <div
+          role="status"
+          aria-live="polite"
+          className="animate-in slide-in-from-bottom-4 fade-in fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg duration-300"
+        >
           {successMessage}
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* Avatar Upload Section */}
-        <div className="border-b border-gray-200 pb-6">
-          <h3 className="text-sm font-medium text-gray-700 mb-4">Photo de profil</h3>
-          <AvatarUpload
-            profile={profile}
-            onAvatarUpdate={handleAvatarUpdate}
-            isUpdating={isSaving}
-            className="mx-auto"
-          />
-        </div>
+      {/* Avatar block — compact inline (smaller avatar + text-link actions à côté) */}
+      <AvatarUpload
+        profile={profile}
+        onAvatarUpdate={handleAvatarUpdate}
+        isUpdating={isSaving}
+        size="md"
+        variant="inline"
+      />
 
-        {/* First Name */}
-        <div>
-          <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
-            Prénom
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <Input
-                id="firstName"
-                type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Votre prénom"
-                className={errors.firstName ? 'border-red-300 focus:border-red-500' : ''}
-              />
-              {errors.firstName && (
-                <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
-              )}
+      {/* Divider subtil entre avatar et infos */}
+      <div className="my-3 border-t border-gray-200" />
+
+      {!isEditing ? (
+        /* View mode — sous-titre + bouton Modifier inline, suivi des rows flat */
+        <>
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">Informations</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditing(true)}
+              disabled={isSaving}
+            >
+              Modifier
+            </Button>
+          </div>
+
+          <dl className="text-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">Prénom</dt>
+              <dd className="font-medium text-gray-900">
+                {profile.first_name || <span className="text-gray-400">Non défini</span>}
+              </dd>
             </div>
-          ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile?.first_name || 'Non défini'}</p>
-          )}
-        </div>
-
-        {/* Last Name */}
-        <div>
-          <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
-            Nom
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <Input
-                id="lastName"
-                type="text"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Votre nom"
-                className={errors.lastName ? 'border-red-300 focus:border-red-500' : ''}
-              />
-              {errors.lastName && (
-                <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
-              )}
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">Nom</dt>
+              <dd className="font-medium text-gray-900">
+                {profile.last_name || <span className="text-gray-400">Non défini</span>}
+              </dd>
             </div>
-          ) : (
-            <p className="mt-1 text-sm text-gray-900">{profile?.last_name || 'Non défini'}</p>
-          )}
-        </div>
-
-        {/* Salary */}
-        <div>
-          <Label htmlFor="salary" className="text-sm font-medium text-gray-700">
-            Salaire mensuel <span className="text-red-500">*</span>
-          </Label>
-          {isEditing ? (
-            <div className="mt-1">
-              <div className="relative">
-                <Input
-                  id="salary"
-                  type="number"
-                  min="0"
-                  max="999999.99"
-                  step="0.01"
-                  value={salary}
-                  onChange={(e) => handleSalaryChange(e.target.value)}
-                  placeholder="Ex: 2500"
-                  className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
-                />
-                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                  €
-                </span>
+            <div className="flex items-center justify-between border-b border-gray-100 py-2">
+              <dt className="text-gray-600">
+                Salaire mensuel <span className="text-red-500">*</span>
+              </dt>
+              <dd className={hasSalary ? 'font-medium text-gray-900' : 'font-medium text-red-600'}>
+                {hasSalary && profile.salary !== null ? formatSalary(profile.salary) : 'Non défini'}
+              </dd>
+            </div>
+            {contributionDisplay && (
+              <div className="flex items-start justify-between py-2">
+                <dt className="pt-0.5 text-gray-600">Contribution</dt>
+                <dd className="text-right">
+                  <div className="font-semibold text-blue-700">
+                    {formatCurrency(contributionDisplay.amount)}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatPercentage(contributionDisplay.percentOfSalary)} salaire ·{' '}
+                    {formatPercentage(contributionDisplay.percentOfBudget)} budget
+                  </div>
+                </dd>
               </div>
-              {errors.salary && (
-                <p className="mt-1 text-sm text-red-600">{errors.salary}</p>
-              )}
-              
-              {/* Contribution Warning */}
-              {contributionWarning && !errors.salary && (
-                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                  <div className="flex items-start">
-                    <svg className="w-5 h-5 text-red-400 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-red-800 mb-2">
-                        {contributionWarning.message}
-                      </p>
-                      <div className="text-xs text-red-700">
-                        <p className="font-medium mb-1">Solutions possibles :</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          {contributionWarning.suggestions.map((suggestion, index) => (
-                            <li key={index}>{suggestion}</li>
-                          ))}
-                        </ul>
-                      </div>
+            )}
+          </dl>
+
+          {!hasSalary && (
+            <p className="mt-1.5 text-xs text-gray-500">
+              <span className="text-red-500">*</span> Requis pour calculer votre contribution au
+              groupe
+            </p>
+          )}
+        </>
+      ) : (
+        /* Edit mode — grid horizontal (label gauche, input droite) pour matcher le <dl> view-mode */
+        <>
+          <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+            <Label htmlFor="firstName" className="text-sm text-gray-600">
+              Prénom
+            </Label>
+            <Input
+              id="firstName"
+              type="text"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="Votre prénom"
+              className={errors.firstName ? 'border-red-300 focus:border-red-500' : ''}
+            />
+            {errors.firstName && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.firstName}</p>
+            )}
+
+            <Label htmlFor="lastName" className="text-sm text-gray-600">
+              Nom
+            </Label>
+            <Input
+              id="lastName"
+              type="text"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              placeholder="Votre nom"
+              className={errors.lastName ? 'border-red-300 focus:border-red-500' : ''}
+            />
+            {errors.lastName && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.lastName}</p>
+            )}
+
+            <Label htmlFor="salary" className="text-sm text-gray-600">
+              Salaire <span className="text-red-500">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="salary"
+                type="number"
+                min="0"
+                max="999999.99"
+                step="0.01"
+                value={salary}
+                onChange={(e) => handleSalaryChange(e.target.value)}
+                placeholder="Ex: 2500"
+                className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
+              />
+              <span className="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm text-gray-500">
+                €
+              </span>
+            </div>
+            {errors.salary && (
+              <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.salary}</p>
+            )}
+
+            {/* Contribution Warning — span both columns */}
+            {contributionWarning && !errors.salary && (
+              <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-3">
+                <div className="flex items-start">
+                  <svg
+                    className="mt-0.5 mr-1.5 h-5 w-5 shrink-0 text-red-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <div className="flex-1">
+                    <p className="mb-1.5 text-sm font-medium text-red-800">
+                      {contributionWarning.message}
+                    </p>
+                    <div className="text-xs text-red-700">
+                      <p className="mb-1 font-medium">Solutions possibles :</p>
+                      <ul className="list-inside list-disc space-y-1">
+                        {contributionWarning.suggestions.map((suggestion, index) => (
+                          <li key={index}>{suggestion}</li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
 
-              <p className="mt-1 text-xs text-gray-500">
-                <span className="text-red-500">*</span> Requis pour calculer votre contribution au budget du groupe
-              </p>
-            </div>
-          ) : (
-            <div className="mt-1 space-y-2">
-              <p className="text-sm text-gray-900">
-                {profile?.salary && profile.salary > 0 
-                  ? formatSalary(profile.salary) 
-                  : <span className="text-red-600">Non défini (requis)</span>
-                }
-              </p>
-              
-              {/* Display contribution if user has a group and salary */}
-              {hasGroup && currentGroup && profile?.salary && profile.salary > 0 && (
-                <div className="bg-blue-50 p-2 rounded-md">
-                  <p className="text-xs text-blue-700 font-medium mb-1">Votre contribution au groupe :</p>
-                  {(() => {
-                    const otherMembers = contributions
-                      .filter(contrib => contrib.profile_id !== profile?.id)
-                      .map(contrib => ({ id: contrib.profile_id, salary: contrib.salary }))
-                    
-                    const calculation = calculateUserContribution(
-                      profile.salary,
-                      currentGroup.monthly_budget_estimate,
-                      otherMembers
-                    )
-                    
-                    return (
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-semibold text-blue-800">
-                          {formatCurrency(calculation.userContribution)}
-                        </span>
-                        <span className="text-xs text-blue-600">
-                          ({formatPercentage(calculation.userPercentage)} de votre salaire, {formatPercentage((calculation.userContribution / currentGroup.monthly_budget_estimate) * 100)} du budget)
-                        </span>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
-              
-              {profile?.salary && profile.salary > 0 && (
-                <p className="text-xs text-gray-500">
-                  <span className="text-red-500">*</span> Utilisé pour le calcul des contributions
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+            <p className="col-start-2 text-xs text-gray-500">
+              <span className="text-red-500">*</span> Requis pour la contribution au groupe
+            </p>
+          </div>
 
-        {/* Action Buttons */}
-        {isEditing && (
-          <div className="flex space-x-3 pt-4 border-t border-gray-200">
+          {/* Action Buttons */}
+          <div className="mt-3 flex gap-1.5">
             <Button
               onClick={handleSave}
               disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
+              {isSaving && <InlineSpinner className="mr-1.5" />}
               {isSaving ? 'Enregistrement...' : 'Enregistrer'}
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              disabled={isSaving}
-            >
+            <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
               Annuler
             </Button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </Card>
   )
 }
