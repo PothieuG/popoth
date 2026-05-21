@@ -169,3 +169,46 @@
   - Pour tout composant qui affiche un breakdown financier avec encart "après opération", extraire les primitives (`EntityLabel`, `BalanceRow`, `BudgetRecapRow`, `AfterOperationPanel`) dans un module partagé. Ne pas dupliquer les classes CSS d'entity colors / format helpers — la moindre désync UX devient un bug visuel difficile à diagnostiquer.
   - Pour les modales de confirmation d'une mutation, REUTILISER l'encart de post-state au lieu de réinventer une explication textuelle. Le user mental model "qu'est-ce qui change" est mieux servi par "voilà l'état après" que par "voilà ce qui sera recrédité".
   - Pour les toggles UI qui matérialisent une décision algorithmique du back-end, vérifier régulièrement si l'user a une préférence claire (e.g., 80% des cas utilisent telle option). Si oui, retirer le toggle et hardcoder la préférence en default. Reduce cognitive load.
+
+- ✅ **Sprint Recap-Compact-And-Uniform** (livré 2026-05-22, déclenché par "Dans la modal de suppression, fais en sorte que l'encart soit un peu plus discret et petit, et aligne le text verticalement à gauche, là ils sont en plein milieu." + "Uniformise les styles des encarts pour les modals d'ajout de budget, de revenus etc... Partout où il y a un recap j'aimerais que tu uniformises le style avec ce qu'on a fait pour les ajout/modification de dépense.").
+
+  **(1) `AfterOperationPanel` compact mode + text-left** ([components/dashboard/recap-rows.tsx](../../components/dashboard/recap-rows.tsx)) : ajout d'un prop `compact?: boolean` qui réduit le padding (`p-3` au lieu de `p-4`) ET masque le divider header "APRÈS OPÉRATION" (redondant dans le contexte d'une modal de confirmation). Ajout de `text-left` constant sur le root — fix le bug "labels centrés" dans `<ConfirmationDialog>` (qui propage `text-center` à tous ses enfants via le `<div className="p-6 text-center sm:p-6">` wrapper). Le `text-left` sur le panel coupe l'héritage CSS et restaure l'alignement gauche attendu. Les 4 invocations de `<AfterOperationPanel>` dans `TransactionListItem` reçoivent `compact={true}` ; les 0 autres consumers (ExpenseBreakdownPreview garde son rendu sans wrapper `AfterOperationPanel` — son inline équivalent reste full padding).
+
+  **(2) Uniformisation des recaps budget/revenu** : 4 modals refondus pour adopter le panel bleu uniforme (`border-blue-200 bg-blue-50/50 p-4 space-y-3`) avec header texte + section input rows + divider "RÉSULTAT" + ligne result bold, en miroir d'`<ExpenseBreakdownPreview>` :
+  - [components/dashboard/AddBudgetDialog.tsx](../../components/dashboard/AddBudgetDialog.tsx) : ancien panel orange/rouge conditionnel (`border-orange-200 bg-orange-50` ou `border-red-200 bg-red-50` si overflow) remplacé par bleu uniforme. La signalétique d'overflow se concentre maintenant sur la couleur du chiffre "Balance résultante" (red-600 si négatif, gray-900 sinon).
+  - [components/dashboard/EditBudgetDialog.tsx](../../components/dashboard/EditBudgetDialog.tsx) : panel orange (`border-orange-200 bg-orange-50`) → bleu uniforme. Ajout d'un header "Aperçu :" (absent avant) + divider "RÉSULTAT" + chiffres en noir (avant : "Ce budget" en orange-700, "Reste disponible" en green-700/red-700).
+  - [components/dashboard/AddIncomeDialog.tsx](../../components/dashboard/AddIncomeDialog.tsx) : panel vert (`border-green-200 bg-green-50`) → bleu uniforme. Header "Calcul des revenus totaux :" conservé sémantiquement. Chiffres en noir (avant : tous en green-700).
+  - [components/dashboard/EditIncomeDialog.tsx](../../components/dashboard/EditIncomeDialog.tsx) : panel vert → bleu uniforme. Header "Aperçu :" ajouté. Chiffres en noir.
+
+  **(3) `RemainingToLivePreview` refondu sur recap-rows** ([components/dashboard/RemainingToLivePreview.tsx](../../components/dashboard/RemainingToLivePreview.tsx)) : drop du helper `getColorClass` custom (vert/rouge/gray par signe). Structure remplacée par :
+  - Header "Impact sur le reste à vivre :" (inchangé)
+  - Section IMPACT (si `change !== 0`) : `<ImpactRow label={<EntityLabel type="rav" />} amount={change} />` — montant signé +X vert / -X rouge via les primitives.
+  - Divider "APRÈS OPÉRATION" (toujours visible — pas compact mode, c'est dans la preview, pas dans une modal de confirmation).
+  - Section AFTER : `<BalanceRow label={<EntityLabel type="rav" />} amount={newRemainingToLive} />` — RAV final en noir.
+  - Caption explicative conservée (Dépense exceptionnelle / Dépassement de budget / etc.).
+
+  Dropped : la ligne "Actuel :" (l'utilisateur voit déjà le RAV courant sur le dashboard) et la ligne "Déficit total :" (redondante avec la caption "Déficit par rapport à l'estimation").
+
+  **Tests** : les 11 tests RTL `TransactionListItem.test.tsx` mis à jour pour ne plus assert sur `getByText('Après opération')` dans le panel compact (le header est masqué). Les 3 tests négatifs (cas "no panel rendered") basculent l'assertion sur `queryByText('Reste à vivre')` pour distinguer le compact-no-header du panel-absent. Les autres tests (assertions sur entity colors, balances) sont inchangés.
+
+  **Files livrés** :
+  - **Modifiés UI** (5) : `components/dashboard/recap-rows.tsx` (compact mode + text-left), `components/dashboard/RemainingToLivePreview.tsx` (refonte sur recap-rows), `components/dashboard/AddBudgetDialog.tsx`, `components/dashboard/EditBudgetDialog.tsx`, `components/dashboard/AddIncomeDialog.tsx`, `components/dashboard/EditIncomeDialog.tsx` (panel uniforme bleu).
+  - **Modifié TransactionListItem** : 4 invocations `<AfterOperationPanel>` → `<AfterOperationPanel compact>`.
+  - **Modifiés tests** (1) : `components/dashboard/__tests__/TransactionListItem.test.tsx` (assertions mises à jour pour le panel compact).
+  - **Modifiés conventions** (4) : `CLAUDE.md` §11, `.claude/conventions/operational-rules-ui-modals.md` (+1 règle ❌ uniformisation), `.claude/conventions/operational-rules.md` (+1 row §6 chronologie), `.claude/guardrails/size-policy.md` (inventaire).
+
+  **Vérification end-to-end** :
+  - `pnpm typecheck` exit 0
+  - `pnpm lint:check` 0 errors / 0 warnings
+  - `pnpm format:check` exit 0
+  - `pnpm test:run` **513 passed / 98 skipped** (baseline stable)
+
+  **Trade-off / leçons apprises** :
+  - Le `text-center` du `<ConfirmationDialog>` était un piège silencieux — propagation CSS à TOUTES les balises inline-content dans son subtree. La solution `text-left` sur le panel coupe l'héritage local sans toucher au dialog parent (les autres textes du dialog restent centrés : title, message, icon). Pattern à généraliser pour tout composant partagé qui peut atterrir dans un parent avec `text-center` : forcer l'alignement souhaité sur sa propre root.
+  - Le mode `compact` est un binary switch, pas un thème complexe. Aurait pu être 2 composants (`<AfterOperationPanel>` + `<CompactAfterOperationPanel>`) mais le prop boolean évite la duplication. Si plus de variants surgissent (e.g., `large`, `inline`), on pivotera vers un union type `variant: 'default' | 'compact' | ...`.
+  - L'uniformisation des 4 modals budget/revenu était purement cosmétique (la logique de calcul reste identique), mais a permis de DROP des couleurs sémantiques implicites (orange = budget, green = revenu, red = overflow) au profit d'une signalétique localisée (couleur sur le seul chiffre RESULT). Plus discret, moins d'agression visuelle quand l'utilisateur tape juste un montant.
+  - L'asymétrie `compact={true}` (delete confirmation) vs default full panel (preview ADD/EDIT) reflète l'usage : un dialog de confirmation a déjà un title + message qui rendent le header "Après opération" redondant ; une preview inline dans un form bénéficie du label de section pour structurer l'attention. Pattern à retenir : compact pour les contextes verbaux pré-existants, full pour les contextes auto-portants.
+
+  **Pattern à retenir** :
+  - Pour tout composant partageable qui pourrait être rendu dans un parent avec `text-align: center` (ConfirmationDialog, certains modals, etc.) : forcer `text-left` sur la root du composant pour couper l'héritage et garantir l'alignement intended.
+  - Pour tout encart financier "avant/après" dans une modal d'ajout/modification, uniformiser sur le panel bleu (`border-blue-200 bg-blue-50/50 p-4 space-y-3`) avec header texte sémantique + section input rows + divider "RÉSULTAT" + ligne result bold (couleur sémantique uniquement sur la ligne result). Drop les thèmes orange/vert/rouge sur le container.
