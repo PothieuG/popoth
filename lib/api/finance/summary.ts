@@ -1,72 +1,43 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import {
-  getProfileFinancialData,
-  getGroupFinancialData,
-  getRavFromDatabase,
-  type FinancialData,
-} from '@/lib/finance'
+import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { summaryQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 /**
- * API Dashboard Financier
- * Returns financial data for the authenticated user
- * - RAV is retrieved from database (persisted value)
- * - Other metrics are calculated in real-time
- * - Supports both profile and group contexts
- * - Query param 'recalculate=true' forces full recalculation and saves to DB
+ * API Dashboard Financier — returns financial data for the authenticated user.
+ *
+ * Always recomputes RAV via `_loadFinancialData` (which also persists the
+ * fresh value to `bank_balances.current_remaining_to_live` as side-effect).
+ * The previous "read persisted RAV + override" pattern caused an off-by-one
+ * stale cache: the read happened BEFORE the recompute call, so the API
+ * returned the value from the previous request. After creating a budgeted
+ * expense, the user had to manually refresh to see the deficit propagate.
+ *
+ * `recalculate` query param is now a no-op (always recalculates); preserved
+ * for backward compat with existing callers that may still pass it.
  */
 
 export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
   try {
-    const { context: forceContext, recalculate: shouldRecalculate } = parseQuery(
-      request,
-      summaryQuerySchema,
-    )
+    const { context: forceContext } = parseQuery(request, summaryQuerySchema)
 
     // Déterminer le contexte à utiliser
     let context: 'profile' | 'group'
-    let contextId: string
 
     if (forceContext === 'group' && profile.group_id) {
-      // Contexte groupe demandé et utilisateur fait partie d'un groupe
       context = 'group'
-      contextId = profile.group_id
     } else {
-      // Contexte profil par défaut
       context = 'profile'
-      contextId = userId
     }
 
     let financialData: FinancialData
-
-    // If recalculate is requested, do a full calculation (which will also save to DB)
-    if (shouldRecalculate) {
-      if (context === 'group') {
-        financialData = await getGroupFinancialData(profile.group_id!)
-      } else {
-        financialData = await getProfileFinancialData(userId)
-      }
+    if (context === 'group') {
+      financialData = await getGroupFinancialData(profile.group_id!)
     } else {
-      // Default behavior: retrieve RAV from database, calculate other metrics in real-time
-      // Get the persisted RAV from database
-      const persistedRav = await getRavFromDatabase(
-        context === 'profile' ? contextId : null,
-        context === 'group' ? contextId : null,
-      )
-
-      // Calculate other metrics in real-time (without recalculating RAV)
-      if (context === 'group') {
-        financialData = await getGroupFinancialData(profile.group_id!)
-      } else {
-        financialData = await getProfileFinancialData(userId)
-      }
-
-      // Override the calculated RAV with the persisted one from DB
-      financialData.remainingToLive = persistedRav
+      financialData = await getProfileFinancialData(userId)
     }
 
     return NextResponse.json({
