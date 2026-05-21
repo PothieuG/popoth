@@ -112,7 +112,6 @@
   **Constat pré-sprint** : l'app PWA mobile-first cible viewport ≤ 430 px (CLAUDE.md §6). Sur Fairphone 6 (412×916 CSS px, DPR 2.625), Roboto rendu par Android paraît visuellement plus dense que SF sur iOS — couplé à `text-lg` (18 px) sur amounts/titres, `p-4` (16 px) sur transaction cards, `p-3` (12 px) sur BottomNav, l'effet cumulé fait "trop gros". Mesure foundation : `app/globals.css` `@theme {}` ne déclare aucun override `--spacing` / `--text-*`, `<html>/<body>` n'a aucune `font-size` set → fallback navigateur 16 px. **Zero `text-[Npx]` arbitraire** dans le code — 100 % rem-based via classes Tailwind utility. Foundation **rem-anchored idéal** pour un single-point-of-truth scale.
 
   **(1) Root font-size shift** ([app/globals.css](../../app/globals.css) lignes 122-138) : ajout dans le `@layer base` existant de `:root { font-size: 15.5px }` (au lieu du 16 px par défaut). Tous les utilitaires Tailwind rem-based (`text-*`, `p-*`, `m-*`, `gap-*`, `h-*`, `w-*`, `space-*`) shrinkent proportionnellement de ~3 % :
-
   - text-base : 16 px → 15.5 px ; text-lg : 18 px → 17.4 px ; text-xs : 12 px → 11.6 px ; text-2xl : 24 px → 23.3 px
   - p-3 / p-4 : 12 / 16 px → 11.6 / 15.5 px ; gap-2 / gap-4 : 8 / 16 px → 7.75 / 15.5 px
   - bouton h-9 : 36 px → 34.9 px (touch target borderline, compensé par padding parent `p-3`/`p-4` qui donne une touch-zone effective ≥ 44 px)
@@ -121,23 +120,20 @@
 
   **(2) iOS Safari zoom guard** ([app/globals.css](../../app/globals.css)) : ajout `input, textarea, select { font-size: 16px }`. Sans cette garde, iOS Safari zoome automatiquement au focus quand un input a `font-size` computed < 16 px (accessibilité spec WebKit délibérée). Notre `text-base` passe à 15.5 px après le root shift → la garde force les form controls à 16 px (element-selector, gagne en specificity-tie contre les classes Tailwind utility de même couche). Pattern à généraliser à toute future règle qui shift le root font-size.
 
-  **(3) Drive-by fix : eslint `scripts/**` no-console:off** ([eslint.config.mjs](../../eslint.config.mjs)) : ajout d'un glob override `files: ['scripts/**/*.mjs'], rules: { 'no-console': 'off' }`. Latent introduit par le commit `04a96c7 chore(claude): add md-size enforcement gate + bump cap to 39.5k` : `scripts/check-md-size.mjs:105` utilisait `console.log` pour la sortie `--verbose` mais le rule global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cleanup-I8 / Lot 6, 2026-05-14) le bloquait. Le pre-push hook `pnpm lint:check && pnpm typecheck` fired sur le retry de push, raison root : `pnpm verify` (CLAUDE.md §3 sanity sweep) n'inclut PAS `lint:check`, donc le latent est passé sous le radar local du commit `04a96c7`. CLI scripts (apply-sql, export-schema, check-md-size, check-rpcs, check-drift, etc.) écrivent légitimement sur stdout — la rule globale cible app code (Vercel capture stdout en prod = log pollution), pas dev tooling local.
+  **(3) Drive-by fix : eslint `scripts/**`no-console:off** ([eslint.config.mjs](../../eslint.config.mjs)) : ajout d'un glob override`files: ['scripts/**/*.mjs'], rules: { 'no-console': 'off' }`. Latent introduit par le commit `04a96c7 chore(claude): add md-size enforcement gate + bump cap to 39.5k`:`scripts/check-md-size.mjs:105`utilisait`console.log`pour la sortie`--verbose`mais le rule global`'no-console': ['error', { allow: ['warn', 'error'] }]`(Sprint Cleanup-I8 / Lot 6, 2026-05-14) le bloquait. Le pre-push hook`pnpm lint:check && pnpm typecheck`fired sur le retry de push, raison root :`pnpm verify`(CLAUDE.md §3 sanity sweep) n'inclut PAS`lint:check`, donc le latent est passé sous le radar local du commit `04a96c7`. CLI scripts (apply-sql, export-schema, check-md-size, check-rpcs, check-drift, etc.) écrivent légitimement sur stdout — la rule globale cible app code (Vercel capture stdout en prod = log pollution), pas dev tooling local.
 
   **Files livrés** :
-
   - **Modifiés source** (2) : `app/globals.css` (+13 LOC : `:root { font-size: 15.5px }` + `input,textarea,select { font-size: 16px }` + 2 comments WHY), `eslint.config.mjs` (+6 LOC : nouveau bloc glob override `scripts/**/*.mjs` `no-console: off`).
   - **Modifiés conventions** (4) : `CLAUDE.md` §11 (Part 17 description maj : "(2)" → "(3)" + dernier sprint name Group-Transaction-Creator-Avatar → Mobile-Density-Shrink + "111 sprints" → "113 sprints" alignement avec chronology), `.claude/conventions/operational-rules.md` §5 (+1 subsection "Mobile UI density baseline"), `.claude/history/sprint-chronology.md` (+1 row Sprint Mobile-Density-Shrink + footer "112" → "113"), `.claude/history/roadmap-detailed-17-delete-header-income-polish.md` (ce closeout).
 
   **Vérification end-to-end** :
-
   - `pnpm verify` exit 0 (typecheck + format + tests + 6 db:\* checks) — premier run, avant le push.
-  - `pnpm lint:check` exit 0 post-fix scripts/** override — confirmé manuellement.
+  - `pnpm lint:check` exit 0 post-fix scripts/\*\* override — confirmé manuellement.
   - `git push origin cleanup` après le 2nd commit eslint : pre-push hook (lint:check + typecheck) vert, 6 commits poussés (4 pré-existants `04a96c7..3774347` + 2 nouveaux `5302b38..1b8220e`).
   - Tests stables 513 non-gated / 98 gated skipped.
   - Visual verification : à la charge de l'utilisateur sur son Fairphone 6 (l'ultime juge).
 
   **Trade-off / leçons apprises** :
-
   - **Root font-size shift > override `@theme --spacing` / `--text-*`** : le `--spacing` override seul change layout sans typography (proportions visuelles cassées vs. le request "réduire un peu tout"). Le `--text-*` override seul est verbeux (5-7 lignes à maintenir). Le root font-size shift est **1 ligne** qui propage uniformément à travers TOUS les rem-based utilitaires, y compris les nouveaux ajouts futurs sans maintenance. Reversal en 30 s en commentant 2 déclarations.
   - **Pourquoi 15.5 px et pas 15 px ou 14.5 px** : 15.5 px = -3 % vs default 16 px, "un petit cran" exact comme demandé. Bouton h-9 passe à 34.9 px (acceptable, padding parent ≥ 44 px compense), text-xs reste à 11.6 px (limite mais lisible). À 15 px (-6 %) ou 14.5 px (-10 %), h-9 descend à 33.75 / 32.6 px (sous Material 36 dp), text-xs à 11.25 / 10.9 px (limite lisibilité). Iteration facile sans rollback : éditer juste la valeur 15.5px → 15px et recharger.
   - **iOS Safari zoom is real** : `input/textarea/select { font-size: 16px }` est une garde non-négociable dès qu'on shift le root sous 16 px. Spec WebKit délibérée (accessibilité, éviter que les inputs aient l'air trop petits sur mobile au focus). À vérifier sur device réel iOS si le `DecimalFormInput` ou un autre composant utility-override surcharge le font-size — escalate à `!important` si zoom revient.
@@ -145,8 +141,64 @@
   - **CLI scripts vs app code** : la rule globale `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cleanup-I8 / Lot 6 2026-05-14) est correcte pour app code (Vercel capture stdout en prod = log pollution). Mais les scripts dans `scripts/**/*.mjs` sont du dev tooling local, où `console.log` est la primitive naturelle de communication avec l'utilisateur. Glob override est la bonne séparation de responsabilité.
 
   **Pattern à retenir** :
-
   - Pour tout shift de `root font-size`, ajouter systématiquement une garde `input, textarea, select { font-size: 16px }` pour préserver l'UX iOS Safari.
   - Tailwind 4 CSS-first : ne touche pas aux defaults `--spacing` / `--text-*` du `@theme`. Le root font-size shift propage uniformément sans toucher au système Tailwind.
   - Pour les nouveaux scripts CLI dev tooling (`scripts/*.mjs`), `console.log` est libre. Les app modules (`app/`, `lib/`, `components/`, `hooks/`, `contexts/`) restent gated `no-console: ['error', { allow: ['warn', 'error'] }]`.
   - Penser à `pnpm lint:check` ad-hoc après tout edit substantiel d'un fichier `.mjs` ou de scripts CLI — `pnpm verify` ne le couvre pas.
+
+- ✅ **Sprint Fix-Auth-Flicker-And-Recap-Reentry-Gate** (livré 2026-05-21, déclenché par "J'aimerais qu'il soit impossible d'attérir sur l'écran de login ou un écran du monthly recap quand on appuie sur le retour du navigateur ou si on appuie sur le bouton de retour de notre téléphone. J'ai remarqué qu'en faisant ça, l'écran login peut flikerer. Et comme dit, on ne devrait JAMAIS pouvoir revenir sur l'écran d'un monthly recap déjà terminé.").
+
+  **Constat pré-sprint** : (a) après login, appuyer sur back du navigateur (ou retour Android) provoque un flicker visible de `/connexion` avant que `proxy.ts:117-120` ne redirige vers `/dashboard` — root cause = `router.push('/dashboard')` dans `useLogin` (et `useRequireGuest`) qui laisse `/connexion` dans l'historique navigateur, lequel est servi instantanément par le bfcache mobile Safari/Chrome avant que le middleware n'ait fired ; (b) après avoir terminé un monthly-recap, le user peut y revenir via back (entrée `/monthly-recap` reste dans l'historique car `router.push('/dashboard')` au complete) ou via URL directe / bookmark / refresh F5 (pas de guard server-side sur `/monthly-recap` lui-même — `checkRecapStatus()` retourne `required: !hasExistingRecap` sans distinguer in-progress vs completed).
+
+  **(1) Login : `router.push` → `router.replace`** ([hooks/useAuth.ts](../../hooks/useAuth.ts)) : conversion sur 2 sites — `useRequireGuest` L17 (guard guest-only pages) et `useLogin.handleLogin` L46 (post-login redirect). Le commentaire L47-49 mis à jour ("`router.replace` is non-blocking..."). `useLogoutAndRedirect` L81 reste en `router.push('/connexion')` car suivi immédiat par `handleLogout` → `window.location.href = '/connexion'` ([contexts/AuthContext.tsx:105](../../contexts/AuthContext.tsx)) qui fait un hard reload — l'historique est de toute façon clear pour purger le QueryClient cache. Le middleware déjà existant (`isAuthRoute && session?.userId` → redirect dashboard) reste le filet server-side ; le `router.replace` ferme la fenêtre où le bfcache rendait `/connexion` côté client AVANT que le middleware ne fire.
+
+  **(2) Monthly-recap completion : `router.push` → `router.replace`** ([components/monthly-recap/MonthlyRecapFlow.tsx](../../components/monthly-recap/MonthlyRecapFlow.tsx)) : 2 sites — L52 (error handler "Retour au tableau de bord") et L138 (setTimeout post-complete success après 2s confirmation screen). Le `app/monthly-recap/page.tsx:53` garde son `window.history.pushState` initial + popstate handler (le back in-tab pendant un recap **in-progress** reste bloqué — confirmé par user en clarification AskUserQuestion). Le `router.replace` au complete dégage l'entrée `/monthly-recap` de l'historique au moment où l'utilisateur arrive sur `/dashboard` ou `/group-dashboard`.
+
+  **(3) Extension `RecapStatus.isCompleted`** ([lib/recap/check-status.ts](../../lib/recap/check-status.ts)) : type `RecapStatus` étend d'un champ `isCompleted: boolean`. Le SELECT sur `monthly_recaps` passe de `select('id')` à `select('id, completed_at')`. Dérivation `isCompleted = existingRecap?.completed_at != null` dans les 2 branches profile/group. `hasExistingRecap` reste tel quel — les 2 axes sont orthogonaux (`hasExistingRecap=true && isCompleted=false` = in-progress, l'utilisateur peut revenir ; `hasExistingRecap=true && isCompleted=true` = terminé, lockout). Le `!= null` couvre null ET undefined, donc safe sur `existingRecap?.completed_at` quand existingRecap est null. La route API `app/api/monthly-recap/status/route.ts` retourne déjà `NextResponse.json(status)` — propage automatiquement le nouveau champ sans modification.
+
+  **(4) Guard middleware server-side sur `/monthly-recap` terminé** ([proxy.ts](../../proxy.ts)) : nouvelle branche entre la garde no-session (L64-68) et le check recap-required (L100+, renuméroté). Pattern :
+
+  ```typescript
+  if (isSpecialRoute && session?.userId) {
+    const queryContext = req.nextUrl.searchParams.get('context') === 'group' ? 'group' : 'profile'
+    try {
+      const status = await checkRecapStatus(session.userId, queryContext)
+      if (status.isCompleted) {
+        const redirectPath = queryContext === 'group' ? '/group-dashboard' : '/dashboard'
+        return NextResponse.redirect(new URL(redirectPath, req.url))
+      }
+    } catch (error) {
+      if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
+        // Pas de groupe : laisser passer, le composant gérera l'affichage.
+      } else {
+        logger.error('❌ [Proxy] Erreur lors de la vérification recap terminé:', error)
+      }
+    }
+  }
+  ```
+
+  Le `queryContext` est lu depuis `?context=` (passé par le redirect `proxy.ts:91-95` quand `required=true` depuis un dashboard) avec default `'profile'` si absent ou autre valeur. **Pas de cookie shortcut `recap-ok-*`** : la route `/monthly-recap` est peu fréquentée et le coût d'1 query Supabase par hit est négligeable. Le cookie existant `recap-ok-*` indique "no recap needed" (= required=false), pas "recap is completed" — re-utiliser ce cookie créerait une ambiguïté in-progress vs completed. `RecapStatusError.NO_GROUP` (utilisateur sans groupe ouvrant `/monthly-recap?context=group`) est tolérée — pass-through au composant.
+
+  **Files livrés** :
+  - **Modifiés source** (5) : `hooks/useAuth.ts` (2 conversions `push` → `replace`), `components/monthly-recap/MonthlyRecapFlow.tsx` (2 conversions), `lib/recap/check-status.ts` (interface + SELECT + dérivation `isCompleted`), `proxy.ts` (+18 LOC guard middleware), `app/api/monthly-recap/status/route.ts` (aucune modif, propagation auto).
+  - **Modifiés conventions** (4) : `CLAUDE.md` §11 (Part 17 line maj "(3)→(4)" + dernier sprint name), `.claude/conventions/operational-rules.md` §5 (+1 subsection auth+recap nav), `.claude/history/sprint-chronology.md` (+1 row), `.claude/history/roadmap-detailed-17-delete-header-income-polish.md` (ce closeout).
+
+  **Vérification end-to-end** :
+  - `pnpm typecheck` exit 0
+  - `pnpm lint:check` 0 errors / 0 warnings
+  - `pnpm format:check` exit 0 (après `prettier --write proxy.ts` sur le wrap d'une ligne longue)
+  - `pnpm test:run` **513 passed / 98 skipped** (baseline stable, pas de test ajouté — la propriété `isCompleted` est mécanique, le typecheck garantit la complétude)
+  - Smoke manuel attendu (charge user) : (a) login back-button → reste sur destination, pas de flicker `/connexion` ; (b) recap complete back-button → reste sur dashboard ; (c) URL direct `/monthly-recap` post-completion → redirect immédiat dashboard contextuel ; (d) back in-progress → blocage maintenu (popstate handler) ; (e) logout back → reste sur `/connexion` (hard reload `window.location.href` clear bfcache).
+
+  **Trade-off / leçons apprises** :
+  - **`router.replace` est suffisant côté client + middleware déjà existant suffit côté serveur pour le login flicker** : `proxy.ts:117-120` (`isAuthRoute && session?.userId`) redirige déjà server-side. Le flicker venait du bfcache mobile qui rendait `/connexion` cached AVANT que le middleware fire (browser optimization). `router.replace` élimine l'entrée historique, donc le bfcache n'a rien à rendre. Pas besoin de SSR redirect supplémentaire (le middleware reste le filet ultime contre navigation directe URL).
+  - **Pas de SSR check sur `/connexion` côté page** : tentation de transformer `app/connexion/page.tsx` en server component qui call `validateSessionToken` et `redirect('/dashboard')` — mais le middleware le fait déjà, doublonnerait sans gain (le bfcache shortcut est exactly le cas où le middleware n'a pas fired, et un SSR check ne fire pas non plus pour un page-cache hit). `router.replace` est le seul vrai fix.
+  - **`queryContext` default `'profile'` sur le middleware guard** : choix défensif. Si un user tape `/monthly-recap` direct sans `?context=`, on assume profile context (qui marche pour tous les users, y compris ceux sans groupe). Si l'utilisateur est en réalité dans un group context terminé mais a tapé `/monthly-recap` sans query, le guard ne fire pas → atterrit sur step 1 d'un new profile recap. Acceptable (cas marginal, l'utilisateur peut quitter manuellement).
+  - **Pas de test ajouté sur `checkRecapStatus.isCompleted`** : mock de `supabaseServer` non-trivial à monter pour un cas pure-unit (chaining `.from().select().eq().eq().eq().single()`). Le typecheck couvre la complétude du champ ; un gated `SUPABASE_RECAP_TESTS=1` couvre déjà les recaps complete byte-identique. Si une régression surface plus tard, ajouter un cas dans le test gated.
+  - **`isCompleted` orthogonal à `hasExistingRecap`** : décision conceptuelle — ne pas overload `required: !hasExistingRecap` qui sert au check "redirect to recap if missing this month". Garder les 2 axes séparés clarifie : `required` = "doit créer un recap" (in-flow trigger), `isCompleted` = "ne doit pas revenir" (out-flow lock). Les consumers existants (cookie `recap-ok-*`, redirect depuis dashboard) ignorent silencieusement le nouveau champ.
+
+  **Pattern à retenir** :
+  - **`router.replace` est obligatoire pour toute navigation sortant d'un écran "one-time / sensitive"** : login (post-auth), monthly-recap (post-complete), futurs flows wizard-style à étape finale. `router.push` laisse l'écran source dans l'historique, le bfcache mobile peut le re-rendre brièvement, et le back-button y revient. Pattern miroir possible à appliquer si on ajoute un wizard onboarding ou un payment flow.
+  - **Garder un guard server-side `isCompleted` séparé sur les routes "one-time"** : le `router.replace` côté client n'élimine que l'historique de la session courante. URL bar, bookmark, deeplink push notif, nouvel onglet, refresh F5, ou crash-recovery de l'app peuvent toujours router vers la route sensible. Le middleware ferme ces vecteurs avec un check DB cheap.
+  - **Étendre les fonctions de status applicatives avec des champs `isXxxCompleted`** plutôt que d'overload un champ existant — orthogonalité conceptuelle, consumers existants ne cassent pas, et le nouveau champ peut être adopté incrémentalement par les consumers qui en ont besoin.
+  - **Lire les query params dans le middleware via `req.nextUrl.searchParams.get(...)`** plutôt que parser manuellement `req.url` — `nextUrl.searchParams` est un `URLSearchParams` standard, type-safe, immutable.

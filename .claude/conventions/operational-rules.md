@@ -154,7 +154,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ### Mobile UI density baseline
 
-- ❌ **NE PAS** modifier la valeur `:root { font-size: 15.5px }` ni la garde `input, textarea, select { font-size: 16px }` dans [app/globals.css](../../app/globals.css) sans peser leur effet de cascade global (Sprint Mobile-Density-Shrink 2026-05-21). Le root décale tout le rem-Tailwind (text-*, p-*, gap-*, h-*, w-*) de ~3 % sous le default navigateur 16 px — c'est la baseline densité mobile-first volontaire pour rendre l'UI "moins grosse" sur Android (Fairphone 6 412×916 + autres) où Roboto rend visuellement plus dense que SF iOS. La garde 16 px sur les form controls empêche iOS Safari de zoomer au focus quand un input a une font-size computed < 16 px (spec WebKit délibérée). Pour itérer la densité (e.g. -6 % ou -10 %) : changer juste la valeur 15.5px → 15px / 14.5px, recharger. Reversal en commentant les 2 déclarations. ❌ **NE PAS** non plus override `@theme { --spacing }` ou `@theme { --text-* }` pour shrinkr la densité — le root font-size shift est l'unique single-point-of-truth idiomatique Tailwind 4 CSS-first.
+- ❌ **NE PAS** modifier la valeur `:root { font-size: 15.5px }` ni la garde `input, textarea, select { font-size: 16px }` dans [app/globals.css](../../app/globals.css) sans peser leur effet de cascade global (Sprint Mobile-Density-Shrink 2026-05-21). Le root décale tout le rem-Tailwind (text-_, p-_, gap-_, h-_, w-_) de ~3 % sous le default navigateur 16 px — c'est la baseline densité mobile-first volontaire pour rendre l'UI "moins grosse" sur Android (Fairphone 6 412×916 + autres) où Roboto rend visuellement plus dense que SF iOS. La garde 16 px sur les form controls empêche iOS Safari de zoomer au focus quand un input a une font-size computed < 16 px (spec WebKit délibérée). Pour itérer la densité (e.g. -6 % ou -10 %) : changer juste la valeur 15.5px → 15px / 14.5px, recharger. Reversal en commentant les 2 déclarations. ❌ **NE PAS** non plus override `@theme { --spacing }` ou `@theme { --text-_ }` pour shrinkr la densité — le root font-size shift est l'unique single-point-of-truth idiomatique Tailwind 4 CSS-first.
 
 ### Edit-mode allocation semantics
 
@@ -210,6 +210,11 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** ajouter un nouveau caller de `/api/auth/session` GET/POST sans router son outcome via le même tri-state. Si le caller treat `!response.ok` indifférencié comme "logout", il re-réintroduit le bug 2026-05-22.
 
 - ❌ **NE PAS** transformer `getCurrentUser()` ([lib/auth.ts](../../lib/auth.ts)) en tri-state — il est consommé uniquement par `initializeAuth` au mount et un fail au boot ne déclenche pas `handleLogout` (juste `stopTokenRefresh/stopAuthCheck`). Le seul risque restant (état "déconnecté" client sur cookie valide jusqu'à la prochaine action serveur) est tolérable et ne justifie pas la complexité supplémentaire.
+
+### Auth + recap nav (Sprint Fix-Auth-Flicker-And-Recap-Reentry-Gate 2026-05-21)
+
+- ❌ `router.push` dans `useLogin`/`useRequireGuest` ([useAuth.ts:17,46](../../hooks/useAuth.ts)) ou `MonthlyRecapFlow.tsx:52,138` — `router.replace` évince `/connexion` (bfcache flicker) et `/monthly-recap` (back re-entry).
+- ❌ Retirer le guard `proxy.ts` qui redirige sur `status.isCompleted` (= `completed_at != null`, `?context=` default `profile`) — filet URL/bookmark/F5.
 
 ### Forbidden absolus
 
