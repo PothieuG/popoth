@@ -146,18 +146,44 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ### Edit-mode allocation semantics
 
-- ❌ **NE PAS** réintroduire l'allocation P4-strict fresh en mode EDIT (Sprint Expense-Preview-Posé-Layout 2026-05-21). Le mode EDIT — détecté par la présence du paramètre `existingExpense` non-null sur [lib/expense-allocation.ts::applyAllocation](../../lib/expense-allocation.ts) ET dans la route [lib/api/finance/expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts) — DOIT utiliser l'algorithme « **preserve existing caps** » :
+- ❌ **NE PAS** réintroduire l'allocation P4-strict fresh en mode EDIT (Sprint Expense-Preview-Posé-Layout 2026-05-21, raffinée Delta-Cascade-Edit 2026-05-21). Le mode EDIT — détecté par la présence du paramètre `existingExpense` non-null sur [lib/expense-allocation.ts::applyAllocation](../../lib/expense-allocation.ts) ET dans la route [lib/api/finance/expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts) — DOIT utiliser l'algorithme « **delta-based cascade** » :
 
   ```
-  remaining = amount
-  nP = min(remaining, existing.amount_from_piggy_bank)
-  remaining -= nP
-  nS = min(remaining, existing.amount_from_budget_savings)
-  remaining -= nS
-  nB = remaining   // absorbe le reste, incl. déficit éventuel
+  delta = round(amount - existing.amount, 2)    // cents-precise
+
+  if delta == 0:
+    return { fromPiggy: eP, fromSavings: eS, fromBudget: eB }   // preserve
+
+  if delta > 0:
+    extra_savings_room = max(0, savingsBefore - eS)   // pool libre, hors claim existant
+    addSavings = min(delta, extra_savings_room)
+    addBudget  = delta - addSavings
+    return {
+      fromPiggy:   eP,                            // jamais auto-débitée
+      fromSavings: eS + addSavings,
+      fromBudget:  eB + addBudget,
+    }
+
+  if delta < 0:
+    refundFromBudget  = min(|delta|, eB)          // budget vidé en priorité
+    refundFromSavings = min(|delta| - refundFromBudget, eS)
+    refundFromPiggy   = |delta| - refundFromBudget - refundFromSavings
+    return {
+      fromPiggy:   eP - refundFromPiggy,
+      fromSavings: eS - refundFromSavings,
+      fromBudget:  eB - refundFromBudget,
+    }
   ```
 
-  Les caps savings/piggy stockés sur la dépense sont des **CEILINGS** pour la nouvelle allocation (pas des hints à recalculer fresh). Budget absorbe le reste incl. déficit > estimated. Sans `existingExpense` (mode ADD), P4-strict standard reste valide (budget first, savings cascade overflow). Cas vérifiés (existing eS=25, eB=98) : 123→5 ⇒ nS=5,nB=0 (préserve la portion savings) ; 123→130 ⇒ nS=25,nB=105 ; 123→30 ⇒ nS=25,nB=5. Bug pré-fix : DECREASE 123→5 redistribuait `{savings=0, budget=5}` (perte de la portion savings revendiquée) au lieu de `{savings=5, budget=0}`. Le mirroir entre `applyAllocation` (server PUT) et la duplication inline dans `expenses-preview-breakdown.ts` (route route, import server-only pas trivial à factoriser) est intentionnel — **toute modif de l'algo doit toucher LES DEUX endroits**.
+  Trois cas distincts selon le sens du delta. Sans `existingExpense` (mode ADD), P4-strict standard reste valide (budget first, savings cascade overflow).
+
+  Cas vérifiés :
+  - **A=123 (eS=25, eB=98), pool savings=0** : 123→5 ⇒ nS=5, nB=0 ; 123→130 ⇒ nS=25, nB=105 ; 123→30 ⇒ nS=25, nB=5 ; 123→123 ⇒ preserve {nS=25, nB=98}.
+  - **A=250 (eS=250, eB=0), pool savings=50** : 250→275 ⇒ nS=275, nB=0 (cascade les 25€ de delta dans le pool libre) ; 250→350 ⇒ nS=300, nB=50 (savings saturée, reste sur budget) ; 250→100 ⇒ nS=100, nB=0 (refund 150 from eB=0 then from eS=250).
+
+  Bug pré-raffinement (algorithme « preserve existing caps » initial qui cappait nS à `eS` strict) : 250→275 affichait nS=250, nB=25 au lieu de nS=275, nB=0 — les économies libres dans le pool n'étaient pas utilisées. User rule "si il existe encore des économies disponibles, il faut les utiliser" : le delta>0 cascade savings AVANT budget si pool libre, miroir P5 toggle mais piloté par la disponibilité du pool plutôt qu'un toggle UI.
+
+  Le mirroir entre `applyAllocation` (server PUT) et la duplication inline dans `expenses-preview-breakdown.ts` (route route, import server-only pas trivial à factoriser) est intentionnel — **toute modif de l'algo doit toucher LES DEUX endroits**. La précision cents (`Math.round(delta * 100) / 100`) absorbe le drift float introduit par DecimalFormInput (e.g., 250.0000001 typé devient 250.0000001 parsé).
 
 - ❌ **NE PAS** soustraire `existingExpense.amount_from_budget` de `budgetSpentBefore` AVANT de calculer le breakdown (Sprint Expense-Preview-Posé-Layout 2026-05-21). Le `budgetSpentBefore` lu via SELECT inclut la valeur old (real_expenses pas encore UPDATE par le PUT). Garder cette valeur **un-reverted** pour l'input du calcul. Le subtract du existing.amount_from_budget se fait UNIQUEMENT au calcul du `budget_spent_after` retourné par l'API : `budget_spent_after = budgetSpentBefore - (existingExpense?.amount_from_budget ?? 0) + fromBudget`. Bug pré-fix : la route preview-breakdown soustrayait à l'input → budgetRemaining trop grand → P4-strict mettait tout sur le budget (allocation divergente du PUT serveur).
 
@@ -211,8 +237,9 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | Sprint Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel | 2026-05-21 | `style={{ pointerEvents: 'auto' }}` OBLIGATOIRE sur portail enfant de `document.body` quand Radix Dialog open (override `body.style.pointerEvents = 'none'` posé par `DismissableLayer/dist/index.mjs:73`). `onPointerDown + preventDefault` sur option button (commit en complément du Sprint Modal-Dropdown-Portal). + wizard income polymorphe `select-kind` (Régulier bleu / Exceptionnel orange) — feature « revenu exceptionnel » exposée UI (plomberie DB + RAV + EditModal déjà en place pré-sprint).                                                                                                                                                                                                        | CLAUDE.md §11 |
 | Sprint Enrich-Delete-Confirmation + Fix-Summary-RAV-Stale-Cache      | 2026-05-21 | Off-by-one cache fix dans `/api/finance/summary` : drop le read-persisted-then-override (`getRavFromDatabase` lu AVANT `getProfileFinancialData` qui recompute+persiste, puis ouverride avec valeur stale) → l'API retourne maintenant la valeur fraîche. UI delete-confirmation enrichie : breakdown 3-col `[label] [montant color] [→ new balance]` par source (budget/savings/piggy/RAV), nom du budget injecté dans "Économies « {name} »", ligne RAV recovery explicite calculée via diff de deficit (`max(0,spentBefore-est) - max(0,spentAfter-est)`), formatAmountCompact strip `,00` pour whole-euros. 11 tests RTL ajoutés (était 0 pour TransactionListItem). Tests passants 501 → 515.                   | CLAUDE.md §11 |
 | Sprint Expense-Preview-Posé-Layout + Preserve-Caps-Edit-Allocation   | 2026-05-21 | Refonte UI `<ExpenseBreakdownPreview>` (pattern "posé" 2-sections Impact + Après opération, code couleur par entité orange/violet/pink/bleu + noms budgets en gras + chiffres recap noirs + impact ±rouge/vert avec préfixe signe). Algorithme « preserve existing caps » en EDIT : `applyAllocation(amount, budgetId, contextFilter, existingExpense?)` accepte un 4e arg optionnel — savings/piggy stockés deviennent CEILINGS, budget absorbe le reste (incl. déficit). Algo dupliqué dans la route preview-breakdown pour cohérence preview↔server. Fix `EditTransactionModal.calculateRealSpentAmount` (somme amount_from_budget, plus amount). Gate preview en EDIT si montant inchangé. Tests stables 515/98. | CLAUDE.md §11 |
+| Sprint Delta-Cascade-Edit (raffinement)                              | 2026-05-21 | Raffinement de l'algorithme EDIT : remplace « preserve existing caps » strict par « delta-based cascade » 3-branches (delta=0 preserve, delta>0 cascade savings libres puis budget, delta<0 refund budget→savings→piggy). Fix bug user : 250€→275€ avec eS=250 et 50€ d'éco libres affichait nS=250+nB=25 (cap strict) au lieu de nS=275+nB=0. `existingExpense.amount` ajouté à l'interface + au SELECT preview-breakdown. Précision cents `Math.round(delta * 100) / 100`. Server + preview-breakdown alignés. Tests stables 515/98.                                                                                                                                                                               | CLAUDE.md §11 |
 
-Pour la chronologie complète des 107 sprints, voir CLAUDE.md §11 (index des 16 parts `.claude/history/roadmap-detailed-NN-...md`).
+Pour la chronologie complète des 108 sprints, voir CLAUDE.md §11 (index des 16 parts `.claude/history/roadmap-detailed-NN-...md`).
 
 ## 7. Supabase Auth click-to-confirm gate — scanner-résistance
 

@@ -69,3 +69,57 @@
   - Pour tout aperçu côté UI d'une opération à effet de bord (ajout/modification/suppression d'une transaction financière), **l'API preview DOIT être bit-identique à ce que le mutation va stocker**. Si l'API preview fait un calcul à part, ça devient un canard boîteux : l'user croit voir le post-save, sauve, et l'état stocké diffère. Tester explicitement preview-vs-storage.
   - Pour toute édition d'une dépense budgétée, les caps `amount_from_piggy_bank` et `amount_from_budget_savings` stockés sur la dépense sont des **CEILINGS** pour la nouvelle allocation (pas des hints à recalculer fresh). Le user mental model : "j'ai utilisé X€ d'économies pour cette dépense, je veux que ça reste X€ d'économies même si je change le montant". Pattern miroir entre `applyAllocation(amount, budgetId, contextFilter, existingExpense)` et la duplication intentionnelle dans `expenses-preview-breakdown.ts` (chemin route route séparé, import server-only pas trivial à factoriser).
   - Pour les modals d'édition, gate l'aperçu sur un **changement effectif** réduit le bruit visuel + supprime le coût réseau de la preview à l'ouverture. Pattern : `if (Math.round(newValue * 100) !== Math.round(existingValue * 100)) <Preview ...>`. Comparaison en cents pour robustness aux décimaux flottants.
+
+- ✅ **Sprint Delta-Cascade-Edit** (raffinement, livré 2026-05-21, déclenché par "Voilà notre scenarion: a la base le budget a 200/200 + 300€ d'économie. J'ai crée une dépense de 250€. Je pioche 250€ dans les économies en prio. Si je modifie la dépense pour la passer de 250€ à 275€, j'ai Impact: economie -250, budget -25 ; Alors qu'on devrait avoir Impact: economie -275, budget 0. Il faudrait juste ajouter une règle qui dit que si il existe encore des économies disponible, il faut les utiliser.").
+
+  L'algorithme « preserve existing caps » du sprint principal cappait strictement les `from_savings` / `from_piggy` à leurs valeurs stockées. Conséquence : si l'utilisateur augmentait le montant et que le pool savings avait encore de la place (cas A=250 avec eS=250 mais pool=50 libre), le delta supplémentaire allait au budget au lieu de piocher dans les économies disponibles. User rule explicite : « si il existe encore des économies disponible, il faut les utiliser ».
+
+  **Algorithme « delta-based cascade » (server + preview, mirroir intentionnel) :**
+
+  ```
+  delta = round(amount - existing.amount, 2)    // cents-precise
+
+  if delta == 0:
+    preserve { eP, eS, eB }
+
+  if delta > 0:
+    extra_savings_room = max(0, savingsBefore - eS)    // pool libre, hors claim existant
+    addSavings = min(delta, extra_savings_room)
+    addBudget  = delta - addSavings
+    return { eP, eS + addSavings, eB + addBudget }    // piggy reste à eP
+
+  if delta < 0:
+    refundFromBudget  = min(|delta|, eB)               // budget vidé d'abord
+    refundFromSavings = min(|delta| - refundFromBudget, eS)
+    refundFromPiggy   = |delta| - refundFromBudget - refundFromSavings
+    return { eP - refundFromPiggy, eS - refundFromSavings, eB - refundFromBudget }
+  ```
+
+  Trois branches distinctes selon le sens du delta. Piggy n'est jamais auto-débitée en EDIT non plus (cohérent avec P4 strict ADD). Le refund priorité reverse (budget→savings→piggy) préserve la portion savings tant que le budget peut absorber — matche l'intuition "garder les économies investies tant qu'on n'a pas vidé le budget de la dépense".
+
+  **Vérifications scénarios user :**
+  - **A=250 (eS=250, eB=0), pool savings=50** : 250→275 ⇒ delta=+25, extra=50, addSavings=25 ⇒ **nS=275, nB=0** ✓ ; 250→350 ⇒ delta=+100, addSavings=50, addBudget=50 ⇒ **nS=300, nB=50** ✓ ; 250→100 ⇒ delta=-150, refundBudget=0, refundSavings=150 ⇒ **nS=100, nB=0** ✓.
+  - **A=123 (eS=25, eB=98), pool savings=0** (régression-guard du sprint précédent) : 123→130 ⇒ delta=+7, extra=0, addSavings=0, addBudget=7 ⇒ **nS=25, nB=105** ✓ ; 123→5 ⇒ delta=-118, refundBudget=98, refundSavings=20 ⇒ **nS=5, nB=0** ✓ ; 123→30 ⇒ delta=-93, refundBudget=93 ⇒ **nS=25, nB=5** ✓ ; 123→123 ⇒ delta=0 ⇒ preserve **nS=25, nB=98** ✓.
+
+  **Changements de code :**
+  - `lib/expense-allocation.ts` : `ExpenseWithBreakdown.amount?: number | null` ajouté à l'interface (le PUT handler fetchait déjà `amount` dans le SELECT, aucun changement de query). Branche EDIT de `applyAllocation` réécrite avec les 3 cas delta=0/delta>0/delta<0.
+  - `lib/api/finance/expenses-preview-breakdown.ts` : `amount` ajouté au SELECT de la dépense existante + au type local `existingExpense`. Bloc EDIT inline réécrit en parallèle (duplication intentionnelle).
+
+  **Files livrés** :
+  - **Modifiés backend** (2) : `lib/expense-allocation.ts`, `lib/api/finance/expenses-preview-breakdown.ts`.
+  - **Modifiés conventions** (2) : `.claude/conventions/operational-rules.md` (§5 Edit-mode allocation semantics réécrite + 1 row §6 chronologie), ce fichier (entrée Sprint Delta-Cascade-Edit).
+
+  **Vérification end-to-end** :
+  - `pnpm typecheck` exit 0
+  - `pnpm lint:check` 0 errors / 0 warnings
+  - `pnpm format:check` exit 0
+  - `pnpm test:run` **515 passed / 98 skipped** baseline stable
+
+  **Trade-off / leçons apprises** :
+  - Le « preserve existing caps » initial était l'approche la plus conservative — préserver à l'identique ce qui était stocké. Mais cette conservativité ignorait que le user pouvait vouloir UTILISER PLUS de savings si disponibles. Le pivot vers delta-based cascade ouvre l'allocation aux ressources disponibles sans pour autant briser le no-amount-change case (delta=0 → preserve). Le bon principe : différencier "préserver l'existant" (toujours OK pour delta=0) de "élargir si possible" (OK pour delta>0). La règle user "si il existe encore des économies disponible, il faut les utiliser" capture cette nuance.
+  - L'algorithme delta>0 cascade savings AVANT budget, ce qui ressemble au P5 toggle ADD mode mais avec une différence : en ADD, le toggle est explicite (case à cocher UI) ; en EDIT, l'extra cascade savings est automatique parce que l'existant a déjà engagé un mode "savings actives". Si on voulait être encore plus strict, on pourrait conditionner le cascade savings au fait que eS > 0 (= la dépense utilisait déjà des savings). Pour l'instant, on cascade tant que extra_savings_room > 0 — la cohérence avec ADD-P4 (qui ne cascade pas savings sans toggle) est légèrement brisée pour les EDIT qui partaient de eS=0, mais le user rule l'a explicitement demandé.
+  - Le format SELECT `amount, amount_from_piggy_bank, ...` était déjà cohérent côté server PUT (fetched all fields). Seule la route preview-breakdown manquait `amount`. Leçon : aligner systématiquement les SELECTs serveur ↔ route preview quand une nouvelle source de donnée intervient.
+
+  **Pattern à retenir** :
+  - Pour tout algorithme d'allocation en EDIT mode (où il y a une valeur existante stockée), penser en **delta** plutôt qu'en "nouveau breakdown fresh". delta=0 = preserve trivialement. delta>0 = cascade additionnel sur les ressources disponibles. delta<0 = refund cascade-reverse. Cette décomposition élimine les cas "weird re-allocation" et matche le mental model utilisateur.
+  - Pour les comparaisons de montants en cents avec des inputs frontend (`DecimalFormInput` parse `25.5` puis stringify avec drift float), TOUJOURS round avant compare : `Math.round((a - b) * 100) / 100`. Sinon `250.0000001 - 250 = 0.0000000001` triggera la branche delta!=0 et générera un re-allocation inutile.

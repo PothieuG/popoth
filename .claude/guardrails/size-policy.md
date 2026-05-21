@@ -67,7 +67,7 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-13-fix-empty-recap-tirelire.md         37k   Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6)
 │   ├─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 36k   Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer + Fix-Dashboards-Navbar-Switch)
 │   ├─ roadmap-detailed-15-skeleton-refetch-loaders.md         32k   Skeleton-Refetch-Loaders + Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel + Enrich-Delete-Confirmation/Fix-Summary-RAV-Stale-Cache (3) — trimmée 2026-05-21 post-split vers Part 16
-│   └─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  12k   Expense-Preview-Posé-Layout + Preserve-Caps-Edit-Allocation (1) — créée 2026-05-21 par split préemptif de Part 15
+│   └─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  18k   Expense-Preview-Posé-Layout + Preserve-Caps-Edit-Allocation → Delta-Cascade-Edit (2) — créée 2026-05-21 par split préemptif de Part 15, étendue raffinement Delta-Cascade-Edit 2026-05-21
 │
 ├─ reference/
 │   └─ structure-repo.md                              37k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -77,7 +77,7 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   ├─ operational-rules.md                           58k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (58k post-Expense-Preview-Posé-Layout 2026-05-21, +1 sous-section §5 "Edit-mode allocation semantics" 3 règles ❌ + chronology row §6), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
+│   ├─ operational-rules.md                           60k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (60k post-Delta-Cascade-Edit 2026-05-21, §5 Edit-mode allocation semantics réécrite avec algo 3-branches + 1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
 │   └─ operational-rules-ui-modals.md                 31k   29 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21 + 5 règles nav SPA / loader inline / layout partagé Sprint Fix-Dashboards-Navbar-Switch 2026-05-20 + 3 règles isFetching/InlineSpinner/CentralLoader Sprint Skeleton-Refetch-Loaders 2026-05-21 + 1 sub-règle pointer-events:auto Sprint Fix-Dropdown-PointerEvents-Auto 2026-05-21 + 1 règle modal-confirmation-suppression-breakdown Sprint Enrich-Delete-Confirmation 2026-05-21 + 2 règles ExpenseBreakdownPreview Sprint Expense-Preview-Posé-Layout 2026-05-21)
 │
 └─ guardrails/
