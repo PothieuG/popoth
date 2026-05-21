@@ -67,7 +67,8 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-13-fix-empty-recap-tirelire.md         37k   Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6)
 │   ├─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 36k   Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer + Fix-Dashboards-Navbar-Switch)
 │   ├─ roadmap-detailed-15-skeleton-refetch-loaders.md         32k   Skeleton-Refetch-Loaders + Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel + Enrich-Delete-Confirmation/Fix-Summary-RAV-Stale-Cache (3) — trimmée 2026-05-21 post-split vers Part 16
-│   └─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  34k   Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4) — créée 2026-05-21, étendue Delta-Cascade-Edit + Auto-Use-Savings 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22
+│   ├─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  34k   Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4) — créée 2026-05-21, étendue Delta-Cascade-Edit + Auto-Use-Savings 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22
+│   └─ roadmap-detailed-17-delete-header-income-polish.md              8k   Delete-Header-And-Income-Polish (1) — créée 2026-05-22 par split préemptif de Part 16
 │
 ├─ reference/
 │   └─ structure-repo.md                              37k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -77,8 +78,8 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   ├─ operational-rules.md                           62k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (62k post-Recap-Compact-And-Uniform 2026-05-22, +1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
-│   └─ operational-rules-ui-modals.md                 38k   33 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22 (+1 règle ❌ panel bleu uniforme budget/revenu modals + update règle delete-confirmation `compact={true}`))
+│   ├─ operational-rules.md                           63k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (63k post-Delete-Header-And-Income-Polish 2026-05-22, +1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
+│   └─ operational-rules-ui-modals.md                 41k   36 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22 + Delete-Header-And-Income-Polish 2026-05-22 (3 nouvelles règles ❌ : header "Après suppression :" obligatoire + drop sourceLine income + EditTransactionModal preview pour income/exceptional-expense))
 │
 └─ guardrails/
     └─ size-policy.md                                 15k   (ce fichier)

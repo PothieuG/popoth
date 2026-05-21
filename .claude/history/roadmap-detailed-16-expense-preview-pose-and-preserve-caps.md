@@ -212,3 +212,5 @@
   **Pattern à retenir** :
   - Pour tout composant partageable qui pourrait être rendu dans un parent avec `text-align: center` (ConfirmationDialog, certains modals, etc.) : forcer `text-left` sur la root du composant pour couper l'héritage et garantir l'alignement intended.
   - Pour tout encart financier "avant/après" dans une modal d'ajout/modification, uniformiser sur le panel bleu (`border-blue-200 bg-blue-50/50 p-4 space-y-3`) avec header texte sémantique + section input rows + divider "RÉSULTAT" + ligne result bold (couleur sémantique uniquement sur la ligne result). Drop les thèmes orange/vert/rouge sur le container.
+
+> **Suite chronologique** : les sprints livrés à partir de 2026-05-22 (Delete-Header-And-Income-Polish et suivants) sont documentés dans [roadmap-detailed-17-delete-header-income-polish.md](roadmap-detailed-17-delete-header-income-polish.md) — split préemptif pour rester sous le cap 38k chars.
