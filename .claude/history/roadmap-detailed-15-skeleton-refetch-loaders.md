@@ -145,3 +145,5 @@
   **Pattern à retenir** :
   - Toute API route qui retourne un FinancialData (RAV inclus) DOIT retourner le résultat de `getProfileFinancialData`/`getGroupFinancialData` directement, **JAMAIS** un blend persisté+recalculé qui crée un off-by-one cache. Le `_loadFinancialData` persiste internement via `saveRavToDatabase` — pas besoin de lire avant pour synchroniser.
   - Pour toute modal de confirmation suppression d'une transaction financière, afficher l'impact détaillé en breakdown 3-col (label / montant / `→ new balance`) plutôt qu'un message générique "êtes-vous sûr". Le user mental model est "qu'est-ce qui revient et où" ; le UI doit refléter ce mental model 1:1.
+
+> **Suite chronologique** : Sprint Expense-Preview-Posé-Layout + Preserve-Caps-Edit-Allocation (2026-05-21) est documenté dans [roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md](roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md) — split préemptif pour rester sous le cap 38k chars.
