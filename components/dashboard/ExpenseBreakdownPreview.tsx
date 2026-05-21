@@ -1,10 +1,14 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
+import {
+  BalanceRow,
+  BudgetRecapRow,
+  EntityLabel,
+  ImpactRow,
+} from '@/components/dashboard/recap-rows'
 
 interface ExpenseBreakdownPreviewProps {
   amount: number
@@ -14,6 +18,11 @@ interface ExpenseBreakdownPreviewProps {
   /**
    * Sprint P4-P5-P6 / P5 toggle. When true, savings consumed BEFORE
    * budget in the preview breakdown. Default false → P4 strict.
+   *
+   * Note 2026-05-21 : `AddTransactionModal` passe désormais `true` par
+   * défaut (toggle UI retiré). Le paramètre reste exposé pour
+   * compatibilité ascendante avec d'éventuels consumers futurs (Phase 2
+   * cross-budget cascade) qui voudraient opt-out.
    */
   useSavings?: boolean
 }
@@ -33,71 +42,22 @@ interface BreakdownData {
   budget_name: string
 }
 
-const formatAmount = (value: number): string =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-  }).format(value)
-
 /**
- * Compact formatter — omits the trailing ",00" when amount is whole-euro
- * to keep recap lines compact on mobile (matches the delete-confirmation
- * pattern in TransactionListItem).
- */
-const formatAmountCompact = (value: number): string => {
-  const formatted = new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-  if (Math.round(value) === value) {
-    return formatted.replace(/[,.]\d{2}(\s*€)/, '$1')
-  }
-  return formatted
-}
-
-/**
- * Impact lines (debits / credits) : explicit sign prefix. Positive value
- * (= un crédit / refund, rare mais possible en mode édition où l'API
- * recalcule des montants différents) → green avec "+" explicite. Négatif
- * → rouge avec "-" natif d'Intl. Zéro → gris.
- */
-const signedAmountForImpact = (value: number): { text: string; color: string } => {
-  if (value > 0) {
-    return { text: `+${formatAmount(value)}`, color: 'text-green-600' }
-  }
-  if (value < 0) {
-    return { text: formatAmount(value), color: 'text-red-600' }
-  }
-  return { text: formatAmount(0), color: 'text-gray-600' }
-}
-
-type EntityType = 'budget' | 'savings' | 'piggy' | 'rav'
-
-const ENTITY_LABEL: Record<EntityType, { word: string; color: string }> = {
-  budget: { word: 'Budget', color: 'text-orange-600' },
-  savings: { word: 'Économies', color: 'text-violet-600' },
-  piggy: { word: 'Tirelire', color: 'text-pink-600' },
-  rav: { word: 'Reste à vivre', color: 'text-blue-600' },
-}
-
-/**
- * Aperçu de l'impact d'une dépense budgétée : lignes de sources débitées
- * en haut (« posé »), puis recap des soldes après opération en bas. Code
- * couleur par entité (label) — Sprint 2026-05-21 specs UX user :
- *   - Labels : Budget=orange, Économies=violet, Tirelire=pink, RAV=bleu
- *   - Noms des budgets en gras (à l'intérieur des « »)
- *   - Impact : montants positifs vert avec "+", négatifs rouge avec "-"
- *   - Recap : tous les chiffres en NOIR (pas de couleur sur les valeurs
- *     de la section "après opération" — couleur réservée à l'impact)
+ * Aperçu de l'impact d'une dépense budgétée — section haute « Impact de la
+ * dépense » (sources débitées + RAV impact si overflow) et section basse
+ * « Après opération » (soldes finaux des entités touchées).
+ *
+ * Sprint 2026-05-21 / Impact-Lines-Refactor :
+ *   - Section Impact : nouvelle ligne **Reste à vivre** (delta-based, ±) +
+ *     ligne **Budget** devient delta-based (-X red si pool plus chargé,
+ *     +X green si pool refundé). Lignes Économies/Tirelire restent
+ *     absolue (= `-new.from_X` red, conformément aux exemples user).
+ *   - Section Après : recap des soldes finaux en noir (text-gray-900),
+ *     labels colorés par entité.
  *
  * Le composant se branche sur `useFinancialData(context)` +
- * `useProgressData(context)` pour calculer le nouveau RAV depuis le
- * delta de déficit budgétaire. En mode ADD comme en mode EDIT (où le
- * parent gate l'affichage sur un changement de montant — pas de fetch
- * inutile quand l'utilisateur ouvre la modal sans rien modifier).
+ * `useProgressData(context)` pour calculer le delta RAV depuis le delta
+ * de déficit budgétaire (ADD comme EDIT).
  */
 export default function ExpenseBreakdownPreview({
   amount,
@@ -169,28 +129,42 @@ export default function ExpenseBreakdownPreview({
     return null
   }
 
-  // RAV impact via budget overflow delta. En mode EDIT, la route route
-  // preview-breakdown (post-fix Sprint 2026-05-21) garde le budget pool
-  // un-reverted donc `budget_spent_before` représente le total actuel
-  // (avec la dépense existante). expenseProgress.spentAmount renvoie la
-  // même chose (les hooks lisent la même table). Les deux sont équivalents
-  // en mode EDIT — on prend la valeur API qui ne dépend pas du cache
-  // expenseProgress (fallback safer).
+  // currentBudgetSpent (= sum across all expenses on this budget INCLUDING
+  // the one being edited, since the route preview-breakdown doesn't revert
+  // it before SELECT). Fallback expenseProgress si l'API n'a pas pu calculer
+  // (edge case race condition au mount).
   const currentBudgetSpent = expenseProgress[budgetId]?.spentAmount ?? breakdown.budget_spent_before
   const currentOverflow = Math.max(0, currentBudgetSpent - breakdown.budget_estimated)
   const newOverflow = Math.max(0, breakdown.budget_spent_after - breakdown.budget_estimated)
   const ravDelta = newOverflow - currentOverflow
+
+  // Budget pool usage delta (Sprint 2026-05-21 / Impact-Lines-Refactor) :
+  // l'IMPACT ligne Budget reflète maintenant le delta dans la portion du
+  // pool budgétaire utilisée (capped à estimated), pas le `new.from_budget`
+  // absolu. Quand l'utilisateur réduit une dépense qui débordait, on voit
+  // le refund vers le pool (+X green) plutôt qu'un simple "-X red" sur la
+  // nouvelle valeur.
+  const existingBudgetPoolUsage = Math.min(currentBudgetSpent, breakdown.budget_estimated)
+  const newBudgetPoolUsage = Math.min(breakdown.budget_spent_after, breakdown.budget_estimated)
+  const budgetPoolDelta = newBudgetPoolUsage - existingBudgetPoolUsage
+
   const currentRav = financialData?.remainingToLive ?? null
   const newRav = currentRav != null ? currentRav - ravDelta : null
 
   const piggyDebit = breakdown.from_piggy_bank
   const savingsDebit = breakdown.from_budget_savings
-  const budgetDebit = breakdown.from_budget
   const budgetName = breakdown.budget_name
 
-  const showPiggy = piggyDebit > 0
-  const showSavings = savingsDebit > 0
-  const showBudgetDebit = budgetDebit > 0
+  // Impact lines visibility
+  const showPiggyImpact = piggyDebit > 0
+  const showSavingsImpact = savingsDebit > 0
+  const showBudgetImpact = budgetPoolDelta !== 0
+  const showRavImpact = ravDelta !== 0
+
+  // Recap lines visibility — Tirelire/Économies seulement si touchées,
+  // Budget toujours, RAV seulement si overflow change.
+  const showPiggyRecap = piggyDebit > 0
+  const showSavingsRecap = savingsDebit > 0
   const showRavRecap = ravDelta !== 0 && newRav != null
 
   return (
@@ -198,21 +172,28 @@ export default function ExpenseBreakdownPreview({
       <div className="space-y-3">
         <p className="text-sm font-medium text-gray-700">Impact de la dépense :</p>
 
-        {/* Sources débitées (« posé ») */}
+        {/* Sources débitées + impact RAV (« posé »).
+            Sign convention: amount > 0 = green refund (+X), amount < 0 = red debit (-X).
+            Tirelire/Économies : amount = -new.from_X (always debit in current flows).
+            Budget : amount = -budgetPoolDelta (sign-flipped delta).
+            RAV : amount = -ravDelta (sign-flipped delta). */}
         <div className="space-y-1">
-          {showPiggy && <ImpactRow label={<EntityLabel type="piggy" />} amount={-piggyDebit} />}
-          {showSavings && (
+          {showPiggyImpact && (
+            <ImpactRow label={<EntityLabel type="piggy" />} amount={-piggyDebit} />
+          )}
+          {showSavingsImpact && (
             <ImpactRow
               label={<EntityLabel type="savings" budgetName={budgetName} />}
               amount={-savingsDebit}
             />
           )}
-          {showBudgetDebit && (
+          {showBudgetImpact && (
             <ImpactRow
               label={<EntityLabel type="budget" budgetName={budgetName} />}
-              amount={-budgetDebit}
+              amount={-budgetPoolDelta}
             />
           )}
+          {showRavImpact && <ImpactRow label={<EntityLabel type="rav" />} amount={-ravDelta} />}
         </div>
 
         {/* Divider + Après opération */}
@@ -224,14 +205,13 @@ export default function ExpenseBreakdownPreview({
           <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {/* Recap "après" — chiffres TOUS en noir (no green/red), labels gardent
-            leur couleur d'entité. Tirelire/Économies seulement si touchées,
-            Budget destination toujours affiché, RAV seulement si overflow change. */}
+        {/* Soldes après opération — Tirelire/Économies si touchées, Budget
+            destination toujours affiché, RAV seulement si delta != 0. */}
         <div className="space-y-1">
-          {showPiggy && (
+          {showPiggyRecap && (
             <BalanceRow label={<EntityLabel type="piggy" />} amount={breakdown.piggy_bank_after} />
           )}
-          {showSavings && (
+          {showSavingsRecap && (
             <BalanceRow label={<EntityLabel type="savings" />} amount={breakdown.savings_after} />
           )}
           <BudgetRecapRow
@@ -244,70 +224,6 @@ export default function ExpenseBreakdownPreview({
           )}
         </div>
       </div>
-    </div>
-  )
-}
-
-function EntityLabel({ type, budgetName }: { type: EntityType; budgetName?: string }) {
-  const { word, color } = ENTITY_LABEL[type]
-  return (
-    <span className="min-w-0 flex-1 truncate text-gray-700">
-      <span className={cn('font-medium', color)}>{word}</span>
-      {budgetName ? (
-        <>
-          {' « '}
-          <span className="font-bold">{budgetName}</span>
-          {' »'}
-        </>
-      ) : null}
-    </span>
-  )
-}
-
-function ImpactRow({ label, amount }: { label: ReactNode; amount: number }) {
-  const { text, color } = signedAmountForImpact(amount)
-  return (
-    <div className="flex items-baseline gap-2 text-sm">
-      {label}
-      <span className={cn('shrink-0 font-semibold', color)}>{text}</span>
-    </div>
-  )
-}
-
-/**
- * Recap balance row — chiffres en noir (gray-900), sans préfixe de signe.
- * Per UX spec Sprint 2026-05-21 : pas de couleur dans la section "Après
- * opération". Couleur réservée aux montants impact.
- */
-function BalanceRow({ label, amount }: { label: ReactNode; amount: number }) {
-  return (
-    <div className="flex items-baseline gap-2 text-sm">
-      {label}
-      <span className="shrink-0 font-semibold text-gray-900">{formatAmountCompact(amount)}</span>
-    </div>
-  )
-}
-
-/**
- * Budget recap row — format `dépensé/estimé` (matches planner convention).
- * Chiffres en noir (gray-900) même en cas d'overflow — l'utilisateur voit
- * directement `250€/200€` ce qui communique le dépassement sans nécessiter
- * de couleur.
- */
-function BudgetRecapRow({
-  budgetName,
-  spent,
-  estimated,
-}: {
-  budgetName: string
-  spent: number
-  estimated: number
-}) {
-  const text = `${formatAmountCompact(spent)}/${formatAmountCompact(estimated)}`
-  return (
-    <div className="flex items-baseline gap-2 text-sm">
-      <EntityLabel type="budget" budgetName={budgetName} />
-      <span className="shrink-0 font-semibold text-gray-900">{text}</span>
     </div>
   )
 }
