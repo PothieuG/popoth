@@ -1,0 +1,88 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pnpm verify)",
+      "Bash(pnpm lint:check)",
+      "Read(//tmp/**)",
+      "Bash(pnpm lint *)",
+      "Bash(git commit -m 'chore\\(lint\\): apply ESLint --fix for prefer-const \\(7 sites\\) *)",
+      "Bash(grep -E \"\\(no-unused-vars|^C:\\\\\\\\\\\\\\\\\\)\")",
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm run *)",
+      "Bash(git config *)",
+      "Bash(sh .husky/pre-push)",
+      "Bash(sh -c 'echo \"const _: any = 0\" >> /tmp/_dummy_lint_test.ts; cd \"c:/Dev/Popoth_App_Claude\" && \\(sh .husky/pre-push 2>&1 | tail -3\\); echo \"EXIT=$?\"')",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(pnpm audit *)",
+      "Bash(pnpm view *)",
+      "Bash(pnpm update *)",
+      "Bash(pnpm add *)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm verify *)",
+      "Bash(pnpm test:run)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(pnpm build *)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm format:check hooks/useBudgets.ts hooks/useRealExpenses.ts)",
+      "Bash(pnpm prettier *)",
+      "Bash(Select-String -Pattern \"problems|error\")",
+      "Bash(Select-Object -Last 10)",
+      "Bash(Select-Object -Last 30)",
+      "PowerShell(pnpm build)",
+      "PowerShell(pnpm build 2>&1)",
+      "Bash(pnpm exec *)",
+      "Bash(pnpm format:check hooks/useGroups.ts)",
+      "Bash(pnpm format:check contexts/AuthContext.tsx)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(echo \"ci exit code: $?\")",
+      "Bash(pnpm format *)",
+      "Bash(pnpm format:check CLAUDE.md README.md prompt/prompt-04-tooling-dx-v6.md)",
+      "Bash(findstr /I \"trigger drift apply baseline\")",
+      "Read(//c/Users/gille/.claude/plans/**)",
+      "Bash(pnpm db:audit-functions)",
+      "PowerShell(if \\($env:SUPABASE_ACCESS_TOKEN\\) { \"ACCESS_TOKEN: SET\" } else { \"ACCESS_TOKEN: MISSING\" }; if \\($env:SUPABASE_DB_PASSWORD\\) { \"DB_PASSWORD: SET\" } else { \"DB_PASSWORD: MISSING\" })",
+      "PowerShell(if \\($env:SUPABASE_ACCESS_TOKEN\\) { \"ACCESS_TOKEN: SET\" } else { \"ACCESS_TOKEN: MISSING\" })",
+      "PowerShell(if \\($env:SUPABASE_DB_PASSWORD\\) { \"DB_PASSWORD: SET\" } else { \"DB_PASSWORD: MISSING\" })",
+      "Bash(pnpm db:check-drift)",
+      "Bash(grep -q \"ELIFECYCLE\\\\|problems\\\\|^\\\\$\" \"C:\\\\Users\\\\gille\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--DataGillesPothieu-Personal-Popoth-App-Claude\\\\7f08c91d-2250-4868-ab37-96619678d2f7\\\\tasks\\\\blvgxxivm.output\")",
+      "PowerShell(\\(Get-Content \"c:\\\\DataGillesPothieu\\\\Personal\\\\Popoth_App_Claude\\\\app\\\\api\\\\debug\\\\retrigger-recap\\\\route.ts\" | Measure-Object -Line\\).Lines)",
+      "Bash(pnpm vitest *)",
+      "Bash(pnpm test:run lib/api/__tests__/parse-body.test.ts)",
+      "Bash(node scripts/apply-sql.mjs supabase/migrations/20260517000000_create_add_expense_with_breakdown_rpc.sql)",
+      "PowerShell(node scripts/export-schema.mjs supabase/migrations/20260101000000_remote_schema.sql)",
+      "PowerShell(pnpm db:check-drift)",
+      "PowerShell(pnpm db:audit-functions)",
+      "PowerShell(git add supabase/migrations/20260518000000_create_savings_transfer_rpcs.sql supabase/migrations/20260101000000_remote_schema.sql)",
+      "PowerShell(pnpm db:types)",
+      "PowerShell(pnpm db:check-types-fresh)",
+      "PowerShell(pnpm typecheck)",
+      "PowerShell(git add lib/finance/savings.ts lib/database.types.ts)",
+      "PowerShell(pnpm test:run app/api/savings/transfer/__tests__/route.test.ts)",
+      "PowerShell(pnpm lint:check 2>&1)",
+      "PowerShell(pnpm test:run 2>&1)",
+      "PowerShell(git add app/api/savings/transfer/route.ts app/api/savings/transfer/__tests__/route.test.ts)",
+      "PowerShell(git add lib/finance/__tests__/transfer-savings.test.ts)",
+      "PowerShell(pnpm db:check-rpcs)",
+      "PowerShell(pnpm verify 2>&1)",
+      "PowerShell(git add scripts/check-rpcs.mjs CLAUDE.md)",
+      "PowerShell(pnpm format:check 2>&1)"
+    ],
+    "additionalDirectories": [
+      "C:\\DataGillesPothieu\\Personal\\Popoth_App_Claude\\.git"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/check-md-size.mjs --hook"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -4,9 +4,9 @@
 
 ## 📏 Règle de taille des fichiers `.md` de contexte
 
-Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent rester **entre 35 000 et 38 000 caractères** (`LC_ALL=en_US.UTF-8 wc -m`). **Plafond dur 38k** (marge sous limite 40k Claude Code). **Plancher 35k**, sauf si naturellement plus court.
+Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent rester **entre 35 000 et 39 500 caractères** (`LC_ALL=en_US.UTF-8 wc -m`). **Plafond dur 39.5k** (marge 0.5k sous limite 40k Claude Code). **Plancher 35k**, sauf si naturellement plus court.
 
-**Avant tout commit touchant un `.md` de contexte** : mesurer `wc -m`. Si > 38k → découper (chronologique / thématique / par module) + mettre à jour références. Si < 35k + frère thématiquement proche → fusionner. Détails → [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md).
+**Enforcement automatique** : `pnpm check:md-size` ([scripts/check-md-size.mjs](scripts/check-md-size.mjs)) — invoqué par lint-staged pre-commit, `pnpm verify`, et un PostToolUse hook Claude Code. Si > 39.5k → split (chronologique / thématique / module). Si < 35k + frère proche → fusionner. Détails → [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md).
 
 **Architecture documentaire** — `@` prefix = auto-load ; plain link = on-demand :
 
@@ -14,7 +14,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 - [.claude/history/](.claude/history/) — score-evolution, sprint-history-security, roadmap-detailed (95 sprints verbatim)
 - [.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) — inventaire fichiers annoté
 - [.claude/conventions/](.claude/conventions/) — 6 patterns ; auto : operational-rules, operational-rules-ui-modals, git-workflow, typescript ; on-demand : zod-patterns, logs-cleanup
-- [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 38k chars
+- [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 39.5k chars
 - `.claude/skills/` — slash commands
 
 ## 1. Projet

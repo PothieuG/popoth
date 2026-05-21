@@ -1,10 +1,6 @@
 # Règles opérationnelles — Modals & UI (suite de §5 de [operational-rules.md](operational-rules.md))
 
-> Extraction 2026-05-20 (Sprint Drawer-Slide-Fix-And-Header-Harmonize) — `operational-rules.md` ayant franchi le plafond 38k de la [size-policy](../guardrails/size-policy.md), la sous-section "Modals & UI" de §5 est déplacée ici. Toutes les autres sous-sections de §5 (Séquences non-atomiques, God-files, Idempotency, RAV formula, budget_transfers, recover route, recover 5 tables, Tests gated, Tables owner-row, Colonnes mirror, Forbidden absolus) restent dans le fichier principal.
->
-> Étendu 2026-05-21 (Sprint Fix-Dropdown-PointerEvents-Auto) — sub-règle "pointer-events: auto OBLIGATOIRE sur portail enfant de body" ajoutée à la règle dropdown-portal (4e sub-règle, après anti-Radix-close / max-height / click-outside-portal). Décompte sub-règles : 22 + 5 nav SPA + 3 isFetching + 1 pointer-events = 31 contraintes ❌ documentées.
->
-> Étendu 2026-05-21 (Sprint Enrich-Delete-Confirmation) — règle "modal confirmation suppression transaction → breakdown 3-col par source impactée + nom du budget sur ligne savings + → new balance" ajoutée. 32e contrainte ❌ documentée.
+> Extraction 2026-05-20 (Sprint Drawer-Slide-Fix-And-Header-Harmonize) — la sous-section "Modals & UI" de §5 de [operational-rules.md](operational-rules.md) est déplacée ici suite au franchissement du cap [size-policy](../guardrails/size-policy.md). Le reste de §5 (Séquences non-atomiques, God-files, Idempotency, RAV formula, budget_transfers, recover route + 5 tables, Tests gated, Tables owner-row, Colonnes mirror, Forbidden absolus) reste dans le fichier principal. Étendu au fil des sprints suivants (Fix-Dropdown-PointerEvents-Auto, Enrich-Delete-Confirmation, Modal-Uniformize/Polish/Dropdown-Portal, etc.) — voir [size-policy.md](../guardrails/size-policy.md) §4 pour le décompte des sub-règles ❌.
 
 ## Modals & UI
 
