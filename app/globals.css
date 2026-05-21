@@ -120,6 +120,19 @@
 }
 
 @layer base {
+  /* Mobile UI density: rem-based Tailwind utilities scale down ~3 % from this root. */
+  :root {
+    font-size: 15.5px;
+  }
+
+  /* iOS Safari auto-zooms focused inputs whose computed font-size is < 16 px.
+     Pin form controls to 16 px so the root shift above doesn't trigger that zoom. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
   * {
     @apply border-border;
   }
