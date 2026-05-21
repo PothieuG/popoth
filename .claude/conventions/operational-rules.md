@@ -197,6 +197,16 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS** réintroduire `sum + expense.amount` dans `EditTransactionModal.calculateRealSpentAmount` — doit sommer `expense.amount_from_budget` avec fallback sur `amount` pour legacy nulls, miroir `AddTransactionModal`. Sprint 2026-05-21 : le bug donnait `398€/200€` dans le dropdown pour 2 dépenses (123+275) dont 300€ d'économies absorbaient la majorité — l'affichage cumulé incluait la portion savings+piggy ce qui n'a pas de sens pour un "spent on budget pool". Le seul invariant valide : `dropdown.spentAmount === sum(expense.amount_from_budget)`.
 
+### Auth client polling — distinguer transient de 401 (Sprint Fix-Auth-Network-Transient)
+
+- ❌ **NE PAS** réintroduire le pattern "logout-on-any-failure" dans les `setInterval` du `AuthProvider` ([contexts/AuthContext.tsx](../../contexts/AuthContext.tsx) `startAuthCheck` 5min + `startTokenRefresh` 50min + `refreshUserSession` manuel). Depuis Sprint Fix-Auth-Network-Transient (2026-05-22), `isAuthenticated()` et `refreshSession()` ([lib/auth.ts](../../lib/auth.ts)) retournent un tri-state : `AuthCheckOutcome = 'authenticated' | 'unauthenticated' | 'unknown'` et `RefreshSessionResult.outcome = 'success' | 'unauthenticated' | 'unknown'`. Les 3 call sites ne déclenchent `handleLogout()` que sur `'unauthenticated'` (= 401 explicite OU body API `success=false && authenticated=false`). Les `'unknown'` (NetworkError, 5xx, `!response.ok` non-401) sont **skip silencieux** — la session reste valide côté serveur, on retentera au tick suivant.
+
+- ❌ **NE PAS** retraiter un fetch fail comme déconnexion. Avant le fix, `catch → return false / { success: false }` indifférenciait NetworkError du 401 : tout hiccup réseau pendant un dev-server HMR rebuild webpack OU une `proxy.ts:checkRecapStatus` lente (~200-500ms × chaque nav non-cachée par cookie `recap-ok-*`) déclenchait `window.location.href = '/connexion'` malgré une session valide. Symptôme : warning console récurrent `Failed to fetch RSC payload ... NetworkError when attempting to fetch resource` + retour intempestif à l'écran de login.
+
+- ❌ **NE PAS** ajouter un nouveau caller de `/api/auth/session` GET/POST sans router son outcome via le même tri-state. Si le caller treat `!response.ok` indifférencié comme "logout", il re-réintroduit le bug 2026-05-22.
+
+- ❌ **NE PAS** transformer `getCurrentUser()` ([lib/auth.ts](../../lib/auth.ts)) en tri-state — il est consommé uniquement par `initializeAuth` au mount et un fail au boot ne déclenche pas `handleLogout` (juste `stopTokenRefresh/stopAuthCheck`). Le seul risque restant (état "déconnecté" client sur cookie valide jusqu'à la prochaine action serveur) est tolérable et ne justifie pas la complexité supplémentaire.
+
 ### Forbidden absolus
 
 - ❌ **NE PAS** modifier [supabase/migrations/20260506000000_create_finance_rpcs.sql](../../supabase/migrations/20260506000000_create_finance_rpcs.sql). Pour corriger une RPC : `CREATE OR REPLACE` dans une nouvelle migration.
