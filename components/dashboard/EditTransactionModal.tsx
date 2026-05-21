@@ -98,11 +98,20 @@ export default function EditTransactionModal({
     mode: 'onSubmit',
   })
 
-  // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
+  // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles.
+  // Ne compte QUE amount_from_budget (pas tirelire ni savings) — mirror AddTransactionModal.
+  // Sans ce fix, le dropdown affichait `sum(amount)` = 398€/200€ pour 2 dépenses dont
+  // les économies absorbaient la majorité (bug remonté 2026-05-21).
   const calculateRealSpentAmount = (budgetId: string): number => {
     return realExpenses
       .filter((expense) => expense.estimated_budget_id === budgetId)
-      .reduce((sum, expense) => sum + expense.amount, 0)
+      .reduce((sum, expense) => {
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? expense.amount_from_budget
+            : expense.amount
+        return sum + amountFromBudget
+      }, 0)
   }
 
   // Calculer les vrais montants reçus pour chaque revenu depuis les revenus réels
@@ -409,12 +418,19 @@ export default function EditTransactionModal({
               )}
             </div>
 
-            {/* Expense Breakdown Preview - only for budgeted expenses */}
+            {/* Expense Breakdown Preview - only for budgeted expenses.
+                Gated sur `previewSafe !== transaction.amount` (comparé en
+                cents pour éviter les floats) — Sprint 2026-05-21 : on ne
+                charge/affiche le recap QUE quand le montant change. À
+                l'ouverture (montant inchangé), l'utilisateur n'a pas besoin
+                de voir une re-allocation qui ne fait que reproduire l'état
+                actuel — le planificateur affiche déjà ces valeurs. */}
             {transactionType === 'expense' &&
               previewSafe > 0 &&
               !isOriginallyExceptional &&
               watchedBudgetId &&
-              transaction && (
+              transaction &&
+              Math.round(previewSafe * 100) !== Math.round(transaction.amount * 100) && (
                 <ExpenseBreakdownPreview
                   amount={previewSafe}
                   budgetId={String(watchedBudgetId)}

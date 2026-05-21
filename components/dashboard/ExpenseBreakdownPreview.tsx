@@ -1,13 +1,16 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { Card } from '@/components/ui/card'
+import type { ReactNode } from 'react'
+import { cn } from '@/lib/utils'
+import { useFinancialData } from '@/hooks/useFinancialData'
+import { useProgressData } from '@/hooks/useProgressData'
 
 interface ExpenseBreakdownPreviewProps {
   amount: number
   budgetId: string
   context?: 'profile' | 'group'
-  expenseId?: string // Pour le mode edition: simule reverse+reapply
+  expenseId?: string // Pour le mode edition: simule reverse+reapply côté route
   /**
    * Sprint P4-P5-P6 / P5 toggle. When true, savings consumed BEFORE
    * budget in the preview breakdown. Default false → P4 strict.
@@ -30,9 +33,71 @@ interface BreakdownData {
   budget_name: string
 }
 
+const formatAmount = (value: number): string =>
+  new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+  }).format(value)
+
 /**
- * Component that displays a detailed breakdown of how an expense will be allocated
- * across piggy bank → savings → budget
+ * Compact formatter — omits the trailing ",00" when amount is whole-euro
+ * to keep recap lines compact on mobile (matches the delete-confirmation
+ * pattern in TransactionListItem).
+ */
+const formatAmountCompact = (value: number): string => {
+  const formatted = new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+  if (Math.round(value) === value) {
+    return formatted.replace(/[,.]\d{2}(\s*€)/, '$1')
+  }
+  return formatted
+}
+
+/**
+ * Impact lines (debits / credits) : explicit sign prefix. Positive value
+ * (= un crédit / refund, rare mais possible en mode édition où l'API
+ * recalcule des montants différents) → green avec "+" explicite. Négatif
+ * → rouge avec "-" natif d'Intl. Zéro → gris.
+ */
+const signedAmountForImpact = (value: number): { text: string; color: string } => {
+  if (value > 0) {
+    return { text: `+${formatAmount(value)}`, color: 'text-green-600' }
+  }
+  if (value < 0) {
+    return { text: formatAmount(value), color: 'text-red-600' }
+  }
+  return { text: formatAmount(0), color: 'text-gray-600' }
+}
+
+type EntityType = 'budget' | 'savings' | 'piggy' | 'rav'
+
+const ENTITY_LABEL: Record<EntityType, { word: string; color: string }> = {
+  budget: { word: 'Budget', color: 'text-orange-600' },
+  savings: { word: 'Économies', color: 'text-violet-600' },
+  piggy: { word: 'Tirelire', color: 'text-pink-600' },
+  rav: { word: 'Reste à vivre', color: 'text-blue-600' },
+}
+
+/**
+ * Aperçu de l'impact d'une dépense budgétée : lignes de sources débitées
+ * en haut (« posé »), puis recap des soldes après opération en bas. Code
+ * couleur par entité (label) — Sprint 2026-05-21 specs UX user :
+ *   - Labels : Budget=orange, Économies=violet, Tirelire=pink, RAV=bleu
+ *   - Noms des budgets en gras (à l'intérieur des « »)
+ *   - Impact : montants positifs vert avec "+", négatifs rouge avec "-"
+ *   - Recap : tous les chiffres en NOIR (pas de couleur sur les valeurs
+ *     de la section "après opération" — couleur réservée à l'impact)
+ *
+ * Le composant se branche sur `useFinancialData(context)` +
+ * `useProgressData(context)` pour calculer le nouveau RAV depuis le
+ * delta de déficit budgétaire. En mode ADD comme en mode EDIT (où le
+ * parent gate l'affichage sur un changement de montant — pas de fetch
+ * inutile quand l'utilisateur ouvre la modal sans rien modifier).
  */
 export default function ExpenseBreakdownPreview({
   amount,
@@ -42,6 +107,8 @@ export default function ExpenseBreakdownPreview({
   useSavings = false,
 }: ExpenseBreakdownPreviewProps) {
   const enabled = amount > 0 && !!budgetId
+  const { financialData } = useFinancialData(context)
+  const { expenseProgress } = useProgressData(context)
 
   const {
     data: breakdown = null,
@@ -77,28 +144,24 @@ export default function ExpenseBreakdownPreview({
     },
   })
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
-  }
-
   if (isLoading) {
     return (
-      <Card className="border-blue-200 bg-blue-50 p-4">
-        <div className="animate-pulse">
-          <div className="mb-1.5 h-4 w-3/4 rounded bg-blue-200"></div>
-          <div className="h-4 w-1/2 rounded bg-blue-200"></div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+        <div className="animate-pulse space-y-2">
+          <div className="h-4 w-3/4 rounded bg-blue-100"></div>
+          <div className="h-4 w-1/2 rounded bg-blue-100"></div>
         </div>
-      </Card>
+      </div>
     )
   }
 
   if (error) {
     return (
-      <Card className="border-red-200 bg-red-50 p-4">
+      <div className="rounded-lg border border-red-200 bg-red-50 p-4">
         <p className="text-sm text-red-600">
           {error instanceof Error ? error.message : 'Erreur inconnue'}
         </p>
-      </Card>
+      </div>
     )
   }
 
@@ -106,136 +169,145 @@ export default function ExpenseBreakdownPreview({
     return null
   }
 
+  // RAV impact via budget overflow delta. En mode EDIT, la route route
+  // preview-breakdown (post-fix Sprint 2026-05-21) garde le budget pool
+  // un-reverted donc `budget_spent_before` représente le total actuel
+  // (avec la dépense existante). expenseProgress.spentAmount renvoie la
+  // même chose (les hooks lisent la même table). Les deux sont équivalents
+  // en mode EDIT — on prend la valeur API qui ne dépend pas du cache
+  // expenseProgress (fallback safer).
+  const currentBudgetSpent = expenseProgress[budgetId]?.spentAmount ?? breakdown.budget_spent_before
+  const currentOverflow = Math.max(0, currentBudgetSpent - breakdown.budget_estimated)
+  const newOverflow = Math.max(0, breakdown.budget_spent_after - breakdown.budget_estimated)
+  const ravDelta = newOverflow - currentOverflow
+  const currentRav = financialData?.remainingToLive ?? null
+  const newRav = currentRav != null ? currentRav - ravDelta : null
+
+  const piggyDebit = breakdown.from_piggy_bank
+  const savingsDebit = breakdown.from_budget_savings
+  const budgetDebit = breakdown.from_budget
+  const budgetName = breakdown.budget_name
+
+  const showPiggy = piggyDebit > 0
+  const showSavings = savingsDebit > 0
+  const showBudgetDebit = budgetDebit > 0
+  const showRavRecap = ravDelta !== 0 && newRav != null
+
   return (
-    <Card className="border-blue-200 bg-linear-to-br from-blue-50 to-purple-50 p-4">
-      <div className="space-y-2">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-blue-200 pb-2">
-          <h4 className="font-semibold text-gray-900">Répartition de la dépense</h4>
-          <span className="text-lg font-bold text-blue-600">
-            {formatCurrency(breakdown.total_amount)}
+    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-gray-700">Impact de la dépense :</p>
+
+        {/* Sources débitées (« posé ») */}
+        <div className="space-y-1">
+          {showPiggy && <ImpactRow label={<EntityLabel type="piggy" />} amount={-piggyDebit} />}
+          {showSavings && (
+            <ImpactRow
+              label={<EntityLabel type="savings" budgetName={budgetName} />}
+              amount={-savingsDebit}
+            />
+          )}
+          {showBudgetDebit && (
+            <ImpactRow
+              label={<EntityLabel type="budget" budgetName={budgetName} />}
+              amount={-budgetDebit}
+            />
+          )}
+        </div>
+
+        {/* Divider + Après opération */}
+        <div className="flex items-center gap-2 pt-1">
+          <div className="h-px flex-1 bg-blue-200" />
+          <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Après opération
           </span>
+          <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {/* Source Breakdown */}
-        <div className="space-y-1.5">
-          {breakdown.from_piggy_bank > 0 && (
-            <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-1.5">
-                <div className="h-2 w-2 rounded-full bg-purple-500"></div>
-                <span className="text-gray-700">De la tirelire</span>
-              </div>
-              <span className="font-semibold text-purple-600">
-                {formatCurrency(breakdown.from_piggy_bank)}
-              </span>
-            </div>
+        {/* Recap "après" — chiffres TOUS en noir (no green/red), labels gardent
+            leur couleur d'entité. Tirelire/Économies seulement si touchées,
+            Budget destination toujours affiché, RAV seulement si overflow change. */}
+        <div className="space-y-1">
+          {showPiggy && (
+            <BalanceRow label={<EntityLabel type="piggy" />} amount={breakdown.piggy_bank_after} />
           )}
-
-          {breakdown.from_budget_savings > 0 && (
-            <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-1.5">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                <span className="text-gray-700">Des économies du budget</span>
-              </div>
-              <span className="font-semibold text-green-600">
-                {formatCurrency(breakdown.from_budget_savings)}
-              </span>
-            </div>
+          {showSavings && (
+            <BalanceRow label={<EntityLabel type="savings" />} amount={breakdown.savings_after} />
           )}
-
-          {breakdown.from_budget > 0 && (
-            <div className="flex items-center justify-between rounded bg-white/60 p-2 text-sm">
-              <div className="flex items-center space-x-1.5">
-                <div className="h-2 w-2 rounded-full bg-orange-500"></div>
-                <span className="text-gray-700">Du budget principal</span>
-              </div>
-              <span className="font-semibold text-orange-600">
-                {formatCurrency(breakdown.from_budget)}
-              </span>
-            </div>
+          <BudgetRecapRow
+            budgetName={budgetName}
+            spent={breakdown.budget_spent_after}
+            estimated={breakdown.budget_estimated}
+          />
+          {showRavRecap && newRav != null && (
+            <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
           )}
-        </div>
-
-        {/* Detailed Impact Table */}
-        <div className="border-t border-blue-200 pt-3">
-          <h5 className="mb-1.5 text-xs font-medium text-gray-600">Impact détaillé :</h5>
-          <div className="space-y-1.5">
-            {/* Piggy Bank */}
-            {breakdown.from_piggy_bank > 0 && (
-              <div className="rounded bg-white/80 p-2 text-xs">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="font-medium text-gray-700">Tirelire</span>
-                  <span className="text-purple-600">
-                    {formatCurrency(breakdown.piggy_bank_before)} →{' '}
-                    {formatCurrency(breakdown.piggy_bank_after)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-gray-500">
-                  <span>Variation</span>
-                  <span className="font-medium text-red-600">
-                    -{formatCurrency(breakdown.from_piggy_bank)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Budget Savings */}
-            {breakdown.from_budget_savings > 0 && (
-              <div className="rounded bg-white/80 p-2 text-xs">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="font-medium text-gray-700">
-                    Économies ({breakdown.budget_name})
-                  </span>
-                  <span className="text-green-600">
-                    {formatCurrency(breakdown.savings_before)} →{' '}
-                    {formatCurrency(breakdown.savings_after)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-gray-500">
-                  <span>Variation</span>
-                  <span className="font-medium text-red-600">
-                    -{formatCurrency(breakdown.from_budget_savings)}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Budget Main */}
-            <div className="rounded bg-white/80 p-2 text-xs">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-medium text-gray-700">Budget ({breakdown.budget_name})</span>
-                <span className={breakdown.from_budget > 0 ? 'text-orange-600' : 'text-gray-500'}>
-                  {formatCurrency(breakdown.budget_spent_before)} →{' '}
-                  {formatCurrency(breakdown.budget_spent_after)} /{' '}
-                  {formatCurrency(breakdown.budget_estimated)}
-                </span>
-              </div>
-              {breakdown.from_budget > 0 && (
-                <div className="flex items-center justify-between text-gray-500">
-                  <span>Variation</span>
-                  <span className="font-medium text-red-600">
-                    +{formatCurrency(breakdown.from_budget)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Message */}
-        <div className="border-t border-blue-200 pt-2">
-          <p className="text-center text-xs text-gray-600">
-            {breakdown.from_piggy_bank > 0 && breakdown.from_budget === 0
-              ? '✨ Cette dépense sera entièrement couverte par vos économies'
-              : breakdown.from_budget > 0 &&
-                  breakdown.budget_spent_after > breakdown.budget_estimated
-                ? `⚠️ Attention : dépassement de ${formatCurrency(breakdown.budget_spent_after - breakdown.budget_estimated)}`
-                : breakdown.from_budget > 0
-                  ? `📊 Reste disponible : ${formatCurrency(breakdown.budget_estimated - breakdown.budget_spent_after)}`
-                  : '✅ Budget non impacté'}
-          </p>
         </div>
       </div>
-    </Card>
+    </div>
+  )
+}
+
+function EntityLabel({ type, budgetName }: { type: EntityType; budgetName?: string }) {
+  const { word, color } = ENTITY_LABEL[type]
+  return (
+    <span className="min-w-0 flex-1 truncate text-gray-700">
+      <span className={cn('font-medium', color)}>{word}</span>
+      {budgetName ? (
+        <>
+          {' « '}
+          <span className="font-bold">{budgetName}</span>
+          {' »'}
+        </>
+      ) : null}
+    </span>
+  )
+}
+
+function ImpactRow({ label, amount }: { label: ReactNode; amount: number }) {
+  const { text, color } = signedAmountForImpact(amount)
+  return (
+    <div className="flex items-baseline gap-2 text-sm">
+      {label}
+      <span className={cn('shrink-0 font-semibold', color)}>{text}</span>
+    </div>
+  )
+}
+
+/**
+ * Recap balance row — chiffres en noir (gray-900), sans préfixe de signe.
+ * Per UX spec Sprint 2026-05-21 : pas de couleur dans la section "Après
+ * opération". Couleur réservée aux montants impact.
+ */
+function BalanceRow({ label, amount }: { label: ReactNode; amount: number }) {
+  return (
+    <div className="flex items-baseline gap-2 text-sm">
+      {label}
+      <span className="shrink-0 font-semibold text-gray-900">{formatAmountCompact(amount)}</span>
+    </div>
+  )
+}
+
+/**
+ * Budget recap row — format `dépensé/estimé` (matches planner convention).
+ * Chiffres en noir (gray-900) même en cas d'overflow — l'utilisateur voit
+ * directement `250€/200€` ce qui communique le dépassement sans nécessiter
+ * de couleur.
+ */
+function BudgetRecapRow({
+  budgetName,
+  spent,
+  estimated,
+}: {
+  budgetName: string
+  spent: number
+  estimated: number
+}) {
+  const text = `${formatAmountCompact(spent)}/${formatAmountCompact(estimated)}`
+  return (
+    <div className="flex items-baseline gap-2 text-sm">
+      <EntityLabel type="budget" budgetName={budgetName} />
+      <span className="shrink-0 font-semibold text-gray-900">{text}</span>
+    </div>
   )
 }
