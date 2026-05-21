@@ -14,7 +14,7 @@ export function useRequireGuest() {
 
   useEffect(() => {
     if (!loading && isLoggedIn) {
-      router.push('/dashboard')
+      router.replace('/dashboard')
     }
   }, [loading, isLoggedIn, router])
 
@@ -43,8 +43,8 @@ export function useLogin() {
         const urlParams = new URLSearchParams(window.location.search)
         const returnPath = urlParams.get('from')
         const destination = returnPath || '/dashboard'
-        router.push(destination)
-        // Keep isSubmitting=true: router.push is non-blocking, the page
+        router.replace(destination)
+        // Keep isSubmitting=true: router.replace is non-blocking, the page
         // stays mounted for a brief moment before nav unmounts it. Resetting
         // here re-enables the inputs and causes a visible flicker.
         return result

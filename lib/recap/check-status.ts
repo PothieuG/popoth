@@ -7,6 +7,7 @@ export interface RecapStatus {
   currentMonth: number
   currentYear: number
   hasExistingRecap: boolean
+  isCompleted: boolean
   context: RecapContext
   contextId: string
 }
@@ -40,6 +41,7 @@ export async function checkRecapStatus(
   }
 
   let hasExistingRecap = false
+  let isCompleted = false
   let contextId = ''
 
   if (context === 'profile') {
@@ -47,13 +49,14 @@ export async function checkRecapStatus(
 
     const { data: existingRecap } = await supabaseServer
       .from('monthly_recaps')
-      .select('id')
+      .select('id, completed_at')
       .eq('profile_id', profile.id)
       .eq('recap_month', currentMonth)
       .eq('recap_year', currentYear)
       .single()
 
     hasExistingRecap = !!existingRecap
+    isCompleted = existingRecap?.completed_at != null
   } else {
     if (!profile.group_id) {
       throw new RecapStatusError('NO_GROUP', "Utilisateur ne fait partie d'aucun groupe")
@@ -63,13 +66,14 @@ export async function checkRecapStatus(
 
     const { data: existingRecap } = await supabaseServer
       .from('monthly_recaps')
-      .select('id')
+      .select('id, completed_at')
       .eq('group_id', profile.group_id)
       .eq('recap_month', currentMonth)
       .eq('recap_year', currentYear)
       .single()
 
     hasExistingRecap = !!existingRecap
+    isCompleted = existingRecap?.completed_at != null
   }
 
   return {
@@ -77,6 +81,7 @@ export async function checkRecapStatus(
     currentMonth,
     currentYear,
     hasExistingRecap,
+    isCompleted,
     context,
     contextId,
   }

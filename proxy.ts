@@ -67,6 +67,28 @@ export default async function proxy(req: NextRequest) {
       return NextResponse.redirect(loginUrl)
     }
 
+    // Block re-entry to /monthly-recap if the recap is already completed for the current month.
+    // Garde server-side : URL bar, bookmark, deeplink, refresh F5, back/forward post-completion.
+    // Le client a déjà router.replace() côté completion, donc /monthly-recap n'est pas dans
+    // l'historique — ce filet ferme les vecteurs restants (navigation directe).
+    if (isSpecialRoute && session?.userId) {
+      const queryContext = req.nextUrl.searchParams.get('context') === 'group' ? 'group' : 'profile'
+      try {
+        const status = await checkRecapStatus(session.userId, queryContext)
+        if (status.isCompleted) {
+          const redirectPath = queryContext === 'group' ? '/group-dashboard' : '/dashboard'
+          logger.debug(`📅 [Proxy] Récap ${queryContext} déjà terminé, redirection ${redirectPath}`)
+          return NextResponse.redirect(new URL(redirectPath, req.url))
+        }
+      } catch (error) {
+        if (error instanceof RecapStatusError && error.code === 'NO_GROUP') {
+          // Pas de groupe : laisser passer, le composant gérera l'affichage.
+        } else {
+          logger.error('❌ [Proxy] Erreur lors de la vérification recap terminé:', error)
+        }
+      }
+    }
+
     // Check for monthly recap requirement on protected routes (but not on monthly-recap page itself).
     // Le check fait 2 SELECTs Supabase synchrones (profiles + monthly_recaps) à chaque
     // navigation protégée, soit ~200-500ms. On le cache via cookie scopé au mois/année

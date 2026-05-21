@@ -49,7 +49,7 @@ export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFl
           <h2 className="mb-1.5 text-lg font-semibold text-gray-900">Erreur</h2>
           <p className="mb-3 text-gray-600">{error}</p>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.replace('/dashboard')}
             className="w-full rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700"
           >
             Retour au tableau de bord
@@ -135,7 +135,7 @@ export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFl
         // Redirection vers le dashboard après un délai
         setTimeout(() => {
           const dashboardUrl = context === 'profile' ? '/dashboard' : '/group-dashboard'
-          router.push(dashboardUrl)
+          router.replace(dashboardUrl)
         }, 2000)
       }
 
