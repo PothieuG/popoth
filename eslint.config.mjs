@@ -113,6 +113,12 @@ const eslintConfig = [
     ],
     rules: { 'no-console': 'error' },
   },
+  {
+    // CLI scripts legitimately write status / progress to stdout via console.log.
+    // The global no-console rule targets app code, not dev tooling.
+    files: ['scripts/**/*.mjs'],
+    rules: { 'no-console': 'off' },
+  },
 ]
 
 export default eslintConfig
