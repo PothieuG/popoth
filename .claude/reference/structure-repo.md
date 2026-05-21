@@ -139,6 +139,9 @@ lib/
       delete-budget-with-savings-transfer.test.ts # ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) — gated SUPABASE_RPC_CONCURRENCY_TESTS=1, 8 cas atomicité delete_budget_with_savings_transfer (happy profile UPDATE/INSERT/no-savings skip + group context + budget not found + XOR violation + ownership mismatch + 50× concurrent distincts budgets aggregate piggy exactement)
       calc-rtl.test.ts                   # ✅ I4 — 19 cas pure-unit non-gated, formules RAV/budget/cash
       snapshots.test.ts                  # ✅ I4 — 5 cas mocked supabase non-gated, validation + R1 fail-soft contract
+  forms/                   # ✅ Sprint Modal-Forms-Block-Enter-Submit (2026-05-21) — helpers de comportement des forms modaux
+    prevent-enter-submit.ts            # onKeyDown handler à brancher sur les <form> des modals/drawers : intercepte Enter (sans modificateurs) sur input/select, preventDefault + blur, passe-droit textarea/button/a. Empêche submit HTML5 implicite déclenché par Return mobile, force le clic sur le bouton de validation.
+    __tests__/prevent-enter-submit.test.tsx  # 7 cas non-gated (env jsdom via `.tsx`) — Enter input → preventDefault+blur, Enter textarea/button/a → no-op, Tab/Escape → no-op, modificateurs Shift/Ctrl/Meta/Alt → no-op, target null safe.
   __tests__/               # ✅ Sprint Polish T3
     api-regressions.test.ts  # gated SUPABASE_API_TESTS=1 — H1/H2/R2 regressions
   openapi/                 # ✅ Sprint OpenAPI-Schema-To-Docs — génération de la doc OpenAPI 3.1 depuis les schemas Zod
