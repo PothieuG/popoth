@@ -8,7 +8,7 @@ import type { SnapshotPayloadV1, SnapshotPayloadV2 } from '@/lib/recap-snapshot.
 // @/lib/finance transitively loads lib/supabase-server.ts which calls
 // createClient at module load and would crash when env vars are missing.
 type FinCalcMod = typeof import('@/lib/finance')
-type RecoverRouteMod = typeof import('@/app/api/monthly-recap/recover/route')
+type RecoverRouteMod = typeof import('@/app/api/monthly-recap-legacy/recover/route')
 type SessionMod = typeof import('@/lib/session')
 
 const ENABLED = process.env.SUPABASE_API_TESTS === '1'
@@ -205,7 +205,7 @@ describe.skipIf(!ENABLED)('recover route — bank_balance/piggy_bank boolean sem
       auth: { autoRefreshToken: false, persistSession: false },
     })
 
-    const recoverMod = await import('@/app/api/monthly-recap/recover/route')
+    const recoverMod = await import('@/app/api/monthly-recap-legacy/recover/route')
     recoverPOST = recoverMod.POST
     const sessionMod = await import('@/lib/session')
     createSessionToken = sessionMod.createSessionToken

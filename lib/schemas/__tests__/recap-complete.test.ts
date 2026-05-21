@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { completeBodySchema } from '@/lib/schemas/recap'
+import { completeBodySchema } from '@/lib/schemas/recap-legacy'
 
 const validUuid = '11111111-1111-4111-8111-111111111111'
 

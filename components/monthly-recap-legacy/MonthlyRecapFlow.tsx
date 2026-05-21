@@ -1,0 +1,166 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { useMonthlyRecap } from '@/hooks/legacy/useMonthlyRecap'
+import { logger } from '@/lib/logger'
+import MonthlyRecapStep1 from './MonthlyRecapStep1'
+import MonthlyRecapStep2 from './MonthlyRecapStep2'
+
+interface MonthlyRecapFlowProps {
+  context: 'profile' | 'group'
+  onComplete?: () => void
+}
+
+/**
+ * Composant principal pour le flux de récapitulatif mensuel
+ * VERSION SIMPLIFIÉE SANS CACHE - Chaque étape gère ses propres données live
+ */
+export default function MonthlyRecapFlow({ context, onComplete }: MonthlyRecapFlowProps) {
+  const router = useRouter()
+  const {
+    error,
+    currentStep,
+    transferBetweenBudgets,
+    autoBalanceBudgets,
+    completeRecap,
+    goToNextStep,
+  } = useMonthlyRecap(context)
+
+  // Gestion des erreurs globales du hook (très rare car chaque étape gère ses erreurs)
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-linear-to-br from-red-50 to-red-100 p-4">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-lg">
+          <div className="mb-3 text-red-600">
+            <svg
+              className="mx-auto h-12 w-12"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+          </div>
+          <h2 className="mb-1.5 text-lg font-semibold text-gray-900">Erreur</h2>
+          <p className="mb-3 text-gray-600">{error}</p>
+          <button
+            onClick={() => router.replace('/dashboard')}
+            className="w-full rounded-lg bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700"
+          >
+            Retour au tableau de bord
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Handlers pour les actions
+  const handleTransfer = async (fromBudgetId: string, toBudgetId: string, amount: number) => {
+    return await transferBetweenBudgets({
+      from_budget_id: fromBudgetId,
+      to_budget_id: toBudgetId,
+      amount,
+    })
+  }
+
+  const handleAutoBalance = async () => {
+    return await autoBalanceBudgets()
+  }
+
+  const handleStep1Next = async () => {
+    try {
+      // ✅ NOUVEAU: Appel à l'API process-step1 qui gère TOUT
+      const processResponse = await fetch('/api/monthly-recap/process-step1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ context }),
+      })
+
+      const processData = await processResponse.json()
+
+      if (processResponse.ok && processData.success) {
+        // Si cas déficit et pas complètement équilibré
+        if (processData.case === 'deficit' && !processData.is_fully_balanced) {
+          logger.warn(
+            `⚠️ [Frontend] Équilibrage partiel - Gap résiduel: ${processData.gap_residuel}€`,
+          )
+          // Optionnel: Afficher un toast/alert à l'utilisateur
+          // alert(`Attention: Un gap de ${processData.gap_residuel}€ subsiste. Réduisez vos budgets ou augmentez vos revenus.`)
+        }
+
+        // Navigation vers Step 2
+        goToNextStep()
+      } else {
+        // Optionnel: Afficher l'erreur à l'utilisateur
+        // alert(`Erreur: ${processData.error}`)
+
+        // Décider si on bloque ou on continue vers Step 2
+        // Option 1: Bloquer (recommandé)
+        throw new Error(processData.error)
+
+        // Option 2: Continuer quand même (déconseillé)
+        // goToNextStep()
+      }
+    } catch (error) {
+      // Afficher l'erreur à l'utilisateur
+      const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue'
+      alert(`Erreur lors du rééquilibrage: ${errorMessage}`)
+
+      // NE PAS continuer vers l'étape 2 en cas d'erreur
+      // goToNextStep() // ❌ À SUPPRIMER
+    }
+  }
+
+  const handleCompleteFromStep2 = async () => {
+    try {
+      // Complete the recap with carry forward action
+      const result = await completeRecap({
+        action: 'carry_forward',
+        final_amount: 0, // Will be calculated by the backend
+      })
+
+      if (result?.success) {
+        // Callback personnalisé si fourni
+        if (onComplete) {
+          onComplete()
+        }
+
+        // Redirection vers le dashboard après un délai
+        setTimeout(() => {
+          const dashboardUrl = context === 'profile' ? '/dashboard' : '/group-dashboard'
+          router.replace(dashboardUrl)
+        }, 2000)
+      }
+
+      return result
+    } catch {
+      return null
+    }
+  }
+
+  // Rendu des étapes
+  switch (currentStep) {
+    case 1:
+      return <MonthlyRecapStep1 context={context} onNext={handleStep1Next} />
+
+    case 2:
+      return (
+        <MonthlyRecapStep2
+          context={context}
+          onNext={handleCompleteFromStep2}
+          onTransfer={handleTransfer}
+          onAutoBalance={handleAutoBalance}
+        />
+      )
+
+    default:
+      return null
+  }
+}

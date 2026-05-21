@@ -7,7 +7,7 @@ import {
   recoverRecapBodySchema,
   refreshRecapQuerySchema,
   updateRecapStepBodySchema,
-} from '@/lib/schemas/recap'
+} from '@/lib/schemas/recap-legacy'
 
 const validUuid = '11111111-1111-4111-8111-111111111111'
 const otherUuid = '22222222-2222-4222-8222-222222222222'
