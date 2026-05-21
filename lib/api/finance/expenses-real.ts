@@ -301,11 +301,17 @@ export const PUT = withAuth(async (request: NextRequest) => {
         if (oldExpense.group_id) contextFilter.group_id = oldExpense.group_id
         else if (oldExpense.profile_id) contextFilter.profile_id = oldExpense.profile_id
 
-        // Etape 1: Reverser l'ancienne allocation
+        // Etape 1: Reverser l'ancienne allocation (refund piggy + savings dans les pools)
         await reverseAllocation(oldExpense, contextFilter)
 
-        // Etape 2: Appliquer la nouvelle allocation avec le nouveau montant
-        const result = await applyAllocation(amount, budgetId, contextFilter)
+        // Etape 2: Appliquer la nouvelle allocation. On passe `oldExpense` pour que
+        // applyAllocation utilise l'algorithme « preserve existing caps » (Sprint
+        // 2026-05-21 fix) : savings/piggy stockés sur la dépense existante sont
+        // des CEILINGS pour la nouvelle allocation. Sans cela, P4-strict
+        // redistribuait arbitrairement (e.g., 25€ savings + 98€ budget → 0
+        // savings + 5 budget lors d'une réduction à 5€, alors qu'on veut 5
+        // savings + 0 budget pour préserver la portion savings revendiquée).
+        const result = await applyAllocation(amount, budgetId, contextFilter, oldExpense)
 
         // Ajouter les nouveaux breakdown fields aux updates
         updates.amount_from_piggy_bank = result.fromPiggyBank

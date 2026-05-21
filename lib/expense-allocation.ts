@@ -70,18 +70,31 @@ export async function reverseAllocation(
  * met à jour les économies du budget si nécessaire et retourne le résultat.
  *
  * Edit-flow consumer ([lib/api/finance/expenses-real.ts] PUT) : appelle d'abord
- * `reverseAllocation` puis `applyAllocation` avec le nouveau montant. Le mode
- * P5 toggle n'est pas exposé via le edit flow (preserves the original intent).
+ * `reverseAllocation` puis `applyAllocation` avec le nouveau montant. Quand
+ * `existingExpense` est fourni (mode EDIT), on bascule sur l'algorithme
+ * **« preserve existing caps »** introduit Sprint 2026-05-21 (cf. bug report
+ * user) : les valeurs `amount_from_piggy_bank` et `amount_from_budget_savings`
+ * stockées sur la dépense sont des CEILINGS pour la nouvelle allocation —
+ * savings/piggy débitées d'abord jusqu'à leur cap existant, puis budget
+ * absorbe le reste (incl. déficit éventuel). Cela évite que reverseAllocation
+ * + applyAllocation-fresh redistribue arbitrairement la portion savings vers
+ * le budget quand le user diminue le montant (cas A 123€ avec 25€ savings
+ * réduite à 5€ : on veut 5€ savings + 0 budget, pas 0 savings + 5 budget).
+ *
+ * Sans `existingExpense` (mode ADD), l'algorithme P4-strict s'applique
+ * (budget first, savings cascade overflow). Le mode P5 toggle n'est pas
+ * exposé via le edit flow (preserves the original intent).
  *
  * **Note Sprint P4-P5-P6** : depuis le refactor calculateBreakdown, fromPiggyBank
- * est toujours 0 ici. Le code conditionnel updatePiggyBank ci-dessous est
- * dead branch en pratique mais préservé pour défense en profondeur si un futur
- * caller passe explicitement un breakdown avec piggy via Phase 2 (non-implementé).
+ * est toujours 0 en ADD. En EDIT, fromPiggyBank peut être > 0 si l'existing
+ * en avait (legacy data avant P4 strict, ou cross-budget cascade qui débitait
+ * piggy avant Phase 2).
  */
 export async function applyAllocation(
   amount: number,
   budgetId: string,
   contextFilter: ContextFilter,
+  existingExpense?: ExpenseWithBreakdown | null,
 ): Promise<ApplyAllocationResult> {
   // Lire la tirelire actuelle (pour les champs de retour, pas pour cascade)
   const { data: piggyData } = await supabaseServer
@@ -120,17 +133,37 @@ export async function applyAllocation(
 
   const budgetRemaining = budgetEstimated - budgetSpentBefore
 
-  // Calculer le breakdown (P4 strict default — edit flow n'utilise pas le toggle P5)
-  const breakdown = calculateBreakdown(amount, budgetRemaining, savingsBefore)
+  // Mode EDIT (existingExpense fourni) : preserve existing per-source caps.
+  // Mode ADD : P4 strict default — edit flow n'utilise pas le toggle P5.
+  let breakdown: AllocationBreakdown
+  if (existingExpense) {
+    const existingPiggyCap = existingExpense.amount_from_piggy_bank ?? 0
+    const existingSavingsCap = existingExpense.amount_from_budget_savings ?? 0
+    let remaining = amount
+    const fromPiggyBank = Math.min(remaining, existingPiggyCap)
+    remaining -= fromPiggyBank
+    const fromBudgetSavings = Math.min(remaining, existingSavingsCap)
+    remaining -= fromBudgetSavings
+    const fromBudget = remaining // absorbe le reste, incl. déficit éventuel
+    breakdown = { fromPiggyBank, fromBudgetSavings, fromBudget, overflow: 0 }
+  } else {
+    breakdown = calculateBreakdown(amount, budgetRemaining, savingsBefore)
+  }
 
-  // Si overflow > 0, le edit flow accepte le débordement (le user a explicitement
-  // augmenté le montant). Le `fromBudget` reçoit le résidu — produit un déficit
-  // budget visible (impact RAV). Le user peut annuler edit s'il refuse.
+  // Si overflow > 0 (ADD seulement, EDIT a déjà résorbé dans fromBudget), le
+  // edit flow accepte le débordement (le user a explicitement augmenté le
+  // montant). Le `fromBudget` reçoit le résidu — produit un déficit budget
+  // visible (impact RAV). Le user peut annuler edit s'il refuse.
   const fromBudgetWithOverflow = breakdown.fromBudget + breakdown.overflow
 
   const piggyBankAfter = piggyBankBefore - breakdown.fromPiggyBank
   const savingsAfter = savingsBefore - breakdown.fromBudgetSavings
-  const budgetSpentAfter = budgetSpentBefore + fromBudgetWithOverflow
+  // En EDIT, le `budgetSpentBefore` lu plus haut inclut l'ancienne contribution
+  // `existingExpense.amount_from_budget` (real_expenses pas encore updaté). Pour
+  // refléter l'état post-save, on soustrait l'ancienne contribution et on
+  // ajoute la nouvelle. En ADD, existingExpense est null → subtract = 0.
+  const existingBudgetContribution = existingExpense?.amount_from_budget ?? 0
+  const budgetSpentAfter = budgetSpentBefore - existingBudgetContribution + fromBudgetWithOverflow
 
   // Tirelire jamais débitée en P4 strict (dead branch préservée pour Phase 2)
   if (breakdown.fromPiggyBank > 0 && piggyData) {
