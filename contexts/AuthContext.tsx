@@ -120,12 +120,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const interval = setInterval(async () => {
       try {
         const result = await refreshSession()
-        if (!result.success) {
+        if (result.outcome === 'unauthenticated') {
           await handleLogout()
         }
+        // 'unknown' → transient (NetworkError, 5xx, dev rebuild) : skip ce
+        // tick, on retentera au suivant. Logout-on-transient déconnectait
+        // l'utilisateur à chaque hiccup réseau (cf. proxy.ts checkRecapStatus
+        // + webpack HMR).
       } catch (err) {
-        logger.error('Auto refresh error:', err)
-        await handleLogout()
+        // Garde-fou : refreshSession ne devrait plus throw, mais si oui on skip.
+        logger.warn('Auto refresh error (skipped, will retry):', err)
       }
     }, SESSION_REFRESH_INTERVAL_MS)
     refreshIntervalRef.current = interval
@@ -136,17 +140,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const interval = setInterval(async () => {
       try {
         if (userRef.current) {
-          const authenticated = await isAuthenticated()
-          if (!authenticated) {
+          const outcome = await isAuthenticated()
+          if (outcome === 'unauthenticated') {
             await handleLogout()
           }
+          // 'unknown' → skip ce tick, on retente dans AUTH_CHECK_INTERVAL_MS.
         }
       } catch (err) {
+        // Garde-fou : isAuthenticated ne devrait plus throw, mais si oui on skip.
         if (!(err instanceof Error) || !err.message.includes('401')) {
-          logger.warn('Auth check error:', err)
-        }
-        if (userRef.current) {
-          await handleLogout()
+          logger.warn('Auth check error (skipped, will retry):', err)
         }
       }
     }, AUTH_CHECK_INTERVAL_MS)
@@ -251,14 +254,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUserSession = useCallback(async () => {
     try {
       const result = await refreshSession()
-      if (result.success && result.user) {
+      if (result.outcome === 'success' && result.user) {
         dispatch({ type: 'SET_USER', user: result.user })
-      } else {
+      } else if (result.outcome === 'unauthenticated') {
         await handleLogout()
       }
+      // 'unknown' → no-op (caller peut retry manuellement) ; pas de logout
+      // sur erreur transient.
     } catch (err) {
-      logger.error('Manual refresh error:', err)
-      await handleLogout()
+      logger.error('Manual refresh error (kept session):', err)
+      // Pas de logout sur erreur transient — la session reste valide côté
+      // serveur, le caller peut retry.
     }
   }, [handleLogout])
 
