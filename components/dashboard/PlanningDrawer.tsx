@@ -70,6 +70,12 @@ export default function PlanningDrawer({
     name: string
     type: 'budget' | 'income'
     cumulatedSavings: number
+    /**
+     * Estimated amount du budget ou du revenu — sert à afficher l'impact sur
+     * le total estimé dans la modal de confirmation suppression (Sprint
+     * 2026-05-22 / Delete-Header-And-Income-Concise). 0 si non disponible.
+     */
+    estimatedAmount: number
   } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -313,7 +319,7 @@ export default function PlanningDrawer({
    * Demande de confirmation de suppression
    */
   const handleRequestDelete = (
-    item: { id: string; name: string; cumulated_savings?: number },
+    item: { id: string; name: string; cumulated_savings?: number; estimated_amount?: number },
     type: 'budget' | 'income',
   ) => {
     // Vérifier si l'item est entamé
@@ -329,6 +335,7 @@ export default function PlanningDrawer({
       name: item.name,
       type,
       cumulatedSavings: type === 'budget' ? (item.cumulated_savings ?? 0) : 0,
+      estimatedAmount: item.estimated_amount ?? 0,
     })
     setIsDeleteConfirmOpen(true)
   }
@@ -849,16 +856,45 @@ export default function PlanningDrawer({
           onConfirm={handleConfirmDelete}
           title="Confirmer la suppression"
           message={`Êtes-vous sûr de vouloir supprimer "${deletingItem?.name}" ? Cette action est irréversible.`}
-          details={
-            deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0 ? (
-              <p>
-                <span className="font-semibold text-purple-600">
-                  {formatAmount(deletingItem.cumulatedSavings)}
-                </span>{' '}
-                d&apos;économies sera transféré dans la tirelire.
-              </p>
-            ) : undefined
-          }
+          details={(() => {
+            if (!deletingItem) return undefined
+
+            // Income with estimated amount → show new total estimated income.
+            // Sprint 2026-05-22 / Delete-Header-And-Income-Concise.
+            if (deletingItem.type === 'income' && deletingItem.estimatedAmount > 0) {
+              const newTotal = totalIncomesWithSalary - deletingItem.estimatedAmount
+              return (
+                <div className="space-y-1.5 text-left">
+                  <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+                  <p>
+                    Vos revenus estimés passeront de{' '}
+                    <span className="font-semibold text-green-600">
+                      {formatAmount(totalIncomesWithSalary)}
+                    </span>{' '}
+                    à <span className="font-semibold text-green-600">{formatAmount(newTotal)}</span>
+                    .
+                  </p>
+                </div>
+              )
+            }
+
+            // Budget with savings to transfer → existing phrase + header.
+            if (deletingItem.type === 'budget' && deletingItem.cumulatedSavings > 0) {
+              return (
+                <div className="space-y-1.5 text-left">
+                  <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+                  <p>
+                    <span className="font-semibold text-purple-600">
+                      {formatAmount(deletingItem.cumulatedSavings)}
+                    </span>{' '}
+                    d&apos;économies sera transféré dans la tirelire.
+                  </p>
+                </div>
+              )
+            }
+
+            return undefined
+          })()}
           confirmText={
             deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0
               ? 'Supprimer et transférer'

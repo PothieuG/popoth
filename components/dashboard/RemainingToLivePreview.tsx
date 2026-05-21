@@ -30,6 +30,15 @@ interface RemainingToLivePreviewProps {
    * Contexte (profile ou group)
    */
   context?: 'profile' | 'group'
+
+  /**
+   * En mode édition : montant stocké de la transaction existante. Permet de
+   * "back-out" la contribution actuelle (déjà incluse dans
+   * `progress.receivedAmount` ou dans l'état RAV courant) avant de calculer
+   * l'impact net du nouveau montant. Sprint 2026-05-22 / Income-Edit-Preview.
+   * Default 0 (mode ADD — pas d'existing à reverser).
+   */
+  existingAmount?: number
 }
 
 /**
@@ -46,6 +55,7 @@ export default function RemainingToLivePreview({
   isExceptional,
   selectedId,
   context = 'profile',
+  existingAmount = 0,
 }: RemainingToLivePreviewProps) {
   const { financialData, loading, isFetching } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
@@ -60,9 +70,12 @@ export default function RemainingToLivePreview({
 
     const currentRemainingToLive = financialData.remainingToLive
 
-    // Pour les transactions exceptionnelles, l'impact est direct
+    // Pour les transactions exceptionnelles, l'impact est direct. En EDIT
+    // mode (existingAmount > 0), l'impact courant est déjà reflété dans le
+    // RAV → on calcule le delta net : (amount - existingAmount).
     if (isExceptional) {
-      const impact = type === 'expense' ? -amount : amount
+      const netAmount = amount - existingAmount
+      const impact = type === 'expense' ? -netAmount : netAmount
       return {
         newRemainingToLive: currentRemainingToLive + impact,
         change: impact,
@@ -95,23 +108,24 @@ export default function RemainingToLivePreview({
       // Si pas de dépassement, pas d'impact (déjà budgété)
       return { newRemainingToLive: currentRemainingToLive, change: 0 }
     } else if (type === 'income' && selectedId) {
-      // Pour les revenus, vérifier si c'est un bonus
+      // Pour les revenus, vérifier si c'est un bonus. En EDIT mode, on
+      // "back-out" la transaction existante avant le calcul pour ne pas
+      // double-compter (progress.receivedAmount inclut déjà l'existing tx).
       const progress = incomeProgress[selectedId]
 
       if (progress) {
         const currentReceived = progress.receivedAmount
-        const newTotalReceived = currentReceived + amount
+        const effectiveCurrentReceived = currentReceived - existingAmount
+        const newTotalReceived = effectiveCurrentReceived + amount
         const estimatedAmount = progress.estimatedAmount
 
         // Calculer l'impact de cette transaction par rapport à l'estimation
-        const currentDifference = currentReceived - estimatedAmount
+        const currentDifference = effectiveCurrentReceived - estimatedAmount
         const newDifference = newTotalReceived - estimatedAmount
 
-        // Si aucun revenu n'a encore été reçu (currentReceived = 0),
-        // l'impact est la différence totale par rapport à l'estimation (newDifference)
-        // Sinon, c'est le changement différentiel normal
-
-        if (currentReceived === 0) {
+        // Si aucun revenu n'a encore été reçu (effectif = 0 après back-out),
+        // l'impact est la différence totale par rapport à l'estimation
+        if (effectiveCurrentReceived === 0) {
           // Premier revenu pour cette estimation : impact = différence totale vs estimation
           return {
             newRemainingToLive: currentRemainingToLive + newDifference,

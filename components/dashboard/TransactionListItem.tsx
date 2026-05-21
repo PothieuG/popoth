@@ -145,28 +145,32 @@ export default function TransactionListItem({
 
   /**
    * Construit le ReactNode `details` pour la modal de confirmation suppression.
-   * Sprint 2026-05-21 / Recap-Reuse-Delete-Confirmation : on remplace
-   * l'ancien breakdown 3-col (label / montant / `→ new balance`) par le
-   * panel `<AfterOperationPanel compact>` partagé avec `<ExpenseBreakdownPreview>` —
-   * mêmes lignes Tirelire/Économies/Budget/RAV, mêmes couleurs labels par
-   * entité, mêmes chiffres en noir.
+   * Sprint 2026-05-22 / Delete-Header-And-Income-Concise :
+   *   - "Après suppression :" header obligatoire au-dessus de chaque branche
+   *     (panel ou texte fallback) pour clarifier ce que représente l'encart.
+   *   - Income branches : drop le "Revenu lié à 'xxx'" line (concis), color
+   *     "Reste à vivre" en blue dans les phrases fallback.
    *
-   * 4 branches selon le type de transaction :
-   *   - Budgeted expense : montre les balances post-delete (piggy/savings
-   *     recréditées, budget spent decreased, RAV recovered si overflow).
-   *   - Exceptional expense : 1 ligne RAV post-delete (+amount au RAV).
+   * 4 branches selon le type de transaction (cf. Sprint Recap-Reuse-Delete-
+   * Confirmation 2026-05-21 pour le panel partagé avec ExpenseBreakdownPreview) :
+   *   - Budgeted expense : balances post-delete dans `<AfterOperationPanel compact>`.
+   *   - Exceptional expense : 1 ligne RAV post-delete dans le panel.
    *   - Regular income (avec contexte cumul) : 1 ligne RAV post-delete si
-   *     ravDelta < 0, sinon message "RAV pas affecté".
-   *   - Exceptional income : 1 ligne RAV post-delete (-amount au RAV).
+   *     ravDelta < 0 dans le panel, sinon phrase texte "RAV pas affecté".
+   *   - Exceptional income : 1 ligne RAV post-delete dans le panel.
    *
    * Returns undefined quand aucun contexte (`budgetSnapshot` / `currentRav`)
    * n'est dispo pour calculer l'état post-delete.
    */
   const buildDeleteDetails = (): ReactNode | undefined => {
-    if (type === 'expense') {
-      return buildExpenseDeleteDetails()
-    }
-    return buildIncomeDeleteDetails()
+    const inner = type === 'expense' ? buildExpenseDeleteDetails() : buildIncomeDeleteDetails()
+    if (inner == null) return undefined
+    return (
+      <div className="space-y-1.5 text-left">
+        <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+        {inner}
+      </div>
+    )
   }
 
   const buildExpenseDeleteDetails = (): ReactNode | undefined => {
@@ -231,13 +235,6 @@ export default function TransactionListItem({
       )
     }
 
-    const sourceName = income.estimated_income?.name
-    const sourceLine = sourceName ? (
-      <p>
-        Revenu lié à <span className="font-semibold">« {sourceName} »</span>.
-      </p>
-    ) : null
-
     if (incomeSourceContext) {
       const { cumulRealAmount, estimatedAmount } = incomeSourceContext
       const contribBefore = Math.max(cumulRealAmount, estimatedAmount)
@@ -247,28 +244,23 @@ export default function TransactionListItem({
 
       if (ravDelta < 0 && newRav != null) {
         return (
-          <div className="space-y-1.5 text-left">
-            {sourceLine}
-            <AfterOperationPanel compact>
-              <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
-            </AfterOperationPanel>
-          </div>
+          <AfterOperationPanel compact>
+            <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
+          </AfterOperationPanel>
         )
       }
       return (
-        <div className="space-y-1 text-left">
-          {sourceLine}
-          <p className="text-gray-600">
-            Votre reste à vivre ne sera pas affecté (le revenu estimé tient déjà la base).
-          </p>
-        </div>
+        <p className="text-gray-600">
+          Votre <span className="font-medium text-blue-600">reste à vivre</span> ne sera pas affecté
+          (le revenu estimé tient déjà la base).
+        </p>
       )
     }
 
     return (
       <p>
-        {sourceLine}
-        Votre reste à vivre sera réajusté en conséquence.
+        Votre <span className="font-medium text-blue-600">reste à vivre</span> sera réajusté en
+        conséquence.
       </p>
     )
   }

@@ -281,8 +281,11 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      // Source name preserved as preamble above the panel
-      expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
+      // Sprint 2026-05-22 / Delete-Header-And-Income-Concise : "Revenu lié à"
+      // sourceLine droppée pour rester concis. Header "Après suppression :"
+      // ajouté au-dessus du panel.
+      expect(dlg.getByText('Après suppression :')).toBeInTheDocument()
+      expect(dlg.queryByText(/Salaire Mai/)).not.toBeInTheDocument()
 
       expect(dlg.getByText('Reste à vivre')).toHaveClass('text-blue-600')
       expect(dlg.getByText(/2\s*800\s*€/)).toBeInTheDocument()
@@ -326,11 +329,15 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
+      expect(dlg.queryByText(/Salaire Mai/)).not.toBeInTheDocument()
+      expect(dlg.getByText('Après suppression :')).toBeInTheDocument()
       expect(dlg.getByText(/ne sera pas affecté/)).toBeInTheDocument()
-      // Compact mode drops the "Après opération" header, so we assert
-      // absence of the Reste à vivre label as the panel-absence indicator.
+      // Sprint 2026-05-22 / Delete-Header-And-Income-Concise : "reste à vivre"
+      // (lowercase) colored in blue inline. Use queryByText with the lowercase
+      // form to assert the colored span. Note : capital "Reste à vivre" (panel
+      // EntityLabel) is absent since no panel renders here.
       expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()
+      expect(dlg.getByText('reste à vivre')).toHaveClass('text-blue-600')
     })
 
     it('regular income without incomeSourceContext: fallback informative text, no panel', async () => {
@@ -347,8 +354,10 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
+      expect(dlg.queryByText(/Salaire Mai/)).not.toBeInTheDocument()
+      expect(dlg.getByText('Après suppression :')).toBeInTheDocument()
       expect(dlg.getByText(/sera réajusté en conséquence/)).toBeInTheDocument()
+      expect(dlg.getByText('reste à vivre')).toHaveClass('text-blue-600')
       // Compact mode drops the "Après opération" header, so we assert
       // absence of the Reste à vivre label as the panel-absence indicator.
       expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()

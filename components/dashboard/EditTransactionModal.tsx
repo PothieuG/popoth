@@ -19,6 +19,7 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
+import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import {
   editTransactionFormSchema,
@@ -436,6 +437,31 @@ export default function EditTransactionModal({
                   budgetId={String(watchedBudgetId)}
                   context={context}
                   expenseId={transaction.id}
+                />
+              )}
+
+            {/* Income/Exceptional Preview — Sprint 2026-05-22 / Income-Edit-Preview.
+                Pour les revenus (réguliers ou exceptionnels) et les dépenses
+                exceptionnelles, on montre `<RemainingToLivePreview>` avec
+                `existingAmount={transaction.amount}` pour back-out la
+                contribution déjà comptabilisée. Gated comme l'expense
+                preview sur un changement effectif du montant. */}
+            {previewSafe > 0 &&
+              transaction &&
+              (transactionType === 'income' ||
+                (transactionType === 'expense' && isOriginallyExceptional)) &&
+              Math.round(previewSafe * 100) !== Math.round(transaction.amount * 100) && (
+                <RemainingToLivePreview
+                  amount={previewSafe}
+                  type={transactionType}
+                  isExceptional={isOriginallyExceptional}
+                  selectedId={
+                    transactionType === 'income'
+                      ? ((transaction as RealIncome).estimated_income_id ?? undefined)
+                      : undefined
+                  }
+                  context={context}
+                  existingAmount={transaction.amount}
                 />
               )}
 
