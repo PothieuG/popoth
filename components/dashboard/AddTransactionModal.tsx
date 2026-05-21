@@ -166,7 +166,6 @@ export default function AddTransactionModal({
       : null
   const overflow = localBreakdown?.overflow ?? 0
 
-  /* eslint-disable react-hooks/preserve-manual-memoization -- React Compiler ne peut pas prouver la stabilité référentielle de `overflow` (downstream d'un calculateBreakdown sans memo). Memoization manuelle préservée pour éviter re-allocations dans la boucle. Drop si un futur sprint refactor `localBreakdown` en useMemo (Sprint P4-P5-P6 Phase 2 deferred). */
   const { crossBudgetAllocations, crossBudgetTotal, remainingOvershoot } = useMemo(() => {
     if (overflow <= 0) {
       return { crossBudgetAllocations: [], crossBudgetTotal: 0, remainingOvershoot: 0 }
@@ -190,7 +189,6 @@ export default function AddTransactionModal({
       remainingOvershoot: Math.max(0, overflow - total),
     }
   }, [overflow, crossBudgetSelected, budgets])
-  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   const availableCrossBudgets = budgets.filter(
     (b) => b.id !== budgetId && (b.cumulated_savings ?? 0) > 0,
