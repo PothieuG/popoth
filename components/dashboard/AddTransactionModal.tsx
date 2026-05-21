@@ -88,7 +88,11 @@ export default function AddTransactionModal({
   // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
   // `setWizardStep` so the new step renders with the matching animate-in class.
   const [stepAnimDir, setStepAnimDir] = useState<'forward' | 'backward'>('forward')
-  const [useSavings, setUseSavings] = useState(false)
+  // Sprint 2026-05-21 / Auto-Use-Savings : le toggle UI "Utiliser les économies"
+  // a été retiré — savings utilisées par défaut (mode P5 strict). La constante
+  // reste pour passer `use_savings: true` à l'API + `useSavingsToggle: true`
+  // aux helpers `calculateBreakdown` / `useRavValidation`.
+  const useSavings = true
   // P4 Phase 2 — ordered list of budget IDs the user selected to source
   // cross-budget savings from. Drained first-fit in selection order to
   // cover the overflow (each entry takes min(remaining, its savings)).
@@ -263,7 +267,6 @@ export default function AddTransactionModal({
         is_exceptional: false,
         estimated_budget_id: null,
       })
-      setUseSavings(false)
       setWizardStep('select-kind')
     } else {
       form.reset({
@@ -274,7 +277,6 @@ export default function AddTransactionModal({
         is_exceptional: false,
         estimated_income_id: null,
       })
-      setUseSavings(false)
       setWizardStep('select-kind')
     }
   }
@@ -292,7 +294,6 @@ export default function AddTransactionModal({
       } else {
         form.setValue('estimated_income_id', null)
       }
-      setUseSavings(false)
     }
     setStepAnimDir('forward')
     setWizardStep('fields')
@@ -862,41 +863,6 @@ export default function AddTransactionModal({
                   </p>
                 )}
               </div>
-
-              {/* P5: "Utiliser les économies" toggle — only for budgeted expense
-                with a selected budget that has savings */}
-              {transactionType === 'expense' &&
-                !isExceptional &&
-                budgetId &&
-                savingsAvailable > 0 && (
-                  <div className="space-y-1.5 rounded-lg border border-purple-200 bg-purple-50 p-3">
-                    <div className="flex items-start space-x-2">
-                      <input
-                        type="checkbox"
-                        id="use-savings"
-                        checked={useSavings}
-                        onChange={(e) => setUseSavings(e.target.checked)}
-                        disabled={isSubmitting}
-                        className="mt-1 h-4 w-4 rounded border-purple-300 bg-white text-purple-600 focus:ring-purple-500"
-                      />
-                      <div className="flex-1">
-                        <Label
-                          htmlFor="use-savings"
-                          className="cursor-pointer text-sm font-medium text-purple-900"
-                        >
-                          Utiliser les économies de ce budget
-                        </Label>
-                        <p className="mt-0.5 text-xs text-purple-700">
-                          {savingsAvailable.toLocaleString('fr-FR', {
-                            style: 'currency',
-                            currency: 'EUR',
-                          })}{' '}
-                          disponibles. Activer pour puiser dans les économies avant le budget.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
               {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
               {overflow > 0 && availableCrossBudgets.length > 0 && (

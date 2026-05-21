@@ -191,37 +191,27 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
   })
 })
 
-describe('AddTransactionModal — P5 toggle "Utiliser les économies"', () => {
+describe('AddTransactionModal — use_savings auto-enabled (Sprint 2026-05-21 / Auto-Use-Savings)', () => {
   beforeEach(() => {
     addExpense.mockClear()
     addExpense.mockResolvedValue(true)
     ravState.blocked = false
   })
 
-  it('toggle appears for budgeted expense when budget has savings > 0', async () => {
+  it('no longer renders a "Utiliser les économies" toggle UI', async () => {
     const user = userEvent.setup()
     render(<AddTransactionModal onClose={vi.fn()} />)
     await navigateToFieldsExpense(user)
-    // Select budget (Alimentation has cumulated_savings: 50)
     await user.selectOptions(screen.getByTestId('fk-dropdown'), BUDGET_UUID)
-    // P5 toggle should appear
-    expect(screen.getByLabelText(/utiliser les économies/i)).toBeInTheDocument()
-  })
-
-  it('toggle hidden for exceptional expense (no budget to draw savings from)', async () => {
-    const user = userEvent.setup()
-    render(<AddTransactionModal onClose={vi.fn()} />)
-    await navigateToFieldsExpense(user, { exceptional: true })
+    // Toggle UI was removed Sprint Auto-Use-Savings — savings used by default.
     expect(screen.queryByLabelText(/utiliser les économies/i)).not.toBeInTheDocument()
   })
 
-  it('toggle passed to addExpense as use_savings: true on submit', async () => {
+  it('passes use_savings: true to addExpense on budgeted expense submit', async () => {
     const user = userEvent.setup()
     render(<AddTransactionModal onClose={vi.fn()} />)
     await navigateToFieldsExpense(user)
     await user.selectOptions(screen.getByTestId('fk-dropdown'), BUDGET_UUID)
-    // Activate P5 toggle
-    await user.click(screen.getByLabelText(/utiliser les économies/i))
     await user.type(screen.getByLabelText(/description/i), 'Courses')
     await user.clear(screen.getByLabelText(/montant/i))
     await user.type(screen.getByLabelText(/montant/i), '40')
@@ -233,24 +223,6 @@ describe('AddTransactionModal — P5 toggle "Utiliser les économies"', () => {
           amount: 40,
           estimated_budget_id: BUDGET_UUID,
           use_savings: true,
-        }),
-      )
-    })
-  })
-
-  it('toggle off by default → addExpense called with use_savings: false', async () => {
-    const user = userEvent.setup()
-    render(<AddTransactionModal onClose={vi.fn()} />)
-    await navigateToFieldsExpense(user)
-    await user.selectOptions(screen.getByTestId('fk-dropdown'), BUDGET_UUID)
-    await user.type(screen.getByLabelText(/description/i), 'Courses')
-    await user.clear(screen.getByLabelText(/montant/i))
-    await user.type(screen.getByLabelText(/montant/i), '40')
-    await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/i }))
-    await waitFor(() => {
-      expect(addExpense).toHaveBeenCalledWith(
-        expect.objectContaining({
-          use_savings: false,
         }),
       )
     })
