@@ -5,6 +5,10 @@ import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
+import { useIncomes } from '@/hooks/useIncomes'
+import { useBudgets } from '@/hooks/useBudgets'
+import { useFinancialData } from '@/hooks/useFinancialData'
+import { useProgressData } from '@/hooks/useProgressData'
 import { logger } from '@/lib/logger'
 import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 import type { ProfileData } from '@/app/api/profile/route'
@@ -60,6 +64,19 @@ export default function TransactionTabsComponent({
     deleteIncome,
   } = useRealIncomes(context)
 
+  // For the precise RAV-delta details in the delete confirmation of a regular
+  // (estimated_income_id-linked) income, we need the estimated amount for the
+  // linked source. Fetched once + indexed by id below.
+  const { incomes: estimatedIncomes } = useIncomes(context)
+
+  // For the rich delete-confirmation details: budget snapshot (cumulated_savings
+  // + estimated_amount + spentAmount) and current RAV. All three hooks are
+  // already mounted elsewhere on the dashboard (cached by TanStack Query).
+  const { budgets: estimatedBudgets } = useBudgets(context)
+  const { financialData } = useFinancialData(context)
+  const { expenseProgress } = useProgressData(context, period)
+  const currentRemainingToLive = financialData?.remainingToLive ?? null
+
   // Sprint P1 — filter CSR by period. Range null = no filter applied.
   const dateRange = useMemo(() => (period ? computePeriodDateRange(period) : null), [period])
   const filteredExpenses = useMemo(() => {
@@ -74,6 +91,27 @@ export default function TransactionTabsComponent({
       (i) => i.entry_date >= dateRange.startDate && i.entry_date <= dateRange.endDate,
     )
   }, [incomes, dateRange])
+
+  // Cumul des montants réels par source (estimated_income_id), filtré par la
+  // même période que la liste affichée. Sert au calcul du delta RAV dans la
+  // modal de confirmation de suppression d'un revenu régulier.
+  const cumulRealByIncomeSourceId = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const inc of filteredIncomes) {
+      if (inc.estimated_income_id) {
+        m.set(inc.estimated_income_id, (m.get(inc.estimated_income_id) ?? 0) + inc.amount)
+      }
+    }
+    return m
+  }, [filteredIncomes])
+
+  const estimatedAmountByIncomeSourceId = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const est of estimatedIncomes) {
+      m.set(est.id, est.estimated_amount)
+    }
+    return m
+  }, [estimatedIncomes])
 
   /**
    * Handle delete expense with callback
@@ -240,17 +278,35 @@ export default function TransactionTabsComponent({
 
       return (
         <div className="space-y-1.5">
-          {filteredExpenses.map((expense) => (
-            <TransactionListItem
-              key={expense.id}
-              transaction={expense}
-              type="expense"
-              context={context}
-              userProfile={userProfile}
-              onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
-              onDelete={handleDeleteExpense}
-            />
-          ))}
+          {filteredExpenses.map((expense) => {
+            const budget = expense.estimated_budget_id
+              ? estimatedBudgets.find((b) => b.id === expense.estimated_budget_id)
+              : undefined
+            const progress = expense.estimated_budget_id
+              ? expenseProgress[expense.estimated_budget_id]
+              : undefined
+            const budgetSnapshot =
+              budget && progress
+                ? {
+                    cumulatedSavings: budget.cumulated_savings ?? 0,
+                    estimatedAmount: budget.estimated_amount,
+                    spentAmount: progress.spentAmount,
+                  }
+                : null
+            return (
+              <TransactionListItem
+                key={expense.id}
+                transaction={expense}
+                type="expense"
+                context={context}
+                userProfile={userProfile}
+                currentRemainingToLive={currentRemainingToLive}
+                budgetSnapshot={budgetSnapshot}
+                onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
+                onDelete={handleDeleteExpense}
+              />
+            )
+          })}
         </div>
       )
     } else {
@@ -260,17 +316,30 @@ export default function TransactionTabsComponent({
 
       return (
         <div className="space-y-1.5">
-          {filteredIncomes.map((income) => (
-            <TransactionListItem
-              key={income.id}
-              transaction={income}
-              type="income"
-              context={context}
-              userProfile={userProfile}
-              onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
-              onDelete={handleDeleteIncome}
-            />
-          ))}
+          {filteredIncomes.map((income) => {
+            const ctx =
+              income.estimated_income_id && !income.is_exceptional
+                ? {
+                    cumulRealAmount:
+                      cumulRealByIncomeSourceId.get(income.estimated_income_id) ?? income.amount,
+                    estimatedAmount:
+                      estimatedAmountByIncomeSourceId.get(income.estimated_income_id) ?? 0,
+                  }
+                : null
+            return (
+              <TransactionListItem
+                key={income.id}
+                transaction={income}
+                type="income"
+                context={context}
+                userProfile={userProfile}
+                incomeSourceContext={ctx}
+                currentRemainingToLive={currentRemainingToLive}
+                onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
+                onDelete={handleDeleteIncome}
+              />
+            )
+          })}
         </div>
       )
     }

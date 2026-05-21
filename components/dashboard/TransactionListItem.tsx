@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
 import type { RealExpense } from '@/hooks/useRealExpenses'
@@ -19,6 +19,35 @@ interface TransactionListItemProps {
   onDelete: (transactionId: string) => Promise<boolean>
   context?: 'profile' | 'group'
   userProfile?: ProfileData | null
+  /**
+   * Pour un revenu régulier (estimated_income_id set + !is_exceptional), le
+   * parent fournit le cumul des montants réels pour la même source + le
+   * montant estimé de la source, afin que la modal de confirmation affiche
+   * un delta RAV précis. Null/undefined pour les dépenses et revenus
+   * exceptionnels (pas nécessaire dans ces branches).
+   */
+  incomeSourceContext?: { cumulRealAmount: number; estimatedAmount: number } | null
+  /**
+   * Reste à vivre courant — sert à afficher le solde post-suppression dans
+   * la modal de confirmation. Null/undefined si non disponible (loading).
+   */
+  currentRemainingToLive?: number | null
+  /**
+   * Snapshot du budget destination — sert à afficher le solde post-suppression
+   * et à calculer la portion RAV recréditée (déficit budgétaire absorbé).
+   * Tous les montants sont au moment du décision (incluent cette dépense).
+   * Null/undefined pour les revenus, dépenses exceptionnelles, ou budget supprimé.
+   */
+  budgetSnapshot?: {
+    cumulatedSavings: number
+    estimatedAmount: number
+    spentAmount: number
+  } | null
+  /**
+   * Montant actuel de la tirelire — sert à afficher le solde post-suppression
+   * sur la ligne tirelire. Null/undefined si non disponible.
+   */
+  piggyBankAmount?: number | null
   className?: string
 }
 
@@ -33,6 +62,10 @@ export default function TransactionListItem({
   onDelete,
   context = 'profile',
   userProfile = null,
+  incomeSourceContext = null,
+  currentRemainingToLive = null,
+  budgetSnapshot = null,
+  piggyBankAmount = null,
   className,
 }: TransactionListItemProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -102,6 +135,227 @@ export default function TransactionListItem({
     } finally {
       setIsDeleting(false)
     }
+  }
+
+  /**
+   * Build the rich `details` ReactNode for the delete confirmation modal.
+   * Layout: 3-column grid (label / amount / "→ new balance") per source line.
+   *
+   * 4 branches:
+   *   - Budgeted expense: budget / savings / piggy / RAV lines (selon ce qui est > 0)
+   *   - Exceptional expense: 1 RAV recovery line
+   *   - Regular income (with context): RAV impact line via deficit math max-cap
+   *   - Exceptional income: 1 RAV loss line
+   *
+   * RAV recovery formula (budgeted expense overflow case):
+   *   spentAfter   = budgetSnapshot.spentAmount - amount_from_budget
+   *   deficitBefore = max(0, spentAmount - estimated)
+   *   deficitAfter  = max(0, spentAfter - estimated)
+   *   ravRecovered  = deficitBefore - deficitAfter   (>= 0)
+   *   budgetPortion = amount_from_budget - ravRecovered
+   *
+   * Returns undefined when no useful info is available.
+   */
+  const buildDeleteDetails = (): ReactNode | undefined => {
+    if (type === 'expense') {
+      return buildExpenseDeleteDetails()
+    }
+    return buildIncomeDeleteDetails()
+  }
+
+  const buildExpenseDeleteDetails = (): ReactNode | undefined => {
+    const expense = transaction as RealExpense
+    const ravBalance = currentRemainingToLive
+
+    if (expense.is_exceptional) {
+      const newRav = ravBalance != null ? ravBalance + expense.amount : null
+      return (
+        <div className="space-y-1 text-left">
+          <p className="font-medium text-gray-700">Cette suppression recrédite :</p>
+          {renderSourceRow({
+            label: 'Reste à vivre',
+            amount: expense.amount,
+            amountColor: 'text-emerald-600',
+            newBalanceText: newRav != null ? `→ ${formatAmountCompact(newRav)}` : null,
+          })}
+        </div>
+      )
+    }
+
+    const piggyRecovered = expense.amount_from_piggy_bank ?? 0
+    const savingsRecovered = expense.amount_from_budget_savings ?? 0
+    const fromBudgetTotal = expense.amount_from_budget ?? expense.amount
+    const budgetName = expense.estimated_budget?.name
+
+    // Split fromBudget into "budget pool refill" + "RAV deficit recovery".
+    let ravRecovered = 0
+    let budgetPortion = fromBudgetTotal
+    let newAvailableInBudget: number | null = null
+    if (budgetSnapshot) {
+      const { spentAmount, estimatedAmount } = budgetSnapshot
+      const spentAfter = spentAmount - fromBudgetTotal
+      const deficitBefore = Math.max(0, spentAmount - estimatedAmount)
+      const deficitAfter = Math.max(0, spentAfter - estimatedAmount)
+      ravRecovered = deficitBefore - deficitAfter
+      budgetPortion = fromBudgetTotal - ravRecovered
+      newAvailableInBudget = Math.max(0, estimatedAmount - spentAfter)
+    }
+
+    const hasAnyLine =
+      budgetPortion > 0 || savingsRecovered > 0 || piggyRecovered > 0 || ravRecovered > 0
+    if (!hasAnyLine) return undefined
+
+    const newSavings =
+      budgetSnapshot != null ? budgetSnapshot.cumulatedSavings + savingsRecovered : null
+    const newPiggy = piggyBankAmount != null ? piggyBankAmount + piggyRecovered : null
+    const newRav = ravBalance != null ? ravBalance + ravRecovered : null
+
+    return (
+      <div className="space-y-1 text-left">
+        <p className="font-medium text-gray-700">Cette suppression recrédite :</p>
+        {budgetPortion > 0 &&
+          renderSourceRow({
+            label: budgetName ? `Budget « ${budgetName} »` : 'Budget',
+            amount: budgetPortion,
+            amountColor: 'text-blue-600',
+            newBalanceText:
+              newAvailableInBudget != null && budgetSnapshot
+                ? `→ ${formatAmountCompact(newAvailableInBudget)}/${formatAmountCompact(budgetSnapshot.estimatedAmount)}`
+                : null,
+          })}
+        {savingsRecovered > 0 &&
+          renderSourceRow({
+            label: budgetName ? `Économies « ${budgetName} »` : 'Économies',
+            amount: savingsRecovered,
+            amountColor: 'text-emerald-600',
+            newBalanceText: newSavings != null ? `→ ${formatAmountCompact(newSavings)}` : null,
+          })}
+        {piggyRecovered > 0 &&
+          renderSourceRow({
+            label: 'Tirelire',
+            amount: piggyRecovered,
+            amountColor: 'text-purple-600',
+            newBalanceText: newPiggy != null ? `→ ${formatAmountCompact(newPiggy)}` : null,
+          })}
+        {ravRecovered > 0 &&
+          renderSourceRow({
+            label: 'Reste à vivre',
+            amount: ravRecovered,
+            amountColor: 'text-emerald-600',
+            newBalanceText: newRav != null ? `→ ${formatAmountCompact(newRav)}` : null,
+          })}
+      </div>
+    )
+  }
+
+  const buildIncomeDeleteDetails = (): ReactNode | undefined => {
+    const income = transaction as RealIncome
+    const ravBalance = currentRemainingToLive
+
+    if (income.is_exceptional) {
+      const newRav = ravBalance != null ? ravBalance - income.amount : null
+      return (
+        <div className="space-y-1 text-left">
+          <p className="font-medium text-gray-700">Cette suppression diminue :</p>
+          {renderSourceRow({
+            label: 'Reste à vivre',
+            amount: -income.amount,
+            amountColor: 'text-red-600',
+            newBalanceText: newRav != null ? `→ ${formatAmountCompact(newRav)}` : null,
+          })}
+        </div>
+      )
+    }
+
+    const sourceName = income.estimated_income?.name
+    const sourceLine = sourceName ? (
+      <p>
+        Revenu lié à <span className="font-semibold">« {sourceName} »</span>.
+      </p>
+    ) : null
+
+    if (incomeSourceContext) {
+      const { cumulRealAmount, estimatedAmount } = incomeSourceContext
+      const contribBefore = Math.max(cumulRealAmount, estimatedAmount)
+      const contribAfter = Math.max(cumulRealAmount - income.amount, estimatedAmount)
+      const ravDelta = contribAfter - contribBefore // ≤ 0
+      const newRav = ravBalance != null ? ravBalance + ravDelta : null
+
+      if (ravDelta < 0) {
+        return (
+          <div className="space-y-1 text-left">
+            {sourceLine}
+            <p className="font-medium text-gray-700">Impact :</p>
+            {renderSourceRow({
+              label: 'Reste à vivre',
+              amount: ravDelta,
+              amountColor: 'text-red-600',
+              newBalanceText: newRav != null ? `→ ${formatAmountCompact(newRav)}` : null,
+            })}
+          </div>
+        )
+      }
+      return (
+        <div className="space-y-1 text-left">
+          {sourceLine}
+          <p className="text-gray-600">
+            Votre reste à vivre ne sera pas affecté (le revenu estimé tient déjà la base).
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <p>
+        {sourceLine}
+        Votre reste à vivre sera réajusté en conséquence.
+      </p>
+    )
+  }
+
+  /**
+   * Render one source row inside the delete-details grid. The grid uses a
+   * 3-column layout (label truncates / amount / new-balance suffix) so all
+   * rows align visually across the breakdown.
+   */
+  const renderSourceRow = ({
+    label,
+    amount,
+    amountColor,
+    newBalanceText,
+  }: {
+    label: string
+    amount: number
+    amountColor: string
+    newBalanceText: string | null
+  }): ReactNode => (
+    <div className="flex items-baseline gap-2">
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className={cn('shrink-0 font-semibold', amountColor)}>{formatAmount(amount)}</span>
+      {newBalanceText && <span className="shrink-0 text-xs text-gray-500">{newBalanceText}</span>}
+    </div>
+  )
+
+  /**
+   * Compact formatter for the "→ new balance" suffix — omits the trailing
+   * ",00" when amount is whole-euro, to keep the line on a single row at
+   * 375px viewport. Always includes the € symbol. Manual strip of ",00" is
+   * needed because some Intl ICU builds (Node/jsdom) ignore
+   * `minimumFractionDigits: 0` for currency style.
+   */
+  const formatAmountCompact = (amount: number): string => {
+    const formatted = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+    // Strip decimal suffix for whole amounts. Regex tolerates locale variants
+    // (comma/period decimal separator + U+0020/U+00A0/U+202F currency spacing).
+    if (Math.round(amount) === amount) {
+      return formatted.replace(/[,.]\d{2}(\s*€)/, '$1')
+    }
+    return formatted
   }
 
   /**
@@ -227,6 +481,7 @@ export default function TransactionListItem({
         onConfirm={handleDeleteConfirm}
         title={`Supprimer ${type === 'expense' ? 'cette dépense' : 'ce revenu'}`}
         message={`Êtes-vous sûr de vouloir supprimer "${transaction.description}" d'un montant de ${formatAmount(transaction.amount)} ? Cette action ne peut pas être annulée.`}
+        details={buildDeleteDetails()}
         confirmText="Supprimer"
         loading={isDeleting}
         variant="danger"
