@@ -68,7 +68,7 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 36k   Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer + Fix-Dashboards-Navbar-Switch)
 │   ├─ roadmap-detailed-15-skeleton-refetch-loaders.md         32k   Skeleton-Refetch-Loaders + Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel + Enrich-Delete-Confirmation/Fix-Summary-RAV-Stale-Cache (3) — trimmée 2026-05-21 post-split vers Part 16
 │   ├─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  34k   Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4) — créée 2026-05-21, étendue Delta-Cascade-Edit + Auto-Use-Savings 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22
-│   └─ roadmap-detailed-17-delete-header-income-polish.md              8k   Delete-Header-And-Income-Polish (1) — créée 2026-05-22 par split préemptif de Part 16
+│   └─ roadmap-detailed-17-delete-header-income-polish.md             19k   Delete-Header-And-Income-Polish → Group-Transaction-Creator-Avatar (2) — créée 2026-05-22 par split préemptif de Part 16, étendue Group-Transaction-Creator-Avatar 2026-05-22
 │
 ├─ reference/
 │   └─ structure-repo.md                              37k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -78,14 +78,14 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   ├─ operational-rules.md                           63k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (63k post-Delete-Header-And-Income-Polish 2026-05-22, +1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
+│   ├─ operational-rules.md                           67k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (67k post-Group-Transaction-Creator-Avatar 2026-05-22, +1 section ❌ "Créateur des transactions réelles" 5 règles + 1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
 │   └─ operational-rules-ui-modals.md                 41k   36 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 + Recap-Compact-And-Uniform 2026-05-22 + Delete-Header-And-Income-Polish 2026-05-22 (3 nouvelles règles ❌ : header "Après suppression :" obligatoire + drop sourceLine income + EditTransactionModal preview pour income/exceptional-expense))
 │
 └─ guardrails/
     └─ size-policy.md                                 15k   (ce fichier)
 ```
 
-**Total contexte** : ~805k chars répartis sur 30 fichiers (post-création roadmap-17 2026-05-22). CLAUDE.md (~39k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **~63k** (post-Delete-Header-And-Income-Polish 2026-05-22 — +1 row §6 chronologie). Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 41k (over cap, post-Delete-Header-And-Income-Polish +3 règles ❌). **Extraction §6 chronologie vers `.claude/history/sprint-chronology.md` URGENTE** (63k = 25k au-dessus du cap 38k, ratio 1.66x). Roadmap-14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 (sous le cap 38k, marge confortable). Roadmap-15 à 32k post-trim Sprint Expense-Preview 2026-05-21 (extrait vers Part 16). Roadmap-16 à 34k post-trim 2026-05-22 (split vers Part 17 préemptif). Roadmap-17 à 8k (créée 2026-05-22, Sprint Delete-Header-And-Income-Polish). Roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
+**Total contexte** : ~820k chars répartis sur 30 fichiers (post-Sprint Group-Transaction-Creator-Avatar 2026-05-22). CLAUDE.md (~39k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **~67k** (post-Group-Transaction-Creator-Avatar 2026-05-22 — +1 section ❌ Créateur 5 règles + 1 row §6). Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 40k. **Extraction §6 chronologie vers `.claude/history/sprint-chronology.md` URGENTE** (67k = 29k au-dessus du cap 38k, ratio 1.76x). Roadmap-14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 (sous le cap 38k, marge confortable). Roadmap-15 à 32k post-trim Sprint Expense-Preview 2026-05-21 (extrait vers Part 16). Roadmap-16 à 34k post-trim 2026-05-22 (split vers Part 17 préemptif). Roadmap-17 à 19k (créée 2026-05-22 par split préemptif, étendue Group-Transaction-Creator-Avatar 2026-05-22). Roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
 
 ## 5. Règles d'extension
 
@@ -181,16 +181,16 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 38000 && $2 != "t
 Si un fichier > 38k → refactor immédiat (split ou trim).
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-22 post-Delete-Header-And-Income-Polish)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-22 post-Group-Transaction-Creator-Avatar)
 
 **27 fichiers `.md`** chargés comme contexte par Claude Code :
 
 - 1× `CLAUDE.md` (~39k, légèrement au-delà du plafond — split déféré, sous limite 40k)
-- 17× `.claude/history/roadmap-detailed-01..17-*.md` (8-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 à ~37k post-Drawer-Slide-Fix-And-Header-Harmonize, Part 14 à 36k post-Fix-Dashboards-Navbar-Switch 2026-05-20, Part 15 à 32k post-trim/split 2026-05-21, Part 16 à 34k post-trim/split vers Part 17 2026-05-22, Part 17 à 8k créée 2026-05-22 par split préemptif — tous sous le cap 38k)
+- 17× `.claude/history/roadmap-detailed-01..17-*.md` (19-39k — Part 12 a franchi 38k post-Fix-Password-Reset-OTP, Part 13 à ~37k post-Drawer-Slide-Fix-And-Header-Harmonize, Part 14 à 36k post-Fix-Dashboards-Navbar-Switch 2026-05-20, Part 15 à 32k post-trim/split 2026-05-21, Part 16 à 34k post-trim/split vers Part 17 2026-05-22, Part 17 à 19k post-extension Group-Transaction-Creator-Avatar 2026-05-22 — tous sous le cap 38k sauf Part 12)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (37k post Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
-- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-63k — operational-rules à ~63k post-Delete-Header-And-Income-Polish 2026-05-22, **extraction §6 URGENTE au prochain sprint** ; operational-rules-ui-modals à 41k over cap via Sprints Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 + Recap-Compact-And-Uniform/Delete-Header-And-Income-Polish 2026-05-22 — extraction candidate prochain sprint)
+- 1× `.claude/reference/structure-repo.md` (38k post Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
+- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-67k — operational-rules à ~67k post-Group-Transaction-Creator-Avatar 2026-05-22, **extraction §6 URGENTE au prochain sprint** ; operational-rules-ui-modals à 40k over cap via Sprints Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 + Recap-Compact-And-Uniform/Delete-Header-And-Income-Polish 2026-05-22 — extraction candidate prochain sprint)
 - 1× `.claude/guardrails/size-policy.md` (~15k — ce fichier).
 
 Cf. inventaire détaillé via `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
