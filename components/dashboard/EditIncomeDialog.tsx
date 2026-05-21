@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
 
 interface EstimatedIncome {
@@ -136,6 +137,7 @@ export default function EditIncomeDialog({
         {/* Form */}
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 
 interface AddIncomeDialogProps {
@@ -124,6 +125,7 @@ export default function AddIncomeDialog({
         {/* Form */}
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >

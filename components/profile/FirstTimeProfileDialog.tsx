@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User } from 'lucide-react'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { profileNameFormFieldsSchema, type ProfileNameFormFields } from '@/lib/schemas/profile'
 
 interface FirstTimeProfileDialogProps {
@@ -89,6 +90,7 @@ export default function FirstTimeProfileDialog({
 
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >

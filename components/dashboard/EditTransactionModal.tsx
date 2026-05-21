@@ -21,6 +21,7 @@ import type { RealIncome } from '@/hooks/useRealIncomes'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
   editTransactionFormSchema,
   type EditTransactionFormInput,
@@ -254,6 +255,7 @@ export default function EditTransactionModal({
         {/* Form */}
         <form
           onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >

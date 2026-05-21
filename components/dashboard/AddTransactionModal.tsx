@@ -23,6 +23,7 @@ import { useFinancialData } from '@/hooks/useFinancialData'
 import { useRavValidation } from '@/hooks/useRavValidation'
 import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
   addTransactionFormSchema,
   type AddTransactionFormInput,
@@ -689,6 +690,7 @@ export default function AddTransactionModal({
           <form
             key="step-fields"
             onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            onKeyDown={preventEnterSubmit}
             className={cn(
               'flex min-h-0 flex-auto flex-col overflow-hidden',
               'animate-in fade-in duration-200',

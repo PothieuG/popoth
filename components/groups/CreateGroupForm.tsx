@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
   createGroupFormSchema,
   type CreateGroupForm as CreateGroupFormOutput,
@@ -62,6 +63,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
     <Card className="border-blue-200 bg-blue-50 p-4">
       <form
         onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+        onKeyDown={preventEnterSubmit}
         className="space-y-3"
         noValidate
       >

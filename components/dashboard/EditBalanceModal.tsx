@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { editBalanceFormSchema, type EditBalanceForm } from '@/lib/schemas/bank-balance'
+import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { logger } from '@/lib/logger'
 
 interface EditBalanceModalProps {
@@ -78,6 +79,7 @@ export default function EditBalanceModal({
 
         <form
           onSubmit={form.handleSubmit(handleValidSubmit, onInvalidSubmit)}
+          onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
         >
