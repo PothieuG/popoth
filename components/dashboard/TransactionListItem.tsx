@@ -142,13 +142,20 @@ export default function TransactionListItem({
   }
 
   /**
-   * Get color for category text based on transaction type
+   * Get color for category text based on transaction type.
+   * Sprint 2026-05-22 / Transaction-Line-Color-Refresh : la couleur de la
+   * catégorie discrimine la nature de la transaction. Blue-700 pour les
+   * transactions normales (budget ou source de revenu). Yellow-700 (gold
+   * doux, pas flashy) pour les exceptionnelles — réutilise la teinte
+   * "warning text" déjà installée dans le panel "Contribution non calculée"
+   * pour rester dans la charte. La description reste en `text-gray-900`
+   * comme ancre primaire (lisibilité mobile, hiérarchie visuelle).
    */
   const getCategoryTextColor = (): string => {
     if (transaction.is_exceptional) {
-      return 'text-gray-600'
+      return 'text-yellow-700'
     } else {
-      return 'text-blue-800'
+      return 'text-blue-700'
     }
   }
 
@@ -337,7 +344,7 @@ export default function TransactionListItem({
       >
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
-          <div className="flex min-w-0 flex-1 items-center space-x-2">
+          <div className="flex min-w-0 flex-1 items-center space-x-3">
             {/* Avatar of the transaction creator (group context only) */}
             {context === 'group' && (
               <div className="shrink-0">
@@ -347,7 +354,7 @@ export default function TransactionListItem({
 
             {/* 3-line layout */}
             <div className="min-w-0 flex-1 space-y-0.5">
-              {/* Line 1: Amount - Description with breakdown badges */}
+              {/* Line 1: Amount with breakdown badges */}
               <div className="flex items-baseline space-x-1.5">
                 <span
                   className={cn(
@@ -376,15 +383,15 @@ export default function TransactionListItem({
                       )}
                     </div>
                   )}
-
-                <span className="flex-1 truncate text-sm font-bold text-gray-900">
-                  - {transaction.description}
-                </span>
               </div>
 
-              {/* Line 2: Category name with color */}
-              <p className={cn('truncate text-sm font-medium', getCategoryTextColor())}>
-                {getCategoryName()}
+              {/* Line 2: Description — Category name (with em-dash separator) */}
+              <p className="truncate text-sm">
+                <span className="font-semibold text-gray-900">{transaction.description}</span>
+                <span className="mx-1.5 text-gray-400">—</span>
+                <span className={cn('font-medium', getCategoryTextColor())}>
+                  {getCategoryName()}
+                </span>
               </p>
 
               {/* Line 3: Date with time (very small) */}

@@ -7,9 +7,30 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
-import { useGroupMembers } from '@/hooks/useGroupMembers'
+import UserAvatar from '@/components/ui/UserAvatar'
+import { useGroupMembers, type GroupMember } from '@/hooks/useGroupMembers'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import type { GroupData } from '@/app/api/groups/route'
+import type { ProfileData } from '@/app/api/profile/route'
+
+/**
+ * Sprint 2026-05-22 / Group-Members-Avatar : passe l'avatar du membre à
+ * <UserAvatar>. UserAvatar ne lit que 3 champs (first_name/last_name/
+ * avatar_url) — les autres champs ProfileData sont des defaults inertes.
+ */
+function memberToProfile(member: GroupMember): ProfileData {
+  return {
+    id: member.id,
+    first_name: member.first_name,
+    last_name: member.last_name,
+    salary: 0,
+    group_id: null,
+    group_name: null,
+    avatar_url: member.avatar_url,
+    created_at: null,
+    updated_at: null,
+  }
+}
 
 interface GroupMembersWithContributionsModalProps {
   group: GroupData
@@ -182,12 +203,9 @@ export default function GroupMembersWithContributionsModal({
                     <div className="space-y-2">
                       {/* Member Header */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          {/* Avatar */}
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-purple-600 text-sm font-medium text-white">
-                            {member.first_name.charAt(0)}
-                            {member.last_name.charAt(0)}
-                          </div>
+                        <div className="flex items-center space-x-3">
+                          {/* Avatar — photo ou initials fallback */}
+                          <UserAvatar profile={memberToProfile(member)} size="md" />
 
                           {/* Member Info */}
                           <div>

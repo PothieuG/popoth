@@ -48,7 +48,7 @@ function DashboardPeriodSection({
  * `app/(dashboards)/layout.tsx` et persistent à la navigation soeur.
  */
 export default function DashboardPage() {
-  const { profile, hasProfile, createProfile, isLoading } = useProfile()
+  const { hasProfile, createProfile, isLoading } = useProfile()
   const {
     financialData,
     isFetching: financialFetching,

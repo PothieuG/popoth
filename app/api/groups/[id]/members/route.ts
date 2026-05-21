@@ -11,6 +11,7 @@ export interface GroupMember {
   id: string
   first_name: string
   last_name: string
+  avatar_url: string | null
   joined_at: string | null
 }
 
@@ -36,6 +37,7 @@ export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile },
         id,
         first_name,
         last_name,
+        avatar_url,
         created_at
       `,
       )
@@ -55,6 +57,7 @@ export const GET = withAuthAndProfile<RouteParams>(async (_request, { profile },
       id: member.id,
       first_name: member.first_name,
       last_name: member.last_name,
+      avatar_url: member.avatar_url,
       joined_at: member.created_at,
     }))
 
