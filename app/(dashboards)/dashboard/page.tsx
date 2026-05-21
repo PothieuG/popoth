@@ -21,12 +21,10 @@ type EditableTransaction = RealExpense | RealIncome
  * static prerendering doesn't fail at build time.
  */
 interface DashboardPeriodSectionProps {
-  userProfile: Parameters<typeof TransactionTabsComponent>[0]['userProfile']
   onEditTransaction: Parameters<typeof TransactionTabsComponent>[0]['onEditTransaction']
   onTransactionDeleted: Parameters<typeof TransactionTabsComponent>[0]['onTransactionDeleted']
 }
 function DashboardPeriodSection({
-  userProfile,
   onEditTransaction,
   onTransactionDeleted,
 }: DashboardPeriodSectionProps) {
@@ -35,7 +33,6 @@ function DashboardPeriodSection({
     <div className="min-h-0 flex-1 overflow-hidden">
       <TransactionTabsComponent
         context="profile"
-        userProfile={userProfile}
         period={period}
         onEditTransaction={onEditTransaction}
         onTransactionDeleted={onTransactionDeleted}
@@ -137,7 +134,6 @@ export default function DashboardPage() {
 
           <Suspense fallback={null}>
             <DashboardPeriodSection
-              userProfile={profile}
               onEditTransaction={handleEditTransaction}
               onTransactionDeleted={refreshFinancialData}
             />

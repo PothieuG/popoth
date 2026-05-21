@@ -9,6 +9,33 @@ import type { ProfileData } from '@/app/api/profile/route'
 import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import UserAvatar from '@/components/ui/UserAvatar'
+
+/**
+ * Sprint Group-Transaction-Creator-Avatar (2026-05-22) : pour le contexte
+ * groupe, l'avatar de chaque ligne reflète le créateur réel de la transaction
+ * (via `transaction.created_by` injecté par le JOIN profiles côté API), pas
+ * l'utilisateur connecté. On reconstitue un `ProfileData` partiel à partir
+ * des 3 champs lus par `<UserAvatar>` (first_name/last_name/avatar_url) +
+ * defaults inertes pour le reste de la shape — UserAvatar n'utilise que ces
+ * 3 champs. Pour les lignes legacy sans created_by (avant la migration), on
+ * retourne `null` → UserAvatar affiche son placeholder natif `??`.
+ */
+function toCreatorProfile(
+  createdBy: NonNullable<RealExpense['created_by'] | RealIncome['created_by']> | null | undefined,
+): ProfileData | null {
+  if (!createdBy) return null
+  return {
+    id: createdBy.id,
+    first_name: createdBy.first_name ?? '',
+    last_name: createdBy.last_name ?? '',
+    salary: 0,
+    group_id: null,
+    group_name: null,
+    avatar_url: createdBy.avatar_url,
+    created_at: null,
+    updated_at: null,
+  }
+}
 import {
   AfterOperationPanel,
   BalanceRow,
@@ -24,7 +51,6 @@ interface TransactionListItemProps {
   onEdit: (transaction: Transaction) => void
   onDelete: (transactionId: string) => Promise<boolean>
   context?: 'profile' | 'group'
-  userProfile?: ProfileData | null
   /**
    * Pour un revenu régulier (estimated_income_id set + !is_exceptional), le
    * parent fournit le cumul des montants réels pour la même source + le
@@ -67,13 +93,13 @@ export default function TransactionListItem({
   onEdit,
   onDelete,
   context = 'profile',
-  userProfile = null,
   incomeSourceContext = null,
   currentRemainingToLive = null,
   budgetSnapshot = null,
   piggyBankAmount = null,
   className,
 }: TransactionListItemProps) {
+  const creatorProfile = toCreatorProfile(transaction.created_by)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
@@ -312,10 +338,10 @@ export default function TransactionListItem({
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
           <div className="flex min-w-0 flex-1 items-center space-x-2">
-            {/* Avatar for group transactions */}
+            {/* Avatar of the transaction creator (group context only) */}
             {context === 'group' && (
               <div className="shrink-0">
-                <UserAvatar profile={userProfile} size="sm" />
+                <UserAvatar profile={creatorProfile} size="sm" />
               </div>
             )}
 

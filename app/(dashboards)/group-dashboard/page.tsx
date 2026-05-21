@@ -14,19 +14,14 @@ import { usePeriodParam } from '@/hooks/usePeriodParam'
  * inside a parent <Suspense>.
  */
 interface GroupDashboardPeriodSectionProps {
-  userProfile: Parameters<typeof TransactionTabsComponent>[0]['userProfile']
   onTransactionDeleted: Parameters<typeof TransactionTabsComponent>[0]['onTransactionDeleted']
 }
-function GroupDashboardPeriodSection({
-  userProfile,
-  onTransactionDeleted,
-}: GroupDashboardPeriodSectionProps) {
+function GroupDashboardPeriodSection({ onTransactionDeleted }: GroupDashboardPeriodSectionProps) {
   const { period } = usePeriodParam()
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <TransactionTabsComponent
         context="group"
-        userProfile={userProfile}
         period={period}
         onTransactionDeleted={onTransactionDeleted}
         className="h-full"
@@ -113,10 +108,7 @@ export default function GroupDashboardPage() {
           </div>
 
           <Suspense fallback={null}>
-            <GroupDashboardPeriodSection
-              userProfile={profile}
-              onTransactionDeleted={refreshFinancialData}
-            />
+            <GroupDashboardPeriodSection onTransactionDeleted={refreshFinancialData} />
           </Suspense>
         </>
       )}

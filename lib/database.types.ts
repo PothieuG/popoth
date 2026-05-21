@@ -472,6 +472,7 @@ export type Database = {
           amount_from_budget_savings: number | null
           amount_from_piggy_bank: number | null
           created_at: string | null
+          created_by_profile_id: string | null
           description: string
           estimated_budget_id: string | null
           expense_date: string
@@ -486,6 +487,7 @@ export type Database = {
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
           created_at?: string | null
+          created_by_profile_id?: string | null
           description: string
           estimated_budget_id?: string | null
           expense_date?: string
@@ -500,6 +502,7 @@ export type Database = {
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
           created_at?: string | null
+          created_by_profile_id?: string | null
           description?: string
           estimated_budget_id?: string | null
           expense_date?: string
@@ -509,6 +512,13 @@ export type Database = {
           profile_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "real_expenses_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "real_expenses_estimated_budget_id_fkey"
             columns: ["estimated_budget_id"]
@@ -536,6 +546,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string | null
+          created_by_profile_id: string | null
           description: string
           entry_date: string
           estimated_income_id: string | null
@@ -547,6 +558,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string | null
+          created_by_profile_id?: string | null
           description: string
           entry_date?: string
           estimated_income_id?: string | null
@@ -558,6 +570,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string | null
+          created_by_profile_id?: string | null
           description?: string
           entry_date?: string
           estimated_income_id?: string | null
@@ -567,6 +580,13 @@ export type Database = {
           profile_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "real_income_entries_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "real_income_entries_estimated_income_id_fkey"
             columns: ["estimated_income_id"]
@@ -709,6 +729,7 @@ export type Database = {
           p_amount_from_budget: number
           p_amount_from_budget_savings: number
           p_amount_from_piggy_bank: number
+          p_created_by_profile_id?: string
           p_description: string
           p_estimated_budget_id: string
           p_expense_date: string
@@ -723,6 +744,7 @@ export type Database = {
           p_amount_from_budget: number
           p_amount_from_local_savings: number
           p_amount_from_piggy_bank: number
+          p_created_by_profile_id?: string
           p_cross_budget_debits: Json
           p_description: string
           p_estimated_budget_id: string

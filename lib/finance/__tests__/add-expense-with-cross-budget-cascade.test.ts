@@ -167,6 +167,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
         amountFromLocalSavings: 0,
         amountFromBudget: 120,
         crossBudgetDebits: [{ budget_id: sourceBudget1Id, amount: 80 }],
+        createdByProfileId: testUserId,
       },
     )
 
@@ -200,6 +201,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
           { budget_id: sourceBudget1Id, amount: 60 },
           { budget_id: sourceBudget2Id, amount: 40 },
         ],
+        createdByProfileId: testUserId,
       },
     )
 
@@ -236,6 +238,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
             { budget_id: sourceBudget1Id, amount: 80 }, // > 30 available
             { budget_id: sourceBudget2Id, amount: 50 },
           ],
+          createdByProfileId: testUserId,
         },
       ),
     ).rejects.toThrow()
@@ -267,6 +270,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
           amountFromBudget: 30,
           crossBudgetDebits: [{ budget_id: sourceBudget1Id, amount: 30 }],
           // 30 + 30 + 30 = 90 ≠ 100
+          createdByProfileId: testUserId,
         },
       ),
     ).rejects.toThrow(/Breakdown sum/)
@@ -293,6 +297,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
           amountFromLocalSavings: 0,
           amountFromBudget: 50,
           crossBudgetDebits: [{ budget_id: destinationBudgetId, amount: 50 }], // self!
+          createdByProfileId: testUserId,
         },
       ),
     ).rejects.toThrow(/cannot be the destination/)
@@ -321,6 +326,7 @@ describe.skipIf(!ENABLED)('add_expense_with_cross_budget_cascade (Sprint P4-P5-P
             amountFromLocalSavings: 0,
             amountFromBudget: 1,
             crossBudgetDebits: [{ budget_id: sourceBudget1Id, amount: 1 }],
+            createdByProfileId: testUserId,
           },
         )
         return 'ok'

@@ -26,6 +26,12 @@ export interface RealExpenseData {
   estimated_budget?: {
     name: string
   }
+  created_by?: {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface CreateRealExpenseRequest {
@@ -54,7 +60,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .select(
         `
         *,
-        estimated_budget:estimated_budgets(name)
+        estimated_budget:estimated_budgets(name),
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .order('expense_date', { ascending: false })
@@ -156,6 +163,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       description,
       expense_date: expense_date || todayIso,
       is_exceptional: !estimated_budget_id,
+      created_by_profile_id: userId,
     }
 
     if (estimated_budget_id) {
@@ -223,7 +231,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .select(
         `
         *,
-        estimated_budget:estimated_budgets(name)
+        estimated_budget:estimated_budgets(name),
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .single()
@@ -328,7 +337,8 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .select(
         `
         *,
-        estimated_budget:estimated_budgets(name)
+        estimated_budget:estimated_budgets(name),
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .single()

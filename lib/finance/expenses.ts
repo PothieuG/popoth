@@ -29,6 +29,7 @@ export async function addExpenseWithBreakdown(
     amountFromPiggyBank: number
     amountFromBudgetSavings: number
     amountFromBudget: number
+    createdByProfileId: string
   },
 ): Promise<{ expense_id: string }> {
   const { profile_id, group_id } = resolveContextIds(filter)
@@ -42,6 +43,7 @@ export async function addExpenseWithBreakdown(
     p_amount_from_budget: args.amountFromBudget,
     p_profile_id: profile_id,
     p_group_id: group_id,
+    p_created_by_profile_id: args.createdByProfileId,
   })
   if (error) throw error
   return data as { expense_id: string }
@@ -83,6 +85,7 @@ export async function addExpenseWithCrossBudgetCascade(
     amountFromLocalSavings: number
     amountFromBudget: number
     crossBudgetDebits: CrossBudgetDebit[]
+    createdByProfileId: string
   },
 ): Promise<{ expense_id: string; cross_budget_total: number; consolidated_savings: number }> {
   const { profile_id, group_id } = resolveContextIds(filter)
@@ -101,6 +104,7 @@ export async function addExpenseWithCrossBudgetCascade(
     p_cross_budget_debits: args.crossBudgetDebits as unknown as Json,
     p_profile_id: profile_id,
     p_group_id: group_id,
+    p_created_by_profile_id: args.createdByProfileId,
   })
   if (error) throw error
   return data as {

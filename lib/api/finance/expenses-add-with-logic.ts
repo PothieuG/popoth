@@ -99,6 +99,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         description,
         expense_date: expense_date || todayIsoExceptional,
         is_exceptional: true,
+        created_by_profile_id: userId,
         ...contextFilter,
       }
 
@@ -108,7 +109,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         .select(
           `
           *,
-          estimated_budget:estimated_budgets(name)
+          estimated_budget:estimated_budgets(name),
+          created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
         `,
         )
         .single()
@@ -223,6 +225,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
             amountFromLocalSavings: fromBudgetSavings,
             amountFromBudget: fromBudgetWithOverflow,
             crossBudgetDebits: cross_budget_cascade,
+            createdByProfileId: userId,
           },
         )
         expenseId = result.expense_id
@@ -237,6 +240,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
             amountFromPiggyBank: fromPiggyBank,
             amountFromBudgetSavings: fromBudgetSavings,
             amountFromBudget: fromBudgetWithOverflow,
+            createdByProfileId: userId,
           },
         )
         expenseId = result.expense_id
@@ -257,7 +261,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .select(
         `
         *,
-        estimated_budget:estimated_budgets(name)
+        estimated_budget:estimated_budgets(name),
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .eq('id', expenseId)

@@ -11,14 +11,12 @@ import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
 import { logger } from '@/lib/logger'
 import { computePeriodDateRange, type Period } from '@/lib/finance/period'
-import type { ProfileData } from '@/app/api/profile/route'
 import TransactionListItem from './TransactionListItem'
 
 type EditableTransaction = RealExpense | RealIncome
 
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
-  userProfile?: ProfileData | null
   /**
    * Sprint P1 — period filter for the listed transactions. When provided
    * and not 'month', expenses are filtered by `expense_date` and incomes
@@ -39,7 +37,6 @@ type TabType = 'expenses' | 'incomes'
  */
 export default function TransactionTabsComponent({
   context,
-  userProfile,
   period,
   onEditTransaction,
   onTransactionDeleted,
@@ -299,7 +296,6 @@ export default function TransactionTabsComponent({
                 transaction={expense}
                 type="expense"
                 context={context}
-                userProfile={userProfile}
                 currentRemainingToLive={currentRemainingToLive}
                 budgetSnapshot={budgetSnapshot}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
@@ -332,7 +328,6 @@ export default function TransactionTabsComponent({
                 transaction={income}
                 type="income"
                 context={context}
-                userProfile={userProfile}
                 incomeSourceContext={ctx}
                 currentRemainingToLive={currentRemainingToLive}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'income')}

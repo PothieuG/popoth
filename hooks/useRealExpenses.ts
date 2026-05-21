@@ -21,6 +21,12 @@ export interface RealExpense {
   estimated_budget?: {
     name: string
   }
+  created_by?: {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface CreateRealExpenseRequest {

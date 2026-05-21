@@ -18,6 +18,12 @@ export interface RealIncome {
   estimated_income?: {
     name: string
   }
+  created_by?: {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface CreateRealIncomeRequest {

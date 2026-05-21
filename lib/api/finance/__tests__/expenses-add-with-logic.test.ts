@@ -185,6 +185,8 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
         amountFromPiggyBank: 0,
         amountFromBudgetSavings: 0,
         amountFromBudget: 150,
+        // Sprint Group-Transaction-Creator-Avatar : userId passed through.
+        createdByProfileId: 'user-1',
       }),
     )
     // The handler does NOT INSERT real_expenses directly — the INSERT lives

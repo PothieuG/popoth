@@ -155,6 +155,7 @@ export function decideCompleteAllocation(
       created_at: input.currentDate.toISOString(),
       profile_id: input.context === 'profile' ? input.contextId : null,
       group_id: input.context === 'group' ? input.contextId : null,
+      created_by_profile_id: input.userId,
     }
   }
 

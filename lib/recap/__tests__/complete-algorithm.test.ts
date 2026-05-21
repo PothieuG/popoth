@@ -283,6 +283,9 @@ describe('decideCompleteAllocation — Block 4 exceptional expense', () => {
     expect(decision.exceptionalExpense?.is_exceptional).toBe(true)
     expect(decision.exceptionalExpense?.estimated_budget_id).toBe(null)
     expect(decision.exceptionalExpense?.description).toMatch(/Écart de reste à vivre/)
+    // Sprint Group-Transaction-Creator-Avatar : exceptional expense generated
+    // by the recap finalization is attributed to the user who clicked Finaliser.
+    expect(decision.exceptionalExpense?.created_by_profile_id).toBe('user-1')
   })
 
   it('deficit covered by transfers reduces exceptional magnitude', () => {

@@ -25,6 +25,12 @@ export interface RealIncomeEntryData {
   estimated_income?: {
     name: string
   }
+  created_by?: {
+    id: string
+    first_name: string | null
+    last_name: string | null
+    avatar_url: string | null
+  } | null
 }
 
 export interface CreateRealIncomeEntryRequest {
@@ -53,7 +59,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .select(
         `
         *,
-        estimated_income:estimated_incomes(name)
+        estimated_income:estimated_incomes(name),
+        created_by:profiles!real_income_entries_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .order('entry_date', { ascending: false })
@@ -134,6 +141,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       description,
       entry_date: entry_date || todayIso,
       is_exceptional: !estimated_income_id,
+      created_by_profile_id: userId,
     }
 
     if (estimated_income_id) {
@@ -201,7 +209,8 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .select(
         `
         *,
-        estimated_income:estimated_incomes(name)
+        estimated_income:estimated_incomes(name),
+        created_by:profiles!real_income_entries_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .single()
@@ -266,7 +275,8 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .select(
         `
         *,
-        estimated_income:estimated_incomes(name)
+        estimated_income:estimated_incomes(name),
+        created_by:profiles!real_income_entries_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
       `,
       )
       .single()

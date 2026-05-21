@@ -163,6 +163,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
         amountFromPiggyBank: 20,
         amountFromBudgetSavings: 30,
         amountFromBudget: 50,
+        createdByProfileId: testUserId,
       },
     )
 
@@ -171,6 +172,15 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
     expect(await fetchPiggyAmount()).toBe(80)
     expect(await fetchSavings()).toBe(20)
     expect(await countExpenses()).toBe(1)
+
+    // Sprint Group-Transaction-Creator-Avatar : the row must carry the creator
+    // (testUserId here — single-tenant profile context, so creator = owner).
+    const { data: row } = await admin
+      .from('real_expenses')
+      .select('created_by_profile_id')
+      .eq('id', result.expense_id)
+      .single()
+    expect(row?.created_by_profile_id).toBe(testUserId)
   }, 30_000)
 
   it('insufficient piggy: RPC throws AND no expense row + savings unchanged (atomicity proof)', async () => {
@@ -189,6 +199,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
           amountFromPiggyBank: 20, // exceeds piggy=10
           amountFromBudgetSavings: 30,
           amountFromBudget: 30,
+          createdByProfileId: testUserId,
         },
       ),
     ).rejects.toThrow(/negative|piggy/i)
@@ -216,6 +227,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
           amountFromPiggyBank: 20, // piggy debit succeeds (100 -> 80)
           amountFromBudgetSavings: 30, // savings debit fails (10 < 30)
           amountFromBudget: 30,
+          createdByProfileId: testUserId,
         },
       ),
     ).rejects.toThrow(/negative|cumulated_savings/i)
@@ -247,6 +259,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
               amountFromPiggyBank: 1,
               amountFromBudgetSavings: 0,
               amountFromBudget: 0,
+              createdByProfileId: testUserId,
             },
           ).then(
             () => 'ok' as const,
@@ -308,6 +321,7 @@ describe.skipIf(!ENABLED)('add_expense_with_breakdown (Sprint Atomicity-Expenses
         amountFromPiggyBank: 0,
         amountFromBudgetSavings: 0,
         amountFromBudget: 25,
+        createdByProfileId: testUserId,
       },
     )
 

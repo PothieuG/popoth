@@ -463,7 +463,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete — characterization
     // Net: exactly 1 row remains, the exceptional from Block 4.
     const { data: expensesAfter } = await admin
       .from('real_expenses')
-      .select('id, amount, is_exceptional, estimated_budget_id, description')
+      .select('id, amount, is_exceptional, estimated_budget_id, description, created_by_profile_id')
       .eq('profile_id', testUserId)
     expect(expensesAfter ?? []).toHaveLength(1)
     const exceptional = expensesAfter![0]!
@@ -471,6 +471,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete — characterization
     expect(exceptional.is_exceptional).toBe(true)
     expect(exceptional.estimated_budget_id).toBe(null)
     expect(exceptional.description).toMatch(/^Écart de reste à vivre reporté du récap /)
+    // Sprint Group-Transaction-Creator-Avatar : recap-generated exceptional
+    // expense is attributed to the user who finalized the recap (testUserId
+    // here = the JWT issuer for buildSessionId).
+    expect(exceptional.created_by_profile_id).toBe(testUserId)
   }, 60_000)
 
   // ------------------------------------------------------------------------
