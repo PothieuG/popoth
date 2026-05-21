@@ -123,3 +123,49 @@
   **Pattern à retenir** :
   - Pour tout algorithme d'allocation en EDIT mode (où il y a une valeur existante stockée), penser en **delta** plutôt qu'en "nouveau breakdown fresh". delta=0 = preserve trivialement. delta>0 = cascade additionnel sur les ressources disponibles. delta<0 = refund cascade-reverse. Cette décomposition élimine les cas "weird re-allocation" et matche le mental model utilisateur.
   - Pour les comparaisons de montants en cents avec des inputs frontend (`DecimalFormInput` parse `25.5` puis stringify avec drift float), TOUJOURS round avant compare : `Math.round((a - b) * 100) / 100`. Sinon `250.0000001 - 250 = 0.0000000001` triggera la branche delta!=0 et générera un re-allocation inutile.
+
+- ✅ **Sprint Auto-Use-Savings + Impact-Lines-Polish + Delete-Confirmation-Recap-Reuse** (livré 2026-05-21, déclenché par trois demandes user en une seule passe : "J'aimerais enlever la possibilité de choisir si on veut utiliser des économies dans l'ajout de dépenses. Je veux que ça soit automatiquement fait par défaut" + "j'aimerais que dans le recap, sur la partie 'impact' : quand on pioche dans le reste à vivre, ligne 'Reste à vivre' en bleu avec -x rouge ; quand on rend du reste à vivre +x vert ; quand on remet de l'argent dans le budget +x vert" + "au moment de la suppression, au lieu de ligne explicative, on pourrait reprendre l'encart 'après opération' tel quel").
+
+  **(1) Auto-Use-Savings — Removal du toggle « Utiliser les économies »** ([components/dashboard/AddTransactionModal.tsx](../../components/dashboard/AddTransactionModal.tsx)) : le checkbox UI (purple panel, lignes 866-899) est supprimé. La constante `useSavings = true` remplace le `useState(false)` initial — économies utilisées en priorité par défaut (mode P5). Pass `use_savings: true` à l'API + `useSavingsToggle: true` aux helpers `calculateBreakdown` / `useRavValidation` / `ExpenseBreakdownPreview`. Les 3 sites `setUseSavings(false)` dans `handleSelectType` et `handleSelectKind` sont retirés (la variable est désormais une const). Tests RTL 4→2 (drop `toggle appears`/`toggle off by default`/`toggle hidden for exceptional` qui n'ont plus de UI à tester ; ajout d'un test `no longer renders toggle` regression-guard).
+
+  **(2) Impact-Lines-Polish — Ligne RAV impact + Budget delta-based** ([components/dashboard/ExpenseBreakdownPreview.tsx](../../components/dashboard/ExpenseBreakdownPreview.tsx)) : la section IMPACT du composant s'enrichit de deux changements UX :
+  - **Nouvelle ligne "Reste à vivre"** quand le RAV est impacté (ravDelta ≠ 0) : label `text-blue-600`, montant signé (`-X` rouge si overflow grandit, `+X` vert si overflow rétrécit). Le ravDelta est calculé depuis le delta de déficit budgétaire (`newOverflow - currentOverflow`).
+  - **Ligne Budget devient delta-based** : avant, le montant affiché était `-new.from_budget` absolu. Maintenant c'est `-budgetPoolDelta` (sign-flipped), où `budgetPoolDelta = min(budget_spent_after, estimated) - min(budget_spent_before, estimated)`. Quand l'utilisateur réduit une dépense qui débordait, on voit le refund vers le pool (`+X` vert) plutôt qu'un `-X` rouge sur la nouvelle valeur. Si delta=0, la ligne est masquée.
+  - **Lignes Économies/Tirelire inchangées** (absolute new value `-new.from_X` rouge, masquées si 0). Conformément aux exemples user des sprints précédents qui attendaient `Économies -275` (absolute) et non un delta.
+
+  Convention finale de la section Impact : Économies/Tirelire en valeur absolue, Budget/RAV en delta (sign-flipped). L'asymétrie reflète le mental model user — Économies/Tirelire = "ressources tirées" (la dépense les "consomme"), Budget/RAV = "destination" (le pool change ou pas selon l'edit).
+
+  **(3) Delete-Confirmation-Recap-Reuse — Réutilisation de l'encart "Après opération"** : extraction des primitives `<EntityLabel>` / `<ImpactRow>` / `<BalanceRow>` / `<BudgetRecapRow>` / `<AfterOperationPanel>` vers [components/dashboard/recap-rows.tsx](../../components/dashboard/recap-rows.tsx) (nouveau fichier). Ces primitives sont utilisées par `<ExpenseBreakdownPreview>` ET par la modal de confirmation suppression dans [components/dashboard/TransactionListItem.tsx](../../components/dashboard/TransactionListItem.tsx).
+
+  La modal de confirmation suppression remplace donc l'ancienne breakdown 3-col (label / montant `text-blue-600`|`text-emerald-600`|`text-purple-600` / `→ new balance text-xs text-gray-500`) par le panel `<AfterOperationPanel>` autonome — même header "Après opération" en uppercase, mêmes labels colorés par entité (orange/violet/pink/blue), mêmes balances en noir (`text-gray-900`) sans préfixe de signe. 4 branches conservées :
+  - **Budgeted expense** (avec snapshot) : Tirelire si `from_piggy > 0` ET `piggyBankAmount` fourni, Économies si `from_savings > 0`, Budget toujours (avec snapshot), RAV si recovery > 0.
+  - **Budgeted expense sans snapshot** : panel non rendu (`return undefined` → ConfirmationDialog rend message standard sans détails).
+  - **Exceptional expense** : panel avec 1 ligne RAV post-delete (+ amount au RAV).
+  - **Regular income avec context** : si ravDelta < 0, source line + panel avec 1 ligne RAV post-delete ; sinon source line + texte "ne sera pas affecté" (pas de panel).
+  - **Exceptional income** : panel avec 1 ligne RAV post-delete (- amount au RAV).
+  - **Income sans context** : texte fallback "sera réajusté en conséquence" (pas de panel).
+
+  Les 11 tests RTL `TransactionListItem.test.tsx` sont réécrits pour matcher le nouveau panel — assertions sur le header `Après opération`, colors des labels (`text-orange-600`/`text-violet-600`/`text-blue-600`), balances en noir, et le bold sur le nom du budget (`text-bold` sur la sous-span `Courses` dans `Budget « Courses »`).
+
+  **Files livrés** :
+  - **Créés** (1) : `components/dashboard/recap-rows.tsx` (primitives partagées + `AfterOperationPanel`).
+  - **Modifiés UI** (3) : `components/dashboard/ExpenseBreakdownPreview.tsx` (consume primitives + Impact RAV/Budget delta), `components/dashboard/TransactionListItem.tsx` (delete confirmation → AfterOperationPanel), `components/dashboard/AddTransactionModal.tsx` (toggle UI retiré).
+  - **Modifiés tests** (2) : `components/dashboard/__tests__/TransactionListItem.test.tsx` (11 tests réécrits), `components/dashboard/__tests__/AddTransactionModal.test.tsx` (4 tests toggle → 2 tests "no-toggle + use_savings: true par défaut").
+  - **Modifiés conventions** (4) : `CLAUDE.md` §11, `.claude/conventions/operational-rules-ui-modals.md` (+3 règles ❌), `.claude/conventions/operational-rules.md` (+1 row §6 chronologie), `.claude/guardrails/size-policy.md` (inventaire).
+
+  **Vérification end-to-end** :
+  - `pnpm typecheck` exit 0
+  - `pnpm lint:check` 0 errors / 0 warnings
+  - `pnpm format:check` exit 0
+  - `pnpm test:run` **513 passed / 98 skipped** (était 515 avant Auto-Use-Savings, -2 tests toggle retirés)
+
+  **Trade-off / leçons apprises** :
+  - L'asymétrie Économies/Tirelire (absolu) vs Budget/RAV (delta) dans la section Impact répond au mental model user — "ressources consommées" vs "destination impactée". Une approche unifiée delta-based pour TOUS les sources aurait été plus mathématiquement cohérente mais l'user a accepté `Économies -275 € absolute` dans les exemples précédents tout en demandant `Budget +X €` delta dans cette demande. La règle implicite : pour les sources où la dépense maintient une "claim" (savings/piggy), montrer la claim absolue ; pour les destinations où le pool fluctue selon l'edit (budget/RAV), montrer le delta.
+  - Le toggle "Utiliser les économies" était hérité d'une époque où P4 strict (budget first) était le default user expectation. Avec l'algorithme delta-cascade EDIT et les multiples itérations de feedback, le user préfère maintenant savings-first par défaut. Le retrait du toggle simplifie l'UI sans perte fonctionnelle — le user n'avait pas besoin de l'opt-in/out granulaire.
+  - Extraction des primitives `recap-rows.tsx` réduit la duplication entre `ExpenseBreakdownPreview` et `TransactionListItem`. Pattern à généraliser quand un encart visuel partagé apparaît dans 2+ contextes — éviter le copy-paste qui dérive ensuite.
+  - Les tests RTL de delete-confirmation reposaient sur des assertions de classes CSS spécifiques (`text-blue-600.font-semibold`). Le refactor a invalidé ces sélecteurs (les couleurs passent maintenant sur les LABELS via EntityLabel, plus sur les AMOUNTS qui sont en gray-900). Réécriture nécessaire mais opportune pour passer à des assertions plus sémantiques (`toHaveClass('text-orange-600')` sur le label, plus que sur l'amount).
+
+  **Pattern à retenir** :
+  - Pour tout composant qui affiche un breakdown financier avec encart "après opération", extraire les primitives (`EntityLabel`, `BalanceRow`, `BudgetRecapRow`, `AfterOperationPanel`) dans un module partagé. Ne pas dupliquer les classes CSS d'entity colors / format helpers — la moindre désync UX devient un bug visuel difficile à diagnostiquer.
+  - Pour les modales de confirmation d'une mutation, REUTILISER l'encart de post-state au lieu de réinventer une explication textuelle. Le user mental model "qu'est-ce qui change" est mieux servi par "voilà l'état après" que par "voilà ce qui sera recrédité".
+  - Pour les toggles UI qui matérialisent une décision algorithmique du back-end, vérifier régulièrement si l'user a une préférence claire (e.g., 80% des cas utilisent telle option). Si oui, retirer le toggle et hardcoder la préférence en default. Reduce cognitive load.

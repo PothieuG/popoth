@@ -67,7 +67,7 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-13-fix-empty-recap-tirelire.md         37k   Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6)
 │   ├─ roadmap-detailed-14-modal-uniformize-polish-dropdown.md 36k   Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) — étendue 2026-05-20 (+ Delete-Budget-Savings + Fix-Savings-Drawer + Fix-Dashboards-Navbar-Switch)
 │   ├─ roadmap-detailed-15-skeleton-refetch-loaders.md         32k   Skeleton-Refetch-Loaders + Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel + Enrich-Delete-Confirmation/Fix-Summary-RAV-Stale-Cache (3) — trimmée 2026-05-21 post-split vers Part 16
-│   └─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  18k   Expense-Preview-Posé-Layout + Preserve-Caps-Edit-Allocation → Delta-Cascade-Edit (2) — créée 2026-05-21 par split préemptif de Part 15, étendue raffinement Delta-Cascade-Edit 2026-05-21
+│   └─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  27k   Expense-Preview-Posé-Layout → Auto-Use-Savings + Impact-Lines-Polish + Delete-Confirmation-Recap-Reuse (3) — créée 2026-05-21, étendue Delta-Cascade-Edit + Auto-Use-Savings polish round 2026-05-21
 │
 ├─ reference/
 │   └─ structure-repo.md                              37k   Inventaire fichiers annoté (régénérable partiel via git ls-files)
@@ -77,14 +77,14 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ typescript.md                                   4k   verbatimModuleSyntax, noUncheckedIndexedAccess, Database['Tables']
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
-│   ├─ operational-rules.md                           60k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (60k post-Delta-Cascade-Edit 2026-05-21, §5 Edit-mode allocation semantics réécrite avec algo 3-branches + 1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
-│   └─ operational-rules-ui-modals.md                 31k   29 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal 2026-05-21 + 5 règles nav SPA / loader inline / layout partagé Sprint Fix-Dashboards-Navbar-Switch 2026-05-20 + 3 règles isFetching/InlineSpinner/CentralLoader Sprint Skeleton-Refetch-Loaders 2026-05-21 + 1 sub-règle pointer-events:auto Sprint Fix-Dropdown-PointerEvents-Auto 2026-05-21 + 1 règle modal-confirmation-suppression-breakdown Sprint Enrich-Delete-Confirmation 2026-05-21 + 2 règles ExpenseBreakdownPreview Sprint Expense-Preview-Posé-Layout 2026-05-21)
+│   ├─ operational-rules.md                           61k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI extraite) — over 38k cap (61k post-Auto-Use-Savings 2026-05-21, +1 row §6 chronologie), **extraction §6 → `.claude/history/sprint-chronology.md` URGENTE au prochain sprint touchant ces invariants**
+│   └─ operational-rules-ui-modals.md                 35k   32 règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21 — 3 nouvelles règles ❌ : retrait toggle savings, Budget impact delta-based + RAV row, AfterOperationPanel obligatoire en delete confirmation)
 │
 └─ guardrails/
     └─ size-policy.md                                 15k   (ce fichier)
 ```
 
-**Total contexte** : ~787k chars répartis sur 29 fichiers. CLAUDE.md (~39k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **~58k** (post-Expense-Preview-Posé-Layout 2026-05-21 — +1 sous-section §5 "Edit-mode allocation semantics" + 1 row §6 chronologie). Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 31k. **Extraction §6 chronologie vers `.claude/history/sprint-chronology.md` URGENTE** (58k = 20k au-dessus du cap 38k, ratio 1.53x). Roadmap-14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 (sous le cap 38k, marge confortable). Roadmap-15 à 32k post-trim Sprint Expense-Preview 2026-05-21 (extrait vers Part 16). Roadmap-16 à 12k (créée par split préemptif). Roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
+**Total contexte** : ~795k chars répartis sur 29 fichiers. CLAUDE.md (~39k) reste légèrement au-delà du plafond 38k mais sous 40k (limite Claude Code). operational-rules.md à **~61k** (post-Auto-Use-Savings 2026-05-21 — +1 row §6 chronologie). Modals & UI section délocalisée vers `operational-rules-ui-modals.md` 35k (post-Auto-Use-Savings/Impact-Lines/Delete-Recap-Reuse). **Extraction §6 chronologie vers `.claude/history/sprint-chronology.md` URGENTE** (61k = 23k au-dessus du cap 38k, ratio 1.61x). Roadmap-14 à 36k post-extension Fix-Dashboards-Navbar-Switch 2026-05-20 (sous le cap 38k, marge confortable). Roadmap-15 à 32k post-trim Sprint Expense-Preview 2026-05-21 (extrait vers Part 16). Roadmap-16 à 27k post-Auto-Use-Savings 2026-05-21 (3 sprints documentés, sous le cap). Roadmap-12 (~39k) toujours à splitter au prochain sprint touchant Refactor-Recover.
 
 ## 5. Règles d'extension
 
@@ -189,7 +189,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (37k post Sprint Fix-Dashboards-Navbar-Switch 2026-05-20)
-- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-58k — operational-rules à ~58k post-Expense-Preview-Posé-Layout 2026-05-21 (+1 sous-section §5 "Edit-mode allocation semantics" + chronology row §6), **extraction §6 URGENTE au prochain sprint** ; operational-rules-ui-modals à 31k via Sprints Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout 2026-05-21)
+- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-61k — operational-rules à ~61k post-Auto-Use-Savings 2026-05-21, **extraction §6 URGENTE au prochain sprint** ; operational-rules-ui-modals à 35k via Sprints Modal-Uniformize/Polish/Dropdown-Portal/Skeleton-Refetch-Loaders/Fix-Dropdown-PointerEvents-Auto/Enrich-Delete-Confirmation/Expense-Preview-Posé-Layout/Auto-Use-Savings+Impact-Lines+Delete-Recap-Reuse 2026-05-21)
 - 1× `.claude/guardrails/size-policy.md` (~15k — ce fichier).
 
 Cf. inventaire détaillé via `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
