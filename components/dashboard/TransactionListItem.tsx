@@ -147,7 +147,7 @@ export default function TransactionListItem({
    * Construit le ReactNode `details` pour la modal de confirmation suppression.
    * Sprint 2026-05-21 / Recap-Reuse-Delete-Confirmation : on remplace
    * l'ancien breakdown 3-col (label / montant / `→ new balance`) par le
-   * panel `<AfterOperationPanel>` partagé avec `<ExpenseBreakdownPreview>` —
+   * panel `<AfterOperationPanel compact>` partagé avec `<ExpenseBreakdownPreview>` —
    * mêmes lignes Tirelire/Économies/Budget/RAV, mêmes couleurs labels par
    * entité, mêmes chiffres en noir.
    *
@@ -177,7 +177,7 @@ export default function TransactionListItem({
       if (ravBalance == null) return undefined
       const newRav = ravBalance + expense.amount
       return (
-        <AfterOperationPanel>
+        <AfterOperationPanel compact>
           <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
         </AfterOperationPanel>
       )
@@ -200,7 +200,7 @@ export default function TransactionListItem({
     const newRav = ravBalance != null ? ravBalance + ravRecovered : null
 
     return (
-      <AfterOperationPanel>
+      <AfterOperationPanel compact>
         {piggyRecovered > 0 && newPiggy != null && (
           <BalanceRow label={<EntityLabel type="piggy" />} amount={newPiggy} />
         )}
@@ -225,7 +225,7 @@ export default function TransactionListItem({
       if (ravBalance == null) return undefined
       const newRav = ravBalance - income.amount
       return (
-        <AfterOperationPanel>
+        <AfterOperationPanel compact>
           <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
         </AfterOperationPanel>
       )
@@ -249,7 +249,7 @@ export default function TransactionListItem({
         return (
           <div className="space-y-1.5 text-left">
             {sourceLine}
-            <AfterOperationPanel>
+            <AfterOperationPanel compact>
               <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
             </AfterOperationPanel>
           </div>

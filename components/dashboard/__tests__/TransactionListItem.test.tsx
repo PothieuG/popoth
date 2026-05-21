@@ -7,10 +7,12 @@ import type { RealIncome } from '@/hooks/useRealIncomes'
 
 // Sprint 2026-05-21 / Recap-Reuse-Delete-Confirmation — couvre le ReactNode
 // `details` passé à ConfirmationDialog. Le breakdown 3-col historique (label
-// / amount / "→ new balance") a été remplacé par le panel `<AfterOperationPanel>`
-// partagé avec ExpenseBreakdownPreview : header "Après opération", lignes
+// / amount / "→ new balance") a été remplacé par le panel `<AfterOperationPanel
+// compact>` partagé avec ExpenseBreakdownPreview. En mode compact (Sprint
+// 2026-05-22 / Recap-Compact-And-Uniform) le header "Après opération" est
+// masqué pour plus de discrétion dans la modal — les lignes
 // Tirelire/Économies/Budget/RAV avec labels colorés par entité (pink/violet/
-// orange/blue) et balances en noir (text-gray-900) sans préfixe de signe.
+// orange/blue) et balances en noir (text-gray-900) restent intactes.
 //
 // 4 branches :
 //   - Budgeted expense : Tirelire/Économies/RAV affichées si touchées,
@@ -78,9 +80,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      // Panel header
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
-
       // Savings row : label violet + new pool (100 + 15 = 115)
       expect(dlg.getByText('Économies')).toHaveClass('text-violet-600')
       expect(dlg.getByText(/115\s*€/)).toBeInTheDocument()
@@ -118,8 +117,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
-
       // Savings : 0 + 300 = 300
       expect(dlg.getByText('Économies')).toHaveClass('text-violet-600')
       expect(dlg.getByText(/^300\s*€$/)).toBeInTheDocument()
@@ -153,7 +150,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       expect(dlg.getByText('Budget')).toBeInTheDocument()
       expect(dlg.queryByText('Économies')).not.toBeInTheDocument()
       expect(dlg.queryByText('Tirelire')).not.toBeInTheDocument()
@@ -179,7 +175,9 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.queryByText('Après opération')).not.toBeInTheDocument()
+      // Compact mode drops the "Après opération" header, so we assert
+      // absence of the Reste à vivre label as the panel-absence indicator.
+      expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()
       expect(dlg.queryByText('Budget')).not.toBeInTheDocument()
     })
 
@@ -205,7 +203,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       // Budget row : "0/200" (80 - 80 = 0 spent post-delete)
       expect(dlg.getByText('Budget')).toHaveClass('text-orange-600')
       expect(dlg.getByText(/0\s*€\/200\s*€/)).toBeInTheDocument()
@@ -233,7 +230,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       expect(dlg.getByText('Reste à vivre')).toHaveClass('text-blue-600')
       // RAV after delete: 1000 + 25 = 1025
       expect(dlg.getByText(/1\s*025\s*€/)).toBeInTheDocument()
@@ -263,7 +259,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       expect(dlg.getByText('Reste à vivre')).toHaveClass('text-blue-600')
       // RAV after delete: 1000 - 150 = 850
       expect(dlg.getByText(/850\s*€/)).toBeInTheDocument()
@@ -289,7 +284,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       // Source name preserved as preamble above the panel
       expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       expect(dlg.getByText('Reste à vivre')).toHaveClass('text-blue-600')
       expect(dlg.getByText(/2\s*800\s*€/)).toBeInTheDocument()
     })
@@ -311,7 +305,6 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       await openDeleteDialog(user)
       const dlg = inDialog()
 
-      expect(dlg.getByText('Après opération')).toBeInTheDocument()
       expect(dlg.getByText('Reste à vivre')).toHaveClass('text-blue-600')
       expect(dlg.getByText(/2\s*900\s*€/)).toBeInTheDocument()
     })
@@ -335,7 +328,9 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
 
       expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
       expect(dlg.getByText(/ne sera pas affecté/)).toBeInTheDocument()
-      expect(dlg.queryByText('Après opération')).not.toBeInTheDocument()
+      // Compact mode drops the "Après opération" header, so we assert
+      // absence of the Reste à vivre label as the panel-absence indicator.
+      expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()
     })
 
     it('regular income without incomeSourceContext: fallback informative text, no panel', async () => {
@@ -354,7 +349,9 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
 
       expect(dlg.getByText(/Salaire Mai/)).toBeInTheDocument()
       expect(dlg.getByText(/sera réajusté en conséquence/)).toBeInTheDocument()
-      expect(dlg.queryByText('Après opération')).not.toBeInTheDocument()
+      // Compact mode drops the "Après opération" header, so we assert
+      // absence of the Reste à vivre label as the panel-absence indicator.
+      expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()
     })
   })
 })

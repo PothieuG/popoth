@@ -3,6 +3,7 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
+import { BalanceRow, EntityLabel, ImpactRow } from '@/components/dashboard/recap-rows'
 
 interface RemainingToLivePreviewProps {
   /**
@@ -32,8 +33,12 @@ interface RemainingToLivePreviewProps {
 }
 
 /**
- * Composant qui affiche un aperçu de l'impact d'une transaction
- * sur le reste à vivre avec code couleur
+ * Aperçu de l'impact d'une transaction (exceptionnelle ou revenu régulier)
+ * sur le reste à vivre. Sprint 2026-05-22 / Recap-Compact-And-Uniform :
+ * refondue pour utiliser les primitives `recap-rows` partagées avec
+ * `<ExpenseBreakdownPreview>` — même panel bleu, même header + divider
+ * "Après opération", même format de lignes (label coloré par entité +
+ * montant signé green/red en impact, balance noire en recap).
  */
 export default function RemainingToLivePreview({
   amount,
@@ -133,28 +138,9 @@ export default function RemainingToLivePreview({
     return { newRemainingToLive: currentRemainingToLive, change: 0 }
   })()
 
-  /**
-   * Détermine la couleur selon la valeur
-   */
-  const getColorClass = (value: number) => {
-    if (value > 0) return 'text-green-600'
-    if (value < 0) return 'text-red-600'
-    return 'text-gray-500'
-  }
-
-  /**
-   * Formate le montant en euros
-   */
-  const formatEur = (value: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(value)
-  }
-
   if (loading || isFetching || !financialData) {
     return (
-      <div className="rounded-lg border bg-gray-50 p-4">
+      <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
         <div className="space-y-2">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-6 w-1/2" />
@@ -168,79 +154,47 @@ export default function RemainingToLivePreview({
     return null
   }
 
+  // Caption explicative selon le cas
+  const captionText = isExceptional
+    ? `${type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel — impact direct sur le reste à vivre.`
+    : change !== 0
+      ? type === 'expense'
+        ? 'Dépassement de budget.'
+        : change > 0
+          ? "Bonus au-delà de l'estimation."
+          : "Déficit par rapport à l'estimation."
+      : type === 'expense'
+        ? 'Dans les limites du budget — pas d’impact sur le reste à vivre.'
+        : "Dans les limites de l'estimation — pas d'impact sur le reste à vivre."
+
   return (
     <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-      <div className="space-y-1.5">
+      <div className="space-y-3">
         <p className="text-sm font-medium text-gray-700">Impact sur le reste à vivre :</p>
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Actuel :</span>
-          <span className={`font-semibold ${getColorClass(financialData.remainingToLive)}`}>
-            {formatEur(financialData.remainingToLive)}
-          </span>
-        </div>
-
+        {/* Impact section — affiché seulement si delta != 0 */}
         {change !== 0 && (
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">{change > 0 ? 'Ajout :' : 'Déduction :'}</span>
-            <span className={`font-semibold ${getColorClass(change)}`}>
-              {change > 0 ? '+' : ''}
-              {formatEur(change)}
-            </span>
+          <div className="space-y-1">
+            <ImpactRow label={<EntityLabel type="rav" />} amount={change} />
           </div>
         )}
 
-        {/* Affichage spécial pour les déficits de revenus */}
-        {!isExceptional &&
-          type === 'income' &&
-          selectedId &&
-          amount > 0 &&
-          (() => {
-            const progress = incomeProgress[selectedId]
-            if (progress) {
-              const newTotalReceived = (progress.receivedAmount || 0) + amount
-              const totalDeficitOrBonus = newTotalReceived - progress.estimatedAmount
-              if (totalDeficitOrBonus < 0) {
-                return (
-                  <div className="flex items-center justify-between border-t border-blue-200 pt-2">
-                    <span className="text-xs text-gray-600">Déficit total :</span>
-                    <span className="text-xs font-semibold text-red-600">
-                      {formatEur(totalDeficitOrBonus)}
-                    </span>
-                  </div>
-                )
-              }
-            }
-            return null
-          })()}
-
-        <div className="border-t border-blue-200 pt-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-700">Nouveau :</span>
-            <span className={`text-lg font-bold ${getColorClass(newRemainingToLive)}`}>
-              {formatEur(newRemainingToLive)}
-            </span>
-          </div>
+        {/* Divider + Après opération */}
+        <div className="flex items-center gap-2 pt-1">
+          <div className="h-px flex-1 bg-blue-200" />
+          <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Après opération
+          </span>
+          <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {isExceptional ? (
-          <p className="mt-1.5 text-xs text-blue-600">
-            {type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel - Impact direct sur le reste à
-            vivre
-          </p>
-        ) : change !== 0 ? (
-          <p className="mt-1.5 text-xs text-amber-600">
-            {type === 'expense'
-              ? 'Dépassement de budget'
-              : change > 0
-                ? "Bonus au-delà de l'estimation"
-                : "Déficit par rapport à l'estimation"}
-          </p>
-        ) : (
-          <p className="mt-1.5 text-xs text-gray-500">
-            {type === 'expense' ? 'Dans les limites du budget' : "Dans les limites de l'estimation"}
-          </p>
-        )}
+        {/* Recap section — RAV après opération en noir */}
+        <div className="space-y-1">
+          <BalanceRow label={<EntityLabel type="rav" />} amount={newRemainingToLive} />
+        </div>
+
+        {/* Caption explicative */}
+        <p className="text-xs text-gray-500">{captionText}</p>
       </div>
     </div>
   )

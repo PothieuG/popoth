@@ -226,32 +226,37 @@ export default function AddIncomeDialog({
               )}
             </div>
 
-            {/* Aperçu du total avec nouveau revenu */}
+            {/* Aperçu du total — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
             {showPreview && (
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                <h4 className="mb-1.5 text-sm font-medium text-green-900">
-                  Calcul des revenus totaux
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Revenus actuels:</span>
-                    <span className="font-medium text-green-700">
-                      {formatAmount(currentIncomesTotal)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ce nouveau revenu:</span>
-                    <span className="font-medium text-green-700">
-                      {formatAmount(previewAmount)}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 border-t border-green-200 pt-1">
-                    <div className="flex justify-between font-bold">
-                      <span className="text-green-900">Total des revenus:</span>
-                      <span className="text-green-700">
-                        {formatAmount(currentIncomesTotal + previewAmount)}
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Calcul des revenus totaux :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Revenus actuels</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(currentIncomesTotal)}
                       </span>
                     </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce nouveau revenu</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewAmount)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
+                    </span>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Total des revenus</span>
+                    <span className="shrink-0 font-bold text-gray-900">
+                      {formatAmount(currentIncomesTotal + previewAmount)}
+                    </span>
                   </div>
                 </div>
               </div>

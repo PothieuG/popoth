@@ -241,57 +241,48 @@ export default function AddBudgetDialog({
               )}
             </div>
 
-            {/* Calcul en temps réel */}
+            {/* Calcul en temps réel — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
             {showPreview && (
-              <div
-                className={cn(
-                  'rounded-xl border p-4',
-                  willBeNegative ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50',
-                )}
-              >
-                <h4
-                  className={cn(
-                    'mb-1.5 font-semibold',
-                    willBeNegative ? 'text-red-900' : 'text-orange-900',
-                  )}
-                >
-                  Calcul de la balance
-                </h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Revenus estimés totaux:</span>
-                    <span className="font-medium text-green-700">
-                      {formatAmount(totalEstimatedIncome)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Budgets actuels:</span>
-                    <span className="font-medium text-orange-700">
-                      {formatAmount(currentBudgetsTotal)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Ce nouveau budget:</span>
-                    <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
-                  </div>
-                  <div className="mt-1.5 border-t border-gray-300 pt-1">
-                    <div className="flex justify-between font-bold">
-                      <span className={willBeNegative ? 'text-red-900' : 'text-gray-900'}>
-                        Balance résultante:
-                      </span>
-                      <span
-                        className={cn(
-                          'font-bold',
-                          willBeNegative
-                            ? 'text-red-700'
-                            : resultingBalance > 0
-                              ? 'text-green-700'
-                              : 'text-gray-700',
-                        )}
-                      >
-                        {formatAmount(resultingBalance)}
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Calcul de la balance :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Revenus estimés totaux</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(totalEstimatedIncome)}
                       </span>
                     </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Budgets actuels</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(currentBudgetsTotal)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce nouveau budget</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewSafe)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
+                    </span>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Balance résultante</span>
+                    <span
+                      className={cn(
+                        'shrink-0 font-bold',
+                        willBeNegative ? 'text-red-600' : 'text-gray-900',
+                      )}
+                    >
+                      {formatAmount(resultingBalance)}
+                    </span>
                   </div>
                 </div>
               </div>

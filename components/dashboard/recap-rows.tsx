@@ -151,22 +151,40 @@ export function BudgetRecapRow({
  * Encart "Après opération" complet — bordure bleu clair, divider centré, et
  * stack vertical de lignes. Réutilisé par `<ExpenseBreakdownPreview>` (en
  * combinaison avec la section Impact au-dessus) et par la modal de
- * confirmation suppression (panel autonome).
+ * confirmation suppression (panel autonome avec `compact={true}`).
  *
- * Sprint 2026-05-21 / Recap-Reuse-Delete-Confirmation : extraction pour
- * partage entre preview-impact et delete-confirmation.
+ * **`text-left`** sur le root force l'alignement gauche des labels même
+ * quand le parent applique `text-center` (cas `<ConfirmationDialog>` qui
+ * centre tout son contenu) — Sprint 2026-05-22 / Recap-Compact-And-Uniform.
+ *
+ * **`compact={true}`** réduit le padding (p-3 au lieu de p-4) et masque le
+ * header "Après opération" divider — utilisé dans la modal de suppression
+ * où le contexte du dialogue rend le header redondant. Sprint 2026-05-22.
  */
-export function AfterOperationPanel({ children }: { children: ReactNode }) {
+export function AfterOperationPanel({
+  children,
+  compact = false,
+}: {
+  children: ReactNode
+  compact?: boolean
+}) {
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <div className="h-px flex-1 bg-blue-200" />
-          <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Après opération
-          </span>
-          <div className="h-px flex-1 bg-blue-200" />
-        </div>
+    <div
+      className={cn(
+        'rounded-lg border border-blue-200 bg-blue-50/50 text-left',
+        compact ? 'p-3' : 'p-4',
+      )}
+    >
+      <div className={compact ? 'space-y-1' : 'space-y-3'}>
+        {!compact && (
+          <div className="flex items-center gap-2">
+            <div className="h-px flex-1 bg-blue-200" />
+            <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+              Après opération
+            </span>
+            <div className="h-px flex-1 bg-blue-200" />
+          </div>
+        )}
         <div className="space-y-1">{children}</div>
       </div>
     </div>

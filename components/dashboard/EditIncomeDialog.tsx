@@ -194,23 +194,34 @@ export default function EditIncomeDialog({
               )}
             </div>
 
-            {/* Aperçu financier */}
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Autres revenus:</span>
-                  <span className="font-medium text-gray-900">
-                    {formatAmount(currentIncomesTotal - income.estimated_amount)}
+            {/* Aperçu financier — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700">Aperçu :</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Autres revenus</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(currentIncomesTotal - income.estimated_amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Ce revenu</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(previewSafe)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-px flex-1 bg-blue-200" />
+                  <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    Résultat
                   </span>
+                  <div className="h-px flex-1 bg-blue-200" />
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ce revenu:</span>
-                  <span className="font-medium text-green-700">{formatAmount(previewSafe)}</span>
-                </div>
-                <hr className="border-green-200" />
-                <div className="flex justify-between font-bold">
-                  <span>Total des revenus:</span>
-                  <span className="text-green-700">
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium text-gray-700">Total des revenus</span>
+                  <span className="shrink-0 font-bold text-gray-900">
                     {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
                   </span>
                 </div>

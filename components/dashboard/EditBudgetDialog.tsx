@@ -212,27 +212,45 @@ export default function EditBudgetDialog({
               )}
             </div>
 
-            {/* Aperçu financier */}
-            <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Revenus estimés:</span>
-                  <span className="font-medium text-gray-900">
-                    {formatAmount(totalEstimatedIncome)}
+            {/* Aperçu financier — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
+            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700">Aperçu :</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Revenus estimés</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(totalEstimatedIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Autres budgets</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(otherBudgets)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-gray-700">Ce budget</span>
+                    <span className="shrink-0 font-semibold text-gray-900">
+                      {formatAmount(previewSafe)}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="h-px flex-1 bg-blue-200" />
+                  <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    Résultat
                   </span>
+                  <div className="h-px flex-1 bg-blue-200" />
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Autres budgets:</span>
-                  <span className="font-medium text-gray-900">{formatAmount(otherBudgets)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Ce budget:</span>
-                  <span className="font-medium text-orange-700">{formatAmount(previewSafe)}</span>
-                </div>
-                <hr className="border-orange-200" />
-                <div className="flex justify-between font-bold">
-                  <span>Reste disponible:</span>
-                  <span className={cn(newBalance >= 0 ? 'text-green-700' : 'text-red-700')}>
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium text-gray-700">Reste disponible</span>
+                  <span
+                    className={cn(
+                      'shrink-0 font-bold',
+                      newBalance < 0 ? 'text-red-600' : 'text-gray-900',
+                    )}
+                  >
                     {formatAmount(newBalance)}
                   </span>
                 </div>
