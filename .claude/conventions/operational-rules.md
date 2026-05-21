@@ -212,6 +212,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 ## 6. Précédents Sprint chronologie résumée
 
 > Extraite 2026-05-22 vers [.claude/history/sprint-chronology.md](../history/sprint-chronology.md) (la table avait fait franchir le plafond size-policy au fichier principal, cap alors à 38k — bumped à 39.5k le même jour). Append-only : ajouter 1 ligne par sprint installant un pattern réutilisable. Pour la chronologie complète des 112 sprints, voir CLAUDE.md §11.
+
 ## 7. Supabase Auth click-to-confirm gate — scanner-résistance
 
 Sprint Fix-Password-Reset-OTP (2026-05-19) — corrige une régression prod du flow "mot de passe oublié" où le lien de récupération reçu par mail répondait immédiatement `otp_expired` parce que les scanners d'email (Outlook Safe Links, Gmail previewers, antivirus locaux, link-preview bots) GET-prefetchaient `https://...supabase.co/auth/v1/verify?token=...` et consommaient l'OTP single-use **avant** que l'utilisateur ne clique.
