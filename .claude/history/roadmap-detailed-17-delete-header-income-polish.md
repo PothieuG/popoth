@@ -88,7 +88,7 @@
   - `pnpm lint:check` 0 errors / 0 warnings
   - `pnpm format:check` exit 0 (après `prettier --write` sur `app/(dashboards)/group-dashboard/page.tsx`)
   - `pnpm test:run` **513 passed / 98 skipped** (baseline stable)
-  - `pnpm verify` exit 0 (typecheck + format + tests + 6 db:* checks)
+  - `pnpm verify` exit 0 (typecheck + format + tests + 6 db:\* checks)
   - `pnpm build` exit 0 (54 routes)
   - Gated `SUPABASE_RPC_CONCURRENCY_TESTS=1` add-expense × 2 : **12/12**
   - Gated `SUPABASE_RECAP_TESTS=1` complete : **5/5**
