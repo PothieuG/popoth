@@ -385,6 +385,51 @@ export type Database = {
           },
         ]
       }
+      monthly_recaps_v2: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          group_id: string | null
+          id: string
+          profile_id: string | null
+          recap_month: number
+          recap_year: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          profile_id?: string | null
+          recap_month: number
+          recap_year: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          profile_id?: string | null
+          recap_month?: number
+          recap_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_recaps_v2_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_recaps_v2_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piggy_bank: {
         Row: {
           amount: number
@@ -651,6 +696,54 @@ export type Database = {
           },
           {
             foreignKeyName: "recap_snapshots_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recap_snapshots_v2: {
+        Row: {
+          created_at: string
+          group_id: string | null
+          id: string
+          is_active: boolean
+          profile_id: string | null
+          snapshot_data: Json | null
+          snapshot_month: number
+          snapshot_year: number
+        }
+        Insert: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          profile_id?: string | null
+          snapshot_data?: Json | null
+          snapshot_month: number
+          snapshot_year: number
+        }
+        Update: {
+          created_at?: string
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          profile_id?: string | null
+          snapshot_data?: Json | null
+          snapshot_month?: number
+          snapshot_year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recap_snapshots_v2_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recap_snapshots_v2_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
