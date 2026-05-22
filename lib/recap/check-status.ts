@@ -48,7 +48,7 @@ export async function checkRecapStatus(
     contextId = profile.id
 
     const { data: existingRecap } = await supabaseServer
-      .from('monthly_recaps')
+      .from('monthly_recaps_v2')
       .select('id, completed_at')
       .eq('profile_id', profile.id)
       .eq('recap_month', currentMonth)
@@ -65,7 +65,7 @@ export async function checkRecapStatus(
     contextId = profile.group_id
 
     const { data: existingRecap } = await supabaseServer
-      .from('monthly_recaps')
+      .from('monthly_recaps_v2')
       .select('id, completed_at')
       .eq('group_id', profile.group_id)
       .eq('recap_month', currentMonth)
