@@ -61,7 +61,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~
 | `pnpm verify`                              | **Sanity sweep** : `typecheck + format:check + test:run + 6 db:* checks` fail-fast. ~36s en local. À lancer après chaque sprint.          |
 | `pnpm supabase ...`                        | Supabase CLI (lié à `jzmppreybwabaeycvasz`)                                                                                               |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker)                                                                                  |
-| `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management                                                                                                |
+| `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management (apply migration, SELECT lecture). Voir aussi `clone-data.mjs` pour cloner data inter-projets. |
 
 ### Hooks Git (Husky)
 

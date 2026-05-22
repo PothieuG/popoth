@@ -32,17 +32,14 @@ if (SOURCE === TARGET) {
 }
 
 async function executeSQL(projectRef, sql) {
-  const res = await fetch(
-    `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: sql }),
+  const res = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${TOKEN}`,
+      'Content-Type': 'application/json',
     },
-  )
+    body: JSON.stringify({ query: sql }),
+  })
   const text = await res.text()
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} on ${projectRef}: ${text}`)

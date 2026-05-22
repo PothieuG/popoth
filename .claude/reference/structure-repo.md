@@ -153,7 +153,7 @@ lib/
     generate.ts            # `generateOpenAPI()` — transforme le registry en OpenAPI 3.1 JSON via `z.toJSONSchema()` natif Zod 4 (zéro dep externe). Cache module-level. Refines droppés (limite JSON Schema), transforms → `{}` via `unrepresentable: 'any'`.
 scripts/                   # Sprint DB outils API Management (sans Docker)
   export-schema.mjs        # snapshot prod schema → SQL baseline (⚠️ filtre trigger buggy, cf. Sprint Audit-Triggers v6)
-  apply-sql.mjs            # applique un .sql via API Management (drift recovery, ou SELECT lecture seule)
+  apply-sql.mjs            # applique un .sql via API Management (drift recovery, SELECT, ou clone-data.mjs base)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
   list-triggers.sql        # ✅ Sprint Polish T5 — SELECT pg_trigger pour inventaire
