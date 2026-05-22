@@ -4,7 +4,7 @@ import { logger } from '@/lib/logger'
 import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
 
 // Define protected and public routes
-const protectedRoutes = ['/dashboard', '/profile', '/group-dashboard']
+const protectedRoutes = ['/dashboard', '/profile', '/group-dashboard', '/dev']
 const authRoutes = [
   '/connexion',
   '/inscription',

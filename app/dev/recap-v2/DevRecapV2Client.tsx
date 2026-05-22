@@ -65,8 +65,13 @@ export default function DevRecapV2Client() {
   const [result, setResult] = useState<ApiResult | null>(null)
 
   useEffect(() => {
-    fetch('/api/debug/recap-v2/scenarios')
+    fetch('/api/debug/recap-v2/scenarios', { credentials: 'same-origin' })
       .then(async (response) => {
+        if (response.status === 401) {
+          throw new Error(
+            'Session invalide — connecte-toi via /connexion puis reviens sur /dev/recap-v2',
+          )
+        }
         if (!response.ok) {
           const body = (await response.json().catch(() => ({}))) as { error?: string }
           throw new Error(body.error ?? `HTTP ${response.status}`)
@@ -87,6 +92,7 @@ export default function DevRecapV2Client() {
       const response = await fetch('/api/debug/recap-v2/seed', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ scenario: key }),
       })
       const body = (await response.json()) as ApiResult
@@ -105,6 +111,7 @@ export default function DevRecapV2Client() {
       const response = await fetch('/api/debug/recap-v2/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ context }),
       })
       const body = (await response.json()) as ApiResult
