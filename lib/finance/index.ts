@@ -33,4 +33,10 @@ export { getBudgetSavingsDetail } from './budget-savings-detail'
 export { getGroupFinancialData, getProfileFinancialData } from './financial-data'
 export { getRavFromDatabase, saveRavToDatabase } from './rav-persistence'
 export { saveRemainingToLiveSnapshot } from './snapshots'
+export {
+  AppliedToggleNoOpError,
+  toggleRealExpenseAppliedToBalance,
+  toggleRealIncomeAppliedToBalance,
+  type AppliedToggleResult,
+} from './applied-balance'
 export type { BudgetSavings, FinancialData } from './types'

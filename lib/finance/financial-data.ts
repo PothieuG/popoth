@@ -24,7 +24,6 @@ import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 import {
-  calculateAvailableCash,
   calculateBudgetDeficit,
   calculateRemainingToLiveGroup,
   calculateRemainingToLiveProfile,
@@ -163,12 +162,17 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       }
     }
 
-    // 10. Solde disponible
-    const availableBalance = calculateAvailableCash(
-      userBankBalance,
-      totalRealIncome,
-      totalRealExpenses,
-    )
+    // 10. Solde disponible. Sprint Long-Press-Toggle-Apply-To-Balance
+    // (2026-05-23) : sémantique pure-bank — `availableBalance ===
+    // bank_balances.balance`. La formule `calculateAvailableCash(bank,
+    // incomes, expenses)` pré-sprint projetait un solde "post toutes
+    // pending" mais ne reflétait jamais la réalité du compte. Maintenant,
+    // le user contrôle quand une transaction "atterrit" sur le solde via
+    // long-press (toggle_real_*_applied_to_balance) — le dashboard expose
+    // donc la valeur authoritative de la table `bank_balances` directement.
+    // calculateAvailableCash est conservé pour les tests legacy gated +
+    // backward-compat helpers (cf. lib/finance/calc-rtl.ts).
+    const availableBalance = userBankBalance
 
     // 11. Contribution revenus + RAV
     const incomeCompensation = await calculateIncomeCompensation(filter)

@@ -144,18 +144,15 @@ describe.skipIf(!ENABLED)('API regressions (Sprint Polish T3)', () => {
     expect(data.totalRealExpenses).toBe(expectedExpense)
   }, 30_000)
 
-  // Regression for Sprint Hardening H1 — dashboard once consumed a phantom
-  // RPC `calculate_available_cash` that didn't exist in pg_proc; the error
-  // was swallowed and the value defaulted to 0. Now availableBalance comes
-  // from calculateAvailableCash(bank, income, expense) inside the helper.
-  it('getProfileFinancialData availableBalance equals bank + income - expense', async () => {
+  // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) — `availableBalance`
+  // returns `bank_balances.balance` directly (pure-bank semantic). Pre-sprint
+  // formula `bank + income - expense` was replaced because the user controls
+  // when transactions "hit" the bank via long-press toggle (cf. composite RPC
+  // `toggle_real_*_applied_to_balance`). The pre-sprint H1 fix (computing in
+  // TS instead of via phantom RPC) is preserved — only the formula changed.
+  it('getProfileFinancialData availableBalance equals bank_balance directly', async () => {
     const data = await getProfileFinancialData(testUserId)
-
-    const expectedIncome = FIXTURE_INCOMES.reduce((s, n) => s + n, 0)
-    const expectedExpense = FIXTURE_EXPENSES.reduce((s, n) => s + n, 0)
-    const expected = FIXTURE_BANK_BALANCE + expectedIncome - expectedExpense
-
-    expect(data.availableBalance).toBe(expected)
+    expect(data.availableBalance).toBe(FIXTURE_BANK_BALANCE)
   }, 30_000)
 })
 

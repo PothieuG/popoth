@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
-import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealExpense, ToggleAppliedOutcome } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 import type { ProfileData } from '@/app/api/profile/route'
+import { useLongPress } from '@/hooks/useLongPress'
 import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import UserAvatar from '@/components/ui/UserAvatar'
+
+const LONG_PRESS_DELAY_MS = 800
 
 /**
  * Sprint Group-Transaction-Creator-Avatar (2026-05-22) : pour le contexte
@@ -50,6 +53,13 @@ interface TransactionListItemProps {
   type: 'expense' | 'income'
   onEdit: (transaction: Transaction) => void
   onDelete: (transactionId: string) => Promise<boolean>
+  /**
+   * Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Le parent
+   * (TransactionTabsComponent) câble `useRealExpenses().toggleApplied`
+   * ou `useRealIncomes().toggleApplied`. Déclenché par long-press 800ms
+   * sur la carte OU entrée dédiée du dropdown menu (alternative clavier).
+   */
+  onToggleApplied: (transactionId: string, apply: boolean) => Promise<ToggleAppliedOutcome>
   context?: 'profile' | 'group'
   /**
    * Pour un revenu régulier (estimated_income_id set + !is_exceptional), le
@@ -92,6 +102,7 @@ export default function TransactionListItem({
   type,
   onEdit,
   onDelete,
+  onToggleApplied,
   context = 'profile',
   incomeSourceContext = null,
   currentRemainingToLive = null,
@@ -102,6 +113,60 @@ export default function TransactionListItem({
   const creatorProfile = toCreatorProfile(transaction.created_by)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isPressing, setIsPressing] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
+  const progressBarRef = useRef<HTMLSpanElement | null>(null)
+
+  /**
+   * Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). NULL → bg
+   * blanc (non appliquée) ; ISO string → bg rouge léger (dépense) ou vert
+   * léger (revenu). Détermine aussi le label dynamique du dropdown.
+   */
+  const isApplied = transaction.applied_to_balance_at != null
+
+  const runToggle = async () => {
+    if (isToggling) return
+    setIsToggling(true)
+    try {
+      await onToggleApplied(transaction.id, !isApplied)
+    } finally {
+      setIsToggling(false)
+    }
+  }
+
+  const longPress = useLongPress(runToggle, {
+    delayMs: LONG_PRESS_DELAY_MS,
+    onStart: () => {
+      setIsPressing(true)
+      // Feedback haptique 50ms — non bloquant, silently no-op sur desktop /
+      // navigateurs sans Vibration API (Safari iOS notamment).
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(50)
+      }
+    },
+    onCancel: () => {
+      setIsPressing(false)
+    },
+  })
+
+  // Anime le progress fill de scaleX(0) → scaleX(1) en LONG_PRESS_DELAY_MS via
+  // mutation DOM directe (pas de setState dans l'effet : la barre démarre en
+  // scaleX(0) au mount, on bascule à scaleX(1) à la frame suivante pour
+  // amorcer la transition CSS). Quand isPressing redevient false, le `<span>`
+  // est démonté (conditional render) → pas besoin de reset state.
+  useLayoutEffect(() => {
+    if (!isPressing) return
+    const node = progressBarRef.current
+    if (!node) return
+    const raf = requestAnimationFrame(() => {
+      node.style.transform = 'scaleX(1)'
+    })
+    const timer = setTimeout(() => setIsPressing(false), LONG_PRESS_DELAY_MS)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(timer)
+    }
+  }, [isPressing])
 
   /**
    * Format amount with euro symbol
@@ -299,7 +364,11 @@ export default function TransactionListItem({
   }
 
   /**
-   * Get dropdown menu items
+   * Get dropdown menu items. Sprint Long-Press-Toggle-Apply-To-Balance
+   * (2026-05-23) — ajout d'une 3e entrée « Appliquer/Retirer du solde »
+   * (alternative clavier au long-press tactile). Supprimer est `disabled`
+   * quand la transaction est appliquée — l'utilisateur doit d'abord la
+   * retirer du solde (cf. 409 côté API DELETE).
    */
   const getDropdownItems = () => [
     {
@@ -317,6 +386,22 @@ export default function TransactionListItem({
       onClick: () => onEdit(transaction),
     },
     {
+      label: isApplied ? 'Retirer du solde' : 'Appliquer au solde',
+      icon: (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {isApplied ? (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          )}
+        </svg>
+      ),
+      onClick: () => {
+        void runToggle()
+      },
+      disabled: isToggling,
+    },
+    {
       label: 'Supprimer',
       icon: (
         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,18 +415,51 @@ export default function TransactionListItem({
       ),
       onClick: () => setIsDeleteModalOpen(true),
       variant: 'danger' as const,
+      disabled: isApplied,
     },
   ]
+
+  const appliedBgClass = isApplied ? (type === 'expense' ? 'bg-red-50' : 'bg-green-50') : 'bg-white'
 
   return (
     <>
       <div
+        {...longPress}
+        role="button"
+        tabIndex={0}
+        aria-pressed={isApplied}
+        aria-label={
+          isApplied
+            ? `${type === 'expense' ? 'Dépense' : 'Revenu'} appliquée au solde, appuyez longuement pour retirer`
+            : `${type === 'expense' ? 'Dépense' : 'Revenu'} non appliquée au solde, appuyez longuement pour appliquer`
+        }
         className={cn(
-          'rounded-lg border border-gray-200 bg-white p-4 shadow-md transition-all duration-200',
+          'relative overflow-hidden rounded-lg border border-gray-200 p-4 shadow-md transition-colors duration-300',
           'hover:border-gray-300 hover:shadow-lg',
+          appliedBgClass,
           className,
         )}
+        style={longPress.style}
       >
+        {/* Progress ring fill — apparaît seulement pendant un long-press
+            sustained. width 0 → 100% en 800ms via transform scaleX (évite
+            reflow). Couleur cohérente avec le statut cible (vert si on va
+            apply un revenu, rouge si on va apply une dépense, gris si on
+            unapply). pointer-events-none pour ne pas intercepter le geste. */}
+        {isPressing && (
+          <span
+            ref={progressBarRef}
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute right-0 bottom-0 left-0 h-1 origin-left rounded-b-lg',
+              isApplied ? 'bg-gray-400' : type === 'expense' ? 'bg-red-400' : 'bg-green-500',
+            )}
+            style={{
+              transform: 'scaleX(0)',
+              transition: `transform ${LONG_PRESS_DELAY_MS}ms linear`,
+            }}
+          />
+        )}
         <div className="flex items-center justify-between">
           {/* Transaction Details */}
           <div className="flex min-w-0 flex-1 items-center space-x-3">
@@ -399,8 +517,14 @@ export default function TransactionListItem({
             </div>
           </div>
 
-          {/* Actions dropdown - Bigger and centered */}
-          <div className="ml-1.5 flex min-h-full shrink-0 items-center">
+          {/* Actions dropdown - Bigger and centered. stopPropagation sur
+              pointerdown empêche le long-press de la carte de démarrer quand
+              on tape sur les 3 points (sinon hold sur le bouton fait toggle
+              du solde au lieu d'ouvrir le menu). */}
+          <div
+            className="ml-1.5 flex min-h-full shrink-0 items-center"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <DropdownMenu
               items={getDropdownItems()}
               buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"

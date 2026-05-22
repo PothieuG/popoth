@@ -1,130 +1,106 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 
-interface BankBalanceState {
+interface BankBalanceQueryResult {
   balance: number
-  loading: boolean
-  error: string | null
+  graceful_default?: boolean
 }
 
 /**
- * Hook personnalisé pour gérer le solde bancaire éditable
- * Permet de récupérer et mettre à jour le solde bancaire de l'utilisateur ou du groupe
+ * Hook TanStack Query pour gérer le solde bancaire éditable. Migré du
+ * useState/useEffect legacy au Sprint Long-Press-Toggle-Apply-To-Balance
+ * (2026-05-23) pour permettre l'invalidation par d'autres mutations
+ * (toggleApplied notamment, qui change `bank_balances.balance` côté serveur
+ * via la composite RPC `toggle_real_*_applied_to_balance`).
+ *
+ * QueryKey: `['bank-balance', context ?? null]`. Invalidée par les
+ * consumers via `qc.invalidateQueries({ queryKey: ['bank-balance'] })`.
+ * Le shape public reste identique à l'ancienne API (`balance`, `loading`,
+ * `error`, `updateBankBalance`, `refreshBankBalance`) pour préserver les
+ * consumers existants (EditableBalanceLine, SettingsDrawer, layout).
  */
 export function useBankBalance(context?: 'profile' | 'group') {
-  const [state, setState] = useState<BankBalanceState>({
-    balance: 0,
-    loading: true,
-    error: null,
-  })
+  const queryClient = useQueryClient()
+  const queryKey = ['bank-balance', context ?? null]
 
-  /**
-   * Récupère le solde bancaire depuis l'API
-   */
-  const fetchBankBalance = async () => {
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }))
-
+  const {
+    data,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = useQuery<BankBalanceQueryResult>({
+    queryKey,
+    queryFn: async () => {
       const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
-      const response = await fetch(url)
+      const response = await fetch(url, { credentials: 'include' })
 
       if (!response.ok) {
         const errorText = await response.text()
-        // Validation diagnostic — branche 500+missing-table est un fallback légit, log helps grep
         logger.warn('Erreur API bank-balance:', response.status, errorText)
-
         // Si la table n'existe pas, on initialise le solde à 0 sans erreur
         if (
           response.status === 500 &&
           errorText.includes('relation "bank_balances" does not exist')
         ) {
-          setState((prev) => ({
-            ...prev,
-            balance: 0,
-            loading: false,
-          }))
-          return
+          return { balance: 0, graceful_default: true }
         }
-
         throw new Error(`Erreur ${response.status}: ${errorText}`)
       }
 
-      const data = await response.json()
-      setState((prev) => ({
-        ...prev,
-        balance: data.balance,
-        loading: false,
-      }))
-    } catch (error) {
-      logger.error('Erreur lors de la récupération du solde bancaire:', error)
-      setState((prev) => ({
-        ...prev,
-        balance: 0, // Valeur par défaut en cas d'erreur
-        loading: false,
-        error: error instanceof Error ? error.message : 'Erreur inconnue',
-      }))
-    }
-  }
+      const json = await response.json()
+      return { balance: typeof json.balance === 'number' ? json.balance : 0 }
+    },
+  })
 
-  /**
-   * Met à jour le solde bancaire
-   */
-  const updateBankBalance = async (newBalance: number): Promise<boolean> => {
-    try {
-      setState((prev) => ({ ...prev, loading: true, error: null }))
-
+  const updateMutation = useMutation<number, Error, number>({
+    mutationFn: async (newBalance) => {
       const url = context ? `/api/bank-balance?context=${context}` : '/api/bank-balance'
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ balance: newBalance }),
       })
-
-      const data = await response.json()
-
+      const json = await response.json()
       if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la mise à jour du solde')
+        throw new Error(json.error || 'Erreur lors de la mise à jour du solde')
       }
+      if (typeof json.balance !== 'number') {
+        throw new Error('Réponse serveur invalide (balance absent)')
+      }
+      return json.balance
+    },
+    onSuccess: (newBalance) => {
+      queryClient.setQueryData<BankBalanceQueryResult>(queryKey, { balance: newBalance })
+    },
+    onError: (err) => {
+      // silently-swallowed côté UI (updateBankBalance retourne false sans toast)
+      logger.error('Erreur lors de la mise à jour du solde bancaire:', err)
+    },
+  })
 
-      setState((prev) => ({
-        ...prev,
-        balance: data.balance,
-        loading: false,
-      }))
-
+  const updateBankBalance = async (newBalance: number): Promise<boolean> => {
+    try {
+      await updateMutation.mutateAsync(newBalance)
       return true
-    } catch (error) {
-      logger.error('Erreur lors de la mise à jour du solde bancaire:', error)
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Erreur inconnue',
-      }))
+    } catch {
       return false
     }
   }
 
-  /**
-   * Recharge le solde bancaire
-   */
-  const refreshBankBalance = () => {
-    fetchBankBalance()
-  }
+  const refreshBankBalance = useCallback(async () => {
+    await refetch()
+  }, [refetch])
 
-  // Chargement initial du solde
-  useEffect(() => {
-    fetchBankBalance()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchBankBalance is recreated each render; only refetch when context changes
-  }, [context])
+  const errorMessage = queryError instanceof Error ? queryError.message : null
 
   return {
-    balance: state.balance,
-    loading: state.loading,
-    error: state.error,
+    balance: data?.balance ?? 0,
+    loading: isLoading,
+    error: errorMessage,
     updateBankBalance,
     refreshBankBalance,
   }

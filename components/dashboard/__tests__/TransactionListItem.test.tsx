@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 import TransactionListItem from '../TransactionListItem'
 import type { RealExpense } from '@/hooks/useRealExpenses'
@@ -75,6 +75,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -112,6 +113,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1050}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -145,6 +147,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -170,6 +173,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           // No budgetSnapshot → buildExpenseDeleteDetails returns undefined
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -198,6 +202,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -225,6 +230,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -254,6 +260,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={1000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -276,6 +283,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={3000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -303,6 +311,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={3000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -324,6 +333,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           currentRemainingToLive={3000}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -349,6 +359,7 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
           incomeSourceContext={null}
           onEdit={vi.fn()}
           onDelete={vi.fn(async () => true)}
+          onToggleApplied={vi.fn(async () => 'applied' as const)}
         />,
       )
       await openDeleteDialog(user)
@@ -361,6 +372,175 @@ describe('<TransactionListItem> delete confirmation details (Après-opération p
       // Compact mode drops the "Après opération" header, so we assert
       // absence of the Reste à vivre label as the panel-absence indicator.
       expect(dlg.queryByText('Reste à vivre')).not.toBeInTheDocument()
+    })
+  })
+})
+
+// Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Couvre le rendu
+// applied/not + interactions long-press + dropdown entries + dropdown
+// Supprimer disabled. Pattern miroir des tests delete-confirmation : on
+// utilise userEvent pour clicks et fireEvent pour pointer events bas-niveau
+// (userEvent ne simule pas pointerdown/up sustained avec timer).
+describe('<TransactionListItem> apply-to-balance (long-press toggle)', () => {
+  const expenseDefaults = buildExpense({ amount_from_piggy_bank: 0, amount_from_budget_savings: 0 })
+
+  it('non-applied expense renders bg-white + aria-pressed=false', () => {
+    const { container } = render(
+      <TransactionListItem
+        transaction={expenseDefaults}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    const root = container.querySelector('[role="button"]')
+    expect(root).not.toBeNull()
+    expect(root).toHaveAttribute('aria-pressed', 'false')
+    expect(root?.className).toMatch(/bg-white/)
+  })
+
+  it('applied expense renders bg-red-50 + aria-pressed=true', () => {
+    const { container } = render(
+      <TransactionListItem
+        transaction={buildExpense({ applied_to_balance_at: '2026-05-23T10:00:00Z' })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    const root = container.querySelector('[role="button"]')
+    expect(root).toHaveAttribute('aria-pressed', 'true')
+    expect(root?.className).toMatch(/bg-red-50/)
+  })
+
+  it('applied income renders bg-green-50', () => {
+    const { container } = render(
+      <TransactionListItem
+        transaction={buildIncome({ applied_to_balance_at: '2026-05-23T10:00:00Z' })}
+        type="income"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    const root = container.querySelector('[role="button"]')
+    expect(root?.className).toMatch(/bg-green-50/)
+  })
+
+  it('dropdown shows "Appliquer au solde" when not applied + calls onToggleApplied(id, true)', async () => {
+    const user = userEvent.setup()
+    const onToggle = vi.fn(async () => 'applied' as const)
+    render(
+      <TransactionListItem
+        transaction={expenseDefaults}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={onToggle}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    const applyBtn = screen.getByRole('button', { name: 'Appliquer au solde' })
+    await user.click(applyBtn)
+    expect(onToggle).toHaveBeenCalledWith(expenseDefaults.id, true)
+  })
+
+  it('dropdown shows "Retirer du solde" when applied + calls onToggleApplied(id, false)', async () => {
+    const user = userEvent.setup()
+    const onToggle = vi.fn(async () => 'unapplied' as const)
+    const applied = buildExpense({ applied_to_balance_at: '2026-05-23T10:00:00Z' })
+    render(
+      <TransactionListItem
+        transaction={applied}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={onToggle}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    const removeBtn = screen.getByRole('button', { name: 'Retirer du solde' })
+    await user.click(removeBtn)
+    expect(onToggle).toHaveBeenCalledWith(applied.id, false)
+  })
+
+  it('dropdown "Supprimer" is disabled when transaction is applied', async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn(async () => true)
+    render(
+      <TransactionListItem
+        transaction={buildExpense({ applied_to_balance_at: '2026-05-23T10:00:00Z' })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    const deleteBtn = screen.getByRole('button', { name: 'Supprimer' })
+    expect(deleteBtn).toBeDisabled()
+    // Clicking the disabled button should NOT invoke onDelete (and the dialog
+    // should not open). userEvent.click respects pointer-events:none ; we
+    // assert that the dialog is not rendered after the click attempt.
+    await user.click(deleteBtn).catch(() => {})
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  describe('long-press gesture', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('long-press 800ms on a non-applied expense fires onToggleApplied(id, true)', async () => {
+      const onToggle = vi.fn(async () => 'applied' as const)
+      const { container } = render(
+        <TransactionListItem
+          transaction={expenseDefaults}
+          type="expense"
+          onEdit={vi.fn()}
+          onDelete={vi.fn(async () => true)}
+          onToggleApplied={onToggle}
+        />,
+      )
+      const root = container.querySelector('[role="button"]') as HTMLElement
+      expect(root).not.toBeNull()
+
+      fireEvent.pointerDown(root, { pointerType: 'touch' })
+      await act(async () => {
+        vi.advanceTimersByTime(800)
+      })
+      expect(onToggle).toHaveBeenCalledWith(expenseDefaults.id, true)
+    })
+
+    it('release before 800ms cancels the long-press (no toggle)', async () => {
+      const onToggle = vi.fn(async () => 'applied' as const)
+      const { container } = render(
+        <TransactionListItem
+          transaction={expenseDefaults}
+          type="expense"
+          onEdit={vi.fn()}
+          onDelete={vi.fn(async () => true)}
+          onToggleApplied={onToggle}
+        />,
+      )
+      const root = container.querySelector('[role="button"]') as HTMLElement
+
+      fireEvent.pointerDown(root, { pointerType: 'touch' })
+      await act(async () => {
+        vi.advanceTimersByTime(400)
+      })
+      fireEvent.pointerUp(root, { pointerType: 'touch' })
+      await act(async () => {
+        vi.advanceTimersByTime(800)
+      })
+      expect(onToggle).not.toHaveBeenCalled()
     })
   })
 })

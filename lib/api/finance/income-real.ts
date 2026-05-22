@@ -326,9 +326,16 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel ou associé
     const { data: incomeToDelete } = await supabaseServer
       .from('real_income_entries')
-      .select('profile_id, group_id, is_exceptional, estimated_income_id')
+      .select('profile_id, group_id, is_exceptional, estimated_income_id, applied_to_balance_at')
       .eq('id', id)
       .single()
+
+    // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) — bloquer la
+    // suppression d'un revenu déjà appliqué au solde. Cf. miroir dans
+    // expenses-real.ts DELETE.
+    if (incomeToDelete?.applied_to_balance_at) {
+      return NextResponse.json({ error: 'cannot-delete-applied-transaction' }, { status: 409 })
+    }
 
     // Delete the real income entry
     const { error } = await supabaseServer.from('real_income_entries').delete().eq('id', id)

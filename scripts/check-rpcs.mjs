@@ -38,6 +38,10 @@ const EXPECTED_RPCS = [
   'add_expense_with_cross_budget_cascade',
   'transfer_piggy_to_budget_with_insert',
   'delete_budget_with_savings_transfer',
+  // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) —
+  // supabase/migrations/20260523010000_create_toggle_applied_to_balance_rpcs.sql
+  'toggle_real_expense_applied_to_balance',
+  'toggle_real_income_applied_to_balance',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

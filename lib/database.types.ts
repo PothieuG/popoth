@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -516,6 +516,7 @@ export type Database = {
           amount_from_budget: number | null
           amount_from_budget_savings: number | null
           amount_from_piggy_bank: number | null
+          applied_to_balance_at: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -531,6 +532,7 @@ export type Database = {
           amount_from_budget?: number | null
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
+          applied_to_balance_at?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -546,6 +548,7 @@ export type Database = {
           amount_from_budget?: number | null
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
+          applied_to_balance_at?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -590,6 +593,7 @@ export type Database = {
       real_income_entries: {
         Row: {
           amount: number
+          applied_to_balance_at: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -602,6 +606,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          applied_to_balance_at?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -614,6 +619,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          applied_to_balance_at?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -857,6 +863,14 @@ export type Database = {
           p_group_id?: string
           p_profile_id?: string
         }
+        Returns: Json
+      }
+      toggle_real_expense_applied_to_balance: {
+        Args: { p_apply: boolean; p_expense_id: string }
+        Returns: Json
+      }
+      toggle_real_income_applied_to_balance: {
+        Args: { p_apply: boolean; p_income_id: string }
         Returns: Json
       }
       transfer_budget_to_piggy_bank: {

@@ -38,7 +38,9 @@ describe.skipIf(!ENABLED)(
     // - real_incomes: 750 linked to 800 + 100 exceptional → totalRealIncome = 850
     // - estimated_budgets: 200 + 300 → totalEstimatedBudgets = 500
     // - real_expenses: 150 linked to budget200 + 80 exceptional → totalRealExpenses = 230
-    // - bank_balance = 500 → availableBalance = 500+850-230 = 1120
+    // - bank_balance = 500 → availableBalance = 500 (Sprint Long-Press-Toggle-
+    //   Apply-To-Balance 2026-05-23 : pure bank semantic, transactions n'affectent
+    //   le solde affiché qu'après long-press apply via toggle_real_*_applied_to_balance)
     // - piggy_bank = 50, no cumulated_savings on budgets → totalSavings = 50
     // - incomeCompensation = 750 (est 800 has real 750) + 200 (est 200 has no real) = 950
     // - incomeContribution = 950 + 1500 salary = 2450
@@ -46,7 +48,7 @@ describe.skipIf(!ENABLED)(
     // - budget deficits = 0 (budget200: spent 150 < 200; budget300: spent 0 < 300)
     // - remainingToLive = 2450 + 100 - 500 - 80 - 0 = 1970
     const GOLDEN_PROFILE = {
-      availableBalance: 1120,
+      availableBalance: 500,
       remainingToLive: 1970,
       totalSavings: 50,
       totalEstimatedIncome: 2500,
@@ -63,7 +65,7 @@ describe.skipIf(!ENABLED)(
     // - real_incomes: 1000 linked → totalRealIncome = 1000
     // - estimated_budgets: 600 → totalEstimatedBudgets = 600
     // - real_expenses: 400 linked → totalRealExpenses = 400
-    // - bank_balance = 1200 → availableBalance = 1200+1000-400 = 1800
+    // - bank_balance = 1200 → availableBalance = 1200 (pure bank semantic)
     // - piggy_bank = 100 → totalSavings = 100
     // - incomeCompensation = 1000 → incomeContribution = 1000 (no salary)
     // - exceptionalIncomes = 0; exceptionalExpenses = 0
@@ -72,7 +74,7 @@ describe.skipIf(!ENABLED)(
     const GROUP_MONTHLY_BUDGET = 750
     const GROUP_EXPECTED_CONTRIBUTION = 750
     const GOLDEN_GROUP = {
-      availableBalance: 1800,
+      availableBalance: 1200,
       remainingToLive: 1150,
       totalSavings: 100,
       totalEstimatedIncome: 1000,

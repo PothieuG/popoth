@@ -112,14 +112,14 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 | Invariant                               | Valeur                    | Source / Vérification                                                                                                    |
 | --------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                         | **11**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| `EXPECTED_RPCS`                         | **13**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
 | Counter `as unknown as SupabaseClient`  | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
 | Counter `: any` (hors auto-generated)   | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`                | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                           | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
 | Tests non-gated passants                | **520**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped (sans env vars)     | **108**                   | idem (98 V1 + 10 V2)                                                                                                     |
-| Routes API                              | **42**                    | `pnpm build` (14 legacy + 1 V2 + 27 autres)                                                                              |
+| Routes API                              | **44**                    | `pnpm build` (14 legacy + 1 V2 + 29 autres)                                                                              |
 | Functions DB versionnées                | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
 | God-files monthly-recap-legacy extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover (V1 dormant)                                                 |
 | Tables v2 NON-restaurées par `recover`  | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                   |

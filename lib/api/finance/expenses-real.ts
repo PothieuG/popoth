@@ -380,10 +380,19 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { data: expenseToDelete } = await supabaseServer
       .from('real_expenses')
       .select(
-        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, applied_to_balance_at',
       )
       .eq('id', id)
       .single()
+
+    // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) — bloquer la
+    // suppression d'une dépense déjà appliquée au solde. L'UI doit forcer
+    // l'utilisateur à dé-appliquer via long-press d'abord. Sans ce guard,
+    // bank_balances.balance resterait avec le delta de la dépense supprimée
+    // (état orphelin), invariant cassé CLAUDE.md §8.
+    if (expenseToDelete?.applied_to_balance_at) {
+      return NextResponse.json({ error: 'cannot-delete-applied-transaction' }, { status: 409 })
+    }
 
     // Delete the real expense
     const { error } = await supabaseServer.from('real_expenses').delete().eq('id', id)

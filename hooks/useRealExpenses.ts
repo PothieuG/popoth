@@ -18,6 +18,14 @@ export interface RealExpense {
   amount_from_piggy_bank?: number
   amount_from_budget_savings?: number
   amount_from_budget?: number
+  /**
+   * Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). NULL = la
+   * dépense n'a pas été appliquée au solde bancaire ; ISO timestamp = elle
+   * l'a été (long-press utilisateur). Le toggle change cette valeur ET
+   * `bank_balances.balance` atomiquement via la composite RPC
+   * `toggle_real_expense_applied_to_balance`.
+   */
+  applied_to_balance_at?: string | null
   estimated_budget?: {
     name: string
   }
@@ -49,6 +57,17 @@ export interface UpdateRealExpenseRequest {
   estimated_budget_id?: string
 }
 
+/**
+ * Result of a toggleApplied call.
+ *   - 'applied' / 'unapplied' : the server flipped the flag and adjusted balance.
+ *   - 'no-op' : 409 returned because the row was already in the target state
+ *     (concurrent toggle). UI should not show an error — the optimistic
+ *     update already reflects the truth, the query is invalidated by the
+ *     onSettled to re-converge.
+ *   - 'error' : 4xx/5xx other than 409 (e.g. 403 ownership, 500 RPC fail).
+ */
+export type ToggleAppliedOutcome = 'applied' | 'unapplied' | 'no-op' | 'error'
+
 interface UseRealExpensesReturn {
   expenses: RealExpense[]
   loading: boolean
@@ -58,6 +77,7 @@ interface UseRealExpensesReturn {
   addExpense: (expenseData: CreateRealExpenseRequest) => Promise<boolean>
   updateExpense: (expenseData: UpdateRealExpenseRequest) => Promise<boolean>
   deleteExpense: (expenseId: string) => Promise<boolean>
+  toggleApplied: (expenseId: string, apply: boolean) => Promise<ToggleAppliedOutcome>
   refreshExpenses: () => Promise<void>
 }
 
@@ -179,6 +199,74 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     },
   })
 
+  /**
+   * Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Optimistic
+   * toggle of `applied_to_balance_at` ; cancels pending queries, snapshots
+   * the previous list, mutates the row locally, then issues the POST.
+   *
+   * 200 → setQueryData remplace l'ISO optimiste par le timestamp
+   *       server-authoritative (precision PG NOW()).
+   * 409 → no-op (concurrent mutation already in target state, optimistic
+   *       value matches truth — nothing to do).
+   * Other errors → rollback to snapshot.
+   *
+   * ⚠️ Pas d'invalidateQueries(['real-expenses']) ici (sinon refetch =
+   * skeleton "vide" la liste pendant ~300ms post-long-press, UX cassée).
+   * L'optimistic + setQueryData onSuccess donnent un état déjà convergé
+   * avec le serveur. Le bank-balance + financial-summary sont invalidés
+   * pour rafraîchir le drawer + le solde dashboard.
+   */
+  type ToggleVars = { id: string; apply: boolean }
+  type ToggleContext = { previous: RealExpense[] | undefined }
+  const toggleAppliedMutation = useMutation<
+    { ok: true; balance: number; appliedAt: string | null } | { ok: false; status: number },
+    Error,
+    ToggleVars,
+    ToggleContext
+  >({
+    mutationFn: async ({ id, apply }) => {
+      const response = await fetch('/api/finance/expenses/real/toggle-applied', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, apply }),
+      })
+      if (response.status === 409) return { ok: false, status: 409 }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Erreur ${response.status}`)
+      }
+      const json = await response.json()
+      return { ok: true, balance: json.data.balance, appliedAt: json.data.appliedToBalanceAt }
+    },
+    onMutate: async ({ id, apply }) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<RealExpense[]>(queryKey)
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.map((e) =>
+          e.id === id
+            ? { ...e, applied_to_balance_at: apply ? new Date().toISOString() : null }
+            : e,
+        ),
+      )
+      return { previous }
+    },
+    onSuccess: (result, { id }) => {
+      if (!result.ok) return
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.map((e) => (e.id === id ? { ...e, applied_to_balance_at: result.appliedAt } : e)),
+      )
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
+      logger.error('❌ [useRealExpenses] Error in toggleApplied:', err)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
+      invalidateFinancialRefreshes(queryClient)
+    },
+  })
+
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   const latestError =
@@ -220,6 +308,15 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         return true
       } catch {
         return false
+      }
+    },
+    toggleApplied: async (expenseId, apply) => {
+      try {
+        const result = await toggleAppliedMutation.mutateAsync({ id: expenseId, apply })
+        if (!result.ok) return 'no-op'
+        return apply ? 'applied' : 'unapplied'
+      } catch {
+        return 'error'
       }
     },
     refreshExpenses,

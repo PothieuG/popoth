@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
+import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
 import { useIncomes } from '@/hooks/useIncomes'
@@ -14,6 +15,7 @@ import { computePeriodDateRange, type Period } from '@/lib/finance/period'
 import TransactionListItem from './TransactionListItem'
 
 type EditableTransaction = RealExpense | RealIncome
+type EditableType = 'expense' | 'income'
 
 interface TransactionTabsComponentProps {
   context?: 'profile' | 'group'
@@ -24,12 +26,31 @@ interface TransactionTabsComponentProps {
    * (Europe/Paris timezone). 'month' = no filter (default behavior).
    */
   period?: Period
-  onEditTransaction?: (transaction: EditableTransaction, type: 'expense' | 'income') => void
+  onEditTransaction?: (transaction: EditableTransaction, type: EditableType) => void
   onTransactionDeleted?: () => void
   className?: string
 }
 
 type TabType = 'expenses' | 'incomes'
+
+const SNACKBAR_AUTO_DISMISS_MS = 3000
+
+interface SnackbarState {
+  message: string
+  tone: 'success' | 'error'
+}
+
+interface EditConfirmState {
+  transaction: EditableTransaction
+  type: EditableType
+}
+
+const formatAmount = (amount: number): string =>
+  new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+  }).format(amount)
 
 /**
  * Component with tabs for displaying expenses and income transactions
@@ -43,6 +64,8 @@ export default function TransactionTabsComponent({
   className,
 }: TransactionTabsComponentProps) {
   const [activeTab, setActiveTab] = useState<TabType>('expenses')
+  const [snackbar, setSnackbar] = useState<SnackbarState | null>(null)
+  const [editConfirm, setEditConfirm] = useState<EditConfirmState | null>(null)
 
   // Hooks for managing transactions
   const {
@@ -51,6 +74,7 @@ export default function TransactionTabsComponent({
     isFetching: expensesFetching,
     error: expensesError,
     deleteExpense,
+    toggleApplied: toggleExpenseApplied,
   } = useRealExpenses(context)
 
   const {
@@ -59,6 +83,7 @@ export default function TransactionTabsComponent({
     isFetching: incomesFetching,
     error: incomesError,
     deleteIncome,
+    toggleApplied: toggleIncomeApplied,
   } = useRealIncomes(context)
 
   // For the precise RAV-delta details in the delete confirmation of a regular
@@ -110,6 +135,14 @@ export default function TransactionTabsComponent({
     return m
   }, [estimatedIncomes])
 
+  // Snackbar auto-dismiss après SNACKBAR_AUTO_DISMISS_MS. Le state change
+  // restart le timer si une nouvelle snackbar arrive avant la fin.
+  useEffect(() => {
+    if (!snackbar) return
+    const t = setTimeout(() => setSnackbar(null), SNACKBAR_AUTO_DISMISS_MS)
+    return () => clearTimeout(t)
+  }, [snackbar])
+
   /**
    * Handle delete expense with callback
    */
@@ -153,12 +186,51 @@ export default function TransactionTabsComponent({
   }
 
   /**
-   * Handle edit transaction action
+   * Handle edit transaction action. Sprint Long-Press-Toggle-Apply-To-Balance
+   * (2026-05-23) : si la transaction est déjà appliquée au solde, on inter-
+   * cepte avec une ConfirmationDialog pour prévenir l'utilisateur que le
+   * solde NE SERA PAS ajusté automatiquement par la modification du montant.
+   * Sinon, passthrough direct vers le handler parent (modale edit native).
    */
-  const handleEditTransaction = (transaction: EditableTransaction, type: 'expense' | 'income') => {
-    if (onEditTransaction) {
-      onEditTransaction(transaction, type)
+  const handleEditTransaction = (transaction: EditableTransaction, type: EditableType) => {
+    if (transaction.applied_to_balance_at != null) {
+      setEditConfirm({ transaction, type })
+      return
     }
+    onEditTransaction?.(transaction, type)
+  }
+
+  /**
+   * Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Wrapper qui
+   * appelle le toggle du hook + déclenche la snackbar de feedback selon
+   * l'outcome. 'no-op' = silent (mutation concurrente, optimistic update
+   * déjà reflète la vérité). 'error' = snackbar erreur.
+   */
+  const handleToggleApplied = async (
+    transaction: EditableTransaction,
+    type: EditableType,
+    apply: boolean,
+  ) => {
+    const toggle = type === 'expense' ? toggleExpenseApplied : toggleIncomeApplied
+    const outcome = await toggle(transaction.id, apply)
+    if (outcome === 'applied') {
+      setSnackbar({
+        message: `${type === 'expense' ? 'Dépense' : 'Revenu'} appliqué au solde · ${formatAmount(transaction.amount)}`,
+        tone: 'success',
+      })
+    } else if (outcome === 'unapplied') {
+      setSnackbar({
+        message: `${type === 'expense' ? 'Dépense' : 'Revenu'} retiré du solde · ${formatAmount(transaction.amount)}`,
+        tone: 'success',
+      })
+    } else if (outcome === 'error') {
+      setSnackbar({
+        message: 'Erreur lors de la mise à jour du solde',
+        tone: 'error',
+      })
+    }
+    // outcome === 'no-op' → silent
+    return outcome
   }
 
   /**
@@ -300,6 +372,7 @@ export default function TransactionTabsComponent({
                 budgetSnapshot={budgetSnapshot}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
                 onDelete={handleDeleteExpense}
+                onToggleApplied={(id, apply) => handleToggleApplied(expense, 'expense', apply)}
               />
             )
           })}
@@ -332,6 +405,7 @@ export default function TransactionTabsComponent({
                 currentRemainingToLive={currentRemainingToLive}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
                 onDelete={handleDeleteIncome}
+                onToggleApplied={(id, apply) => handleToggleApplied(income, 'income', apply)}
               />
             )
           })}
@@ -397,6 +471,46 @@ export default function TransactionTabsComponent({
       <div className="flex-1 overflow-hidden p-3">
         <div className="h-full overflow-y-auto pb-2">{renderTransactionsList()}</div>
       </div>
+
+      {/* Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Snackbar
+          fixed bottom z-[60] (au-dessus drawer z-50), auto-dismiss 3s, mobile-
+          safe `w-[calc(100%-2rem)] max-w-sm`. Pattern miroir ProfileSettingsCard. */}
+      {snackbar && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={cn(
+            'animate-in slide-in-from-bottom-4 fade-in fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg px-4 py-3 text-sm font-medium text-white shadow-lg duration-300',
+            snackbar.tone === 'success' ? 'bg-green-600' : 'bg-red-600',
+          )}
+        >
+          {snackbar.message}
+        </div>
+      )}
+
+      {/* Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Confirmation
+          dialog quand l'utilisateur tente d'éditer une transaction déjà
+          appliquée au solde. Prévient que le solde NE sera PAS recalculé
+          automatiquement par le changement de montant. */}
+      <ConfirmationDialog
+        isOpen={editConfirm != null}
+        onClose={() => setEditConfirm(null)}
+        onConfirm={() => {
+          if (editConfirm) {
+            onEditTransaction?.(editConfirm.transaction, editConfirm.type)
+            setEditConfirm(null)
+          }
+        }}
+        title="Modifier une transaction appliquée"
+        message={
+          editConfirm
+            ? `Cette ${editConfirm.type === 'expense' ? 'dépense' : 'ce revenu'} a déjà été appliquée à votre solde bancaire. Modifier le montant n'ajustera PAS votre solde — pour cela, retirez-la du solde (appui long), modifiez, puis réappliquez.`
+            : ''
+        }
+        confirmText="Modifier quand même"
+        cancelText="Annuler"
+        variant="warning"
+      />
     </div>
   )
 }
