@@ -12,6 +12,8 @@
 
 ## 4. Structure du repo
 
+> ⚠️ **Note historique (Sprint Recap-V2-Ossature — 2026-05-22)** : V1 récap déplacée sous `*-legacy/`. V2 actuel = `app/monthly-recap/page.tsx` + `app/api/monthly-recap/complete/route.ts` + `lib/recap/check-status.ts` (lit `monthly_recaps_v2`) + `lib/schemas/recap.ts`. Tables V2 : `monthly_recaps_v2`, `recap_snapshots_v2`. Détail dans CLAUDE.md §5.
+
 > ⚠️ **Note historique (chantier 16 + Mission-suppression-audits — 2026-05-16)** : 2 cleanup massifs ont archivé la doc audit. Chantier 16 (2026-05-15) : `docs/audit/` + `prompts/`. Mission-suppression-audits (2026-05-16) : `audit_2/` + `audit_3/` (working set des prompts une fois tous les sprints livrés). Les 2 survivants doc migrés : `docs/db/SCHEMA.md` → [`doc2/db/SCHEMA.md`](./doc2/db/SCHEMA.md) et `docs/api/README.md` → [`doc2/api/README.md`](./doc2/api/README.md). Les références `docs/audit/*.md`, `prompts/*.md`, `audit_2/*.md`, `audit_3/*.md` qui persistent dans cette doc (§4 inventaire + §11 roadmap narrative) sont historiques — recovery via `git show <sha>:<path>` à partir du commit correspondant.
 
 ```
@@ -25,7 +27,8 @@ app/                       # App Router (pages + API routes)
                            #   Toutes ré-exportent les handlers depuis lib/api/finance/<route>.ts
                            #   Sprint v2 a supprimé /api/finance/dashboard (0 consumer, 457 LOC dead code)
                            #   et le GET sur /api/finance/budgets (read passe par /budgets/estimated)
-    monthly-recap/         # workflow récap mensuel — process-step1 est désormais un thin handler (~45 LOC) post-Sprint Refactor-I5 ; la logique métier vit dans lib/recap/
+    monthly-recap/         # ✅ V2 ossature — `complete/route.ts` (Sprint Recap-V2-Ossature 2026-05-22, stub UPSERT idempotent `monthly_recaps_v2`)
+    monthly-recap-legacy/  # 14 routes V1 préservées inertes (Sprint Recap-V2-Ossature) — process-step1 thin handler (~45 LOC) ; logique métier dans lib/recap-legacy/
     savings/transfer/      # transferts budget↔budget et budget↔tirelire
     docs/                  # ✅ Sprint OpenAPI-Schema-To-Docs — `/api/docs` sert un HTML Swagger UI (chargé via CDN unpkg, zéro dep) ; `/api/docs/openapi.json` sert le doc OpenAPI 3.1 généré depuis le registry. Public (pas d'auth) — DX gain pour les API consumers + onboarding nouveaux devs.
 components/                # UI (shadcn/ui sous components/ui/)
@@ -77,7 +80,8 @@ lib/
   database-snapshot.ts     # createFullDatabaseSnapshot — utilise SnapshotPayloadV2 (Sprint Polish T4)
   recap-snapshot.types.ts  # ✅ SnapshotPayload v1/v2 discriminated union + isSnapshotV2() (Sprint Polish T4)
   recap/                   # ✅ Sprint Refactor-Architecture (check-status) + Sprint Refactor-I5 (step1 split)
-    check-status.ts        # ✅ Sprint Refactor-Architecture — checkRecapStatus(userId, context) Edge-safe ; importé par proxy.ts ET app/api/monthly-recap/status/route.ts (au lieu d'un fetch HTTP self-call)
+    check-status.ts        # ✅ Sprint Refactor-Architecture + Sprint Recap-V2-Ossature (2026-05-22) — `checkRecapStatus(userId, context)` Edge-safe, lit `monthly_recaps_v2`. Importé par proxy.ts ET app/api/monthly-recap-legacy/status/route.ts (legacy dormant)
+    index.ts               # ✅ Sprint Recap-V2-Ossature — barrel minimal V2 (re-exporte `check-status`). Le barrel V1 (qui re-exportait step1/complete/auto-balance/recover) a été déplacé sous `lib/recap-legacy/index.ts`.
     types.ts               # ✅ Sprint Refactor-I5 — ProcessStep1Input/Snapshot/Decision/Output + BudgetAnalysis + AllocationOperation discriminated union. **5 membres post Sprint Refactor-I5-followup** ('1.1' | '2.2' | '2.3.1' | '2.4.1' | '2.4.2.2' — `consume_surplus` step '2.3' droppé, dead code prod).
     step1-algorithm.ts     # ✅ Sprint Refactor-I5 — decideStep1Allocation(snapshot) pure (0 I/O, 0 console, immutable, sort by id pour déterminisme). Préserve l'asymétrie ROUNDING_TOLERANCE (`<=` pour is_fully_balanced L566/L762). ~260 LOC post Sprint Refactor-I5-followup (drop step 2.3 block + unused `budgetsWithSurplus`).
     step1-persist.ts       # ✅ Sprint Refactor-I5 — processStep1(input) = loadSnapshot → decideStep1Allocation → applyDecision. Fix race L673 (raw UPDATE → updateBudgetCumulatedSavings RPC atomique). Préserve les 2 INSERT budget_transfers fail-soft (étapes 2.3.1 et 2.4.2, étape 2.3 supprimée Sprint Refactor-I5-followup). 0 console.* (logger.warn pour fail-soft + logger.error pour RPC fail + logger.info audit-trail). JSDoc explicite concurrent-invocation edge case sur `processStep1()` (Sprint Refactor-I5-followup — pipeline non-transactionnel, double-invocation peut laisser DB partiellement appliquée). ~350 LOC post Sprint Refactor-I5-followup-v2 (étape 2.4.2 réécrite via `transferWithSavingsDebit` atomique : INSERT + debit en une tx Postgres, deux appels fail-soft → un seul, `applyDecision` exporté comme surface de test).

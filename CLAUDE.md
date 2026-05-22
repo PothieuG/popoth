@@ -99,31 +99,31 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
   - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
-- **Workflow recap mensuel** : `app/api/monthly-recap/{initialize,step1-data,process-step1,step2-data,balance,auto-balance,accumulate-piggy-bank,transfer,recover,refresh,resume,update-step,complete}/route.ts`. **4/4 god-files stateful extraits** vers `lib/recap/{<route>-{algorithm,persist,types}.ts}` (Sprints Refactor-I5, I6, Auto-Balance, Recover). Les routes restent thin handlers (45-168 LOC) wrappés par `withAuthAndProfile`. La route `balance` reste en god-file (déférée — Sprint Balance-Atomicity-Eval a confirmé 0 pattern reversed, pas de gain à extraire).
+- **Workflow recap V2** (ossature, Sprint Recap-V2-Ossature 2026-05-22) : page `app/monthly-recap/page.tsx` + endpoint stub `POST /api/monthly-recap/complete` + gating `lib/recap/check-status.ts` (lit `monthly_recaps_v2`). **V1 inerte** sous `app/api/monthly-recap-legacy/` + `lib/recap-legacy/` (4/4 god-files I5/I6/Auto-Balance/Recover ; `balance` non-extraite) + `components/monthly-recap-legacy/` + `hooks/legacy/` + `lib/schemas/recap-legacy.ts`. Tables V1 intactes.
 - **Allocation des dépenses** : ordre de priorité **budget restant → savings (cascade UNIQUEMENT si overflow) → piggy JAMAIS auto-débitée** (Sprint P4-P5-P6 strict default). Toggle P5 (`useSavingsToggle: true`) inverse au profit des savings (opt-in user-driven). `calculateBreakdown` dans le module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (séparé de `expense-allocation.ts` pour éviter le bundling de service_role key côté client). L'écriture passe **toujours** par les helpers `lib/finance/*` (RPC atomiques).
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
 - **Globals partagés** : **éliminés** (Sprint Refactor-I6). Le pattern `declare global` n'existe plus dans aucune route. Les 4 globals de `complete/route.ts` sont devenus des champs explicites sur `ProcessCompleteDecision`.
 - **Distinction calculs finance** : [lib/contribution-calculator.ts](lib/contribution-calculator.ts) (budget-allocation, salary-proportional split, pure-sync, consumer = `ProfileSettingsCard.tsx`) ≠ [lib/finance/income-compensation.ts](lib/finance/income-compensation.ts) (income aggregation, async + Supabase, alimente le RAV via `_loadFinancialData`). Les noms sont voisins mais orthogonaux.
-- **`budget_transfers.monthly_recap_id` nullable best-effort** : seule la route manuelle [app/api/monthly-recap/transfer/route.ts](app/api/monthly-recap/transfer/route.ts) la set (depuis le body). Les 5 paths automatiques laissent NULL (step1-persist 2.3.1+2.4.2 via RPC, auto-balance, balance, complete). **0 applicative consumer** lit/filtre/JOIN cette colonne (vérifié 2026-05-11). Pas de plumbing prévu tant qu'un consumer ne surface pas.
+- **`budget_transfers.monthly_recap_id` nullable best-effort** (V1) : seule la route manuelle [app/api/monthly-recap-legacy/transfer/route.ts](app/api/monthly-recap-legacy/transfer/route.ts) la set (depuis le body). Les 5 paths automatiques laissent NULL (step1-persist 2.3.1+2.4.2 via RPC, auto-balance, balance, complete). **0 applicative consumer** lit/filtre/JOIN cette colonne (vérifié 2026-05-11). Pas de plumbing prévu tant qu'un consumer ne surface pas.
 
 ## 5.5 Invariants actuels
 
 À tenir à jour à chaque sprint touchant ces invariants.
 
-| Invariant                                 | Valeur                    | Source / Vérification                                                                                                    |
-| ----------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                           | **11**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
-| Counter `as unknown as SupabaseClient`    | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
-| Counter `: any` (hors auto-generated)     | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
-| Counter `declare global`                  | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
-| Lint baseline                             | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants                  | **520**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped (sans env vars)       | **98**                    | idem                                                                                                                     |
-| Routes API                                | **54**                    | `pnpm build`                                                                                                             |
-| Functions DB versionnées                  | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
-| God-files monthly-recap stateful extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover                                                              |
-| Tables v2 NON-restaurées par `recover`    | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                   |
-| Score audit estimé                        | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
+| Invariant                               | Valeur                    | Source / Vérification                                                                                                    |
+| --------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `EXPECTED_RPCS`                         | **11**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| Counter `as unknown as SupabaseClient`  | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
+| Counter `: any` (hors auto-generated)   | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
+| Counter `declare global`                | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
+| Lint baseline                           | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
+| Tests non-gated passants                | **520**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)     | **108**                   | idem (98 V1 + 10 V2)                                                                                                     |
+| Routes API                              | **42**                    | `pnpm build` (14 legacy + 1 V2 + 27 autres)                                                                              |
+| Functions DB versionnées                | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
+| God-files monthly-recap-legacy extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover (V1 dormant)                                                 |
+| Tables v2 NON-restaurées par `recover`  | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                   |
+| Score audit estimé                      | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
 
@@ -285,7 +285,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ## 9. Tests
 
 - **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
-- **Total** : ~513 non-gated + 98 gated skipped (sans env vars).
+- **Total** : 520 non-gated + 108 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 
