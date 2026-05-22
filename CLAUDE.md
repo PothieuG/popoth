@@ -82,11 +82,10 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - `app/` — App Router (pages + API routes)
 - `components/` — UI (shadcn/ui sous `components/ui/`), incluant `<DecimalFormInput>`, `<ModalCloseX>`, `DRAWER_CONTENT_CLASSES`
 - `contexts/` — `AuthContext` (split en `AuthUserContext` + `AuthActionsContext`)
-- `hooks/` — 20 hooks React (TanStack Query majoritairement)
+- `hooks/` — 18 hooks React (TanStack Query majoritairement, post Clean-Slate-Recap)
 - `lib/` — modules backend
   - `lib/api/` — `parseBody`/`parseQuery`/`withAuth`/`withAuthAndProfile` + handlers `lib/api/finance/` (12 modules)
   - `lib/finance/` — modules atomiques RPC + helpers (Sprint Refactor-I4, 8 modules)
-  - `lib/recap/` — algorithmes recap + persist extraits des god-files (Sprints Refactor-I5/I6/Auto-Balance/Recover)
   - `lib/schemas/` — schemas Zod par domaine + barrel `index.ts`
   - `lib/openapi/` — registry + generate (Sprint OpenAPI)
   - `lib/logger.ts` — logger central level-aware
@@ -99,31 +98,28 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
   - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
-- **Workflow recap V2** (ossature, Sprint Recap-V2-Ossature 2026-05-22) : page `app/monthly-recap/page.tsx` + endpoint stub `POST /api/monthly-recap/complete` + gating `lib/recap/check-status.ts` (lit `monthly_recaps_v2`). **V1 inerte** sous `app/api/monthly-recap-legacy/` + `lib/recap-legacy/` + `components/monthly-recap-legacy/` + `hooks/legacy/` + `lib/schemas/recap-legacy.ts`. Tables V1 intactes. **Test dev** : `/dev/recap-v2` (gated NODE_ENV) + 3 routes `/api/debug/recap-v2/{reset,scenarios,seed}` + 6 scénarios dans `lib/dev/recap-v2-scenarios.ts`.
+- **Monthly Recap V3** : en cours d'implémentation, voir `prompt-montly-recap/` pour la spec. Sprint Clean-Slate-Recap (2026-05-23) a supprimé toutes les surfaces V1 inerte et V2 ossature (code + tables DB). Aucune trace de recap dans `app/`, `lib/`, `components/`, `hooks/`, à l'exception du dossier `prompt-montly-recap/` (specs V3 untracked). Pas de gating proxy.ts pour l'instant ; sera réintroduit en sous-tâche dédiée.
 - **Allocation des dépenses** : ordre de priorité **budget restant → savings (cascade UNIQUEMENT si overflow) → piggy JAMAIS auto-débitée** (Sprint P4-P5-P6 strict default). Toggle P5 (`useSavingsToggle: true`) inverse au profit des savings (opt-in user-driven). `calculateBreakdown` dans le module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (séparé de `expense-allocation.ts` pour éviter le bundling de service_role key côté client). L'écriture passe **toujours** par les helpers `lib/finance/*` (RPC atomiques).
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
-- **Globals partagés** : **éliminés** (Sprint Refactor-I6). Le pattern `declare global` n'existe plus dans aucune route. Les 4 globals de `complete/route.ts` sont devenus des champs explicites sur `ProcessCompleteDecision`.
+- **Globals partagés** : **0 occurrence** `declare global` dans le code.
 - **Distinction calculs finance** : [lib/contribution-calculator.ts](lib/contribution-calculator.ts) (budget-allocation, salary-proportional split, pure-sync, consumer = `ProfileSettingsCard.tsx`) ≠ [lib/finance/income-compensation.ts](lib/finance/income-compensation.ts) (income aggregation, async + Supabase, alimente le RAV via `_loadFinancialData`). Les noms sont voisins mais orthogonaux.
-- **`budget_transfers.monthly_recap_id` nullable best-effort** (V1) : seule la route manuelle [app/api/monthly-recap-legacy/transfer/route.ts](app/api/monthly-recap-legacy/transfer/route.ts) la set (depuis le body). Les 5 paths automatiques laissent NULL (step1-persist 2.3.1+2.4.2 via RPC, auto-balance, balance, complete). **0 applicative consumer** lit/filtre/JOIN cette colonne (vérifié 2026-05-11). Pas de plumbing prévu tant qu'un consumer ne surface pas.
 
 ## 5.5 Invariants actuels
 
 À tenir à jour à chaque sprint touchant ces invariants.
 
-| Invariant                               | Valeur                    | Source / Vérification                                                                                                    |
-| --------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                         | **13**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
-| Counter `as unknown as SupabaseClient`  | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
-| Counter `: any` (hors auto-generated)   | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
-| Counter `declare global`                | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
-| Lint baseline                           | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants                | **520**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped (sans env vars)     | **108**                   | idem (98 V1 + 10 V2)                                                                                                     |
-| Routes API                              | **44**                    | `pnpm build` (14 legacy + 1 V2 + 29 autres)                                                                              |
-| Functions DB versionnées                | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
-| God-files monthly-recap-legacy extraits | **4/4**                   | process-step1 (I5) / complete (I6) / auto-balance / recover (V1 dormant)                                                 |
-| Tables v2 NON-restaurées par `recover`  | **5**                     | profiles / groups / group_contributions / monthly_recaps / remaining_to_live_snapshots                                   |
-| Score audit estimé                      | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
+| Invariant                              | Valeur                    | Source / Vérification                                                                                                    |
+| -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `EXPECTED_RPCS`                        | **13**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
+| Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
+| Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
+| Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
+| Tests non-gated passants               | **334**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)    | **80**                    | idem (post Clean-Slate-Recap : tests gated recap supprimés)                                                              |
+| Routes API                             | **29**                    | `pnpm build` (post Clean-Slate-Recap)                                                                                    |
+| Functions DB versionnées               | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
+| Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
 
@@ -216,12 +212,11 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Magic numbers** (TTL, intervalle, tolérance) : déclarer dans [lib/constants/](lib/constants/) avant usage.
 - **Nouvelle route API finance** : handler dans `lib/api/finance/<route>.ts` + `route.ts` ré-exporte.
 - **Nouveau handler API** : `withAuth(handler)` / `withAuthAndProfile(handler)` (cf. §6).
-- **Middleware / Edge runtime** : pas de `fetch` self-call HTTP. Extraire en lib pure + import direct (pattern [lib/recap/check-status.ts](lib/recap/check-status.ts)). Vérifier transitifs Edge-safe.
+- **Middleware / Edge runtime** : pas de `fetch` self-call HTTP. Extraire en lib pure + import direct. Vérifier transitifs Edge-safe.
 - **Fetch composant** : **TanStack Query** (`useQuery`/`useMutation`). Cross-domain → `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts). Mutations changeant `profile.group_id` invalident aussi `['profile']` + `['groups']`.
 - **Modal forms mirror prop** : `key={editing.id}` + `useState(() => ...editing.foo)` lazy + parent `{isOpen && editing && <Modal ... />}` (Sprint 1.5 standard).
 - **`useReducer`** : extraire reducer + types module dédié sans `'use client'` (pattern [contexts/auth-reducer.ts](contexts/auth-reducer.ts)). Context value via useReducer → wrapper `useMemo` slice-by-slice.
 - **Nouvelle route `/api/debug/*`** : `blockInProduction()` en première instruction.
-- **`recap_snapshots.snapshot_data`** : types [lib/recap-snapshot.types.ts](lib/recap-snapshot.types.ts) (`SnapshotPayload` + `isSnapshotV2()`). Pas de `as any`.
 - **Form client a11y** : `aria-describedby` + `id` sur erreur (id-prefix par form) ; `role="alert"` sur serverError ; `onInvalidSubmit` → `form.setFocus(Object.keys(errors)[0])` ; close X svg-only → `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur `<svg>`.
 - **Modal Radix-migré** : close X via `<ModalCloseX onClose variant="circle"|"ghost" />` (v10). Drawer fullscreen → `DRAWER_CONTENT_CLASSES` (v9). Test focus-trap → helper `expectEscClose()` (v10).
 - **Feedback transient post-mutation** : snackbar fixed bottom `z-[60]` (au-dessus drawer z-50) + `animate-in slide-in-from-bottom-4` + auto-dismiss 3s + `role="status"`. Mobile-safe `w-[calc(100%-2rem)] max-w-sm`. Pas de bandeau in-flow. Cf. [ProfileSettingsCard.tsx](components/profile/ProfileSettingsCard.tsx).
@@ -239,12 +234,6 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Réintroduire `lib/financial-calculations.ts`** (splitté en 8 modules `lib/finance/` au Refactor-I4).
 - **Exports supprimés Dead-Code-Purge** ou **server route `/auth/confirm` / auto-`verifyOtp()` / `{{ .ConfirmationURL }}` Supabase** (cf. [operational-rules.md](.claude/conventions/operational-rules.md) §1+§7).
 
-**God-files monthly-recap (4/4 extraits)**
-
-- **Logique métier dans `process-step1`/`complete`/`auto-balance`/`recover` route.ts** — thin handlers ≤80 LOC. Tout ajout passe par `lib/recap/<route>-{algorithm,persist,types}.ts`.
-- **`declare global`** dans aucune route (0 occurrence post-Refactor-I6).
-- **SELECT-then-UPDATE sur `cumulated_savings`** dans `complete` → `updateBudgetCumulatedSavings` RPC.
-
 **Sémantique RAV / breakdown**
 
 - **`cumulated_savings` dans la formule RAV**. Canonique : `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits`. `totalSavings` exposé séparément.
@@ -258,17 +247,6 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **2 RPCs séquentielles + manual rollback** dans `savings/transfer` → `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank`. `handlePiggyBankAction` supprimé v2 (0 consumer).
 - **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** dans `auto-balance` → `transferWithSavingsDebit` per-pair.
 - **Pattern reversed `updatePiggyBank(aggregate) + INSERT batched (from_budget_id=NULL)`** → `transferPiggyToBudgetWithInsert` per-pair (Phase-B).
-- **Retry automatique POST `/api/monthly-recap/process-step1`** sur 5xx — route non-idempotente. Frontend doit disable bouton.
-
-**Recover route — invariants stricts**
-
-- **`bank_balance: boolean | number` mismatch dans `RecoveryResults`** — V1 ET V2 doivent assigner `true` strict.
-- **Ajouter `profiles`/`groups`/`group_contributions`/`monthly_recaps`/`remaining_to_live_snapshots` dans `RestorableTable`** — sprint dédié requis.
-- **Consumer qui FILTER/JOIN sur `budget_transfers.monthly_recap_id`** sans d'abord plumber `recapId` à travers les 5 paths automatiques (cf. §5).
-
-**Tests gated monthly-recap**
-
-- **Supposer `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`** — step 2 écrase via `saveRavToDatabase` avant step 6 re-read (cas Complete-CAS3-TestFix).
 
 **Forbidden absolus**
 
@@ -285,20 +263,19 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ## 9. Tests
 
 - **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
-- **Total** : 520 non-gated + 108 gated skipped (sans env vars).
+- **Total** : 334 non-gated + 80 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 
 - **SUPABASE_RPC_CONCURRENCY_TESTS=1** : atomicité RPCs sous 100× concurrence (rpc-concurrency, transfer-with-savings 4, add-expense-with-breakdown 6, transfer-savings 8, transfer-piggy-to-budget-with-insert 4, delete-budget-with-savings-transfer 8).
 - **SUPABASE_RLS_TESTS=1** : isolation cross-user.
-- **SUPABASE_API_TESTS=1** : régressions H1/H2/R2 + recover strict boolean + withAuth wrapper (12 cas).
+- **SUPABASE_API_TESTS=1** : régressions H1/H2/R2 + withAuth wrapper (12 cas).
 - **SUPABASE_TRIGGER_TESTS=1** : 4 fonctions trigger A2 + FK ON DELETE SET NULL.
 - **SUPABASE_FINANCE_TESTS=1** : 6 cas profile/group golden math + round-trip RAV.
-- **SUPABASE_RECAP_TESTS=1** : caractérisation byte-identique des 4 routes recap extraites (process-step1 / complete / auto-balance / recover).
 
 ### Tests non-gated par module
 
-Couverture par dossier : `lib/recap/` (algo pure + persist mocked, 4 routes), `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `lib/schemas/` (11 fichiers), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
+Couverture par dossier : `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `lib/schemas/` (9 fichiers post Clean-Slate), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
 
 ### Patterns techniques
 
@@ -344,7 +321,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 520 non-gated / 98 gated. 54 routes API. 11 RPCs pinnées (cf. §5.5).
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 334 non-gated / 80 gated. 29 routes API (post Clean-Slate-Recap). 13 RPCs pinnées (cf. §5.5). **Monthly Recap V3 en cours** — spec sous `prompt-montly-recap/` untracked, sprint 01/17 (Clean-Slate-Recap) livré 2026-05-23.
 
 **Historique** — 18 parts `.claude/history/roadmap-detailed-NN-*.md` (115 sprints) :
 

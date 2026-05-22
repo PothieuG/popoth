@@ -22,45 +22,13 @@ Pour tout candidat de cleanup ou de refactor non-trivial, vérifier d'abord les 
 
 **Pattern** : (a) `Grep "<exportName>" --glob '**/*.{ts,tsx}'` cross-codebase ; (b) `Grep` dans `app/`, `components/`, `hooks/`, `contexts/`, `lib/`, `proxy.ts`, `__tests__/` (scope MUST inclure tous pour éviter de manquer un consumer — leçon Sprint Lot 5c qui scope-bound à `app/` only et a manqué `contexts/AuthContext.tsx:14` register callback consommant `signUp`).
 
-## 2. God-files monthly-recap stateful — 4/4 extraits
-
-Pattern d'extraction `route.ts → lib/recap/{types,algorithm,persist}.ts + thin handler + N caract gated + M algorithm tests + K mocked tests` standardisé sur 4 routes :
-
-| Route                    | Sprint                             | Pre LOC         | Post LOC                        | Tests ajoutés                        |
-| ------------------------ | ---------------------------------- | --------------- | ------------------------------- | ------------------------------------ |
-| `process-step1/route.ts` | Refactor-I5 (2026-05-11)           | 740             | 45                              | 33 algo + 8 mocked + 6 caract gated  |
-| `complete/route.ts`      | Refactor-I6 (2026-05-14)           | 703 + 4 globals | 59                              | 32 algo + 18 mocked + 5 caract gated |
-| `auto-balance/route.ts`  | Refactor-Auto-Balance (2026-05-16) | 533             | 56                              | 37 algo + 17 mocked + 5 caract gated |
-| `recover/route.ts`       | Refactor-Recover (2026-05-16)      | 385             | 168 (POST 80 + GET 76 verbatim) | 21 algo + 16 mocked + 5 caract gated |
-
-Le pattern standardisé en 8 étapes (suivi sur les 4 sprints) :
-
-1. **Caract tests gated** d'abord (byte-identique pré-refactor)
-2. **Types pure module** (`*-types.ts` 0 runtime)
-3. **Algorithm pur** 0 I/O / 0 console / 0 Date.now / immutable + sort déterministe
-4. **Unit tests algorithm** (pure-unit non-gated)
-5. **Persist I/O** avec fail-soft semantics + custom errors
-6. **Mocked tests persist** (vi.mock hoisted + dynamic import in test)
-7. **Rewire route thin handler** + barrel + ESLint glob no-console:'error'
-8. **Closeout doc**
-
-**`balance/route.ts`** reste hors scope d'extraction post-Sprint Balance-Atomicity-Eval (2026-05-16) qui a confirmé la route déjà atomique by design (0 reversed pattern). L'extraction serait pure consolidation refactor mirror I5/I6 sans gain.
-
 ## 3. Cleanup-attempts CRITIQUES préservés
 
 Patterns à NE PAS supprimer même si fail-soft cosmétique :
 
 - **`savings/transfer/route.ts` pré-Sprint Atomicity-Savings** (L122/L321/L337) — rollback FROM impossible / rollback piggy UPDATE impossible / rollback piggy INSERT impossible. Regression-guardés Sprint Refactor-Test-Coverage 2026-05-12 puis **fermés à la racine** Sprint Atomicity-Savings 2026-05-12 via composite RPCs `transfer_savings_between_budgets` + `transfer_budget_to_piggy_bank` (les 3 cleanup-attempts n'existent plus dans le code post-fix ; les tests PIN ATOMIC CONTRACT pinnent le single-call-site invariant).
 
-- **`recover-persist.ts:applyRecoveryDecision`** (route L286-288 pre-refactor Sprint Refactor-Recover 2026-05-16) — unexpected exceptions → `logger.error('[recover] rollback partiel impossible (snapshot may stay active)')` + throw `RecoveryAppliedPartiallyError` carrying partialResults. Le HTTP handler catch ce type d'erreur dédié et retourne 500 + recovery_results in body (shape byte-identique pre-refactor). Regression-guardé par le test "unexpected exception in apply loop" dans recover-persist.test.ts.
-
 - **`auth/session/route.ts:56`** (Sprint Lot 5b) — Supabase auth réussi mais JWT session fail → état inconsistant grep-able. `logger.error` préservé.
-
-- **`app/auth/confirm/route.ts:46`** (Sprint Lot 5c) — OTP verification réussie mais `data.user` manquant (edge case non-évident). ⚠️ **OBSOLETE (Sprint Fix-Password-Reset-OTP 2026-05-19)** — fichier supprimé, remplacé par client page `app/auth/confirm/page.tsx` (Path B closed-by-deletion + nouveau pattern click-to-confirm scanner-resistant cf. §7). Le cleanup-attempt n'a plus de site applicable : `verifyOtp` côté client ne peut pas retourner success+no-user (la session est créée localStorage par le SDK).
-
-- **`database-snapshot.ts:169-173`** (Sprint Lot 5c) — 5 statements `logger.info` (snapshot ID + mois + total records + per-table counts — foundational pour audit recovery si rollback nécessaire post-process-step1).
-
-- **`useMonthlyRecap.ts:84/115/157`** (Sprint Lot 5) — /monthly-recap/transfer + /auto-balance + /complete fail → état inconsistant si client cascade fail après server commit.
 
 - **`useGroups.ts:145+168`** (Sprint Lot 5) — join/leave cross-mutation cascade fail (financial state stale risk).
 
@@ -100,48 +68,22 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ### Créateur des transactions réelles (Sprint Group-Transaction-Creator-Avatar)
 
-- ❌ **NE PAS** INSERT dans `real_expenses` ou `real_income_entries` sans passer `created_by_profile_id: userId` (le `userId` du `withAuth`/`withAuthAndProfile` wrapper). Sites contraints : [lib/api/finance/expenses-real.ts](../../lib/api/finance/expenses-real.ts) POST, [lib/api/finance/income-real.ts](../../lib/api/finance/income-real.ts) POST, [lib/api/finance/expenses-add-with-logic.ts](../../lib/api/finance/expenses-add-with-logic.ts) (branche exceptionnelle + 2 helpers RPC), [lib/recap/complete-algorithm.ts](../../lib/recap/complete-algorithm.ts) (payload `exceptionalExpense` attribué à `input.userId`). Le DEFAULT NULL côté SQL existe uniquement pour la rétrocompat des call sites externes éventuels — les routes app DOIVENT toujours expliciter. Sans ça, l'UI groupe tombe sur le placeholder `??` au lieu de l'avatar du créateur (cas legacy seulement).
+- ❌ **NE PAS** INSERT dans `real_expenses` ou `real_income_entries` sans passer `created_by_profile_id: userId` (le `userId` du `withAuth`/`withAuthAndProfile` wrapper). Sites contraints : [lib/api/finance/expenses-real.ts](../../lib/api/finance/expenses-real.ts) POST, [lib/api/finance/income-real.ts](../../lib/api/finance/income-real.ts) POST, [lib/api/finance/expenses-add-with-logic.ts](../../lib/api/finance/expenses-add-with-logic.ts) (branche exceptionnelle + 2 helpers RPC). Le DEFAULT NULL côté SQL existe uniquement pour la rétrocompat des call sites externes éventuels — les routes app DOIVENT toujours expliciter. Sans ça, l'UI groupe tombe sur le placeholder `??` au lieu de l'avatar du créateur (cas legacy seulement).
 - ❌ **NE PAS** appeler `addExpenseWithBreakdown` ou `addExpenseWithCrossBudgetCascade` ([lib/finance/expenses.ts](../../lib/finance/expenses.ts)) sans `createdByProfileId` dans `args` — required (pas optional) pour forcer tous les call sites prod à expliciter. La RPC PG sous-jacente écrit la colonne `real_expenses.created_by_profile_id`.
 - ❌ **NE PAS** retourner une ligne `real_expenses` / `real_income_entries` au client (GET ou POST/PUT après INSERT/UPDATE) sans étendre le `.select()` avec `created_by:profiles!<table>_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)`. Le hint FK-name est obligatoire (2 FK vers `profiles` → ambiguïté PostgREST). 8 sites couverts : 3 selects dans expenses-real.ts (GET/POST/PUT) + 3 dans income-real.ts + 2 dans expenses-add-with-logic.ts (branche exceptionnelle + re-fetch post-RPC). Sans ce JOIN, la prop `transaction.created_by` est undefined côté UI → fallback placeholder `??` même quand la colonne est peuplée.
 - ❌ **NE PAS** UPDATE `created_by_profile_id` dans les PUT handlers ou ailleurs — set-once at INSERT, l'édition d'une transaction ne change pas son créateur. Le helper `toCreatorProfile()` dans [TransactionListItem.tsx](../../components/dashboard/TransactionListItem.tsx) fait le mapping inverse `created_by → ProfileData` partiel pour `<UserAvatar>`.
 - ❌ **NE PAS** ré-introduire la prop `userProfile` sur `<TransactionListItem>` ou `<TransactionTabsComponent>` (droppée au sprint). Le créateur vient de `transaction.created_by` (joint depuis l'API), plus de l'auth user. Les 2 pages dashboard (`app/(dashboards)/{dashboard,group-dashboard}/page.tsx`) ne passent plus `userProfile={profile}` au section component.
 
-### God-files monthly-recap
-
-- ❌ **NE PAS** réintroduire de logique métier dans `process-step1/route.ts`, `complete/route.ts`, `auto-balance/route.ts`, `recover/route.ts` (4/4 extraits). Tout ajout passe par `lib/recap/<route>-{algorithm,persist,types}.ts`.
-- ❌ **NE PAS** réintroduire `declare global` dans aucune route (0 occurrence post-Refactor-I6).
-- ❌ **NE PAS** réintroduire le pattern SELECT-then-UPDATE sur `cumulated_savings` dans `complete/route.ts` (L484 pre-Refactor-I6 fix).
-
-### Idempotency / retries
-
-- ❌ **NE PAS retry automatiquement** un POST `/api/monthly-recap/process-step1` qui retourne une 5xx — la route n'est pas idempotente. Le frontend doit disable le bouton pendant la submission (pattern `isSubmitting` dans [MonthlyRecapStep1.tsx](../../components/monthly-recap/MonthlyRecapStep1.tsx)). Si un futur incident montre des states cassés, prioritiser idempotency key serveur-side (header `Idempotency-Key` + cache table) ou `pg_try_advisory_xact_lock(hashtext(user_id))` plutôt que retry client.
-
 ### RAV formula
 
 - ❌ **NE PAS** réintroduire `cumulated_savings` comme terme additif dans la formule RAV (`calculateRemainingToLiveProfile`/`Group`). La formule canonique est `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits`. Le `totalSavings` est exposé séparément sur `FinancialData.totalSavings`.
 - ❌ **NE PAS** dépendre de la colonne `estimated_budgets.monthly_surplus_deficit` comme source du terme `budgetDeficits` — le déficit est calculé **on-the-fly** via `calculateBudgetDeficit(estimatedAmount, spentThisMonth)`.
-- ❌ **NE PAS** réintroduire le pattern read-persisted-then-override sur `/api/finance/summary` (ou toute autre route qui retourne `FinancialData`) : `persistedRav = await getRavFromDatabase(...)` puis `await getProfileFinancialData(...)` puis `financialData.remainingToLive = persistedRav`. Cette séquence créait un **off-by-one cache** : `getProfileFinancialData` recompute + persiste le RAV via `saveRavToDatabase` side-effect, mais l'API retournait la valeur lue AVANT (= la valeur de la requête précédente). Symptôme user : "j'ajoute une dépense overflow, le RAV ne bouge pas sans manual refresh". Fix Sprint Fix-Summary-RAV-Stale-Cache 2026-05-21 : drop le `getRavFromDatabase` import + drop l'override + drop la branche `if (shouldRecalculate)` qui dupliquait l'appel. Toute API route qui retourne `FinancialData` doit retourner le résultat de `getProfileFinancialData`/`getGroupFinancialData` directement (la persistence est interne via `saveRavToDatabase`). Les seules surfaces qui ont légitimement besoin de la valeur persistée (sans recompute) sont `/api/finance/rav` (endpoint dédié) et les routes monthly-recap qui lisent `bank_balances.current_remaining_to_live` dans leur algorithme — toute autre lecture est suspecte.
-
-### budget_transfers.monthly_recap_id
-
-- ❌ **NE PAS** ajouter un consumer qui FILTER/JOIN sur `budget_transfers.monthly_recap_id` sans d'abord plumber `recapId` à travers les 5 paths automatiques (step1-persist 2.3.1+2.4.2 via RPC `transfer_with_savings_debit` qui devrait accepter `p_recap_id`, auto-balance, balance, complete). Aujourd'hui la colonne est best-effort/NULL pour les paths automatiques. Un JOIN naïf raterait la quasi-totalité des transferts récap.
-
-### recover route — strict boolean invariant
-
-- ❌ **NE PAS** réintroduire `bank_balance: boolean | number` mismatch dans `RecoveryResults` (Sprint Lint-Followups Item 1 2026-05-08). Les paths V1 (update_bank_balance_v1) ET V2 (restoreTable resultKey 'bank_balance'/'piggy_bank') doivent assigner `true` strict (NEVER numeric `data.length`, NEVER `Boolean(x)`). Regression-guardé par 3 cas A/B/C dans `lib/__tests__/api-regressions.test.ts` gated `SUPABASE_API_TESTS=1`.
-
-### recover — 5 tables v2 NON-restaurées
-
-- ❌ **NE PAS** ajouter `profiles`, `groups`, `group_contributions`, `monthly_recaps`, `remaining_to_live_snapshots` dans `RestorableTable` literal union de `lib/recap/recover-types.ts`. Ces 5 tables contiennent de l'identity/membership/output/audit-trail data qui serait écrasée par snapshot restore. Sprint dédié `Recover-V2-Complete-Restoration` avec FK cascade tests requis avant.
-
-### Tests gated monthly-recap
-
-- ❌ **NE PAS supposer** dans un test gated que `bank_balances.current_remaining_to_live` reste à la valeur seedée pendant `loadCompleteSnapshot`. Step 2 appelle `getProfileFinancialData` qui recompute le RAV from scratch et **écrase la colonne via `saveRavToDatabase`** avant que step 6 ne re-lise. Cas vu Sprint Complete-CAS3-TestFix (2026-05-15). Tracer la séquence end-to-end avant d'asserter sur `bank_balances` ou `real_expenses` post-cleanup.
+- ❌ **NE PAS** réintroduire le pattern read-persisted-then-override sur `/api/finance/summary` (ou toute autre route qui retourne `FinancialData`) : `persistedRav = await getRavFromDatabase(...)` puis `await getProfileFinancialData(...)` puis `financialData.remainingToLive = persistedRav`. Cette séquence créait un **off-by-one cache** : `getProfileFinancialData` recompute + persiste le RAV via `saveRavToDatabase` side-effect, mais l'API retournait la valeur lue AVANT (= la valeur de la requête précédente). Symptôme user : "j'ajoute une dépense overflow, le RAV ne bouge pas sans manual refresh". Fix Sprint Fix-Summary-RAV-Stale-Cache 2026-05-21 : drop le `getRavFromDatabase` import + drop l'override + drop la branche `if (shouldRecalculate)` qui dupliquait l'appel. Toute API route qui retourne `FinancialData` doit retourner le résultat de `getProfileFinancialData`/`getGroupFinancialData` directement (la persistence est interne via `saveRavToDatabase`). La seule surface qui a légitimement besoin de la valeur persistée (sans recompute) est `/api/finance/rav` (endpoint dédié) — toute autre lecture est suspecte.
 
 ### Tables owner-row hybrides (`.single()` trap)
 
-- ❌ **NE PAS** utiliser `.single()` sur les tables hybrides à 1-row-par-owner (`piggy_bank`, `bank_balances`) quand la ligne peut ne pas exister — `.single()` RAISE `PGRST116 "Cannot coerce the result to a single JSON object"` et un `if (error) throw` propage le crash jusqu'à l'UI. Utiliser `.maybeSingle()` + défaut `data?.amount ?? 0`. Cas vu Sprint Fix-Empty-Recap-Tirelire (2026-05-19) — `step1-persist.ts:148` crashait pour tout nouveau compte sans piggy. Les fixtures gated `SUPABASE_FINANCE_TESTS=1` créent toujours une ligne piggy, donc le bug n'a pas surfacé en CI — toute nouvelle route lisant `piggy_bank`/`bank_balances` doit être manuellement testée sur un compte fresh.
-- ❌ **NE PAS** appeler directement les RPCs `update_piggy_bank_amount` / `update_bank_balance` quand la ligne peut ne pas exister — les RPCs font un `UPDATE ... WHERE owner = X` qui RAISE explicitement `'piggy_bank row not found for the given context'` si 0 rows. Précéder l'appel d'un `ensurePiggyBankRow(filter)` ([lib/finance/piggy-bank.ts](../../lib/finance/piggy-bank.ts) — INSERT idempotent `amount=0` qui swallow le PG `23505` unique_violation via les partial unique indexes par owner). Pattern miroir disponible pour `bank_balances` si besoin (à ajouter quand un site applicatif similaire surface — pas écrit préemptivement). Sites couverts post-Fix-Empty-Recap-Tirelire : `lib/recap/step1-persist.ts:applyDecision` CAS 1 op 1.1 + CAS 2 op 2.4.1.
+- ❌ **NE PAS** utiliser `.single()` sur les tables hybrides à 1-row-par-owner (`piggy_bank`, `bank_balances`) quand la ligne peut ne pas exister — `.single()` RAISE `PGRST116 "Cannot coerce the result to a single JSON object"` et un `if (error) throw` propage le crash jusqu'à l'UI. Utiliser `.maybeSingle()` + défaut `data?.amount ?? 0`. Cas vu Sprint Fix-Empty-Recap-Tirelire (2026-05-19) — un read sur `piggy_bank` crashait pour tout nouveau compte sans ligne. Les fixtures gated `SUPABASE_FINANCE_TESTS=1` créent toujours une ligne piggy, donc le bug n'a pas surfacé en CI — toute nouvelle route lisant `piggy_bank`/`bank_balances` doit être manuellement testée sur un compte fresh.
+- ❌ **NE PAS** appeler directement les RPCs `update_piggy_bank_amount` / `update_bank_balance` quand la ligne peut ne pas exister — les RPCs font un `UPDATE ... WHERE owner = X` qui RAISE explicitement `'piggy_bank row not found for the given context'` si 0 rows. Précéder l'appel d'un `ensurePiggyBankRow(filter)` ([lib/finance/piggy-bank.ts](../../lib/finance/piggy-bank.ts) — INSERT idempotent `amount=0` qui swallow le PG `23505` unique_violation via les partial unique indexes par owner). Pattern miroir disponible pour `bank_balances` si besoin (à ajouter quand un site applicatif similaire surface — pas écrit préemptivement).
 
 ### Colonnes mirror auto-syncées par trigger
 
@@ -211,10 +153,9 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS** transformer `getCurrentUser()` ([lib/auth.ts](../../lib/auth.ts)) en tri-state — il est consommé uniquement par `initializeAuth` au mount et un fail au boot ne déclenche pas `handleLogout` (juste `stopTokenRefresh/stopAuthCheck`). Le seul risque restant (état "déconnecté" client sur cookie valide jusqu'à la prochaine action serveur) est tolérable et ne justifie pas la complexité supplémentaire.
 
-### Auth + recap nav (Sprint Fix-Auth-Flicker-And-Recap-Reentry-Gate 2026-05-21)
+### Auth nav (Sprint Fix-Auth-Flicker 2026-05-21)
 
-- ❌ `router.push` dans `useLogin`/`useRequireGuest` ([useAuth.ts:17,46](../../hooks/useAuth.ts)) ou `MonthlyRecapFlow.tsx:52,138` — `router.replace` évince `/connexion` (bfcache flicker) et `/monthly-recap` (back re-entry).
-- ❌ Retirer le guard `proxy.ts` qui redirige sur `status.isCompleted` (= `completed_at != null`, `?context=` default `profile`) — filet URL/bookmark/F5.
+- ❌ `router.push` dans `useLogin`/`useRequireGuest` ([useAuth.ts:17,46](../../hooks/useAuth.ts)) — `router.replace` évince `/connexion` (bfcache flicker).
 
 ### Forbidden absolus
 
@@ -225,7 +166,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, prompts/, et les fichiers `.claude/` mis en place pour la refactorisation du CLAUDE.md).
 - ❌ **NE PAS** réintroduire les exports supprimés au Sprint Dead-Code-Purge (cf. §1 ci-dessus).
 - ❌ **NE PAS** réintroduire un fichier `lib/financial-calculations.ts` — le god file (1069 LOC) a été splitté en 8 modules sous [lib/finance/](../../lib/finance/) au Sprint Refactor-I4.
-- ❌ **NE PAS** réintroduire un fichier `middleware.ts` — la file convention Next.js est renommée `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Le runtime de `proxy.ts` est **nodejs** (non-configurable), `middleware.ts` tournait sur edge par défaut. Si tu dois absolument repasser en edge runtime, garder `middleware.ts` (cf. doc Next 16 upgrading guide : "If you want to continue using the edge runtime, keep using middleware. We will follow up on a minor release with further edge runtime instructions"). Pour Popoth : on reste sur `proxy.ts` (aucun edge-only API critique consommé). Étapes de migration : `git mv middleware.ts proxy.ts` (préserve historique git) + rename function `middleware` → `proxy` + maj log prefixes `[Middleware]` → `[Proxy]` + maj `eslint.config.mjs` files override + maj 3 cross-refs (`app/monthly-recap/page.tsx`, `app/api/monthly-recap/status/route.ts`, `.claude/reference/structure-repo.md`).
+- ❌ **NE PAS** réintroduire un fichier `middleware.ts` — la file convention Next.js est renommée `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Le runtime de `proxy.ts` est **nodejs** (non-configurable), `middleware.ts` tournait sur edge par défaut. Si tu dois absolument repasser en edge runtime, garder `middleware.ts` (cf. doc Next 16 upgrading guide). Pour Popoth : on reste sur `proxy.ts` (aucun edge-only API critique consommé). Étapes de migration : `git mv middleware.ts proxy.ts` (préserve historique git) + rename function `middleware` → `proxy` + maj log prefixes `[Middleware]` → `[Proxy]` + maj `eslint.config.mjs` files override.
 - ❌ **NE PAS** lancer `pnpm self-update` sans target version explicite — la commande lit la dernière version pnpm publiée et **bumpe silencieusement le pin `packageManager`** dans `package.json` (incident Sprint Hygiene-Next-16-Migration 2026-05-20 : pin `pnpm@9.15.5` → `pnpm@11.1.3` bump silencieux + install incomplet dans `~/AppData/Local/pnpm/.tools/@pnpm+win-x64/11.1.3/` — `pnpm.exe` posé (98MB) mais shims `bin/pnpm` + `pnpm.CMD` + `pnpm.ps1` **non créés** → ENOENT sur toute commande pnpm subséquente). Le pin actuel est **`pnpm@9.15.5`** (CLAUDE.md §2 stack). Patterns corrects : (a) éditer manuellement `package.json` `packageManager` field puis `pnpm install` (validation) ; (b) `pnpm self-update <version>` avec target explicite (e.g. `pnpm self-update 9.15.6` pour patch bump intentionnel). Le binaire pnpm.exe au top-level de `~/AppData/Local/pnpm/` est un shim qui lit `packageManager` et délègue à `.tools/@pnpm+win-x64/<version>/bin/pnpm` — si le bin est absent (install partielle), ENOENT immédiat.
 
 ## 6. Précédents Sprint chronologie résumée

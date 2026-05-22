@@ -113,12 +113,8 @@ const TABLES = [
   { schema: 'public', table: 'real_expenses' }, // → estimated_budgets
   { schema: 'public', table: 'real_income_entries' }, // → estimated_incomes
   { schema: 'public', table: 'group_contributions' },
-  { schema: 'public', table: 'monthly_recaps' },
-  { schema: 'public', table: 'recap_snapshots' },
   { schema: 'public', table: 'remaining_to_live_snapshots' },
-  { schema: 'public', table: 'budget_transfers' }, // → estimated_budgets + monthly_recaps
-  { schema: 'public', table: 'monthly_recaps_v2' },
-  { schema: 'public', table: 'recap_snapshots_v2' },
+  { schema: 'public', table: 'budget_transfers' }, // → estimated_budgets
 ]
 
 console.log(`Cloning data from ${SOURCE} → ${TARGET}`)

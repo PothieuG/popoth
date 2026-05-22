@@ -135,21 +135,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 6. Désactiver tous les snapshots actifs pour forcer une réinitialisation
-    const { error: deactivateSnapshotsError } = await supabaseServer
-      .from('recap_snapshots')
-      .update({ is_active: false })
-      .eq('profile_id', userId)
-      .eq('is_active', true)
-
-    if (deactivateSnapshotsError) {
-      logger.error(
-        '[Reset Budgets] Erreur lors de la désactivation des snapshots:',
-        deactivateSnapshotsError,
-      )
-    }
-
-    // 7. Calculer les totaux
+    // 6. Calculer les totaux
     const totalSurplus = summary.reduce((sum, item) => sum + item.surplus, 0)
     const totalDeficit = summary.reduce((sum, item) => sum + item.deficit, 0)
     const generalRatio = totalSurplus - totalDeficit

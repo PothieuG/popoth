@@ -58,7 +58,6 @@ export type Database = {
           from_budget_id: string | null
           group_id: string | null
           id: string
-          monthly_recap_id: string | null
           profile_id: string | null
           to_budget_id: string
           transfer_amount: number
@@ -70,7 +69,6 @@ export type Database = {
           from_budget_id?: string | null
           group_id?: string | null
           id?: string
-          monthly_recap_id?: string | null
           profile_id?: string | null
           to_budget_id: string
           transfer_amount: number
@@ -82,7 +80,6 @@ export type Database = {
           from_budget_id?: string | null
           group_id?: string | null
           id?: string
-          monthly_recap_id?: string | null
           profile_id?: string | null
           to_budget_id?: string
           transfer_amount?: number
@@ -109,13 +106,6 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "budget_transfers_recap_id_fkey"
-            columns: ["monthly_recap_id"]
-            isOneToOne: false
-            referencedRelation: "monthly_recaps"
             referencedColumns: ["id"]
           },
           {
@@ -318,117 +308,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
-      }
-      monthly_recaps: {
-        Row: {
-          completed_at: string | null
-          created_at: string | null
-          current_step: number | null
-          final_remaining_to_live: number
-          group_id: string | null
-          id: string
-          initial_remaining_to_live: number
-          profile_id: string | null
-          recap_month: number
-          recap_year: number
-          remaining_to_live_amount: number | null
-          remaining_to_live_source: string | null
-          total_deficit: number | null
-          total_surplus: number | null
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string | null
-          current_step?: number | null
-          final_remaining_to_live: number
-          group_id?: string | null
-          id?: string
-          initial_remaining_to_live: number
-          profile_id?: string | null
-          recap_month: number
-          recap_year: number
-          remaining_to_live_amount?: number | null
-          remaining_to_live_source?: string | null
-          total_deficit?: number | null
-          total_surplus?: number | null
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string | null
-          current_step?: number | null
-          final_remaining_to_live?: number
-          group_id?: string | null
-          id?: string
-          initial_remaining_to_live?: number
-          profile_id?: string | null
-          recap_month?: number
-          recap_year?: number
-          remaining_to_live_amount?: number | null
-          remaining_to_live_source?: string | null
-          total_deficit?: number | null
-          total_surplus?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_recaps_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_recaps_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      monthly_recaps_v2: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          group_id: string | null
-          id: string
-          profile_id: string | null
-          recap_month: number
-          recap_year: number
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          profile_id?: string | null
-          recap_month: number
-          recap_year: number
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          profile_id?: string | null
-          recap_month?: number
-          recap_year?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_recaps_v2_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_recaps_v2_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       piggy_bank: {
         Row: {
@@ -654,102 +533,6 @@ export type Database = {
           },
           {
             foreignKeyName: "real_income_entries_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      recap_snapshots: {
-        Row: {
-          created_at: string | null
-          group_id: string | null
-          id: string
-          is_active: boolean | null
-          profile_id: string | null
-          snapshot_data: Json
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Insert: {
-          created_at?: string | null
-          group_id?: string | null
-          id?: string
-          is_active?: boolean | null
-          profile_id?: string | null
-          snapshot_data: Json
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Update: {
-          created_at?: string | null
-          group_id?: string | null
-          id?: string
-          is_active?: boolean | null
-          profile_id?: string | null
-          snapshot_data?: Json
-          snapshot_month?: number
-          snapshot_year?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recap_snapshots_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recap_snapshots_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      recap_snapshots_v2: {
-        Row: {
-          created_at: string
-          group_id: string | null
-          id: string
-          is_active: boolean
-          profile_id: string | null
-          snapshot_data: Json | null
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Insert: {
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          is_active?: boolean
-          profile_id?: string | null
-          snapshot_data?: Json | null
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Update: {
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          is_active?: boolean
-          profile_id?: string | null
-          snapshot_data?: Json | null
-          snapshot_month?: number
-          snapshot_year?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recap_snapshots_v2_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recap_snapshots_v2_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"

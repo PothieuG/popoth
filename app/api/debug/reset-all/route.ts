@@ -76,28 +76,14 @@ export async function POST(request: NextRequest) {
       .eq('profile_id', userId)
     results['estimated_incomes'] = incomesError ? `❌ ${incomesError.message}` : '✅'
 
-    // 6. Supprimer les monthly recaps
-    const { error: recapsError } = await supabaseServer
-      .from('monthly_recaps')
-      .delete()
-      .eq('profile_id', userId)
-    results['monthly_recaps'] = recapsError ? `❌ ${recapsError.message}` : '✅'
-
-    // 7. Désactiver les snapshots
-    const { error: snapshotsError } = await supabaseServer
-      .from('recap_snapshots')
-      .update({ is_active: false })
-      .eq('profile_id', userId)
-    results['recap_snapshots'] = snapshotsError ? `❌ ${snapshotsError.message}` : '✅ (désactivés)'
-
-    // 8. Remettre la tirelire à 0
+    // 6. Remettre la tirelire à 0
     const { error: piggyBankError } = await supabaseServer
       .from('piggy_bank')
       .update({ amount: 0, last_updated: new Date().toISOString() })
       .eq('profile_id', userId)
     results['piggy_bank'] = piggyBankError ? `❌ ${piggyBankError.message}` : '✅ (remise à 0€)'
 
-    // 9. Remettre le solde bancaire à 0
+    // 7. Remettre le solde bancaire à 0
     const { error: bankBalanceError } = await supabaseServer
       .from('bank_balances')
       .update({ balance: 0, updated_at: new Date().toISOString() })
@@ -119,14 +105,8 @@ export async function POST(request: NextRequest) {
         'real_income_entries',
         'estimated_budgets',
         'estimated_incomes',
-        'monthly_recaps',
       ],
-      reset: [
-        'piggy_bank → 0€',
-        'bank_balances → 0€',
-        'recap_snapshots → inactive',
-        'remaining_to_live → 0€ (calculé)',
-      ],
+      reset: ['piggy_bank → 0€', 'bank_balances → 0€', 'remaining_to_live → 0€ (calculé)'],
     })
   } catch (error) {
     logger.error('[RESET ALL] Erreur:', error)
