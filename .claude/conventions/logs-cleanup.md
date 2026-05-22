@@ -17,7 +17,7 @@ Gated via `LOG_LEVEL` env var (`error | warn | info | debug`). Défaut : `warn` 
 ## 4. ESLint enforcement
 
 - **Global** (depuis Sprint Cleanup-I8 / Lot 6, 2026-05-14) : `'no-console': ['error', { allow: ['warn', 'error'] }]` ([eslint.config.mjs](../../eslint.config.mjs)) — tout nouveau `console.log/info/debug` fait sortir la PR rouge. `console.warn`/`console.error` restent allow-listés ad-hoc, mais préférer `logger.warn`/`logger.error` pour cohérence.
-- **Per-file override** (depuis Lot 3) : un bloc ajouté APRÈS le bloc principal d'`eslint.config.mjs` durcit `no-console: 'error'` sur les modules migrés (`lib/logger.ts`, `lib/finance/**`, `lib/recap/**`, etc.). Inclure `lib/logger.ts` dans la liste est intentionnel : le `/* eslint-disable no-console */` au top du fichier reste source de vérité (le module est la frontière), mais l'override durcit le contrat si le disable est jamais retiré accidentellement.
+- **Per-file override** (depuis Lot 3) : un bloc ajouté APRÈS le bloc principal d'`eslint.config.mjs` durcit `no-console: 'error'` sur les modules migrés (`lib/logger.ts`, `lib/finance/**`, etc.). Inclure `lib/logger.ts` dans la liste est intentionnel : le `/* eslint-disable no-console */` au top du fichier reste source de vérité (le module est la frontière), mais l'override durcit le contrat si le disable est jamais retiré accidentellement.
 
 ## 5. Règle d'or de triage
 

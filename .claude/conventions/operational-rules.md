@@ -58,11 +58,11 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
-### Séquences non-atomiques (smart-allocation / savings transfer / auto-balance)
+### Séquences non-atomiques (smart-allocation / savings transfer)
 
 - ❌ **NE PAS** appeler `updatePiggyBank` puis `updateBudgetCumulatedSavings` puis `supabaseServer.from('real_expenses').insert(...)` séparément pour smart-allocation → utiliser `addExpenseWithBreakdown` (Sprint Atomicity-Expenses).
 - ❌ **NE PAS** appeler `updateBudgetCumulatedSavings` deux fois séparées avec un manual rollback compensatoire → utiliser `transferSavingsBetweenBudgets` (Sprint Atomicity-Savings).
-- ❌ **NE PAS** réintroduire le pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched` dans `auto-balance/route.ts` → utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
+- ❌ **NE PAS** réintroduire le pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched` → utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
 - ❌ **NE PAS** réintroduire le pattern reversed `updatePiggyBank(aggregate) + INSERT batched budget_transfers (from_budget_id=NULL)` → utiliser `transferPiggyToBudgetWithInsert` per-pair (Sprint Auto-Balance-Atomic-Phase-B).
 - ❌ **NE PAS** appeler `supabase.from('estimated_budgets').delete()` directement dans la route DELETE — utiliser `deleteBudgetWithSavingsTransfer` qui DELETE + UPSERT piggy en 1 tx si `cumulated_savings > 0` (Sprint Delete-Budget-Savings). Le raw DELETE perd les économies silencieusement.
 
@@ -147,7 +147,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS** réintroduire le pattern "logout-on-any-failure" dans les `setInterval` du `AuthProvider` ([contexts/AuthContext.tsx](../../contexts/AuthContext.tsx) `startAuthCheck` 5min + `startTokenRefresh` 50min + `refreshUserSession` manuel). Depuis Sprint Fix-Auth-Network-Transient (2026-05-22), `isAuthenticated()` et `refreshSession()` ([lib/auth.ts](../../lib/auth.ts)) retournent un tri-state : `AuthCheckOutcome = 'authenticated' | 'unauthenticated' | 'unknown'` et `RefreshSessionResult.outcome = 'success' | 'unauthenticated' | 'unknown'`. Les 3 call sites ne déclenchent `handleLogout()` que sur `'unauthenticated'` (= 401 explicite OU body API `success=false && authenticated=false`). Les `'unknown'` (NetworkError, 5xx, `!response.ok` non-401) sont **skip silencieux** — la session reste valide côté serveur, on retentera au tick suivant.
 
-- ❌ **NE PAS** retraiter un fetch fail comme déconnexion. Avant le fix, `catch → return false / { success: false }` indifférenciait NetworkError du 401 : tout hiccup réseau pendant un dev-server HMR rebuild webpack OU une `proxy.ts:checkRecapStatus` lente (~200-500ms × chaque nav non-cachée par cookie `recap-ok-*`) déclenchait `window.location.href = '/connexion'` malgré une session valide. Symptôme : warning console récurrent `Failed to fetch RSC payload ... NetworkError when attempting to fetch resource` + retour intempestif à l'écran de login.
+- ❌ **NE PAS** retraiter un fetch fail comme déconnexion. Avant le fix, `catch → return false / { success: false }` indifférenciait NetworkError du 401 : tout hiccup réseau pendant un dev-server HMR rebuild webpack OU une requête lente (cas historique : proxy gating recap ~200-500ms) déclenchait `window.location.href = '/connexion'` malgré une session valide. Symptôme : warning console récurrent `Failed to fetch RSC payload ... NetworkError when attempting to fetch resource` + retour intempestif à l'écran de login.
 
 - ❌ **NE PAS** ajouter un nouveau caller de `/api/auth/session` GET/POST sans router son outcome via le même tri-state. Si le caller treat `!response.ok` indifférencié comme "logout", il re-réintroduit le bug 2026-05-22.
 

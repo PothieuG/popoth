@@ -18,8 +18,8 @@ Préférer `as unknown as T` plutôt que `as any` lorsqu'un cast est inévitable
 ## Invariants TS
 
 - **Aucun `any`** dans le codebase depuis Sprint Lint-Baseline-Cleanup (livré 2026-05-08). 69 sites `: any` existants ont été typés strict, et `pnpm lint:check` est désormais bloquant en CI (`code-checks.yml`) — toute nouvelle PR avec un `: any` sort rouge.
-- Compteur `as unknown as SupabaseClient` à **0** dans tout le code TypeScript depuis le Sprint Refactor-I5 (2026-05-11) — le dernier site (process-step1/route.ts) a disparu avec l'extraction du god file vers `lib/recap/`. **Ne pas en réintroduire** — débugger le typage à la place. Les seules occurrences résiduelles sont dans les docs/prompts pour référence historique.
-- Compteur `declare global` à **0** dans tout le code depuis Sprint Refactor-I6 (2026-05-14). Les 4 globals de `complete/route.ts` sont devenus des champs explicites sur `ProcessCompleteDecision`.
+- Compteur `as unknown as SupabaseClient` à **0** dans tout le code TypeScript depuis le Sprint Refactor-I5 (2026-05-11). **Ne pas en réintroduire** — débugger le typage à la place. Les seules occurrences résiduelles sont dans les docs/prompts pour référence historique.
+- Compteur `declare global` à **0** dans tout le code depuis Sprint Refactor-I6 (2026-05-14).
 
 ## Patterns clés
 
@@ -46,16 +46,17 @@ Préférer ré-exporter les interfaces internes (`export interface EstimatedBudg
 
 ### JSONB blobs
 
-Pour les blobs JSONB côté DB (`Json` dans `lib/database.types.ts`) : définir un type discriminé applicatif et caster `as unknown as Json` au seul boundary insert. Pattern : [lib/recap-snapshot.types.ts](../../lib/recap-snapshot.types.ts).
+Pour les blobs JSONB côté DB (`Json` dans `lib/database.types.ts`) : définir un type discriminé applicatif et caster `as unknown as Json` au seul boundary insert.
 
 ### Discriminated unions
 
-Pattern installé partout (Sprint Refactor-I5 sur `step1-algorithm.ts` `AllocationOperation`, Sprint Refactor-I6 sur `complete-algorithm.ts`, Sprint Refactor-Auto-Balance, Sprint Refactor-Recover). Pour la `RestorationAction` du recover :
+Pattern installé partout pour modéliser des actions/opérations à kinds finis. Exemple générique :
 
 ```ts
-export type RestorationAction =
-  | { kind: 'restore_table'; table: RestorableTable; rows: TablesInsert<RestorableTable>[] }
-  | { kind: 'update_bank_balance_v1'; amount: number }
+type Action =
+  | { kind: 'create'; payload: CreatePayload }
+  | { kind: 'update'; id: string; patch: UpdatePatch }
+  | { kind: 'delete'; id: string }
 ```
 
 Pour les FieldErrors d'un discriminated union RHF, voir [zod-patterns.md](zod-patterns.md) §7.

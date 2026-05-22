@@ -71,7 +71,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~
 
 ### Tests gated (env var requise, sinon `describe.skipIf` skip)
 
-6 env vars activent les tests gated DB : `SUPABASE_RPC_CONCURRENCY_TESTS` / `_RLS_TESTS` / `_API_TESTS` / `_TRIGGER_TESTS` / `_FINANCE_TESTS` / `_RECAP_TESTS`. Détails par scope → §9 Tests.
+5 env vars activent les tests gated DB : `SUPABASE_RPC_CONCURRENCY_TESTS` / `_RLS_TESTS` / `_API_TESTS` / `_TRIGGER_TESTS` / `_FINANCE_TESTS`. Détails par scope → §9 Tests.
 
 ## 4. Structure du repo
 
@@ -206,7 +206,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ### ✅ À faire
 
 - **Body POST/PATCH/PUT** : schema dans `lib/schemas/<domain>.ts` + `parseBody(request, schema)` + `handleBadRequest(error)` (cf. §6). Préférer `z.discriminatedUnion` / `z.union + type guard` / `.refine`.
-- **Écriture sur colonnes sensibles** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) : **obligatoirement** via composite RPCs `lib/finance/*` (10 atomiques). Mapping smart-allocation / cross-budget cascade / savings ↔ budget / piggy ↔ budget / recap 2.4.2 → [operational-rules.md](.claude/conventions/operational-rules.md) §4.
+- **Écriture sur colonnes sensibles** (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`) : **obligatoirement** via composite RPCs `lib/finance/*`. Mapping smart-allocation / cross-budget cascade / savings ↔ budget / piggy ↔ budget → [operational-rules.md](.claude/conventions/operational-rules.md) §4.
 - **Calcul breakdown client** : `calculateBreakdown` depuis [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (pur). **Jamais** `expense-allocation.ts` (leak service_role).
 - **Composant auth** : `useAuthUser()` / `useAuthActions()` / hooks composés `useRequireGuest`/`useLogin`/`useLogoutAndRedirect`. Pas de `useAuth()` aggregator (supprimé v5).
 - **Magic numbers** (TTL, intervalle, tolérance) : déclarer dans [lib/constants/](lib/constants/) avant usage.
@@ -245,7 +245,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 
 - **Appels directs `updatePiggyBank` + `updateBudgetCumulatedSavings` + `INSERT real_expenses`** séparés en smart-allocation → `addExpenseWithBreakdown`.
 - **2 RPCs séquentielles + manual rollback** dans `savings/transfer` → `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank`. `handlePiggyBankAction` supprimé v2 (0 consumer).
-- **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** dans `auto-balance` → `transferWithSavingsDebit` per-pair.
+- **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** → `transferWithSavingsDebit` per-pair.
 - **Pattern reversed `updatePiggyBank(aggregate) + INSERT batched (from_budget_id=NULL)`** → `transferPiggyToBudgetWithInsert` per-pair (Phase-B).
 
 **Forbidden absolus**

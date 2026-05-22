@@ -77,13 +77,13 @@ lib/
   api/                     # ✅ Sprint Refactor-Architecture v1+v2 — handlers extraits, ré-exportés par app/api/finance/**/route.ts
     parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest(error). Validation Zod centralisée pour les handlers
     __tests__/parse-body.test.ts  # ✅ Sprint Refactor-I5 — 6 cas non-gated (happy path, malformed JSON, schema mismatch, etc.)
-    with-auth.ts           # ✅ Sprint Refactor-Architecture-v3+v4+v5 — withAuth(handler) + withAuthAndProfile(handler) higher-order helpers utilisés par 34 modules (12 finance + 21 Volet C + process-step1 depuis v5). Profile shape étendu en v4 à { id, group_id, first_name, last_name }. Signature étendue avec 2 overloads en v5 : (a) static-route signature sans routeContext, (b) dynamic-route signature avec generic `<TParams>` et routeContext NON-optionnel — élimine le `routeContext!` dans groups/[id]/** sans casser la cohabitation static. Tests gated `SUPABASE_API_TESTS=1` dans [lib/api/__tests__/with-auth.test.ts](lib/api/__tests__/with-auth.test.ts) (12 cas, Sprint v5).
+    with-auth.ts           # ✅ Sprint Refactor-Architecture-v3+v4+v5 — withAuth(handler) + withAuthAndProfile(handler) higher-order helpers utilisés par ~20 modules (12 finance + Volet C : profile/savings/bank-balance/groups). Profile shape étendu en v4 à { id, group_id, first_name, last_name }. Signature étendue avec 2 overloads en v5 : (a) static-route signature sans routeContext, (b) dynamic-route signature avec generic `<TParams>` et routeContext NON-optionnel — élimine le `routeContext!` dans groups/[id]/** sans casser la cohabitation static. Tests gated `SUPABASE_API_TESTS=1` dans [lib/api/__tests__/with-auth.test.ts](lib/api/__tests__/with-auth.test.ts) (12 cas, Sprint v5).
     finance/               # 12 modules : summary, rav, budgets (POST/PUT/DELETE), budgets-estimated, incomes, income-{real,estimated,progress}, expenses-{real,add-with-logic,preview-breakdown,progress}
     __tests__/             # ✅ Sprint Refactor-Architecture-v5
       with-auth.test.ts    # gated SUPABASE_API_TESTS=1 — 12 cas withAuth + withAuthAndProfile (auth, expired payload, overloads, profile shape, isolation)
   constants/               # ✅ Sprint Hygiène-Code — magic numbers extraits
     auth.ts                # SESSION_EXPIRATION_SECONDS (3600), SESSION_EXPIRATION_JOSE ('1h'), SESSION_REFRESH_INTERVAL_MS (50min), AUTH_CHECK_INTERVAL_MS (5min)
-    finance.ts             # ROUNDING_TOLERANCE (0.01) — utilisé dans process-step1 (6 sites)
+    finance.ts             # ROUNDING_TOLERANCE (0.01) — currently orphan post Clean-Slate-Recap (était utilisé par process-step1), conservé pour V3 cascade tolerance
   finance/                 # ✅ Sprint 0 C3 (RPC atomiques) + Sprint Refactor-I4 (split god file 1069 LOC)
     # Sprint 0 / C3 — atomic RPC helpers (single-call + retry-safe DB writes)
     context.ts             # ContextFilter type discriminé { profile_id } | { group_id } + asContextFilter() + resolveContextIds()
