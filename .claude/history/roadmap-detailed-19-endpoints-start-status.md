@@ -37,12 +37,14 @@
   **(4) `GET /api/monthly-recap/status/route.ts`** : `withAuthAndProfile` + `parseQuery(statusQuerySchema)` (sync). `await checkRecapStatus(userId, context)` (peut throw `RecapStatusError`). Si `status.kind === 'in_progress'` → `loadRecapSummary` + 200 `{ data: { status, summary } }`. Sinon 200 `{ data: { status, summary: null } }` (no_recap / completed / locked_by_other ne portent pas de summary). Catch discriminé : `RecapStatusError.code === 'PROFILE_NOT_FOUND'` → 404 ; `'NO_GROUP'` → 400 ; `BadRequestError` → 400 'Query invalide' ; sinon `logger.error` + 500.
 
   **(5) Re-wire `proxy.ts`** (94 LOC ajoutées) : import `checkRecapStatus`, `RecapStatusError`, `isRecapBlocking`. Constants :
+
   ```
   RECAP_GATED_ROUTES = { '/dashboard': 'profile', '/group-dashboard': 'group' }
   RECAP_SPECIAL_ROUTE = '/monthly-recap'
   RECAP_COOKIE_PREFIX = 'recap-ok'
   RECAP_COOKIE_TTL_S = 300
   ```
+
   2 nouveaux blocs gating (après le isAuthRoute redirect existant) :
   - **Special route /monthly-recap (auth only)** : lit `?context=` (default 'profile' via helper `parseRecapContextQuery`), `checkRecapStatus(userId, queryContext)`, si `status.kind === 'completed'` → redirect /dashboard (block re-entry). Sinon `NextResponse.next()` (la page rend wizard ou lock screen selon kind).
   - **Gated routes /dashboard et /group-dashboard (auth only)** : lookup `gatedContext` via map. **Cookie check first** — `recap-ok-{ctx}-{YYYY}-{MM}` présent → `NextResponse.next()` sans hit DB. Sinon `checkRecapStatus` → si `isRecapBlocking(status)` → `NextResponse.redirect(/monthly-recap?context={ctx})`. Si `status.kind === 'completed'` → set cookie `{ httpOnly: true, sameSite: 'lax', path: '/', maxAge: 300 }` + `NextResponse.next()`.
@@ -61,7 +63,6 @@
   - **Commit `cde85e6 docs(claude)` (14 insertions)** : CLAUDE.md §5/§5.5/§9/§11 + structure-repo.md.
 
   **Trade-off / leçons apprises** :
-
   - **`DEFAULT NULL` sur params PG → marque TS `?:` via Supabase codegen**. Le 1er draft de la migration était `(p_profile_id uuid, p_group_id uuid, p_month, p_year, p_started_by)` sans defaults. Supabase codegen marquait `p_profile_id: string` (required, pas optional). Avec le pattern `resolveContextIds`-style (passer `undefined` pour le param non-actif côté TS), le type checker refusait. **Fix** : ajouter `DEFAULT NULL` sur les 2 owner params + réordonner (required-first, default-second — Postgres exige cet ordre). Codegen marque alors `p_profile_id?: string` + supabase-js omits undefined keys au JSON payload → PG uses DEFAULT NULL. **Pattern miroir des autres composite RPCs** (`transfer_savings_between_budgets`, `add_expense_with_breakdown`, etc. — tous ont `p_profile_id uuid DEFAULT NULL, p_group_id uuid DEFAULT NULL`). À appliquer pour tout nouveau RPC contextuel.
 
   - **`DROP IF EXISTS` old signature pour idempotence de migration**. Changer l'ordre des params change la signature PG (`start_monthly_recap(uuid,uuid,smallint,smallint,uuid)` vs `(smallint,smallint,uuid,uuid,uuid)`). Sur ré-application de la migration draft-en-iteration, le `DROP IF EXISTS` sur l'ancien signature évite de laisser 2 overloads orphelins (Postgres treat them as different functions — Supabase Management API qui re-apply le draft retomberait sur la mauvaise overload).
@@ -81,7 +82,6 @@
   - **PowerShell stderr redirect dans fichier de types**. `pnpm supabase gen types ... 2>&1 > file.ts` capture stderr dans le fichier. La sortie stderr de Supabase CLI inclut un warning de version update ("A new version of Supabase CLI is available...") + un hint claude-code-plugin. Ces 3 lignes en fin de fichier deviennent du code TS invalide → erreur typecheck. Fix : truncate après la dernière `} as const` via `sed -i '962,$d'`. À long terme, soit re-générer via Bash (pas le souci), soit redirect stderr ailleurs.
 
   **Pattern à retenir** :
-
   - **RPC composite avec discriminant `result` string** : `RETURNS json` + `json_build_object('result', '<kind>', '<other_field>', <value>)`. Côté TS, narrow via tagged union : `interface RpcResult { result: 'created'|'resumed'|'completed'|'locked_by_other'; recap: {...} }`. Le caller dispatch sur `result` avant de toucher au reste du payload. Évite les cascades de try/catch pour discriminer les cas.
 
   - **Cookie cache pour proxy hot-path**. Pour tout check DB nécessaire à chaque nav qui peut être skippé après un état stable, poser un cookie httpOnly maxAge=300s avec key contextuelle (incluant time slice e.g. YYYY-MM). Évite le hit DB sans complexité de redis/edge-cache. Anti-stale : le cookie key includes le time slice, so it rotates naturally avec le passage du temps.
