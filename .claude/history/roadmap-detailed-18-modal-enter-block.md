@@ -1,4 +1,4 @@
-# Roadmap détaillé — Part 18 : Modal-Forms-Block-Enter-Submit → Monthly-Recap-V3-Migrations
+# Roadmap détaillé — Part 18 : Modal-Forms-Block-Enter-Submit → Calculations-V3
 
 > Chronologie des sprints livrés à partir de 2026-05-21 (suite de [roadmap-detailed-17-delete-header-income-polish.md](roadmap-detailed-17-delete-header-income-polish.md)). Split préemptif pour rester sous le cap 39.5k chars/fichier.
 
@@ -172,3 +172,48 @@
   - **Le `kind` discriminator est cohérent avec le pattern repo** pour les discriminated unions de status async. Si on ajoute une nouvelle union (ex. `LoadSummaryKind` au sprint 04), garder `kind` au lieu de `type`/`status`/`state` pour cohérence.
   - **Pour tout sprint qui exporte de nouvelles primitives Zod** : penser à ajouter `export * from './<name>'` au barrel `lib/schemas/index.ts`. Sinon les consumers doivent importer directement (`from '@/lib/schemas/recap'`) au lieu de la convention `from '@/lib/schemas'`. Pas de blocker, mais cohérence.
   - **Param YAGNI sur signature publique** : si la spec donne un param "pour future extension" mais non-utilisé au premier sprint, le drop (cf. `nextRequiredStep` ici). Réintroduire le param est un changement non-breaking (default optional ou new overload). Avoir le param vestigial pollue l'API et fait passer des tests faux-positifs (le param n'a aucun effet observable).
+
+- ✅ **Sprint Calculations-V3** (sprint 04/17 Monthly Recap V3, livré 2026-05-23, commit `ec47594`). Module pur de calcul des formules métier du wizard recap — débloque les endpoints 05-08.
+
+  **Constat pré-sprint** : Sprint 03 a livré state machine + check-status + Zod schemas. Sprint 04 doit factoriser TOUTES les formules métier du recap dans un module pur — bilan, surplus par budget, refloat proportionnel via savings, snapshot proportionnel via budgets. Découplage I/O ↔ calcul essentiel pour : (a) tests rapides non-gated, (b) déterminisme (tri stable + cents precision), (c) pas de fuite service_role côté future composante client. La spec sprint 04 flaggait une ambiguïté sur l'algorithme de `computeProportionalBudgetSnapshot` : pool = `estimatedAmount`, `estimated - carryover_spent`, ou égalisé per-budget ?
+
+  **Architecture installée** :
+
+  **(1) `lib/recap/types.ts`** (3 interfaces, 35 LOC) : `BudgetSummary` (budget + surplus/deficit calculés), `RecapSummary` (currentBalance + RAVs + bilan + bilanSign 'positive'|'negative'|'zero' + budgets readonly), `RefloatProportionalAllocation` (perBudget readonly + totalAllocated + shortfall). Module dédié plutôt que co-localisé car ces types seront partagés avec `lib/recap/actions-negative.ts` (sprint 07).
+
+  **(2) `lib/recap/calculations.ts`** (pure sync, 139 LOC) : 4 fonctions publiques + 2 helpers privés.
+  - `computeBudgetSurplus(estimated, spent)` → `{ surplus: max(0, diff), deficit: max(0, -diff) }`. round2 sur le diff pour cents-precise (100.33 − 100.32 = 0.01 malgré float drift).
+  - `computeRecapSummary(input)` → enrichit chaque budget avec surplus/deficit, somme totals avec round2, calcule `bilan = round2(ravEffectif + ravEstime)` et déduit bilanSign. Trie budgets par budgetId pour stabilité tests.
+  - `computeProportionalSavingsRefloat(target, budgets)` → mappe `{budgetId, pool: cumulatedSavings}` puis délègue à `distributeProportional`.
+  - `computeProportionalBudgetSnapshot(target, budgets)` → mappe `{budgetId, pool: estimatedAmount}` puis délègue à `distributeProportional`. **Option B** : pool = `estimatedAmount` seul, `carryover_spent_amount` ignoré (décision user-confirmée AskUserQuestion — cohérent avec sprint 07 ligne 134 `available = budget.estimatedAmount`).
+  - Helper privé `distributeProportional(target, budgets)` : filter pool>0 + sort budgetId + share[i] = `Math.min(pool[i], round2(target * pool[i] / totalPool))` pour i < n-1, last absorbs `target - sumSoFar` (capped at last.pool). Edge cases : target≤0/pool=0/sorted=[] → perBudget=[]+shortfall=target. Pool<target → 100% pool+shortfall=target-pool. 0 import Supabase, 0 logger (vérifié `Grep "from '@/lib/(supabase|logger)" lib/recap/calculations.ts` → no matches).
+  - Helper privé `round2(n)` : `Math.round(n * 100) / 100`. Module-local non exporté (pattern absent de `lib/finance/calc-rtl.ts`).
+
+  **(3) `lib/recap/index.ts`** (barrel étendu) : `export { computeBudgetSurplus, computeProportionalBudgetSnapshot, computeProportionalSavingsRefloat, computeRecapSummary } from './calculations'` + `export type { BudgetSummary, RecapSummary, RefloatProportionalAllocation } from './types'`. Consumers : `import { computeRecapSummary, type RecapSummary } from '@/lib/recap'`.
+
+  **Tests** : `lib/recap/__tests__/calculations.test.ts` — 33 cas non-gated env=node (`*.test.ts`).
+  - `computeBudgetSurplus` (6 cas) : estim>spent / estim<spent / equal / cents-precise (100.33−100.32=0.01) / estim=0 / spent=0.
+  - `computeRecapSummary` (8 cas) : 3 budgets surplus + bilan>0 → positive / bilan=0 → zero / 1 budget deficit + bilan<0 → negative / budgets vides / tri budgetId / cumulatedSavings sum cents (10.5+20.25+30.125=60.88) / piggy passthrough / bilan 100.005+100.004=200.01.
+  - `computeProportionalSavingsRefloat` (12 cas) : proportional 200+100 → 66.67+33.33 / pool exact / pool<target shortfall / pool=0 → []+shortfall / single pool>target / single pool<target / target=0 / cents-precise 3×100 last absorbs 0.01 → 33.33/33.33/33.34 / sort budgetId / sum garanti à 0.01€ près / target négatif clamp / pool=target equal split.
+  - `computeProportionalBudgetSnapshot` (7 cas, Option B regression-guards) : 30€/3×100 = 10/10/10 (exemple spec, distribution égale uniquement si pools équivalents) / non-equal 100/50/25 = 17.14/8.57/4.29 (proportional sur 175) / cents target=10 → 3.33/3.33/3.34 / pool insufficient / pool=0 / carryover-ignored sanity (2 budgets même estim → parts égales) / sort budgetId.
+
+  Tests passants 391 → **424** (+33 non-gated). Lint:check 0/0. Format:check clean (post `prettier --write`). Typecheck exit 0.
+
+  **Files livrés (commit ec47594, 624 insertions)** :
+  - **Nouveaux** (3) : `lib/recap/types.ts`, `lib/recap/calculations.ts`, `lib/recap/__tests__/calculations.test.ts`.
+  - **Modifié** (1) : `lib/recap/index.ts` (+5 lignes — re-exports calculations + types, alphabétique).
+
+  **Trade-off / leçons apprises** :
+  - **Option B retenue pour le snapshot (décision user)** : 3 options évaluées (proportional sur `estim - carryover_spent` recommandée par la spec initiale / **proportional sur `estim` seul** / égalisé `target / N`). User a tranché Option B après business explanation (cascade tirelire → savings → anticipation budgets futurs). Implication : les gros budgets absorbent davantage proportionnellement à leur taille planifiée, indépendamment de l'historique des snapshots précédents. Signature finale : `{ budgetId, estimatedAmount }` (drop `currentCarryoverSpent` que la spec initiale demandait). Cohérent avec sprint 07 ligne 134 `available = budget.estimatedAmount`.
+  - **Helper `distributeProportional` factorisé** : la spec demandait 2 fonctions distinctes. Algo identique modulo l'extracteur de pool → helper privé partagé. DRY + 1 seule implémentation à tester (les 19 cas savings + snapshot stressent le même algo). Si une 3e distribution proportionnelle émerge (ex. group contributions selon ratio salarial), réutiliser ce helper.
+  - **`round2(target - sumSoFar)` sur le dernier budget** : sans ce remainder-absorption, Σ shares diverge de target de 0.01-0.03€ après cents rounding intermédiaire. Pattern régression-guardé par le test "sum garanti à 0.01€ près" qui appelle avec target=137.42 + 4 pools hétérogènes. Le tri par budgetId AVANT distribution est crucial pour rendre le "last budget" déterministe (snapshots tests byte-identique).
+  - **`types.ts` séparé malgré pattern repo de co-localisation** : `state.ts` et `check-status.ts` co-localisent leurs types (cf. sprint 03). Mais `BudgetSummary`/`RecapSummary` seront partagés avec `lib/recap/actions-negative.ts` (sprint 07 endpoints), donc module dédié justifié. Exception au pattern documentée dans le plan.
+  - **Drift baseline ↔ prod préexistant** : `pnpm verify` failed à `db:check-drift` car la baseline (issue de dev `ddehmjucyfgyppfkbddr` post-sprint 02) diverge de prod `jzmppreybwabaeycvasz` de ~1 ligne d'offset. Out-of-scope sprint 04 (qui ne touche pas la DB). Tous les checks non-DB sprint-04 passent : `typecheck` exit 0, `format:check` exit 0, `lint:check` 0/0, `test:run` 424/0 fails, `check:md-size` exit 0.
+  - **Spec drift résiduel à corriger ailleurs** : la spec `prompt-montly-recap/04-calculations.md` mentionnait `currentCarryoverSpent` dans la signature de `computeProportionalBudgetSnapshot` et recommandait proportional sur `estimated - carryover_spent` en "Decision suggérée". User a tranché Option B (drop `currentCarryoverSpent`). La spec restera désynchronisée jusqu'à passe doc séparée (hors scope plan mode — noté dans la section "Documentation à mettre à jour" du plan).
+
+  **Pattern à retenir** :
+  - **Tout calcul cents-precise dans Popoth** : helper privé `function round2(n: number): number { return Math.round(n * 100) / 100 }` au bas du module. Pattern absent de `lib/finance/calc-rtl.ts` (qui ne fait pas de cents precision), donc à dupliquer dans chaque module qui en a besoin. Si une 3e occurrence émerge (calc-rtl-followup ou autre), envisager un `lib/utils/decimal.ts` partagé.
+  - **Distribution proportionnelle avec contraintes de pool individuel** : pattern `share[i] = Math.min(pool[i], round2(target * pool[i] / totalPool))` pour i < n-1, last absorbs remainder. Filter pool>0 + sort budgetId AVANT le calcul pour déterminisme. Edge cases : target≤0/pool=0/single budget — tester explicitement chacun.
+  - **`Option B` documentée dans le commit message ET le code** : décisions de design ambiguës (≥2 alternatives raisonnables) → noter explicitement le choix dans le JSDoc de la fonction (cf. `computeProportionalBudgetSnapshot` qui mentionne "Option B" 1 ligne) ET dans le commit message. Sinon une future relecture re-pose la même question.
+  - **`pnpm verify` reste fail à cause d'un drift DB préexistant** : pour les sprints qui ne touchent pas la DB, accepter que `pnpm verify` ne soit pas un gate strict — vérifier individuellement `typecheck && format:check && lint:check && test:run && check:md-size`. La résorption du drift baseline↔prod sera un sprint dédié (push V3 sur prod via `$env:SUPABASE_PROJECT_REF` = prod).
+  - **Module pur = signature exacte de la pureté** : grep `from '@/lib/(supabase|logger)" lib/recap/calculations.ts` → 0 résultat = preuve cross-checkable. Critère d'acceptation à cocher avant tout commit "pure module" ; ajouter cette vérification dans le futur si on en a plusieurs.
