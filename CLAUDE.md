@@ -62,6 +62,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppf
 | `pnpm supabase ...`                        | Supabase CLI (lié à `jzmppreybwabaeycvasz`)                                                                                               |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management (sans Docker)                                                                                  |
 | `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management (apply migration, SELECT lecture). Voir aussi `clone-data.mjs` pour cloner data inter-projets. |
+| `node scripts/seed-recap/<key>.mjs`        | Seede dev DB pour un scénario Monthly Recap V3 (27 keys). Doc + workflow → [scripts/seed-recap/README.md](scripts/seed-recap/README.md).  |
 
 ### Hooks Git (Husky)
 
@@ -98,7 +99,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
   - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
-- **Monthly Recap V3** : en cours d'implémentation, voir `prompt-montly-recap/` pour la spec. Sprints 01-08/17 livrés (Clean-Slate / Migrations / State+Schemas / Calculs / Endpoints START+STATUS+proxy / flow positif / flow négatif / salary-update + finalize). Fondations TS dans [lib/recap/](lib/recap/) : `state.ts` (RecapStep + transitions), `check-status.ts` (RecapStatusKind + `.maybeSingle()` + lock), `lock.ts`, `calculations.ts` (4 fonctions pures cents-precise), `load-summary.ts`, `active-recap.ts` (`getActiveRecap`), `actions-positive.ts` (sprint 06), `actions-negative.ts` (sprint 07 + `RecapActionError`), `actions-salary.ts` + `actions-finalize.ts` (sprint 08 — `executeUpdateSalaries`/`fetchGroupMemberIds` + `executeCompleteRecap` 3-step apply-snapshot/process-tx/mark-completed). RPCs `start_monthly_recap`, `finalize_recap_apply_snapshot`, `process_recap_transactions`. 9 endpoints sous `app/api/monthly-recap/*` via `withAuthAndProfile` + `parseBody`/`parseQuery`. **Gating proxy.ts actif** : `/dashboard` + `/group-dashboard` redirigent sur `/monthly-recap?context=X` tant que `isRecapBlocking(status)` ; cookie httpOnly 5min `recap-ok-{ctx}-{YYYY}-{MM}` cache `completed`. Schémas Zod dans [lib/schemas/recap.ts](lib/schemas/recap.ts). `complete` idempotent (replay → `alreadyCompleted: true`), apply-snapshot et process-transactions fail-soft, mark-completed throw.
+- **Monthly Recap V3** : sprints 01-09/17 livrés (cf. spec `prompt-montly-recap/`). Fondations TS dans [lib/recap/](lib/recap/) : `state.ts`, `check-status.ts` (RecapStatusKind + lock), `lock.ts`, `calculations.ts`, `load-summary.ts`, `active-recap.ts`, `actions-{positive,negative,salary,finalize}.ts` (sprint 08 = `executeCompleteRecap` 3-step apply-snapshot/process-tx/mark-completed). RPCs `start_monthly_recap`, `finalize_recap_apply_snapshot`, `process_recap_transactions`. 9 endpoints `app/api/monthly-recap/*` via `withAuthAndProfile`. **Gating `proxy.ts`** : `/dashboard` + `/group-dashboard` redirigent sur `/monthly-recap?context=X` tant que `isRecapBlocking(status)` ; cookie httpOnly 5min `recap-ok-{ctx}-{Y}-{M}` cache `completed`. Zod dans [lib/schemas/recap.ts](lib/schemas/recap.ts). `complete` idempotent, apply-snapshot et process-tx fail-soft. **Dev seed scripts (sprint 09)** : 27 scénarios CLI sous `scripts/seed-recap/<key>.mjs` (users A/B + groupe dev) — doc [scripts/seed-recap/README.md](scripts/seed-recap/README.md).
 - **Allocation des dépenses** : ordre de priorité **budget restant → savings (cascade UNIQUEMENT si overflow) → piggy JAMAIS auto-débitée** (Sprint P4-P5-P6 strict default). Toggle P5 (`useSavingsToggle: true`) inverse au profit des savings (opt-in user-driven). `calculateBreakdown` dans le module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (séparé de `expense-allocation.ts` pour éviter le bundling de service_role key côté client). L'écriture passe **toujours** par les helpers `lib/finance/*` (RPC atomiques).
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
 - **Globals partagés** : **0 occurrence** `declare global` dans le code.
@@ -108,18 +109,18 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 À tenir à jour à chaque sprint touchant ces invariants.
 
-| Invariant                              | Valeur                    | Source / Vérification                                                                                                            |
-| -------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `EXPECTED_RPCS`                        | **16**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs) (sprint 08 V3 : +`finalize_recap_apply_snapshot` +`process_recap_transactions`) |
-| Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                             |
-| Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                                |
-| Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                           |
-| Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                                |
-| Tests non-gated passants               | **447**                   | `pnpm test:run` (sprint 08 V3 : +11 = 6 actions-salary + 5 actions-finalize unit tests)                                          |
-| Tests gated skipped (sans env vars)    | **158**                   | idem (sprint 08 V3 : +18 = 8 update-salaries + 10 complete sous `SUPABASE_RECAP_TESTS=1`)                                        |
-| Routes API                             | **37**                    | `pnpm build` (sprint 08 V3 : +2 endpoints update-salaries / complete — comptage build réel après correction baseline)            |
-| Functions DB versionnées               | **23/23**                 | `pnpm db:audit-functions` (sprint 08 V3 : +`finalize_recap_apply_snapshot` +`process_recap_transactions`)                        |
-| Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2)         |
+| Invariant                              | Valeur                    | Source / Vérification                                                                                                    |
+| -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `EXPECTED_RPCS`                        | **16**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
+| Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
+| Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
+| Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
+| Tests non-gated passants               | **447**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)    | **158**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
+| Routes API                             | **37**                    | `pnpm build`                                                                                                             |
+| Functions DB versionnées               | **23/23**                 | `pnpm db:audit-functions`                                                                                                |
+| Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
 
@@ -189,6 +190,10 @@ ESLint global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cl
 - **JAMAIS** `--no-verify`, `--no-gpg-sign`, ou `git push --force` sans demande explicite
 
 Détails capture-then-drop + DROP workflow + push gate + Dependabot triage → [@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md).
+
+### Interaction utilisateur
+
+**Questions au user** (`AskUserQuestion` / texte) : vocabulaire **métier**, jamais jargon tech, avec contexte business + impact concret par option. Détails → [@.claude/conventions/user-questions.md](.claude/conventions/user-questions.md).
 
 ## 7. Sécurité — état des lieux
 
