@@ -17,6 +17,8 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useMonthlyRecap: (...args: unknown[]) => useMonthlyRecapMock(...(args as [])),
   useStartRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdvanceStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useTransferSurplusesToPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useTransformRemainingSurplusesToSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -97,7 +99,7 @@ describe('RecapWizard', () => {
       makeSummary({ bilanSign: 'positive', bilan: 150 }),
     )
     render(<RecapWizard context="profile" />)
-    expect(screen.getByRole('heading', { name: 'Bilan positif' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Gestion du bilan positif' })).toBeInTheDocument()
   })
 
   it('renders BilanNegative when manage_bilan + bilanSign negative', () => {
