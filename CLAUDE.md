@@ -21,7 +21,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 
 **Popoth** : PWA francophone **mobile-first** de gestion financière personnelle et en groupe. **Toute UI doit être pensée mobile uniquement** (cible iPhone Safari/Chrome, viewport ≤ 430 px). Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
+Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) — workflow par défaut côté dev ; tous les `scripts/db-*.mjs` ciblent prod par défaut via fallback hardcodé, override `$env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'` pour cibler dev (cf. `feedback_supabase_project_target` memory). **Score audit estimé : ~100/100** (baseline 47/100 audit 2026-04). Pour l'évolution détaillée du score sprint par sprint, voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
 ## 2. Stack
 
@@ -118,7 +118,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Tests non-gated passants               | **334**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped (sans env vars)    | **80**                    | idem (post Clean-Slate-Recap : tests gated recap supprimés)                                                              |
 | Routes API                             | **29**                    | `pnpm build` (post Clean-Slate-Recap)                                                                                    |
-| Functions DB versionnées               | **17/17**                 | `pnpm db:audit-functions`                                                                                                |
+| Functions DB versionnées               | **20/20**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
@@ -308,6 +308,7 @@ Pour les opérations CLI Supabase :
 ```
 SUPABASE_ACCESS_TOKEN=sbp_...        # https://supabase.com/dashboard/account/tokens
 SUPABASE_DB_PASSWORD=...             # Project Settings > Database > Reset password si oublié
+SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr  # optionnel — override le default prod (jzmppreybwabaeycvasz) pour pointer dev
 ```
 
 Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`) ou persistés au niveau User env (`[Environment]::SetEnvironmentVariable(...)`), **jamais** committés dans un fichier.
@@ -321,13 +322,13 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 334 non-gated / 80 gated. 29 routes API (post Clean-Slate-Recap). 13 RPCs pinnées (cf. §5.5). **Monthly Recap V3 en cours** — spec sous `prompt-montly-recap/` untracked, sprint 01/17 (Clean-Slate-Recap) livré 2026-05-23.
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 334 non-gated / 80 gated. 29 routes API (post Clean-Slate-Recap). 13 RPCs pinnées + 20 functions versionnées (cf. §5.5). **Monthly Recap V3 en cours** — spec sous `prompt-montly-recap/` untracked, sprints 01-02/17 livrés (Clean-Slate-Recap 2026-05-23 + Migrations-V3 schema 2026-05-24).
 
-**Historique** — 18 parts `.claude/history/roadmap-detailed-NN-*.md` (115 sprints) :
+**Historique** — 18 parts `.claude/history/roadmap-detailed-NN-*.md` (117 sprints) :
 
 - [Part 01](.claude/history/roadmap-detailed-01-sprint-0-to-architecture-v5.md) Sprint 0 → Refactor-Architecture-v5 (24) | [Part 02](.claude/history/roadmap-detailed-02-sprint-1-to-cleanup-lot-1.md) Sprint 1 → Lot 1 (11) | [Part 03](.claude/history/roadmap-detailed-03-lot-3-to-refactor-i5-followup-v2.md) Lot 3 → Refactor-I5-followup-v2 (8) | [Part 04](.claude/history/roadmap-detailed-04-followup-v3-to-atomicity-savings-v2.md) Refactor-I5-followup-v3 → Atomicity-Savings v2 (5)
 - [Part 05](.claude/history/roadmap-detailed-05-dead-code-to-lot-4b.md) Dead-Code-Purge → Lot 4b (6) | [Part 06](.claude/history/roadmap-detailed-06-lot-4c-to-lot-5d.md) Lot 4c → Lot 5d (7) | [Part 07](.claude/history/roadmap-detailed-07-audit-c2-to-zod-v3.md) Audit-Closeout C2 → Zod v3 (6) | [Part 08](.claude/history/roadmap-detailed-08-zod-v4-to-zod-v8.md) Zod v4 → v8 (5)
-- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) | [Part 13](.claude/history/roadmap-detailed-13-fix-empty-recap-tirelire.md) Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6) | [Part 14](.claude/history/roadmap-detailed-14-modal-uniformize-polish-dropdown.md) Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) | [Part 15](.claude/history/roadmap-detailed-15-skeleton-refetch-loaders.md) Skeleton-Refetch-Loaders → Enrich-Delete-Confirmation + Fix-Summary-RAV-Stale-Cache (3) | [Part 16](.claude/history/roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md) Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4) | [Part 17](.claude/history/roadmap-detailed-17-delete-header-income-polish.md) Delete-Header-And-Income-Polish → Fix-Auth-Flicker-And-Recap-Reentry-Gate (4) | [Part 18](.claude/history/roadmap-detailed-18-modal-enter-block.md) Modal-Forms-Block-Enter-Submit (1)
+- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) Complete-CAS3-TestFix → Fix-Password-Reset-OTP (7) | [Part 13](.claude/history/roadmap-detailed-13-fix-empty-recap-tirelire.md) Fix-Empty-Recap-Tirelire → Drawer-Slide-Fix-And-Header-Harmonize (6) | [Part 14](.claude/history/roadmap-detailed-14-modal-uniformize-polish-dropdown.md) Modal-Uniformize → Fix-Dashboards-Navbar-Switch (6) | [Part 15](.claude/history/roadmap-detailed-15-skeleton-refetch-loaders.md) Skeleton-Refetch-Loaders → Enrich-Delete-Confirmation + Fix-Summary-RAV-Stale-Cache (3) | [Part 16](.claude/history/roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md) Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4) | [Part 17](.claude/history/roadmap-detailed-17-delete-header-income-polish.md) Delete-Header-And-Income-Polish → Fix-Auth-Flicker-And-Recap-Reentry-Gate (4) | [Part 18](.claude/history/roadmap-detailed-18-modal-enter-block.md) Modal-Forms-Block-Enter-Submit → Monthly-Recap-V3-Migrations (3)
 
 **Évolution du score** : [part-1 47→99.998](.claude/history/score-evolution-part-1-47-to-99.md) + [part-2 99.999→100](.claude/history/score-evolution-part-2-99-to-100.md).
 **Historique sécurité Sprint 0 → Refactor-Architecture** : [part-1 foundation/CI](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2 quality/architecture](.claude/history/sprint-history-security-part-2-quality-architecture.md).

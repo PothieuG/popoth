@@ -1,4 +1,4 @@
-# Roadmap détaillé — Part 18 : Modal-Forms-Block-Enter-Submit
+# Roadmap détaillé — Part 18 : Modal-Forms-Block-Enter-Submit → Monthly-Recap-V3-Migrations
 
 > Chronologie des sprints livrés à partir de 2026-05-21 (suite de [roadmap-detailed-17-delete-header-income-polish.md](roadmap-detailed-17-delete-header-income-polish.md)). Split préemptif pour rester sous le cap 39.5k chars/fichier.
 
@@ -48,3 +48,78 @@
   - **Tout nouveau `<form>` dans un modal/drawer doit avoir `onKeyDown={preventEnterSubmit}`** sauf cas explicite où le submit-on-Enter est souhaité (e.g. un search bar single-input). Cas non actuellement présent dans Popoth.
   - **Mobile-first signature** : sur viewport ≤430 px, le clavier on-screen occupe 40-60 % de la hauteur. "Return"/"Go" sur le clavier numérique ou texte doit fermer le clavier (= `blur`) plutôt que submit, pour permettre à l'utilisateur de relire le formulaire avant validation explicite.
   - **Forms non-wrapped (input isolé hors `<form>`)** sont déjà safe — le navigateur ne soumet rien sans form-tag. Inutile d'ajouter le helper. Mais si on enveloppe un input dans un `<form>` plus tard pour validation Zod, penser à brancher le helper.
+
+- ✅ **Sprint Clean-Slate-Recap** (sprint 01/17 Monthly Recap V3, livré 2026-05-23, déclenché par "on repart de zéro pour V3, je veux que le code et la DB n'aient plus aucune trace des recap V1/V2 inertes").
+
+  **Constat pré-sprint** : V1 (inerte, 0 consumer applicatif depuis Sprint Dead-Code-Purge) et V2 (ossature partielle, ~10 routes + ~5 components + 2 tables + 1 cookie cache proxy gating) coexistaient dans le code. Risque de friction maintenance + ambiguïté sur ce qui est "actuel" en cas d'ouverture du chantier V3. Choix de table rase plutôt que migration progressive — V2 n'avait pas été déployée auprès des users, suppression sans impact UX.
+
+  **Architecture supprimée** :
+  - **App routes** : `app/api/monthly-recap/{status,start,complete,process-step1,process-step2,recover,auto-balance,reset}/route.ts` (~10 routes).
+  - **Lib modules** : `lib/recap/` au complet (state lib, snapshot loader, contributors, calculations, types).
+  - **Components** : `components/recap/*` (MonthlyRecapFlow, MonthlyRecapStep1, MonthlyRecapStep2, etc.) + références dans dashboard/group-dashboard layouts.
+  - **Hooks** : `useMonthlyRecap`, `useRecapStatus`, etc.
+  - **Schemas Zod** : `lib/schemas/recap.ts` + entries dans le barrel.
+  - **Proxy gating** : `proxy.ts::checkRecapStatus()` + cookie cache TTL 5min retirés (sera réintroduits en sprint 05).
+  - **Tests gated** : env vars `SUPABASE_*_RECAP_TESTS` + tests associés purgés.
+  - **DB tables** : `monthly_recaps` (V1) + `recap_snapshots` (V1) + `monthly_recaps_v2` + `recap_snapshots_v2` + FK `budget_transfers.monthly_recap_id` (CASCADE drop = 2 RLS policies aussi retirées).
+
+  **Migration livrée** : [supabase/migrations/20260523000000_drop_legacy_recap_tables.sql](../../supabase/migrations/20260523000000_drop_legacy_recap_tables.sql) avec `DROP TABLE IF EXISTS ... CASCADE` (4 tables) + `ALTER TABLE budget_transfers DROP COLUMN IF EXISTS monthly_recap_id CASCADE`. `remaining_to_live_snapshots` PRÉSERVÉE (utilisée par 6 modules finance hors workflow recap, audit trail RAV indépendant).
+
+  **Docs alignement** ([6e7a4ba](https://github.com/.../commit/6e7a4ba)) : CLAUDE.md + `.claude/conventions/*` nettoyés des refs résiduelles `checkRecapStatus`, `lib/recap/`, `SnapshotPayload`, `process-step1`, `auto-balance`, `recover`. Refs historiques (sprint summaries, immutable roadmap parts) préservées per convention append-only.
+
+  **Invariants post-sprint** : 29 routes API (était 39, -10) ; tests 334 non-gated + 80 gated skipped (drop tests recap V1/V2) ; 0 reference cross-codebase à `monthly_recap` / `monthlyRecap` / `recapSnapshot` (sauf `prompt-montly-recap/` untracked = specs V3).
+
+  **Trade-off / leçons apprises** :
+  - **Path B closed-by-deletion à grande échelle** : V1+V2 dropped car 0 user touché. Si V2 avait été en prod auprès de >0 user, on aurait dû migrer leurs données vers V3 → bien plus coûteux. La règle "0 user → DELETE" est respectée.
+  - **Sprint 01 a oublié de re-exporter le baseline** : `supabase/migrations/20260101000000_remote_schema.sql` contenait encore les 4 tables V1/V2 droppées en prod → drift latent jusqu'au sprint 02 qui a fixé.
+  - **Migrations DROP ne sont PAS auto-appliquées via `supabase db push`** dans ce repo — le workflow est `node scripts/apply-sql.mjs` + `pnpm supabase migration repair --status applied <TS>`. La migration `20260523000000_drop_legacy_recap_tables.sql` était dans git mais pas forcément exécutée — il faut vérifier la prod avant tout nouveau sprint touchant le même domaine.
+
+- ✅ **Sprint Monthly-Recap-V3-Migrations** (sprint 02/17 Monthly Recap V3, livré 2026-05-24, suite logique de Clean-Slate-Recap).
+
+  **Constat pré-sprint** : Sprint 01 a fait table rase mais sans poser de schéma V3. Sprint 02 fait l'inverse : pose le schéma DB V3 from scratch (table `monthly_recaps` avec state machine + lock + refloats + snapshot JSONB) + flag carry-over sur les transactions réelles. Aucun code applicatif — sprints 03-17 portent l'usage.
+
+  **Architecture installée** :
+
+  **(1) Table `monthly_recaps` V3** ([supabase/migrations/20260524000000_create_monthly_recaps_v3.sql](../../supabase/migrations/20260524000000_create_monthly_recaps_v3.sql)) :
+  - 14 colonnes : `id`, owner XOR `profile_id`/`group_id`, `recap_month` smallint (1-12), `recap_year` smallint (2024-2100), `current_step` text+CHECK 6 valeurs (`welcome` → `summary` → `manage_bilan` → `salary_update` → `final_recap` → `completed`), lock `started_by_profile_id` ON DELETE SET NULL + `started_at` timestamptz, refloats `refloated_from_piggy`/`_from_savings` numeric(14,2), snapshot `budget_snapshot_data` jsonb DEFAULT `'{}'::jsonb` pour le puisage proportionnel différé ligne 3 (§4.B), `completed_at` + `created_at` + `updated_at`.
+  - CHECK constraints : `monthly_recaps_owner_exclusive_check` (XOR profile/group, pattern repo verbose `(((A AND NOT B) OR (NOT A AND B)))`), `monthly_recaps_recap_month_check`, `monthly_recaps_recap_year_check`, `monthly_recaps_current_step_check` (IN 6 valeurs).
+  - 3 indexes : 2 UNIQUE partiels (un par contexte profile/group, garantit 1 seul recap par mois par owner) + 1 lookup `_completed_lookup` pour `/api/monthly-recap/status` (proxy gating sprint 05).
+  - Trigger `update_monthly_recaps_updated_at BEFORE UPDATE EXECUTE FUNCTION update_updated_at_column()` (réutilise la fonction globale capturée en `20260512000000_capture_trigger_functions.sql`).
+  - `NOTIFY pgrst` à la fin pour PostgREST schema reload.
+
+  **(2) Flag carry-over sur transactions réelles** ([supabase/migrations/20260524000001_add_carry_over_flags.sql](../../supabase/migrations/20260524000001_add_carry_over_flags.sql)) :
+  - `ALTER TABLE real_expenses` + `real_income_entries` : add `is_carried_over boolean NOT NULL DEFAULT false` + `carried_from_recap_id uuid` (nullable, FK ON DELETE SET NULL vers `monthly_recaps(id)` — préserve la donnée user si recap source supprimé).
+  - 1 index partial par table : `WHERE is_carried_over = true` pour filtrer les transactions reportées sans full scan (dashboard recap UI sprint 15).
+
+  **(3) Capture rétroactive `rls_auto_enable`** ([supabase/migrations/20260524000002_capture_rls_auto_enable.sql](../../supabase/migrations/20260524000002_capture_rls_auto_enable.sql)) — orthogonal hygiene fix :
+  - Event-trigger function PG (auto-enable RLS sur toute nouvelle table `public.*` via `pg_event_trigger_ddl_commands()`) existait en DB mais n'avait jamais été versionnée.
+  - Surfacée par `pnpm db:audit-functions` post-application des 2 migrations sprint 02 (`MISSING_FROM_MIGRATIONS: 1 function(s)`).
+  - Capturée verbatim via `scripts/dump-functions.sql` étendu (IN list +1) + paste body dans migration `<TS>_capture_*.sql` (pattern A2 standard).
+
+  **(4) Re-export baseline depuis dev** : Le sprint 01 avait laissé un drift baseline ↔ prod (V1/V2 résiduelles dans baseline alors que DROP appliqué en prod). Sprint 02 re-exporte `20260101000000_remote_schema.sql` depuis le projet **dev** `ddehmjucyfgyppfkbddr` (cf. découverte mid-sprint : le workflow utilise dev, pas l'ex-prod `jzmppreybwabaeycvasz` que les scripts ciblaient par défaut). Baseline net : -140/+135 lignes, ~32k chars.
+
+  **(5) Regen `lib/database.types.ts`** depuis dev via `cmd /c "node_modules\.bin\supabase gen types typescript --project-id ddehmjucyfgyppfkbddr --schema public > lib/database.types.ts"` (contournement du script `pnpm db:types` hardcodé `--project-id jzmppreybwabaeycvasz`). UTF-8 preserved via cmd byte-passthrough.
+
+  **(6) `.prettierignore` étendu** : `prompt-montly-recap/` (dossier untracked de specs V3, 18 fichiers .md) ajouté pour ne plus faire échouer `pnpm format:check`.
+
+  **Commits livrés (4) sur branche `monthly_recap`** :
+  - `8cd6c8f chore(db): capture rls_auto_enable event trigger function`
+  - `dafd8a2 feat(recap): create monthly_recaps V3 schema with state machine + lock + snapshot`
+  - `7ff5aac feat(recap): add is_carried_over flags on real transactions`
+  - `3f2c4f8 chore(db): re-export baseline + regen types post-V3 (dev project)`
+
+  **Invariants post-sprint** : Functions DB versionnées 17/17 → **20/20** (`add_expense_with_breakdown` + ... + `rls_auto_enable` + `update_updated_at_column` + 16 autres). EXPECTED_RPCS reste 13. Tests stables 334/80. Routes API stables 29. `pnpm verify` exit 0 ✓.
+
+  **Trade-off / leçons apprises** :
+  - **Découverte projet dev/prod dual** : CLAUDE.md référençait uniquement `jzmppreybwabaeycvasz` comme "prod". L'utilisateur a un projet dev séparé `ddehmjucyfgyppfkbddr` (cloné via `scripts/clone-data.mjs` ajouté commit `7165ebc`). Tous les `scripts/db-*.mjs` ciblent prod par défaut → risque récurrent d'appliquer sur prod par erreur. Solution : nouvelle memory `feedback_supabase_project_target.md` + section §1 CLAUDE.md mise à jour avec override `$env:SUPABASE_PROJECT_REF`.
+  - **`pnpm db:types` hardcodé prod** : seul script DB qui ne respecte pas `SUPABASE_PROJECT_REF`. À refactor en sprint séparé (wrapper script `scripts/db-types.mjs` ou env var inline cross-platform). Pour l'instant, override manuel via `cmd /c "node_modules\.bin\supabase gen types ... --project-id dev ..."`.
+  - **Migrations non-idempotentes (CONSTRAINT/INDEX adds)** : seuls `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE ... DROP IF EXISTS`, `CREATE OR REPLACE FUNCTION` sont idempotents. `ALTER TABLE ... ADD CONSTRAINT/COLUMN/INDEX` throw si déjà présent. Conséquence : appliquer 2× sur le même projet échoue. Vérifier l'état (export-schema + grep) avant re-apply en cas de doute.
+  - **Capture orthogonale dans le même sprint** : pattern accepté d'inclure une migration de capture (`rls_auto_enable`) qui n'est pas dans le scope du sprint mais débloque `pnpm db:audit-functions` (et donc `pnpm verify`). Moins propre qu'un sprint dédié, mais évite de laisser verify rouge pendant des jours.
+  - **Apply accident sur prod** : 3 migrations sprint 02 ont été appliquées sur `jzmppreybwabaeycvasz` (prod) par défaut avant de découvrir que dev est `ddehmjucyfgyppfkbddr`. Décision user : laisser en l'état (le schéma V3 sans consumer applicatif est inerte, prod l'aurait reçu de toute façon plus tard). Pas de rollback. Memory `feedback_supabase_project_target` créée pour éviter récidive.
+
+  **Pattern à retenir** :
+  - **Avant tout `node scripts/apply-sql.mjs <file>` ou `node scripts/export-schema.mjs <file>`** : confirmer le projet cible (lire `$env:SUPABASE_PROJECT_REF` ou demander). Le log "Applying ... to project <REF>" doit matcher l'intention.
+  - **Lock initiateur (contexte groupe)** : `started_by_profile_id` + `started_at` columns sur `monthly_recaps`. Permet à n'importe quel membre du groupe d'ouvrir le recap, mais seul l'initiateur peut le finaliser (logique app sprints 05+).
+  - **State machine via text+CHECK** plutôt qu'ENUM PG : `current_step` text NOT NULL avec `CHECK (current_step IN (...))`. Cohérent avec pattern repo (cf. baseline pre-sprint pour `monthly_recaps_v2.current_step`). ENUM PG est plus rigide à muter (ALTER TYPE ADD VALUE non-transactional post-PG12).
+  - **JSONB snapshot vs table snapshot séparée** : décision V3 = `monthly_recaps.budget_snapshot_data jsonb` plutôt que table `recap_snapshots` séparée. Plus simple à query (1 SELECT, pas de JOIN), atomicité naturelle (RPC qui écrit recap + snapshot en 1 tx).
+  - **`SUPABASE_PROJECT_REF` env var override** : tous les scripts `scripts/*.mjs` (sauf wrap `pnpm db:types`) respectent `process.env.SUPABASE_PROJECT_REF ?? 'jzmppreybwabaeycvasz'`. Set inline avant la commande ou pour la session : `$env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'`.
