@@ -112,3 +112,31 @@ export const statusQuerySchema = z.object({
   context: contextSchema,
 })
 export type StatusQuery = z.infer<typeof statusQuerySchema>
+
+/**
+ * Enum miroir de `RecapStep` (`lib/recap/state.ts`). Dupliqué côté schema
+ * pour découpler le runtime Zod du module pure d'état. Toute évolution doit
+ * être appliquée aux deux endroits.
+ */
+export const recapStepSchema = z.enum([
+  'welcome',
+  'summary',
+  'manage_bilan',
+  'salary_update',
+  'final_recap',
+  'completed',
+])
+export type RecapStepInput = z.infer<typeof recapStepSchema>
+
+/**
+ * Body POST /api/monthly-recap/advance-step — endpoint générique de
+ * transition explicite du wizard (sprint 11). Utilisé par les écrans Welcome
+ * (welcome→summary) et Summary (summary→manage_bilan). Le serveur valide
+ * via `isAdvanceAllowed(fromStep, toStep)` + cohérence avec `current_step`.
+ */
+export const advanceStepBodySchema = z.object({
+  context: contextSchema,
+  fromStep: recapStepSchema,
+  toStep: recapStepSchema,
+})
+export type AdvanceStepBody = z.infer<typeof advanceStepBodySchema>

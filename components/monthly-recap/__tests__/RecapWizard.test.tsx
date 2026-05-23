@@ -15,6 +15,8 @@ const routerReplaceMock = vi.fn()
 
 vi.mock('@/hooks/useMonthlyRecap', () => ({
   useMonthlyRecap: (...args: unknown[]) => useMonthlyRecapMock(...(args as [])),
+  useStartRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAdvanceStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('next/navigation', () => ({

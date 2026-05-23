@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import {
+  advanceStepBodySchema,
   completeRecapBodySchema,
+  recapStepSchema,
   refloatFromPiggyBodySchema,
   refloatFromSavingsBodySchema,
   saveBudgetSnapshotBodySchema,
@@ -257,5 +259,79 @@ describe('statusQuerySchema', () => {
 
   it('rejects array context', () => {
     expect(statusQuerySchema.safeParse({ context: ['profile'] }).success).toBe(false)
+  })
+})
+
+describe('recapStepSchema', () => {
+  it('accepts the 6 RecapStep values', () => {
+    for (const step of [
+      'welcome',
+      'summary',
+      'manage_bilan',
+      'salary_update',
+      'final_recap',
+      'completed',
+    ]) {
+      expect(recapStepSchema.safeParse(step).success).toBe(true)
+    }
+  })
+
+  it('rejects unknown step strings', () => {
+    expect(recapStepSchema.safeParse('start').success).toBe(false)
+    expect(recapStepSchema.safeParse('').success).toBe(false)
+  })
+})
+
+describe('advanceStepBodySchema', () => {
+  it('accepts welcome → summary (profile)', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'profile',
+        fromStep: 'welcome',
+        toStep: 'summary',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('accepts summary → manage_bilan (group)', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'group',
+        fromStep: 'summary',
+        toStep: 'manage_bilan',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects missing context', () => {
+    expect(
+      advanceStepBodySchema.safeParse({ fromStep: 'welcome', toStep: 'summary' }).success,
+    ).toBe(false)
+  })
+
+  it('rejects unknown fromStep enum value', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'profile',
+        fromStep: 'intro',
+        toStep: 'summary',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects unknown toStep enum value', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'profile',
+        fromStep: 'welcome',
+        toStep: 'unknown',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects missing toStep', () => {
+    expect(
+      advanceStepBodySchema.safeParse({ context: 'profile', fromStep: 'welcome' }).success,
+    ).toBe(false)
   })
 })
