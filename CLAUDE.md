@@ -53,8 +53,8 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppf
 | `pnpm test:coverage`                       | Vitest avec coverage v8 (ad-hoc, pas un gate)                                                                                             |
 | `pnpm db:types`                            | Régénère `lib/database.types.ts` (sans redirection — le script écrit lui-même). Utilise `--project-id` (fonctionne sans `supabase link`). |
 | `pnpm db:check-drift`                      | Compare prod ↔ baseline. Exit 0 = clean, 1 = drift                                                                                        |
-| `pnpm db:check-rpcs`                       | Vérifie présence des **10 RPCs pinnées** dans `pg_proc`                                                                                   |
-| `pnpm db:check-functions`                  | Vérifie présence des 4 fonctions trigger custom                                                                                           |
+| `pnpm db:check-rpcs`                       | Vérifie présence des **16 RPCs pinnées** dans `pg_proc`                                                                                   |
+| `pnpm db:check-functions`                  | Vérifie présence des 5 fonctions trigger custom                                                                                           |
 | `pnpm db:check-types-fresh`                | Vérifie que `database.types.ts` matche prod                                                                                               |
 | `pnpm db:audit-functions`                  | Audit générique `pg_proc` ↔ migrations (lance après chaque migration touchant une fonction PL/pgSQL)                                      |
 | `pnpm db:audit-objects`                    | Audit générique étendu (functions, types, enums, domains, operators)                                                                      |
@@ -263,7 +263,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ## 9. Tests
 
 - **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
-- **Total** : 436 non-gated + 140 gated skipped (sans env vars).
+- **Total** : 447 non-gated + 158 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 

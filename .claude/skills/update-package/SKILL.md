@@ -457,10 +457,10 @@ pnpm build        → 🔴 BLOQUANT
 - 0 `as unknown as SupabaseClient`
 - 0 `declare global`
 - Lint baseline **0 errors / 0 warnings**
-- Tests non-gated **485 passants**
-- Tests gated **89 skipped** (sans env vars)
-- 54 routes API
-- 10 RPCs pinnées (`EXPECTED_RPCS` dans [scripts/check-rpcs.mjs](../../../scripts/check-rpcs.mjs))
+- Tests non-gated **447 passants**
+- Tests gated **158 skipped** (sans env vars)
+- 37 routes API
+- 16 RPCs pinnées (`EXPECTED_RPCS` dans [scripts/check-rpcs.mjs](../../../scripts/check-rpcs.mjs))
 
 ### Conventional Commits format
 

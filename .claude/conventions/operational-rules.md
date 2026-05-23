@@ -54,7 +54,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                    | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
 | `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings       | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 11` pinnés dans [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs).
+`EXPECTED_RPCS = 16` pinnés dans [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs). Hors-table (RPCs invoquées directement via `.rpc()` côté route ou orchestrateur, pas via un helper `lib/finance/*`) : `toggle_real_expense_applied_to_balance` + `toggle_real_income_applied_to_balance` (sprint Long-Press-Toggle 2026-05-23), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3 — orchestrées par `lib/recap/actions-finalize.ts::executeCompleteRecap`).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
