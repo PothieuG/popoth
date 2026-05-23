@@ -73,7 +73,15 @@ lib/
   # NOTE: lib/financial-logger.ts (288 LOC) supprimé au Sprint Refactor-I4 follow-up (warm-melody) —
   # son seul consumer (lib/api/finance/income-real.ts) utilisait 1 site, migré vers logger.debug.
   # NOTE: Sprint Clean-Slate-Recap (2026-05-23) — lib/database-snapshot.ts + lib/recap-snapshot.types.ts + lib/recap/ + lib/recap-legacy/ + lib/dev/ supprimés.
+  recap/                   # ✅ Sprint State-Lock-Schemas-V3 (sub-task 03/17 Monthly Recap V3, 2026-05-24) — fondations pure-async, 0 endpoint
+    state.ts               # RecapStep + RECAP_STEP_ORDER (6 étapes : welcome → summary → manage_bilan → salary_update → final_recap → completed) + isAdvanceAllowed (forward-only, skip permis) + nextRequiredStep (null sur terminal). Pure sync, 0 I/O.
+    check-status.ts        # checkRecapStatus(userId, context) async → RecapStatusResult avec discriminated union RecapStatusKind (kind: 'no_recap' | 'in_progress' | 'locked_by_other' | 'completed'). Lit monthly_recaps via .maybeSingle() (jamais .single() — sinon PGRST116 sur compte fresh). Orphan row (started_by_profile_id NULL) classée 'no_recap' (laisse /start re-claim). Group lock detection via JOIN PostgREST FK-hinted `starter:profiles!monthly_recaps_started_by_profile_id_fkey(first_name, last_name)`. RecapStatusError code: 'PROFILE_NOT_FOUND' | 'NO_GROUP'.
+    lock.ts                # isUserLocked(status) + isRecapBlocking(status) — helpers purs sync. isRecapBlocking returns false on 'completed' (le reste du mois est libre).
+    index.ts               # barrel — consumers : import { checkRecapStatus, isRecapBlocking, RECAP_STEP_ORDER, type RecapStep, ... } from '@/lib/recap'
+    __tests__/state.test.ts        # ✅ 17 cas non-gated pure : 8+ isAdvanceAllowed (forward/backward/skip/self-loop/terminal) + 6 nextRequiredStep + 1 RECAP_STEP_ORDER snapshot
+    __tests__/check-status.test.ts # gated SUPABASE_RECAP_TESTS=1 — 8 cas (no_recap profile + in_progress avec step=summary + completed + orphan row=no_recap + group in_progress initiator + group locked_by_other avec startedByName fetched + PROFILE_NOT_FOUND throw + NO_GROUP throw)
   schemas/                 # ✅ Sprint Refactor-I5 — Zod schemas API
+    # NOTE: recap.ts ajouté Sprint State-Lock-Schemas-V3 (sub-task 03/17, 2026-05-24) — 8 schémas (start, transferSurpluses, refloatFromPiggy, refloatFromSavings, saveBudgetSnapshot, updateSalaries, complete, statusQuery) réutilisant contextSchema/uuidSchema/nonNegativeMoneySchema de common.ts. Tests : __tests__/recap.test.ts ≥40 cas non-gated. Barrel index.ts étendu (`export * from './recap'`).
   api/                     # ✅ Sprint Refactor-Architecture v1+v2 — handlers extraits, ré-exportés par app/api/finance/**/route.ts
     parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest(error). Validation Zod centralisée pour les handlers
     __tests__/parse-body.test.ts  # ✅ Sprint Refactor-I5 — 6 cas non-gated (happy path, malformed JSON, schema mismatch, etc.)

@@ -71,7 +71,7 @@ Prod hébergée sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppf
 
 ### Tests gated (env var requise, sinon `describe.skipIf` skip)
 
-5 env vars activent les tests gated DB : `SUPABASE_RPC_CONCURRENCY_TESTS` / `_RLS_TESTS` / `_API_TESTS` / `_TRIGGER_TESTS` / `_FINANCE_TESTS`. Détails par scope → §9 Tests.
+6 env vars activent les tests gated DB : `SUPABASE_RPC_CONCURRENCY_TESTS` / `_RLS_TESTS` / `_API_TESTS` / `_TRIGGER_TESTS` / `_FINANCE_TESTS` / `_RECAP_TESTS`. Détails par scope → §9 Tests.
 
 ## 4. Structure du repo
 
@@ -98,7 +98,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
   - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
-- **Monthly Recap V3** : en cours d'implémentation, voir `prompt-montly-recap/` pour la spec. Sprint Clean-Slate-Recap (2026-05-23) a supprimé toutes les surfaces V1 inerte et V2 ossature (code + tables DB). Aucune trace de recap dans `app/`, `lib/`, `components/`, `hooks/`, à l'exception du dossier `prompt-montly-recap/` (specs V3 untracked). Pas de gating proxy.ts pour l'instant ; sera réintroduit en sous-tâche dédiée.
+- **Monthly Recap V3** : en cours d'implémentation, voir `prompt-montly-recap/` pour la spec. Sprints 01 Clean-Slate-Recap (2026-05-23, code + tables V1/V2 droppés) + 02 Migrations-V3 (2026-05-24, table `monthly_recaps` + state machine + lock + snapshot JSONB + carry-over flags) + 03 State+Schemas (2026-05-24) livrés. Fondations TS dans [lib/recap/](lib/recap/) : `state.ts` (RecapStep + isAdvanceAllowed + nextRequiredStep), `check-status.ts` (discriminated union `RecapStatusKind` + `.maybeSingle()` + lock detection via `started_by_profile_id`), `lock.ts` (helpers purs `isUserLocked`/`isRecapBlocking`). Schémas Zod des 8 endpoints futurs dans [lib/schemas/recap.ts](lib/schemas/recap.ts). Pas de gating proxy.ts pour l'instant ; sera réintroduit en sous-tâche dédiée (sprint 09+).
 - **Allocation des dépenses** : ordre de priorité **budget restant → savings (cascade UNIQUEMENT si overflow) → piggy JAMAIS auto-débitée** (Sprint P4-P5-P6 strict default). Toggle P5 (`useSavingsToggle: true`) inverse au profit des savings (opt-in user-driven). `calculateBreakdown` dans le module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (séparé de `expense-allocation.ts` pour éviter le bundling de service_role key côté client). L'écriture passe **toujours** par les helpers `lib/finance/*` (RPC atomiques).
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
 - **Globals partagés** : **0 occurrence** `declare global` dans le code.
@@ -115,8 +115,8 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **334**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped (sans env vars)    | **80**                    | idem (post Clean-Slate-Recap : tests gated recap supprimés)                                                              |
+| Tests non-gated passants               | **391**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)    | **88**                    | idem (sprint 03 V3 : +8 gated check-status sous `SUPABASE_RECAP_TESTS=1`)                                                |
 | Routes API                             | **29**                    | `pnpm build` (post Clean-Slate-Recap)                                                                                    |
 | Functions DB versionnées               | **20/20**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
@@ -263,7 +263,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ## 9. Tests
 
 - **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
-- **Total** : 334 non-gated + 80 gated skipped (sans env vars).
+- **Total** : 391 non-gated + 88 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 
@@ -272,10 +272,11 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **SUPABASE_API_TESTS=1** : régressions H1/H2/R2 + withAuth wrapper (12 cas).
 - **SUPABASE_TRIGGER_TESTS=1** : 4 fonctions trigger A2 + FK ON DELETE SET NULL.
 - **SUPABASE_FINANCE_TESTS=1** : 6 cas profile/group golden math + round-trip RAV.
+- **SUPABASE_RECAP_TESTS=1** : 8 cas `checkRecapStatus` V3 (4 fixtures `no_recap`/`in_progress`/`completed`/`locked_by_other` + orphan row + 2 erreurs `PROFILE_NOT_FOUND`/`NO_GROUP`).
 
 ### Tests non-gated par module
 
-Couverture par dossier : `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `lib/schemas/` (9 fichiers post Clean-Slate), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
+Couverture par dossier : `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `lib/schemas/` (10 fichiers : 9 post Clean-Slate + recap V3 40 cas), `lib/recap/` (state.ts 17 cas pure state machine + 8 gated check-status), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
 
 ### Patterns techniques
 
@@ -322,7 +323,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 334 non-gated / 80 gated. 29 routes API (post Clean-Slate-Recap). 13 RPCs pinnées + 20 functions versionnées (cf. §5.5). **Monthly Recap V3 en cours** — spec sous `prompt-montly-recap/` untracked, sprints 01-02/17 livrés (Clean-Slate-Recap 2026-05-23 + Migrations-V3 schema 2026-05-24).
+**État global** : Score audit estimé ~100/100. Lint baseline 0/0. Tests 391 non-gated / 88 gated. 29 routes API (post Clean-Slate-Recap). 13 RPCs pinnées + 20 functions versionnées (cf. §5.5). **Monthly Recap V3 en cours** — spec sous `prompt-montly-recap/` untracked, sprints 01-03/17 livrés (Clean-Slate-Recap 2026-05-23 + Migrations-V3 schema 2026-05-24 + State-Lock-Schemas 2026-05-24).
 
 **Historique** — 18 parts `.claude/history/roadmap-detailed-NN-*.md` (117 sprints) :
 
