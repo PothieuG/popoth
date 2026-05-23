@@ -30,26 +30,24 @@ interface BilanPositiveStepProps {
 
 /**
  * Sprint 12 — Écran 3A du wizard Monthly Recap V3 quand `bilanSign ∈
- * {'positive', 'zero'}`. Trois états logiques :
+ * {'positive', 'zero'}`. UI sans state machine "Oui/Non" : le bouton
+ * "Répartir un surplus vers la tirelire ?" est toujours présent tant qu'il
+ * reste des surplus à distribuer, et un bouton "Continuer" en bas finalise
+ * l'étape en transformant le reste en économies. Fermer le drawer (volontaire
+ * ou par mégarde) ne perd plus l'accès au split — le bouton "Répartir" reste
+ * visible pour rouvrir le drawer autant de fois que voulu (Sprint 12 follow-up
+ * UX, 2026-05-24).
  *
- * - `decided === null` : le user n'a pas encore tranché.
- *   - Si `hasSurplus` → section indicative + question Oui/Non.
- *   - Sinon → "Aucun surplus" + bouton Continuer direct (cas bilan = 0).
- *
- * - `decided === 'no'` : un seul bouton "Transformer tous les surplus en
- *   économies" qui appelle `/transform-remaining-surpluses-to-savings`. Le
- *   serveur fait avancer `current_step → salary_update` lui-même.
- *
- * - `decided === 'yes'` : ouvre `<SurplusSelectionDrawer>` pour choisir
- *   manuellement quels surplus passent dans la tirelire. Après le transfert :
- *   - S'il reste des surplus → bouton "Transformer les surplus restants en
- *     économies" + petit lien "Sélectionner d'autres surplus" pour rouvrir le
- *     drawer.
- *   - Sinon → "Plus de surplus disponible" + bouton "Continuer" (idem appel
- *     `/transform`, no-op safe + advance step).
+ * - Tant que `hasSurplus` : section indicative (récap transformation) +
+ *   bouton "Répartir" (ouvre `<SurplusSelectionDrawer>`) + bouton "Continuer"
+ *   (appelle `/transform-remaining-surpluses-to-savings`, transforme tous les
+ *   surplus restants en économies, le serveur fait avancer
+ *   `current_step → 'salary_update'`).
+ * - Quand tous les surplus ont été transférés (ou bilan = 0 sans surplus) :
+ *   message "Aucun surplus à transformer." + bouton "Continuer" seul (l'appel
+ *   transform est no-op safe côté serveur, sert juste à avancer le step).
  */
 export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) {
-  const [decided, setDecided] = useState<'yes' | 'no' | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -58,8 +56,9 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
 
   const surplusBudgets = summary.budgets.filter((b) => b.surplus > 0)
   const hasSurplus = surplusBudgets.length > 0
+  const isBusy = transferMutation.isPending || transformMutation.isPending
 
-  const handleTransformAll = async () => {
+  const handleContinue = async () => {
     setError(null)
     try {
       await transformMutation.mutateAsync()
@@ -77,11 +76,10 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
       const code = e instanceof Error ? e.message : 'unknown'
       setError(pickErrorCopy(code))
     } finally {
-      // Always close the drawer — either the transfer succeeded (caller picks
-      // the next action) or it failed (the user must see the alert, which the
-      // Radix dialog hides behind aria-hidden on siblings). The selection is
-      // lost on retry but the user can re-open via "Oui" or "Sélectionner
-      // d'autres surplus".
+      // Always close the drawer — either the transfer succeeded (the user
+      // picks the next action via the persistent "Répartir" / "Continuer"
+      // buttons below) or it failed (the Radix dialog otherwise aria-hides
+      // the error alert behind it).
       setDrawerOpen(false)
     }
   }
@@ -90,7 +88,7 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-gray-900">Gestion du bilan positif</h1>
 
-      {hasSurplus && (
+      {hasSurplus ? (
         <section className="rounded-2xl border border-green-200 bg-green-50 p-4">
           <p className="mb-2 text-xs font-medium tracking-wide text-green-700 uppercase">
             Transformation surplus → économies
@@ -109,102 +107,27 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
             Total des économies de chaque budget après transformation.
           </p>
         </section>
-      )}
-
-      {!hasSurplus && (
+      ) : (
         <section className="rounded-2xl border border-gray-200 bg-white p-4">
-          <p className="text-sm text-gray-700">Aucun surplus à transformer ce mois-ci.</p>
+          <p className="text-sm text-gray-700">Aucun surplus à transformer.</p>
         </section>
       )}
 
-      {hasSurplus && decided === null && (
-        <section className="space-y-3">
-          <p className="text-sm font-medium text-gray-900">
-            Voulez-vous ajouter un ou plusieurs surplus à la tirelire ?
-          </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1"
-              onClick={() => setDecided('no')}
-            >
-              Non
-            </Button>
-            <Button
-              type="button"
-              className="flex-1"
-              onClick={() => {
-                setDecided('yes')
-                setDrawerOpen(true)
-              }}
-            >
-              Oui
-            </Button>
-          </div>
-        </section>
-      )}
-
-      {hasSurplus && decided === 'no' && (
+      {hasSurplus && (
         <Button
           type="button"
-          className="w-full"
-          onClick={handleTransformAll}
-          disabled={transformMutation.isPending}
+          variant="secondary"
+          className="w-full border border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100"
+          onClick={() => setDrawerOpen(true)}
+          disabled={isBusy}
         >
-          {transformMutation.isPending
-            ? 'Transformation…'
-            : 'Transformer tous les surplus en économies'}
+          Répartir un surplus vers la tirelire ?
         </Button>
       )}
 
-      {hasSurplus && decided === 'yes' && !drawerOpen && (
-        <div className="space-y-2">
-          <Button
-            type="button"
-            className="w-full"
-            onClick={handleTransformAll}
-            disabled={transformMutation.isPending}
-          >
-            {transformMutation.isPending
-              ? 'Transformation…'
-              : 'Transformer les surplus restants en économies'}
-          </Button>
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto w-full justify-center px-1 py-0 text-sm text-orange-700"
-            onClick={() => setDrawerOpen(true)}
-          >
-            Sélectionner d&apos;autres surplus
-          </Button>
-        </div>
-      )}
-
-      {!hasSurplus && decided === 'yes' && (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-700">Plus de surplus disponible.</p>
-          <Button
-            type="button"
-            className="w-full"
-            onClick={handleTransformAll}
-            disabled={transformMutation.isPending}
-          >
-            {transformMutation.isPending ? 'Chargement…' : 'Continuer'}
-          </Button>
-        </div>
-      )}
-
-      {!hasSurplus && decided === null && (
-        <Button
-          type="button"
-          className="w-full"
-          onClick={handleTransformAll}
-          disabled={transformMutation.isPending}
-        >
-          {transformMutation.isPending ? 'Chargement…' : 'Continuer'}
-        </Button>
-      )}
+      <Button type="button" className="w-full" onClick={handleContinue} disabled={isBusy}>
+        {transformMutation.isPending ? 'Chargement…' : 'Continuer'}
+      </Button>
 
       {error && (
         <p role="alert" className="text-sm text-red-700">

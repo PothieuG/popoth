@@ -91,46 +91,112 @@ afterEach(() => {
 })
 
 describe('BilanPositiveStep', () => {
-  describe('initial state (decided=null) with surplus', () => {
+  describe('with surplus', () => {
     it('renders the indicative section showing cumulatedSavings + surplus per budget', () => {
       render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
 
-      // Section header
       expect(screen.getByText('Transformation surplus → économies')).toBeInTheDocument()
-
       // Each budget row shows the post-transformation total :
       //   Courses : 25 + 120 = 145,00 €
       //   Loisirs :  0 + 60  =  60,00 €
       //   Transport : 10 + 50 = 60,00 €
-      // Intl.NumberFormat fr-FR uses U+202F / U+00A0 — \s matches both.
       expect(screen.getByText('Courses')).toBeInTheDocument()
       expect(screen.getByText(/145,00/)).toBeInTheDocument()
-      // 60,00 appears twice (Loisirs + Transport) — assert via length to keep it tight.
+      // 60,00 appears twice (Loisirs + Transport).
       expect(screen.getAllByText(/60,00/)).toHaveLength(2)
     })
 
-    it('renders the Oui/Non question with both buttons', () => {
+    it('renders both the persistent "Répartir" button and the "Continuer" button', () => {
       render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
 
       expect(
-        screen.getByText('Voulez-vous ajouter un ou plusieurs surplus à la tirelire ?'),
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
       ).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Oui' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Non' })).toBeInTheDocument()
-    })
-  })
-
-  describe('decided=null without surplus (bilanSign=zero edge case)', () => {
-    it('shows "Aucun surplus" copy and a direct Continuer button (no Oui/Non question)', () => {
-      render(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
-
-      expect(screen.getByText('Aucun surplus à transformer ce mois-ci.')).toBeInTheDocument()
-      expect(screen.queryByText(/Voulez-vous ajouter/)).not.toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Oui' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
 
-    it('calls transform mutation on direct Continuer click', async () => {
+    it('opens the drawer when "Répartir" is clicked', async () => {
+      const user = userEvent.setup()
+      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
+
+      await user.click(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      )
+
+      expect(
+        screen.getByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+      ).toBeInTheDocument()
+    })
+
+    it('"Répartir" button remains visible after the user closes the drawer without transferring', async () => {
+      const user = userEvent.setup()
+      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
+
+      await user.click(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      )
+      // User mis-clicks Fermer
+      await user.click(screen.getByRole('button', { name: 'Fermer' }))
+
+      // The key UX guarantee : the "Répartir" button must still be there so
+      // the user can re-open the drawer.
+      expect(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      ).toBeInTheDocument()
+      // Drawer should be unmounted
+      expect(
+        screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('Continuer click calls transform mutation', async () => {
+      const user = userEvent.setup()
+      transformMock.mockResolvedValueOnce({})
+
+      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
+      await user.click(screen.getByRole('button', { name: 'Continuer' }))
+
+      await waitFor(() => {
+        expect(transformMock).toHaveBeenCalledTimes(1)
+      })
+      expect(transferMock).not.toHaveBeenCalled()
+    })
+
+    it('shows "Chargement…" + disables Continuer while transform mutation is pending', async () => {
+      transformPending = true
+      const user = userEvent.setup()
+
+      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
+
+      const continueBtn = screen.getByRole('button', { name: 'Chargement…' })
+      expect(continueBtn).toBeDisabled()
+
+      // Répartir is also disabled to prevent a race (open drawer while
+      // transform is in-flight).
+      const repartirBtn = screen.getByRole('button', {
+        name: 'Répartir un surplus vers la tirelire ?',
+      })
+      expect(repartirBtn).toBeDisabled()
+
+      await user.click(repartirBtn)
+      expect(
+        screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  describe('without surplus (bilanSign=zero edge case OR all transferred)', () => {
+    it('shows "Aucun surplus" copy + only Continuer button (no Répartir)', () => {
+      render(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
+
+      expect(screen.getByText('Aucun surplus à transformer.')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
+    })
+
+    it('Continuer click calls transform mutation (no-op safe + advances step)', async () => {
       const user = userEvent.setup()
       transformMock.mockResolvedValueOnce({})
 
@@ -143,79 +209,25 @@ describe('BilanPositiveStep', () => {
     })
   })
 
-  describe('decided=no flow', () => {
-    it('reveals "Transformer tous les surplus en économies" after Non click', async () => {
-      const user = userEvent.setup()
-      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-
-      await user.click(screen.getByRole('button', { name: 'Non' }))
-
-      expect(
-        screen.getByRole('button', { name: 'Transformer tous les surplus en économies' }),
-      ).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Oui' })).not.toBeInTheDocument()
-    })
-
-    it('on click "Transformer tous", calls transform mutation', async () => {
-      const user = userEvent.setup()
-      transformMock.mockResolvedValueOnce({})
-
-      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Non' }))
-      await user.click(
-        screen.getByRole('button', { name: 'Transformer tous les surplus en économies' }),
-      )
-
-      await waitFor(() => {
-        expect(transformMock).toHaveBeenCalledTimes(1)
-      })
-      expect(transferMock).not.toHaveBeenCalled()
-    })
-
-    it('shows "Transformation…" label after Non click while transform mutation is pending', async () => {
-      // Set pending=true BEFORE render so the hook closure picks it up on
-      // first call. Clicking Non triggers a re-render but the mock keeps
-      // returning isPending=true.
-      transformPending = true
-      const user = userEvent.setup()
-
-      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Non' }))
-
-      expect(screen.getByRole('button', { name: 'Transformation…' })).toBeDisabled()
-    })
-  })
-
-  describe('decided=yes flow', () => {
-    it('opens the drawer on Oui click', async () => {
-      const user = userEvent.setup()
-      render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-
-      await user.click(screen.getByRole('button', { name: 'Oui' }))
-
-      expect(
-        screen.getByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
-      ).toBeInTheDocument()
-    })
-
-    it('after partial transfer: drawer closes + "Transformer les surplus restants" + "Sélectionner d\'autres surplus" link', async () => {
+  describe('drawer transfer interactions', () => {
+    it('after PARTIAL transfer: drawer closes, "Répartir" still visible, list shows remaining surpluses', async () => {
       const user = userEvent.setup()
       transferMock.mockResolvedValueOnce({
         transferred: [{ budgetId: 'b2', amount: 60 }],
         failed: [],
-        // The mutation `setQueryData` is applied in the hook (mocked away here)
-        // so the local `summary` prop stays the same. The component routes by
-        // its own state — we just check the post-success UI.
         summary: makeSummary(),
       })
 
       const { rerender } = render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Oui' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      )
       await user.click(screen.getByRole('button', { name: /Loisirs/ }))
       await user.click(screen.getByRole('button', { name: /Transférer.+60,00/ }))
 
-      // Simulate parent re-render after the partial transfer (Loisirs gone,
-      // 2 surpluses left).
+      // Parent re-renders with Loisirs gone (the hook's setQueryData would
+      // do this in the real app via TanStack Query; in tests we simulate
+      // by passing a fresh summary prop).
       rerender(
         <BilanPositiveStep
           context="profile"
@@ -246,91 +258,51 @@ describe('BilanPositiveStep', () => {
       )
 
       await waitFor(() => {
+        // Drawer is closed
         expect(
-          screen.getByRole('button', { name: 'Transformer les surplus restants en économies' }),
-        ).toBeInTheDocument()
+          screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+        ).not.toBeInTheDocument()
       })
+      // The Répartir button is back, and Continuer is still there.
       expect(
-        screen.getByRole('button', { name: "Sélectionner d'autres surplus" }),
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
       ).toBeInTheDocument()
-      // Drawer must be unmounted
-      expect(
-        screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
-      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
+      // Loisirs row is gone, Courses + Transport remain in the indicative list.
+      expect(screen.queryByText('Loisirs')).not.toBeInTheDocument()
+      expect(screen.getByText('Courses')).toBeInTheDocument()
+      expect(screen.getByText('Transport')).toBeInTheDocument()
     })
 
-    it('after full transfer: shows "Plus de surplus disponible" + Continuer button', async () => {
+    it('after FULL transfer: drawer closes, Répartir disappears, only Continuer left', async () => {
       const user = userEvent.setup()
       transferMock.mockResolvedValueOnce({
-        transferred: [{ budgetId: 'b1', amount: 120 }],
+        transferred: [
+          { budgetId: 'b1', amount: 120 },
+          { budgetId: 'b2', amount: 60 },
+          { budgetId: 'b3', amount: 50 },
+        ],
         failed: [],
         summary: makeSummary(),
       })
 
       const { rerender } = render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Oui' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      )
       await user.click(screen.getByRole('button', { name: /Courses/ }))
       await user.click(screen.getByRole('button', { name: /Transférer/ }))
 
-      // Simulate parent re-render with all surpluses cleared.
+      // Parent re-renders with all surpluses cleared.
       rerender(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
 
       await waitFor(() => {
-        expect(screen.getByText('Plus de surplus disponible.')).toBeInTheDocument()
+        expect(screen.getByText('Aucun surplus à transformer.')).toBeInTheDocument()
       })
-      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
-    })
-
-    it('"Sélectionner d\'autres surplus" link re-opens the drawer', async () => {
-      const user = userEvent.setup()
-      transferMock.mockResolvedValueOnce({
-        transferred: [{ budgetId: 'b2', amount: 60 }],
-        failed: [],
-        summary: makeSummary(),
-      })
-
-      const { rerender } = render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Oui' }))
-      await user.click(screen.getByRole('button', { name: /Loisirs/ }))
-      await user.click(screen.getByRole('button', { name: /Transférer/ }))
-
-      rerender(
-        <BilanPositiveStep
-          context="profile"
-          summary={makeSummary({
-            totalSurplus: 170,
-            budgets: [
-              {
-                budgetId: 'b1',
-                budgetName: 'Courses',
-                estimatedAmount: 400,
-                spentThisMonth: 280,
-                cumulatedSavings: 25,
-                surplus: 120,
-                deficit: 0,
-              },
-              {
-                budgetId: 'b3',
-                budgetName: 'Transport',
-                estimatedAmount: 80,
-                spentThisMonth: 30,
-                cumulatedSavings: 10,
-                surplus: 50,
-                deficit: 0,
-              },
-            ],
-          })}
-        />,
-      )
-
-      const reopenLink = await screen.findByRole('button', {
-        name: "Sélectionner d'autres surplus",
-      })
-      await user.click(reopenLink)
-
       expect(
-        screen.getByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
-      ).toBeInTheDocument()
+        screen.queryByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
   })
 
@@ -340,10 +312,7 @@ describe('BilanPositiveStep', () => {
       transformMock.mockRejectedValueOnce(new Error('invalid_step'))
 
       render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Non' }))
-      await user.click(
-        screen.getByRole('button', { name: 'Transformer tous les surplus en économies' }),
-      )
+      await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(/Cette étape n'est plus accessible/)
@@ -367,7 +336,9 @@ describe('BilanPositiveStep', () => {
       transferMock.mockRejectedValueOnce(new Error('not_initiator'))
 
       render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
-      await user.click(screen.getByRole('button', { name: 'Oui' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
+      )
       await user.click(screen.getByRole('button', { name: /Courses/ }))
       await user.click(screen.getByRole('button', { name: /Transférer/ }))
 
