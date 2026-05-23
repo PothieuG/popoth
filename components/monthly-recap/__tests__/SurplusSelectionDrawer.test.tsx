@@ -38,7 +38,7 @@ describe('SurplusSelectionDrawer', () => {
     )
 
     expect(
-      screen.getByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+      screen.getByRole('heading', { name: 'Répartir vers la tirelire' }),
     ).toBeInTheDocument()
 
     const rows = screen.getAllByRole('button', { pressed: false })

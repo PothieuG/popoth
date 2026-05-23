@@ -67,29 +67,29 @@ export function SurplusSelectionDrawer({
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
-        <div className="shrink-0 border-b border-orange-200 bg-orange-50 px-4 py-4">
+        <div className="shrink-0 border-b border-violet-200 bg-violet-50 px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
                 aria-hidden="true"
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500 text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500 text-white"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M3 10h2l1 9h12l1-9h2M5 10V6a2 2 0 012-2h10a2 2 0 012 2v4M9 14h6"
+                    d="M12 8v8m4-4H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
               </div>
               <div>
                 <DialogTitle asChild>
-                  <h2 className="text-xl font-bold text-orange-900">
-                    Sélectionner les surplus à transférer
+                  <h2 className="text-xl font-bold text-violet-900">
+                    Répartir vers la tirelire
                   </h2>
                 </DialogTitle>
-                <p className="text-sm text-orange-800/80">
+                <p className="text-sm text-violet-800/80">
                   Tape sur une ligne pour la sélectionner.
                 </p>
               </div>
@@ -114,18 +114,18 @@ export function SurplusSelectionDrawer({
                       className={cn(
                         'flex w-full items-center justify-between rounded-lg border px-3 py-3 transition-colors',
                         isSelected
-                          ? 'border-orange-300 bg-orange-50'
-                          : 'border-gray-200 bg-white hover:border-orange-200',
+                          ? 'border-violet-300 bg-violet-50'
+                          : 'border-gray-200 bg-white hover:border-violet-200',
                       )}
                     >
                       <span className="text-sm text-gray-900">{b.budgetName}</span>
                       <span className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-orange-700">
+                        <span className="text-sm font-medium text-violet-700">
                           +{formatEuro(b.surplus)}
                         </span>
                         {isSelected && (
                           <svg
-                            className="h-5 w-5 text-orange-600"
+                            className="h-5 w-5 text-violet-600"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"

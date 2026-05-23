@@ -136,7 +136,7 @@ describe('BilanPositiveStep', () => {
       )
 
       expect(
-        screen.getByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+        screen.getByRole('heading', { name: 'Répartir vers la tirelire' }),
       ).toBeInTheDocument()
     })
 
@@ -157,7 +157,7 @@ describe('BilanPositiveStep', () => {
       ).toBeInTheDocument()
       // Drawer should be unmounted
       expect(
-        screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+        screen.queryByRole('heading', { name: 'Répartir vers la tirelire' }),
       ).not.toBeInTheDocument()
     })
 
@@ -192,7 +192,7 @@ describe('BilanPositiveStep', () => {
 
       await user.click(repartirBtn)
       expect(
-        screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+        screen.queryByRole('heading', { name: 'Répartir vers la tirelire' }),
       ).not.toBeInTheDocument()
     })
   })
@@ -272,7 +272,7 @@ describe('BilanPositiveStep', () => {
       await waitFor(() => {
         // Drawer is closed
         expect(
-          screen.queryByRole('heading', { name: 'Sélectionner les surplus à transférer' }),
+          screen.queryByRole('heading', { name: 'Répartir vers la tirelire' }),
         ).not.toBeInTheDocument()
       })
       // The Répartir button is back, and Continuer is still there.
