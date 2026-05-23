@@ -1,4 +1,4 @@
-# Roadmap détaillé — Part 19 : Endpoints-START-STATUS-V3 → …
+# Roadmap détaillé — Part 19 : Endpoints-START-STATUS-V3 → Endpoints-Negative-Flow-V3
 
 > Chronologie des sprints livrés à partir de 2026-05-25 (suite de [roadmap-detailed-18-modal-enter-block.md](roadmap-detailed-18-modal-enter-block.md)). Split préemptif pour rester sous le cap 39.5k chars/fichier — la Part 18 plafonnait à ~39k post-Calculations-V3, ajouter sprint 05 verbatim aurait franchi la limite.
 
@@ -140,3 +140,53 @@
   - **Boucle fail-soft over atomic-per-row helpers**. Quand on a N items à muter et que chaque mutation est atomique séparément (RPC unique-tx), la boucle for try/catch + accumulator `failed[]` + 200 avec detail est le pattern propre. Pas besoin d'une wrapper-RPC multi-row (coûteuse à écrire, fragile à la signature). L'idempotence est garantie par les guards in-RPC (re-read row → no-op si rien à faire).
 
   - **Helper exécution séparé de la route**. Routes deviennent thin (parseBody + 3 validations + délégation). La logique métier (boucles, calculs, UPDATE state) vit dans `lib/recap/actions-*.ts` — testable en pure unit-test si on mocke supabaseServer, et réutilisable cross-routes si besoin. Anti-pattern : tout dans la route → tests gated obligatoires pour couvrir la logique métier.
+
+- ✅ **Sprint Endpoints-Negative-Flow-V3** (sprint 07/17 Monthly Recap V3, livré 2026-05-23, commit `59aa0b6 feat`). 3 endpoints du flow négatif 4.B (bilan < 0) + `actions-negative.ts` (5 exports : 3 execute helpers + 2 purs + `RecapActionError`) + 36 tests (12 non-gated helpers purs + 24 gated routes). Aucune nouvelle RPC PG — réutilisation pure de `update_piggy_bank_amount` et `update_budget_cumulated_savings`.
+
+  **Architecture installée** :
+
+  **(1) Helpers purs partagés** dans [lib/recap/actions-negative.ts](../../lib/recap/actions-negative.ts) :
+  - `sumSnapshotValues(snapshot: Record<string, number> | null | undefined): number` — somme cents-precise via `round2`, retourne 0 sur null/undefined/{}.
+  - `computeDeficitRemaining({ initialBilan, refloatedFromPiggy, refloatedFromSavings, snapshotData }): number` — formule `round2(|bilan| − refloatPiggy − refloatSavings − sumSnapshot(snapshot))`. Pas de validation `initialBilan < 0` (caller responsibility). Re-exporté depuis [lib/recap/index.ts](../../lib/recap/index.ts) (`computeDeficitRemaining`, `sumSnapshotValues`, type `ComputeDeficitArgs`) pour usage côté client en sprint 13 (compteur déficit live sur écran 3B).
+
+  **(2) `RecapActionError extends Error`** : `{ code: string, status: number, extras: Record<string, unknown> }`. Surface les erreurs métier (`no_deficit`, `overflow`, `piggy_insufficient`) depuis les `executeXxx` jusqu'au catch des routes, qui sérialise via une seule branche `instanceof` (`NextResponse.json({ error: error.code, ...error.extras }, { status: error.status })`). Évite duplication des 3 validations métier × 3 routes = 9 branches.
+
+  **(3) `executeRefloatFromPiggy({ context, filter, profileId, groupId, recap, amount })`** : `loadRecapSummary` AVANT → check `bilanSign === 'negative'` (throw `no_deficit/409` sinon) → `computeDeficitRemaining` (throw `no_deficit/409` si ≤ 0.01) → validation amount cents-precise (`> deficitRemaining + 0.01` → `overflow/400 + { deficitRemaining }`, `> piggyAmount + 0.01` → `piggy_insufficient/400 + { available }`) → `await updatePiggyBank(filter, -amount)` (RPC atomique) → `UPDATE monthly_recaps SET refloated_from_piggy = round2(prev + amount)` séparé (logged si fail, orphan debit accepté). Pas d'avancement `current_step`. Return `{ newDeficit, refloatedFromPiggy, summary }`.
+
+  **(4) `executeRefloatFromSavings({ context, profileId, groupId, recap })`** : `loadRecapSummary` → check bilan négatif → check deficit > 0.01 → `computeProportionalSavingsRefloat(deficitRemaining, summary.budgets)`. Si `allocation.totalAllocated === 0` (pool savings vide) → no-op return avec `shortfall = deficitRemaining` (pas une erreur — l'UI doit afficher la ligne en indicatif). Loop fail-soft : `updateBudgetCumulatedSavings(budgetId, -share)` par budget, push `applied[]` ou `failed[]`. `totalApplied = round2(sum applied)` ; UPDATE `monthly_recaps.refloated_from_savings += totalApplied`. Return `{ newDeficit, refloatedFromSavings, perBudget, failed, shortfall, summary }`. Pas d'avancement state.
+
+  **(5) `executeSaveBudgetSnapshot({ context, profileId, groupId, recap })`** : `loadRecapSummary` → check bilan négatif → calcul `deficitRemaining` **avec `snapshotData: null` volontaire** (le snapshot existant est exclu de la cible — on re-calcule à partir du déficit après piggy+savings only). Throw `no_deficit/409` si ≤ 0.01. `computeProportionalBudgetSnapshot(deficitRemaining, summary.budgets)` (pool = `estimated_amount`, décision sprint 04). Build `mergedSnapshot: Record<budgetId, amount>` from `allocation.perBudget` (**overwrite total**, pas append). UPDATE `monthly_recaps.budget_snapshot_data` JSONB single statement. `newDeficit = round2(deficitRemaining - allocation.totalAllocated)`. Si `≤ 0.01` → UPDATE `current_step = 'salary_update'` (seul endpoint qui avance la state machine). Return `{ newDeficit, snapshot, perBudget, shortfall, nextStep }`. **Snapshot non-appliqué** à `estimated_budgets.carryover_spent_amount` ici — différé au finalize (sprint 08).
+
+  **(6) Routes thin** `app/api/monthly-recap/{refloat-from-piggy,refloat-from-savings,save-budget-snapshot}/route.ts` — pattern identique sprint 06 (`withAuthAndProfile` + `parseBody` + 5-level gates Zod/group/active-recap/initiator/step) + délégation à `executeXxx` + catch sérialise `BadRequestError` puis `RecapActionError` puis fallback 500. ALLOWED_STEPS = `['summary', 'manage_bilan']`.
+
+  **(7) Schémas Zod tightened** ([lib/schemas/recap.ts](../../lib/schemas/recap.ts)) : `refloatFromSavingsBodySchema` passe de `{context, amount}` → `{context}` only ; `saveBudgetSnapshotBodySchema` passe de `{context, snapshot: Record<uuid, money>}` → `{context}` only. **Rectifie la pré-déclaration sprint 03** qui anticipait des payloads user-controlled — la spec source `00-Detailed_feature.md §4.B` mandate "un seul bouton 'puiser proportionnellement' avec allocation server-side", pas de saisie manuelle des montants par budget. Test cases mis à jour en miroir (10 cas refactorés sur les 41 du fichier recap.test.ts).
+
+  **Tests** (36 cas) :
+  - **Non-gated** (12) : `lib/recap/__tests__/actions-negative.test.ts` — 6 cas `sumSnapshotValues` (null/undefined/{}/cents sum/float drift/single-key) + 6 cas `computeDeficitRemaining` (zero refloat/all sources/exact cover/over-refloated negative/positive bilan caller responsibility/snapshot float drift). 0 I/O.
+  - **Gated `SUPABASE_RECAP_TESTS=1`** (24) : 8 cas par route × 3 routes. Pattern miroir sprint 06 (mock `withAuthAndProfile`, seed userA/userB/groupA dans `beforeAll`, `afterEach` reset state). **Bilan engineering** : pour profil fresh sans incomes, `bilan = −2 × Σ estimated_amount` (ravEstime = ravEffectif = −Σ). Donc `seedBudget({ estimated: 40 })` → bilan = −80 → deficit = 80. Cas couverts par route : happy / partial ou pool-edge / overflow ou cents-precise / no_deficit (bilan ≥ 0) / completed → 404 / not_initiator (group) / invalid_step (`salary_update`) + 1-2 cas spécifiques (piggy_insufficient pour refloat-piggy ; pool=0 et pool=deficit-exact pour refloat-savings ; overwrite idempotent pour save-snapshot).
+
+  Total tests : **424 → 436** non-gated (+12 helpers), **116 → 140** gated skipped (+24 routes). Verify exit 0 (typecheck + lint + format + tests + md-size) — `db:check-drift` reste sur dérive pré-existante (1-line offset baseline vs prod, hors scope sprint 07).
+
+  **Files livrés (commit `59aa0b6`, 11 fichiers, +1918/-51 LOC)** :
+  - **Nouveaux** (8) : `lib/recap/actions-negative.ts`, `lib/recap/__tests__/actions-negative.test.ts`, 3× `app/api/monthly-recap/{refloat-from-piggy,refloat-from-savings,save-budget-snapshot}/route.ts` + 3× `__tests__/route.integration.test.ts`.
+  - **Modifiés** (3) : `lib/schemas/recap.ts` (2 schemas tightened + commentaires), `lib/schemas/__tests__/recap.test.ts` (10 cas refactor pour les 2 schemas modifiés), `lib/recap/index.ts` (+3 re-exports `computeDeficitRemaining` / `sumSnapshotValues` / `ComputeDeficitArgs`).
+
+  **Trade-off / leçons apprises** :
+  - **Non-composite atomicity acceptée + orphan debit logged**. `updatePiggyBank(filter, -amount)` puis `UPDATE monthly_recaps.refloated_from_piggy` sont 2 statements supabaseServer distincts — si le 2ème fail après succès du 1er, débit piggy orphelin non-tracké côté state machine. Décision sprint 07 : accepter plutôt que créer une RPC composite (mitigation `logger.error` grep-able + UI disable pendant `isPending`). Si surface en prod : RPC composite en sprint follow-up.
+
+  - **`save-budget-snapshot` overwrite total, pas additive**. La pré-version du prompt sprint 07 suggérait additive (chunking UI). User a clarifié que c'est server-side proportional (un seul bouton "Puiser proportionnellement") — pas de Record per-budget en input. Overwrite cohérent : re-clic recalcule à partir du déficit post-piggy+savings (idempotent). Le `computeDeficitRemaining` côté snapshot passe **`snapshotData: null` volontaire** pour exclure l'ancien snapshot de la cible.
+
+  - **Schémas tightened post-sprint 03 anticipation**. Sprint 03 avait pré-déclaré `refloatFromSavingsBodySchema` + `saveBudgetSnapshotBodySchema` avec amount/snapshot inputs. Sprint 07 a lu la spec source §4.B + sprint 04 calculations.ts pour confirmer que les 2 endpoints prennent `{context}` only. Leçon : pré-déclarer un schéma trop tôt fige une mauvaise hypothèse — préférer déclarer au sprint final, pas au sprint préparatoire.
+
+  - **`RecapActionError` lift business errors vers HTTP**. Les 3 `executeXxx` throw `new RecapActionError(code, status, extras?)` ; le catch des routes fait `if (error instanceof RecapActionError) return NextResponse.json({ error: error.code, ...error.extras }, { status: error.status })`. Évite 9 if/else dupliqués (3 routes × 3 validations métier). Pattern à reproduire sprints 08/09.
+
+  - **Bilan engineering pour tests gated**. Pour profil fresh (no incomes, no real expenses) : `bilan = 2 × (−Σ estimated_amount)`. Donc `seedBudget({ estimated: 40 })` → bilan = −80 → deficit = 80. Pour cas pool > deficit (snapshot happy path), pré-créditer `refloated_from_piggy` sur la row recap pour réduire `deficitRemaining` < `Σ estimated` (sinon impossible : pool = Σ ≤ deficit = 2×Σ).
+
+  - **`current_step` advance UNIQUEMENT depuis save-budget-snapshot**. Décision user : refloat-from-piggy + refloat-from-savings ne touchent jamais `current_step` même si deficit=0. L'UI décide : si piggy a généré un surplus résiduel, bascule vers flow positif (`transform-remaining-surpluses-to-savings` avance via son propre chemin) ; sinon save-snapshot couvre le reste et advance vers `salary_update`.
+
+  **Pattern à retenir** :
+  - **Helpers purs partagés client/serveur**. `sumSnapshotValues` + `computeDeficitRemaining` sync, 0 I/O, exportés via `lib/recap/index.ts` pour usage client (sprint 13 compteur live). Critère : 0 import Supabase, 0 logger, 0 side-effect. Pattern à reproduire pour tout helper finance pure qui sert sur les 2 stacks.
+
+  - **Schéma Zod = forme exacte du payload server-computed**. Si une opération est "le serveur calcule", body Zod minimal (`{context}` seul). Pas de champ optionnel ignoré. Évite que des clients legacy postent des payloads obsolètes silencieusement acceptés.
+
+  - **`RecapActionError` pour validations métier post-loadSummary**. Quand une validation dépend d'un état asynchrone (load summary → check bilan → check deficit), encapsuler dans une error class typée évite la fragmentation entre route gates (sync if/else) et helper validation (post-summary). Le catch unifie.
