@@ -45,6 +45,10 @@ const EXPECTED_RPCS = [
   // Sprint 05 Monthly Recap V3 (2026-05-25) —
   // supabase/migrations/20260525000000_create_recap_start_rpc.sql
   'start_monthly_recap',
+  // Sprint 08 Monthly Recap V3 (2026-05-26) —
+  // supabase/migrations/20260526000000_create_recap_finalize_rpcs.sql
+  'finalize_recap_apply_snapshot',
+  'process_recap_transactions',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

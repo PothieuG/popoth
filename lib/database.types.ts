@@ -747,6 +747,14 @@ export type Database = {
         }
         Returns: Json
       }
+      finalize_recap_apply_snapshot: {
+        Args: { p_recap_id: string; p_snapshot: Json }
+        Returns: Json
+      }
+      process_recap_transactions: {
+        Args: { p_group_id?: string; p_profile_id?: string; p_recap_id: string }
+        Returns: Json
+      }
       start_monthly_recap: {
         Args: {
           p_group_id?: string

@@ -83,7 +83,8 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  34k   Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4)
 │   ├─ roadmap-detailed-17-delete-header-income-polish.md             19k   Delete-Header-And-Income-Polish → Group-Transaction-Creator-Avatar (2) — créée 2026-05-22 par split préemptif de Part 16
 │   ├─ roadmap-detailed-18-modal-enter-block.md                       39k   Modal-Forms-Block-Enter-Submit → Calculations-V3 (5) — créée sprint 04 closeout 2026-05-23 ; au plafond, split forcé pour sprint 05.
-│   ├─ roadmap-detailed-19-endpoints-start-status.md                  16k   Endpoints-START-STATUS-V3 → … (1) — créée sprint 05 closeout 2026-05-25 par split préemptif de Part 18.
+│   ├─ roadmap-detailed-19-endpoints-start-status.md                  37k   Endpoints-START-STATUS-V3 → Endpoints-Negative-Flow-V3 (3) — créée sprint 05 closeout 2026-05-25 par split préemptif de Part 18 ; étendue post-sprints 06 et 07.
+│   ├─ roadmap-detailed-20-salary-finalize.md                         16k   Endpoints-Salary-Update-And-Finalize-V3 (1) — créée sprint 08 closeout 2026-05-26 par split préemptif de Part 19 (37k post-sprint 07, aurait franchi cap avec sprint 08 verbatim).
 │   └─ sprint-chronology.md                            39k   Table "1 ligne = 1 pattern installé" — extraite 2026-05-22 d'operational-rules.md §6. **Saturée 2026-05-25** : ajout sprint 05 a fait franchir le cap (≤49 chars de marge restante). Append-only mais nécessite split au prochain sprint installant un pattern.
 │
 ├─ reference/
@@ -198,12 +199,12 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-25 post-sprint-05 V3)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-26 post-sprint-08 V3)
 
-**30 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**31 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
-- 1× `CLAUDE.md` (~39.2k, en zone alerte 38-39.5k — split candidate)
-- 19× `.claude/history/roadmap-detailed-01..19-*.md` (16-39k — Part 12 (~38k) + Part 18 (~39k post-Calculations-V3) en zone alerte ; Part 19 (~16k) créée 2026-05-25 par split préemptif pour sprint 05 V3)
+- 1× `CLAUDE.md` (~39.4k, en zone alerte 38-39.5k — split candidate)
+- 20× `.claude/history/roadmap-detailed-01..20-*.md` (16-39k — Part 12 (~38k) + Part 18 (~39k post-Calculations-V3) + Part 19 (~37k post-sprint 07) en zone alerte ; Part 20 (~16k) créée 2026-05-26 par split préemptif pour sprint 08 V3)
 - 1× `.claude/history/sprint-chronology.md` (~39.4k — extraite 2026-05-22 d'operational-rules.md §6, **saturée 2026-05-25** : sprint 05 V3 n'a pas pu être ajouté (≤49 chars de marge), split nécessaire au prochain sprint installant un pattern réutilisable)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
