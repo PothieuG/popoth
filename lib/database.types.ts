@@ -747,6 +747,16 @@ export type Database = {
         }
         Returns: Json
       }
+      start_monthly_recap: {
+        Args: {
+          p_group_id?: string
+          p_month: number
+          p_profile_id?: string
+          p_started_by_profile_id: string
+          p_year: number
+        }
+        Returns: Json
+      }
       toggle_real_expense_applied_to_balance: {
         Args: { p_apply: boolean; p_expense_id: string }
         Returns: Json

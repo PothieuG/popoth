@@ -42,6 +42,9 @@ const EXPECTED_RPCS = [
   // supabase/migrations/20260523010000_create_toggle_applied_to_balance_rpcs.sql
   'toggle_real_expense_applied_to_balance',
   'toggle_real_income_applied_to_balance',
+  // Sprint 05 Monthly Recap V3 (2026-05-25) —
+  // supabase/migrations/20260525000000_create_recap_start_rpc.sql
+  'start_monthly_recap',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'
