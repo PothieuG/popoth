@@ -18,6 +18,7 @@ SELECT n.nspname AS schema,
      'cleanup_group_contributions',
      'trigger_recalculate_contributions',
      'calculate_group_contributions',
-     'update_updated_at_column'
+     'update_updated_at_column',
+     'rls_auto_enable'
    )
  ORDER BY p.proname;
