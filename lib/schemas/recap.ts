@@ -43,6 +43,16 @@ export const transferSurplusesBodySchema = z.object({
 })
 export type TransferSurplusesBody = z.infer<typeof transferSurplusesBodySchema>
 
+/**
+ * Body POST /api/monthly-recap/transform-remaining-surpluses-to-savings —
+ * convert every remaining positive surplus into the budgets' cumulated_savings.
+ * No id list: the endpoint sweeps whatever surplus is left at call time.
+ */
+export const transformRemainingBodySchema = z.object({
+  context: contextSchema,
+})
+export type TransformRemainingBody = z.infer<typeof transformRemainingBodySchema>
+
 /** Body POST /api/monthly-recap/refloat-from-piggy — debit piggy by `amount`. */
 export const refloatFromPiggyBodySchema = z.object({
   context: contextSchema,
