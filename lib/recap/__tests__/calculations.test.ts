@@ -42,8 +42,9 @@ describe('computeRecapSummary', () => {
   it('aggregates surplus across 3 budgets when bilan is positive', () => {
     const result = computeRecapSummary({
       ...baseInput,
-      ravEstime: 200,
-      ravEffectif: 100,
+      // bilan = ravEffectif - ravEstime → 400 - 100 = 300 (positive)
+      ravEstime: 100,
+      ravEffectif: 400,
       budgets: [
         {
           budgetId: 'a',
@@ -74,11 +75,12 @@ describe('computeRecapSummary', () => {
     expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('positive')
   })
 
-  it('reports bilanSign zero when ravEstime + ravEffectif equals 0', () => {
+  it('reports bilanSign zero when ravEffectif equals ravEstime (mois exactement comme prévu)', () => {
     const result = computeRecapSummary({
       ...baseInput,
+      // bilan = 50 - 50 = 0 (équilibre exact)
       ravEstime: 50,
-      ravEffectif: -50,
+      ravEffectif: 50,
       budgets: [],
     })
 
@@ -86,11 +88,12 @@ describe('computeRecapSummary', () => {
     expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('zero')
   })
 
-  it('reports bilanSign negative with a deficit budget and negative RAVs', () => {
+  it('reports bilanSign negative when ravEffectif < ravEstime (j-ai dépensé plus que prévu)', () => {
     const result = computeRecapSummary({
       ...baseInput,
+      // bilan = -150 - (-50) = -100 (RAV effectif pire que RAV estimé)
       ravEstime: -50,
-      ravEffectif: -50,
+      ravEffectif: -150,
       budgets: [
         {
           budgetId: 'a',
@@ -202,12 +205,13 @@ describe('computeRecapSummary', () => {
   it('computes bilan cents-precise when RAVs combine to a sub-cent value', () => {
     const result = computeRecapSummary({
       ...baseInput,
+      // bilan = 100.015 - 100.005 = 0.01 (cents-precise via round2 absorbe float drift)
       ravEstime: 100.005,
-      ravEffectif: 100.004,
+      ravEffectif: 100.015,
       budgets: [],
     })
 
-    expect(result.bilan).toBe(200.01)
+    expect(result.bilan).toBe(0.01)
   })
 })
 

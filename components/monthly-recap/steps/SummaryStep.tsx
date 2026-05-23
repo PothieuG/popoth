@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useAdvanceStep } from '@/hooks/useMonthlyRecap'
 import { formatEuro } from '@/lib/format-currency'
 import type { RecapContext, RecapSummary } from '@/lib/recap'
+import { cn } from '@/lib/utils'
 
 import { BilanBlock } from '../BilanBlock'
 import { SavingsDetailDrawer } from '../SavingsDetailDrawer'
@@ -23,26 +24,68 @@ interface SummaryStepProps {
   summary: RecapSummary
 }
 
+/**
+ * Accent thématique par card :
+ *  - 'bank'    : Solde actuel (bleu, "argent en banque")
+ *  - 'neutral' : RAV estimé + RAV effectif (gris ardoise, métriques abstraites)
+ *  - 'budget'  : Surplus total (orange — code couleur "budget" du récap)
+ *  - 'savings' : Total économies (violet — code couleur "économies" du récap)
+ *
+ * Discrétion : border-l-4 + couleur du montant. Pas de fond saturé.
+ */
+type CardAccent = 'bank' | 'neutral' | 'budget' | 'savings'
+
+const ACCENT_STYLES: Record<CardAccent, { border: string; amount: string; link: string }> = {
+  bank: {
+    border: 'border-l-4 border-l-sky-400',
+    amount: 'text-sky-700',
+    link: 'text-sky-700',
+  },
+  neutral: {
+    border: 'border-l-4 border-l-slate-300',
+    amount: 'text-slate-800',
+    link: 'text-slate-600',
+  },
+  budget: {
+    border: 'border-l-4 border-l-orange-400',
+    amount: 'text-orange-700',
+    link: 'text-orange-700',
+  },
+  savings: {
+    border: 'border-l-4 border-l-violet-400',
+    amount: 'text-violet-700',
+    link: 'text-violet-700',
+  },
+}
+
 function SummaryCard({
   label,
   amount,
+  accent,
   onShowDetail,
   detailLabel,
 }: {
   label: string
   amount: number
+  accent: CardAccent
   onShowDetail?: () => void
   detailLabel?: string
 }) {
+  const styles = ACCENT_STYLES[accent]
   return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div
+      className={cn(
+        'flex flex-col gap-1 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm',
+        styles.border,
+      )}
+    >
       <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">{label}</p>
-      <p className="text-xl font-semibold text-gray-900">{formatEuro(amount)}</p>
+      <p className={cn('text-xl font-semibold', styles.amount)}>{formatEuro(amount)}</p>
       {onShowDetail && (
         <Button
           type="button"
           variant="link"
-          className="-mx-1 h-auto justify-start px-1 py-0 text-left text-sm text-blue-700"
+          className={cn('-mx-1 h-auto justify-start px-1 py-0 text-left text-sm', styles.link)}
           onClick={onShowDetail}
         >
           {detailLabel ?? 'Voir le détail'}
@@ -78,17 +121,19 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
       <h1 className="text-xl font-semibold text-gray-900">Récap général</h1>
 
       <div className="space-y-3">
-        <SummaryCard label="Solde actuel" amount={summary.currentBalance} />
-        <SummaryCard label="Reste à vivre estimé" amount={summary.ravEstime} />
-        <SummaryCard label="Reste à vivre effectif" amount={summary.ravEffectif} />
+        <SummaryCard label="Solde actuel" amount={summary.currentBalance} accent="bank" />
+        <SummaryCard label="Reste à vivre estimé" amount={summary.ravEstime} accent="neutral" />
+        <SummaryCard label="Reste à vivre effectif" amount={summary.ravEffectif} accent="neutral" />
         <SummaryCard
           label="Surplus total des budgets"
           amount={summary.totalSurplus}
+          accent="budget"
           onShowDetail={() => setSurplusOpen(true)}
         />
         <SummaryCard
           label="Total des économies"
           amount={totalEconomies}
+          accent="savings"
           onShowDetail={() => setSavingsOpen(true)}
         />
       </div>

@@ -52,7 +52,7 @@ export interface RecapSummary {
   budgets: readonly BudgetSummary[]
 
   // Bilan
-  bilan: number          // ravEffectif + ravEstime
+  bilan: number          // ravEffectif - ravEstime (SOUSTRACTION : positif si mois mieux que prévu)
   bilanSign: 'positive' | 'negative' | 'zero'
 }
 
@@ -85,7 +85,9 @@ export function computeBudgetSurplus(estimatedAmount: number, spentThisMonth: nu
 
 /**
  * Construit le résumé complet du recap depuis les données financières.
- * Le bilan = ravEffectif + ravEstime (les deux RAV doivent SE COMPENSER si le mois est équilibré).
+ * Le bilan = ravEffectif - ravEstime (SOUSTRACTION). Positif si ravEffectif > ravEstime
+ * (mois meilleur que prévu : j'ai dépensé moins → on peut épargner la diff).
+ * Négatif si ravEffectif < ravEstime (mois pire : j'ai dépensé plus → à renflouer).
  */
 export function computeRecapSummary(input: {
   currentBalance: number
@@ -106,7 +108,7 @@ export function computeRecapSummary(input: {
   })
   const totalSurplus = round2(enriched.reduce((s, b) => s + b.surplus, 0))
   const totalSavings = round2(enriched.reduce((s, b) => s + b.cumulatedSavings, 0))
-  const bilan = round2(input.ravEffectif + input.ravEstime)
+  const bilan = round2(input.ravEffectif - input.ravEstime)
   const bilanSign: 'positive' | 'negative' | 'zero' = bilan > 0 ? 'positive' : bilan < 0 ? 'negative' : 'zero'
   return { ...input, budgets: enriched.sort((a, b) => a.budgetId.localeCompare(b.budgetId)), totalSurplus, totalSavings, bilan, bilanSign }
 }
@@ -171,14 +173,14 @@ function round2(n: number): number {
 - estimé 10 dépensé 0 → surplus=10
 
 ### `computeRecapSummary` (8+ cas)
-- 3 budgets surplus, 0 dépensé tout → totalSurplus = sum(estimés), bilanSign='positive' si RAV+RAV>0
-- 3 budgets en surplus, RAV+RAV=0 → bilanSign='zero'
-- 1 budget en déficit, RAV+RAV<0 → bilanSign='negative'
+- 3 budgets surplus, 0 dépensé tout → totalSurplus = sum(estimés), bilanSign='positive' si ravEffectif − ravEstime > 0
+- 3 budgets en surplus, ravEffectif == ravEstime → bilanSign='zero'
+- 1 budget en déficit, ravEffectif < ravEstime → bilanSign='negative'
 - budgets vides → totalSurplus=0, totalSavings=0
 - Tri déterministe : budgets sortis par budgetId croissant
 - Cumulated savings se somment correctement
 - piggyAmount transmis verbatim
-- ravEffectif + ravEstime calcule bilan exact (cents-precise)
+- ravEffectif - ravEstime calcule bilan exact (cents-precise) — SOUSTRACTION, pas addition
 
 ### `computeProportionalSavingsRefloat` (10+ cas)
 - Cas standard : target=100, 2 budgets {savings=200, savings=100} → perBudget=[{a:66.67}, {b:33.33}] (proportional) — vérifier sum=100
@@ -211,7 +213,7 @@ function round2(n: number): number {
 - **Empty array** : `budgets=[]` → perBudget=[], totalAllocated=0, shortfall=target. Tester explicitement.
 - **Negative inputs** : assert via runtime check ou throw — discutable. Recommandation : trust internal callers (les schémas Zod garantissent positivité), pas de validation runtime.
 - **Order stability** : trier les budgets par budgetId AVANT la distribution pour que le "last budget remainder" soit déterministe. Crucial pour les snapshots tests byte-identique.
-- **Ne PAS réintroduire `cumulated_savings` dans la formule RAV** (cf. CLAUDE.md ❌ "Sémantique RAV / breakdown"). Le bilan reste `ravEffectif + ravEstime`, sans terme savings.
+- **Ne PAS réintroduire `cumulated_savings` dans la formule RAV** (cf. CLAUDE.md ❌ "Sémantique RAV / breakdown"). Le bilan reste `ravEffectif - ravEstime` (SOUSTRACTION), sans terme savings.
 
 ## Commandes utiles
 ```bash

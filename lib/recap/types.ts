@@ -23,6 +23,8 @@ export interface RecapSummary {
   totalSavings: number
   piggyAmount: number
   budgets: readonly BudgetSummary[]
+  /** Bilan = ravEffectif - ravEstime (soustraction). Positif = mois mieux que prévu,
+   *  négatif = pire que prévu. Cf. `lib/recap/calculations.ts::computeRecapSummary`. */
   bilan: number
   bilanSign: 'positive' | 'negative' | 'zero'
 }

@@ -50,7 +50,7 @@ Le **Monthly Recap** est un processus mensuel obligatoire qui se déclenche à l
 | **Reste à vivre effectif** | Même calcul que sur le dashboard, hors économies, avec toutes les dépenses, revenus et revenus estimés complétés. |
 | **Surplus d'un budget** | `budget total - dépensé`, **uniquement si positif**. *Exemple : 205€ dépensés sur 400€ → surplus = 195€.* Si négatif, le surplus est nul (pas négatif). |
 | **Surplus total** | Somme des surplus de tous les budgets. |
-| **Bilan du mois** | `reste à vivre effectif + reste à vivre estimé`. L'idée : le reste à vivre effectif doit **compenser** le reste à vivre estimé pour que le mois soit équilibré. Si `Bilan ≥ 0` → mois dans le vert. Si `Bilan < 0` → mois dans le rouge. |
+| **Bilan du mois** | `reste à vivre effectif - reste à vivre estimé` (SOUSTRACTION). L'idée : si l'effectif est plus élevé que l'estimé, on a dépensé moins que prévu (mois positif, on peut épargner la diff). Sinon, on a dépensé plus (mois déficitaire, à renflouer). Si `Bilan ≥ 0` → mois dans le vert. Si `Bilan < 0` → mois dans le rouge. |
 | **Dépense/Revenu validé** | Une dépense ou un revenu est dit "validé" lorsqu'il a été mis en surbrillance via un **appui long** sur la carte. |
 
 ---
@@ -75,7 +75,7 @@ Affichage des valeurs suivantes :
   - Bouton "Voir le détail" → ouvre un **drawer indicatif** affichant le total de la tirelire et la liste des économies par budget. Aucune action possible.
 
 **Bloc Bilan** (visuellement séparé, en bas) :
-- Calcul : `reste à vivre effectif + reste à vivre estimé`
+- Calcul : `reste à vivre effectif - reste à vivre estimé` (SOUSTRACTION)
 - Indicateur visuel **vert/rouge** :
   - **Vert** si le bilan est `≥ 0` (le mois est équilibré ou positif)
   - **Rouge** si le bilan est `< 0` (le mois est déficitaire)

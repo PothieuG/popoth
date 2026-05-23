@@ -18,7 +18,10 @@ export function computeBudgetSurplus(
   return diff >= 0 ? { surplus: diff, deficit: 0 } : { surplus: 0, deficit: round2(-diff) }
 }
 
-/** Bilan = ravEffectif + ravEstime. Trie les budgets par budgetId pour stabilité. */
+/** Bilan = ravEffectif - ravEstime (soustraction). Positive si le mois s'est mieux passé
+ *  que prévu (j'ai dépensé moins → RAV réel > RAV théorique → on peut épargner la diff).
+ *  Négatif si pire (j'ai dépensé plus → renflouer). Trie les budgets par budgetId pour
+ *  stabilité tests. */
 export function computeRecapSummary(input: {
   currentBalance: number
   ravEstime: number
@@ -48,7 +51,7 @@ export function computeRecapSummary(input: {
 
   const totalSurplus = round2(sorted.reduce((s, b) => s + b.surplus, 0))
   const totalSavings = round2(sorted.reduce((s, b) => s + b.cumulatedSavings, 0))
-  const bilan = round2(input.ravEffectif + input.ravEstime)
+  const bilan = round2(input.ravEffectif - input.ravEstime)
   const bilanSign: RecapSummary['bilanSign'] =
     bilan > 0 ? 'positive' : bilan < 0 ? 'negative' : 'zero'
 

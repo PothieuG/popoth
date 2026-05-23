@@ -16,6 +16,9 @@ interface SurplusDetailDrawerProps {
  * Drawer indicatif (lecture seule) listant les budgets dont le surplus > 0.
  * Aucun bouton d'action — sert juste à expliquer la composition du
  * `summary.totalSurplus` affiché sur la card du SummaryStep.
+ *
+ * Code couleur : orange (thème "budget" du récap, cohérent avec la card
+ * "Surplus total des budgets" du SummaryStep).
  */
 export function SurplusDetailDrawer({ isOpen, onClose, budgets }: SurplusDetailDrawerProps) {
   const handleOpenChange = (open: boolean) => {
@@ -25,16 +28,31 @@ export function SurplusDetailDrawer({ isOpen, onClose, budgets }: SurplusDetailD
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent hideCloseButton className={DRAWER_CONTENT_CLASSES}>
-        <div className="shrink-0 border-b border-gray-200 bg-green-50/30 px-4 py-4">
+        <div className="shrink-0 border-b border-orange-200 bg-orange-50 px-4 py-4">
           <div className="flex items-center justify-between">
-            <DialogTitle asChild>
-              <h2 className="text-xl font-bold text-gray-900">Surplus par budget</h2>
-            </DialogTitle>
+            <div className="flex items-center gap-3">
+              <div
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-500 text-white"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M3 10h2l1 9h12l1-9h2M5 10V6a2 2 0 012-2h10a2 2 0 012 2v4M9 14h6"
+                  />
+                </svg>
+              </div>
+              <div>
+                <DialogTitle asChild>
+                  <h2 className="text-xl font-bold text-orange-900">Surplus par budget</h2>
+                </DialogTitle>
+                <p className="text-sm text-orange-800/80">Budgets ayant moins dépensé que prévu.</p>
+              </div>
+            </div>
             <ModalCloseX onClose={onClose} variant="circle" />
           </div>
-          <p className="mt-1 text-sm text-gray-600">
-            Détail des budgets qui ont moins dépensé que prévu.
-          </p>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -48,7 +66,7 @@ export function SurplusDetailDrawer({ isOpen, onClose, budgets }: SurplusDetailD
                   className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2"
                 >
                   <span className="text-sm text-gray-900">{b.budgetName}</span>
-                  <span className="text-sm font-medium text-green-700">
+                  <span className="text-sm font-medium text-orange-700">
                     +{formatEuro(b.surplus)}
                   </span>
                 </li>
