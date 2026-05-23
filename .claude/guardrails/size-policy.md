@@ -82,7 +82,9 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-15-skeleton-refetch-loaders.md         32k   Skeleton-Refetch-Loaders + Fix-Dropdown-PointerEvents-Auto + Feature-Revenu-Exceptionnel + Enrich-Delete-Confirmation/Fix-Summary-RAV-Stale-Cache (3) — trimmée 2026-05-21 post-split vers Part 16
 │   ├─ roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md  34k   Expense-Preview-Posé-Layout → Recap-Compact-And-Uniform (4)
 │   ├─ roadmap-detailed-17-delete-header-income-polish.md             19k   Delete-Header-And-Income-Polish → Group-Transaction-Creator-Avatar (2) — créée 2026-05-22 par split préemptif de Part 16
-│   └─ sprint-chronology.md                            38k   Table "1 ligne = 1 pattern installé" — extraite 2026-05-22 d'operational-rules.md §6. Append-only.
+│   ├─ roadmap-detailed-18-modal-enter-block.md                       39k   Modal-Forms-Block-Enter-Submit → Calculations-V3 (5) — créée sprint 04 closeout 2026-05-23 ; au plafond, split forcé pour sprint 05.
+│   ├─ roadmap-detailed-19-endpoints-start-status.md                  16k   Endpoints-START-STATUS-V3 → … (1) — créée sprint 05 closeout 2026-05-25 par split préemptif de Part 18.
+│   └─ sprint-chronology.md                            39k   Table "1 ligne = 1 pattern installé" — extraite 2026-05-22 d'operational-rules.md §6. **Saturée 2026-05-25** : ajout sprint 05 a fait franchir le cap (≤49 chars de marge restante). Append-only mais nécessite split au prochain sprint installant un pattern.
 │
 ├─ reference/
 │   └─ structure-repo.md                              38k   Inventaire fichiers annoté (régénérable partiel via git ls-files) — en zone alerte
@@ -168,7 +170,7 @@ Pour les fichiers de référence à splitter (mode hors-CLAUDE.md) : compter les
 | `history/score-evolution-part-2-99-to-100.md`                    | naturel       | 39.5k     |
 | `history/sprint-history-security-part-1-foundation-ci.md`        | naturel       | 39.5k     |
 | `history/sprint-history-security-part-2-quality-architecture.md` | naturel       | 39.5k     |
-| `history/roadmap-detailed-NN-...md` (17 parts)                   | 30-37k        | **39.5k** |
+| `history/roadmap-detailed-NN-...md` (19 parts)                   | 30-37k        | **39.5k** |
 | `history/sprint-chronology.md`                                   | append        | **39.5k** |
 | `reference/structure-repo.md`                                    | ~30k          | 39.5k     |
 | `conventions/zod-patterns.md`                                    | ~18k          | 39.5k     |
@@ -196,13 +198,13 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-22 post-Md-Size-Gate)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-25 post-sprint-05 V3)
 
-**28 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**30 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
-- 1× `CLAUDE.md` (~39.4k, en zone alerte 38-39.5k — split candidate)
-- 17× `.claude/history/roadmap-detailed-01..17-*.md` (19-38k — Part 12 (~38k) en zone alerte, split au prochain sprint touchant Refactor-Recover ; Parts 13-17 sous 37k post-trims 2026-05-21/22)
-- 1× `.claude/history/sprint-chronology.md` (~38k — extraite 2026-05-22 d'operational-rules.md §6, append-only)
+- 1× `CLAUDE.md` (~39.2k, en zone alerte 38-39.5k — split candidate)
+- 19× `.claude/history/roadmap-detailed-01..19-*.md` (16-39k — Part 12 (~38k) + Part 18 (~39k post-Calculations-V3) en zone alerte ; Part 19 (~16k) créée 2026-05-25 par split préemptif pour sprint 05 V3)
+- 1× `.claude/history/sprint-chronology.md` (~39.4k — extraite 2026-05-22 d'operational-rules.md §6, **saturée 2026-05-25** : sprint 05 V3 n'a pas pu être ajouté (≤49 chars de marge), split nécessaire au prochain sprint installant un pattern réutilisable)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (~38k — en zone alerte)
