@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { contextSchema, nonNegativeMoneySchema, uuidSchema } from './common'
+import { contextSchema, uuidSchema } from './common'
 
 /**
  * Positive amount with at-most-2-decimals constraint. Mirrors the refine
@@ -60,22 +60,26 @@ export const refloatFromPiggyBodySchema = z.object({
 })
 export type RefloatFromPiggyBody = z.infer<typeof refloatFromPiggyBodySchema>
 
-/** Body POST /api/monthly-recap/refloat-from-savings — debit savings by `amount`. */
+/**
+ * Body POST /api/monthly-recap/refloat-from-savings — debit savings proportionally
+ * across budgets up to the current deficit. The server computes the per-budget
+ * allocation via `computeProportionalSavingsRefloat`, so the body carries the
+ * context only.
+ */
 export const refloatFromSavingsBodySchema = z.object({
   context: contextSchema,
-  amount: positiveAmountSchema,
 })
 export type RefloatFromSavingsBody = z.infer<typeof refloatFromSavingsBodySchema>
 
 /**
  * Body POST /api/monthly-recap/save-budget-snapshot — record the per-budget
- * proportional drawdown plan. Keys are budget UUIDs, values are the non-
- * negative amounts to debit at completion. The map can be empty (degen
- * case where no budget contributes).
+ * proportional drawdown plan. The server computes the allocation via
+ * `computeProportionalBudgetSnapshot` (proportional to `estimated_amount`) and
+ * overwrites `monthly_recaps.budget_snapshot_data` JSONB. Application is
+ * deferred to finalize (sprint 08), so the body only carries the context.
  */
 export const saveBudgetSnapshotBodySchema = z.object({
   context: contextSchema,
-  snapshot: z.record(uuidSchema, nonNegativeMoneySchema),
 })
 export type SaveBudgetSnapshotBody = z.infer<typeof saveBudgetSnapshotBodySchema>
 

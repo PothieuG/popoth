@@ -108,72 +108,58 @@ describe('refloatFromPiggyBodySchema', () => {
 })
 
 describe('refloatFromSavingsBodySchema', () => {
-  it('accepts a positive 2-decimal amount in group context', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group', amount: 250 }).success).toBe(
+  // Sprint 07: body shape is `{ context }` only. The server computes the
+  // per-budget proportional allocation via computeProportionalSavingsRefloat.
+  it('accepts context=profile alone', () => {
+    expect(refloatFromSavingsBodySchema.safeParse({ context: 'profile' }).success).toBe(true)
+  })
+
+  it('accepts context=group alone', () => {
+    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group' }).success).toBe(true)
+  })
+
+  it('rejects missing context', () => {
+    expect(refloatFromSavingsBodySchema.safeParse({}).success).toBe(false)
+  })
+
+  it('rejects invalid context value', () => {
+    expect(refloatFromSavingsBodySchema.safeParse({ context: 'household' }).success).toBe(false)
+  })
+
+  it('silently ignores extra keys (e.g. legacy amount payload from older clients)', () => {
+    expect(refloatFromSavingsBodySchema.safeParse({ context: 'profile', amount: 50 }).success).toBe(
       true,
     )
-  })
-
-  it('rejects zero amount', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group', amount: 0 }).success).toBe(
-      false,
-    )
-  })
-
-  it('rejects negative amount', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group', amount: -50 }).success).toBe(
-      false,
-    )
-  })
-
-  it('rejects missing amount', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group' }).success).toBe(false)
-  })
-
-  it('rejects 3-decimal precision', () => {
-    expect(
-      refloatFromSavingsBodySchema.safeParse({ context: 'group', amount: 0.001 }).success,
-    ).toBe(false)
   })
 })
 
 describe('saveBudgetSnapshotBodySchema', () => {
-  it('accepts an empty snapshot record', () => {
-    expect(
-      saveBudgetSnapshotBodySchema.safeParse({ context: 'profile', snapshot: {} }).success,
-    ).toBe(true)
+  // Sprint 07: body shape is `{ context }` only. The server computes the
+  // per-budget proportional allocation via computeProportionalBudgetSnapshot
+  // and overwrites the `monthly_recaps.budget_snapshot_data` JSONB.
+  it('accepts context=profile alone', () => {
+    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'profile' }).success).toBe(true)
   })
 
-  it('accepts a record of uuid → non-negative money', () => {
-    const id1 = uuid()
-    const id2 = uuid()
-    expect(
-      saveBudgetSnapshotBodySchema.safeParse({
-        context: 'group',
-        snapshot: { [id1]: 100, [id2]: 0 },
-      }).success,
-    ).toBe(true)
+  it('accepts context=group alone', () => {
+    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'group' }).success).toBe(true)
   })
 
-  it('rejects a non-uuid key', () => {
-    const result = saveBudgetSnapshotBodySchema.safeParse({
-      context: 'profile',
-      snapshot: { 'not-a-uuid': 100 },
-    })
-    expect(result.success).toBe(false)
+  it('rejects missing context', () => {
+    expect(saveBudgetSnapshotBodySchema.safeParse({}).success).toBe(false)
   })
 
-  it('rejects a negative amount in the snapshot map', () => {
+  it('rejects invalid context value', () => {
+    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'family' }).success).toBe(false)
+  })
+
+  it('silently ignores extra keys (e.g. legacy snapshot payload from older clients)', () => {
     expect(
       saveBudgetSnapshotBodySchema.safeParse({
         context: 'profile',
-        snapshot: { [uuid()]: -10 },
+        snapshot: { [uuid()]: 50 },
       }).success,
-    ).toBe(false)
-  })
-
-  it('rejects missing snapshot', () => {
-    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'profile' }).success).toBe(false)
+    ).toBe(true)
   })
 })
 
