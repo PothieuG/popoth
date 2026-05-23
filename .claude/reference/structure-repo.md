@@ -157,6 +157,11 @@ scripts/                   # Sprint DB outils API Management (sans Docker)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
   list-triggers.sql        # ✅ Sprint Polish T5 — SELECT pg_trigger pour inventaire
+  seed-recap/              # ✅ Sprint 09 Monthly Recap V3 (2026-05-23) — 27 scripts CLI dev-only, 1 = 1 scénario QA
+    _lib.mjs               # client Supabase dev-only (anti-prod guard URL + JWT payload check + env SUPABASE_DEV_SERVICE_ROLE_KEY), 15 helpers : cleanupCurrentMonth, ensureGroupMembership, insert{Profile,Group}{Budgets,Expenses,Incomes,RealIncomes}, setPiggy/Bank/ProfileSalary, seedRecapRow, printPostSeedInstructions, runScenario
+    _reset.mjs             # wipe pur sans seed
+    <key>.mjs              # 27 scripts (4 positive / 8 deficit / 3 group / 5 resume-mid-flow / 3 transactions / 4 edge). Hardcoded users A=0679b0f9…/B=bb53b671…/groupe 92dbf6f2…. Cf. README.md pour catalogue + UX attendue.
+    README.md              # workflow, env var SUPABASE_DEV_SERVICE_ROLE_KEY, troubleshooting cookies
 supabase/
   config.toml              # CLI config (lié au projet distant)
   migrations/              # ✅ baseline + RLS + perf + dedup (Sprint DB) + dedup R3 + recursive policy R6 + overdraft H3
