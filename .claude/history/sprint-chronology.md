@@ -1,6 +1,6 @@
-# Précédents Sprint — chronologie résumée
+# Précédents Sprint — chronologie résumée (Part 1)
 
-> Extraction 2026-05-22 (warning "Large operational-rules.md > 40k") — la table chronologie §6 d'[operational-rules.md](../conventions/operational-rules.md) ayant gonflé à ~37k chars et fait franchir le plafond size-policy au fichier principal (cap alors 38k, bumped à 39.5k le même jour), elle est déplacée ici. Append-only : 1 nouvelle ligne par sprint installant un pattern réutilisable.
+> Extraction 2026-05-22 d'[operational-rules.md](../conventions/operational-rules.md) §6. **Cap atteint 2026-05-22** — sprints postérieurs dans [sprint-chronology-part-2.md](sprint-chronology-part-2.md). Append-only : 1 ligne par sprint installant un pattern réutilisable.
 >
 > Granularité différente des `roadmap-detailed-NN-*.md` (verbatim closeouts). Ici : 1 row = 1 invariant/pattern actionable. Pour le détail d'un sprint, suivre le lien CLAUDE.md §11.
 

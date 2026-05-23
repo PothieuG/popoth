@@ -84,8 +84,10 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ roadmap-detailed-17-delete-header-income-polish.md             19k   Delete-Header-And-Income-Polish → Group-Transaction-Creator-Avatar (2) — créée 2026-05-22 par split préemptif de Part 16
 │   ├─ roadmap-detailed-18-modal-enter-block.md                       39k   Modal-Forms-Block-Enter-Submit → Calculations-V3 (5) — créée sprint 04 closeout 2026-05-23 ; au plafond, split forcé pour sprint 05.
 │   ├─ roadmap-detailed-19-endpoints-start-status.md                  37k   Endpoints-START-STATUS-V3 → Endpoints-Negative-Flow-V3 (3) — créée sprint 05 closeout 2026-05-25 par split préemptif de Part 18 ; étendue post-sprints 06 et 07.
-│   ├─ roadmap-detailed-20-salary-finalize.md                         16k   Endpoints-Salary-Update-And-Finalize-V3 (1) — créée sprint 08 closeout 2026-05-26 par split préemptif de Part 19 (37k post-sprint 07, aurait franchi cap avec sprint 08 verbatim).
-│   └─ sprint-chronology.md                            39k   Table "1 ligne = 1 pattern installé" — extraite 2026-05-22 d'operational-rules.md §6. **Saturée 2026-05-25** : ajout sprint 05 a fait franchir le cap (≤49 chars de marge restante). Append-only mais nécessite split au prochain sprint installant un pattern.
+│   ├─ roadmap-detailed-20-salary-finalize.md                         37k   Endpoints-Salary-Update-And-Finalize-V3 → Wizard-Shell-Lock-Screen-V3 (3 sprints 08-10).
+│   ├─ roadmap-detailed-21-screens-welcome-summary.md                 14k   Screens-Welcome-Summary-V3 → Fix-Recap-Bilan-Formula (2 sprints 11 + bilan fix) — créée 2026-05-24 par split préemptif de Part 20 (52k aurait franchi cap).
+│   ├─ sprint-chronology.md                            39k   Table "1 ligne = 1 pattern installé" — extraite 2026-05-22 d'operational-rules.md §6. Cap atteint 2026-05-22, gelée — voir part-2 pour suite.
+│   └─ sprint-chronology-part-2.md                      4k   Suite chronologie. Créée 2026-05-24 sprint 11 V3 closeout (split préemptif).
 │
 ├─ reference/
 │   └─ structure-repo.md                              38k   Inventaire fichiers annoté (régénérable partiel via git ls-files) — en zone alerte
@@ -199,17 +201,17 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-26 post-sprint-08 V3)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-24 post-sprint-11 V3 + bilan fix)
 
-**31 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**33 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
 - 1× `CLAUDE.md` (~39.4k, en zone alerte 38-39.5k — split candidate)
-- 20× `.claude/history/roadmap-detailed-01..20-*.md` (16-39k — Part 12 (~38k) + Part 18 (~39k post-Calculations-V3) + Part 19 (~37k post-sprint 07) en zone alerte ; Part 20 (~16k) créée 2026-05-26 par split préemptif pour sprint 08 V3)
-- 1× `.claude/history/sprint-chronology.md` (~39.4k — extraite 2026-05-22 d'operational-rules.md §6, **saturée 2026-05-25** : sprint 05 V3 n'a pas pu être ajouté (≤49 chars de marge), split nécessaire au prochain sprint installant un pattern réutilisable)
+- 21× `.claude/history/roadmap-detailed-01..21-*.md` (14-39k — Part 12 + Part 18 (~39k post-Calculations-V3) en zone alerte ; Part 21 (~14k) créée 2026-05-24 sprint 11 closeout)
+- 2× `.claude/history/sprint-chronology{,-part-2}.md` (~39k + ~4k — Part 1 gelée 2026-05-22, Part 2 créée 2026-05-24)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (~38k — en zone alerte)
-- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-39k — operational-rules ramené à ~36k post-extraction §6 chronologie ; operational-rules-ui-modals trimmée à ~39.2k post-condensation intro 2026-05-22)
+- 1× `.claude/reference/structure-repo.md` (~39k — en zone alerte)
+- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-39k)
 - 1× `.claude/guardrails/size-policy.md` (~17k — ce fichier).
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
