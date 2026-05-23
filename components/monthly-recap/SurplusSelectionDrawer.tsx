@@ -20,15 +20,18 @@ interface SurplusSelectionDrawerProps {
 
 /**
  * Sprint 12 — interactive drawer used by `BilanPositiveStep` to let the user
- * pick which budget surpluses go into the piggy bank (cf. spec §4.A "Si Oui").
+ * pick which budget surpluses go into the piggy bank (cf. spec §4.A).
+ *
+ * Violet theme to match the tirelire color story across the recap UI (cohérent
+ * with SavingsDetailDrawer + the SummaryStep "Total des économies" card).
  *
  * Tap-row pattern (no checkbox dep) : each budget row is a full-width
- * `<button>` with `aria-pressed`. Selected rows get an orange-tinted bg + a
+ * `<button>` with `aria-pressed`. Selected rows get a violet-tinted bg + a
  * check icon on the right — easier to tap on mobile than a 20px checkbox.
  *
- * Selection state is local and reset on every open (effect on `isOpen`). The
- * footer button is disabled when nothing is selected or while the parent's
- * mutation is in-flight.
+ * Selection state is local and reset on every open. The footer button is
+ * disabled when nothing is selected or while the parent's mutation is
+ * in-flight.
  */
 export function SurplusSelectionDrawer({
   isOpen,
@@ -85,9 +88,7 @@ export function SurplusSelectionDrawer({
               </div>
               <div>
                 <DialogTitle asChild>
-                  <h2 className="text-xl font-bold text-violet-900">
-                    Répartir vers la tirelire
-                  </h2>
+                  <h2 className="text-xl font-bold text-violet-900">Répartir vers la tirelire</h2>
                 </DialogTitle>
                 <p className="text-sm text-violet-800/80">
                   Tape sur une ligne pour la sélectionner.
