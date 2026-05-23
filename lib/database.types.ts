@@ -309,6 +309,79 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_recaps: {
+        Row: {
+          budget_snapshot_data: Json
+          completed_at: string | null
+          created_at: string
+          current_step: string
+          group_id: string | null
+          id: string
+          profile_id: string | null
+          recap_month: number
+          recap_year: number
+          refloated_from_piggy: number
+          refloated_from_savings: number
+          started_at: string | null
+          started_by_profile_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          budget_snapshot_data?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string
+          group_id?: string | null
+          id?: string
+          profile_id?: string | null
+          recap_month: number
+          recap_year: number
+          refloated_from_piggy?: number
+          refloated_from_savings?: number
+          started_at?: string | null
+          started_by_profile_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          budget_snapshot_data?: Json
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string
+          group_id?: string | null
+          id?: string
+          profile_id?: string | null
+          recap_month?: number
+          recap_year?: number
+          refloated_from_piggy?: number
+          refloated_from_savings?: number
+          started_at?: string | null
+          started_by_profile_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_recaps_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_recaps_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_recaps_started_by_profile_id_fkey"
+            columns: ["started_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piggy_bank: {
         Row: {
           amount: number
@@ -396,6 +469,7 @@ export type Database = {
           amount_from_budget_savings: number | null
           amount_from_piggy_bank: number | null
           applied_to_balance_at: string | null
+          carried_from_recap_id: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -403,6 +477,7 @@ export type Database = {
           expense_date: string
           group_id: string | null
           id: string
+          is_carried_over: boolean
           is_exceptional: boolean
           profile_id: string | null
         }
@@ -412,6 +487,7 @@ export type Database = {
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
           applied_to_balance_at?: string | null
+          carried_from_recap_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -419,6 +495,7 @@ export type Database = {
           expense_date?: string
           group_id?: string | null
           id?: string
+          is_carried_over?: boolean
           is_exceptional?: boolean
           profile_id?: string | null
         }
@@ -428,6 +505,7 @@ export type Database = {
           amount_from_budget_savings?: number | null
           amount_from_piggy_bank?: number | null
           applied_to_balance_at?: string | null
+          carried_from_recap_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -435,10 +513,18 @@ export type Database = {
           expense_date?: string
           group_id?: string | null
           id?: string
+          is_carried_over?: boolean
           is_exceptional?: boolean
           profile_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "real_expenses_carried_from_recap_id_fkey"
+            columns: ["carried_from_recap_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_recaps"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "real_expenses_created_by_profile_id_fkey"
             columns: ["created_by_profile_id"]
@@ -473,6 +559,7 @@ export type Database = {
         Row: {
           amount: number
           applied_to_balance_at: string | null
+          carried_from_recap_id: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -480,12 +567,14 @@ export type Database = {
           estimated_income_id: string | null
           group_id: string | null
           id: string
+          is_carried_over: boolean
           is_exceptional: boolean
           profile_id: string | null
         }
         Insert: {
           amount: number
           applied_to_balance_at?: string | null
+          carried_from_recap_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -493,12 +582,14 @@ export type Database = {
           estimated_income_id?: string | null
           group_id?: string | null
           id?: string
+          is_carried_over?: boolean
           is_exceptional?: boolean
           profile_id?: string | null
         }
         Update: {
           amount?: number
           applied_to_balance_at?: string | null
+          carried_from_recap_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -506,10 +597,18 @@ export type Database = {
           estimated_income_id?: string | null
           group_id?: string | null
           id?: string
+          is_carried_over?: boolean
           is_exceptional?: boolean
           profile_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "real_income_entries_carried_from_recap_id_fkey"
+            columns: ["carried_from_recap_id"]
+            isOneToOne: false
+            referencedRelation: "monthly_recaps"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "real_income_entries_created_by_profile_id_fkey"
             columns: ["created_by_profile_id"]

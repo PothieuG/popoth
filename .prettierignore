@@ -14,3 +14,6 @@ supabase/.temp/
 # Claude Code machine-local config (untracked or gitignored).
 .claude/settings.json
 .claude/settings.local.json
+
+# Recap V3 spec/prompts directory (untracked working copy, not part of the codebase).
+prompt-montly-recap/
