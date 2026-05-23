@@ -92,18 +92,30 @@ afterEach(() => {
 
 describe('BilanPositiveStep', () => {
   describe('with surplus', () => {
-    it('renders the indicative section showing cumulatedSavings + surplus per budget', () => {
+    it('renders the indicative section with old → new (+delta) per budget', () => {
       render(<BilanPositiveStep context="profile" summary={makeSummary()} />)
 
-      expect(screen.getByText('Transformation surplus → économies')).toBeInTheDocument()
-      // Each budget row shows the post-transformation total :
-      //   Courses : 25 + 120 = 145,00 €
-      //   Loisirs :  0 + 60  =  60,00 €
-      //   Transport : 10 + 50 = 60,00 €
+      expect(screen.getByText('Économies après transformation')).toBeInTheDocument()
+      // Each budget row shows : old € → new € (+delta €)
+      //   Courses :   25,00 € → 145,00 € (+120,00 €)
+      //   Loisirs :    0,00 € →  60,00 € (+60,00 €)
+      //   Transport : 10,00 € →  60,00 € (+50,00 €)
       expect(screen.getByText('Courses')).toBeInTheDocument()
+      expect(screen.getByText('Loisirs')).toBeInTheDocument()
+      expect(screen.getByText('Transport')).toBeInTheDocument()
+
+      // Unique amounts surface once each :
+      //   25,00 (Courses old), 145,00 (Courses new), +120,00 (Courses delta),
+      //   0,00 (Loisirs old), 10,00 (Transport old), +50,00 (Transport delta)
+      expect(screen.getByText(/25,00/)).toBeInTheDocument()
       expect(screen.getByText(/145,00/)).toBeInTheDocument()
-      // 60,00 appears twice (Loisirs + Transport).
-      expect(screen.getAllByText(/60,00/)).toHaveLength(2)
+      expect(screen.getByText(/\+120,00/)).toBeInTheDocument()
+      expect(screen.getByText(/\+50,00/)).toBeInTheDocument()
+      // 60,00 appears 3 times (Loisirs new, Loisirs delta, Transport new).
+      expect(screen.getAllByText(/60,00/)).toHaveLength(3)
+
+      // Arrow separator present per budget row (3 budgets → 3 arrows)
+      expect(screen.getAllByText('→')).toHaveLength(3)
     })
 
     it('renders both the persistent "Répartir" button and the "Continuer" button', () => {

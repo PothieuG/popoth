@@ -90,22 +90,28 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
 
       {hasSurplus ? (
         <section className="rounded-2xl border border-green-200 bg-green-50 p-4">
-          <p className="mb-2 text-xs font-medium tracking-wide text-green-700 uppercase">
-            Transformation surplus → économies
+          <p className="mb-3 text-xs font-medium tracking-wide text-green-700 uppercase">
+            Économies après transformation
           </p>
-          <ul className="space-y-1.5 text-sm text-gray-800">
+          <ul className="space-y-2 text-sm text-gray-800">
             {surplusBudgets.map((b) => (
-              <li key={b.budgetId} className="flex items-baseline justify-between gap-3">
+              <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
                 <span className="truncate">{b.budgetName}</span>
-                <span className="shrink-0 font-medium text-green-700">
-                  {formatEuro(b.cumulatedSavings + b.surplus)}
+                <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
+                  <span className="text-gray-500">{formatEuro(b.cumulatedSavings)}</span>
+                  <span aria-hidden="true" className="text-gray-400">
+                    →
+                  </span>
+                  <span className="font-semibold text-green-700">
+                    {formatEuro(b.cumulatedSavings + b.surplus)}
+                  </span>
+                  <span className="text-xs font-medium text-green-600">
+                    (+{formatEuro(b.surplus)})
+                  </span>
                 </span>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-green-800/80">
-            Total des économies de chaque budget après transformation.
-          </p>
         </section>
       ) : (
         <section className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -117,7 +123,7 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
         <Button
           type="button"
           variant="secondary"
-          className="w-full border border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100"
+          className="w-full border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"
           onClick={() => setDrawerOpen(true)}
           disabled={isBusy}
         >
