@@ -62,12 +62,27 @@ describe('RefloatBudgetSnapshotLine', () => {
   })
 
   describe('state=done', () => {
-    it('renders total snapshot puised in a grey card', () => {
+    it('renders total equilibre + per-budget new values in a grey card', () => {
+      const budgets = [
+        makeBudget({
+          budgetId: 'b1',
+          budgetName: 'Courses',
+          estimatedAmount: 400,
+          carryoverSpentAmount: 0,
+        }),
+        makeBudget({
+          budgetId: 'b2',
+          budgetName: 'Loisirs',
+          estimatedAmount: 100,
+          carryoverSpentAmount: 5,
+        }),
+      ]
+
       render(
         <RefloatBudgetSnapshotLine
           context="profile"
           state="done"
-          budgets={[makeBudget()]}
+          budgets={budgets}
           deficitRemaining={0}
           snapshotData={{ b1: 30, b2: 20 }}
           onError={vi.fn()}
@@ -75,7 +90,13 @@ describe('RefloatBudgetSnapshotLine', () => {
         />,
       )
 
-      expect(screen.getByText(/50,00.+puisés depuis les budgets/)).toBeInTheDocument()
+      // Phrase total
+      expect(screen.getByText(/50,00.+équilibrés depuis les budgets/)).toBeInTheDocument()
+      // Per-budget new values "consumed / estimated"
+      // Courses : 0 (carryover) + 30 (snapshot) = 30 / 400
+      expect(screen.getByText('Courses').closest('li')).toHaveTextContent(/30,00.+\/.+400,00/)
+      // Loisirs : 5 + 20 = 25 / 100
+      expect(screen.getByText('Loisirs').closest('li')).toHaveTextContent(/25,00.+\/.+100,00/)
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
   })
@@ -112,7 +133,7 @@ describe('RefloatBudgetSnapshotLine', () => {
       expect(text).toContain('400,00')
       expect(text).toContain('+20,00')
       expect(text).toContain('→')
-      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
     })
 
     it('click triggers mutation + onSuccess receives the total puised amount', async () => {
@@ -140,12 +161,12 @@ describe('RefloatBudgetSnapshotLine', () => {
           onSuccess={onSuccess}
         />,
       )
-      await user.click(screen.getByRole('button', { name: 'Puiser' }))
+      await user.click(screen.getByRole('button', { name: 'Équilibrer' }))
 
       await waitFor(() => {
         expect(saveSnapshotMock).toHaveBeenCalledTimes(1)
       })
-      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/50,00.+puisés/))
+      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/50,00.+équilibrés/))
     })
 
     it('forwards error code to onError on mutation failure', async () => {
@@ -164,7 +185,7 @@ describe('RefloatBudgetSnapshotLine', () => {
           onSuccess={vi.fn()}
         />,
       )
-      await user.click(screen.getByRole('button', { name: 'Puiser' }))
+      await user.click(screen.getByRole('button', { name: 'Équilibrer' }))
 
       await waitFor(() => {
         expect(onError).toHaveBeenCalledWith('invalid_step')

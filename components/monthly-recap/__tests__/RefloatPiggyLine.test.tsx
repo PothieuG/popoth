@@ -41,7 +41,7 @@ describe('RefloatPiggyLine', () => {
   })
 
   describe('state=done', () => {
-    it('renders the cumulative refloat amount in the grey card', () => {
+    it('renders the amount used + the remaining piggy in the grey card', () => {
       render(
         <RefloatPiggyLine
           context="profile"
@@ -54,7 +54,12 @@ describe('RefloatPiggyLine', () => {
         />,
       )
 
-      expect(screen.getByText(/80,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/80,00.+de la tirelire utilisée pour combler le déficit/),
+      ).toBeInTheDocument()
+      expect(screen.getByText(/Il reste/)).toBeInTheDocument()
+      // 0,00 € post-transfer (full drain) is shown explicitly
+      expect(screen.getByText('0,00 €')).toBeInTheDocument()
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
   })

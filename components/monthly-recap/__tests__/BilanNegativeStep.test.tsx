@@ -119,7 +119,9 @@ describe('BilanNegativeStep', () => {
       )
 
       // Piggy done state
-      expect(screen.getByText(/50,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/50,00.+de la tirelire utilisée pour combler le déficit/),
+      ).toBeInTheDocument()
       // Savings active (button visible)
       expect(screen.getByRole('button', { name: 'Transférer les économies' })).toBeInTheDocument()
       // Snapshot still locked
@@ -137,10 +139,12 @@ describe('BilanNegativeStep', () => {
         />,
       )
 
-      expect(screen.getByText(/50,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      expect(
+        screen.getByText(/50,00.+de la tirelire utilisée pour combler le déficit/),
+      ).toBeInTheDocument()
       expect(screen.getByText(/25,00.+d'économies transférés/)).toBeInTheDocument()
       // Snapshot active
-      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
     })
 
     it('savings stays empty (greyed "Pas d\'économies") when totalSavings was 0 from the start', () => {
@@ -155,7 +159,7 @@ describe('BilanNegativeStep', () => {
       // Savings shows empty copy (no money was there to begin with, no transfer happened)
       expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
       // Snapshot active right away (both piggy + savings empty)
-      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
     })
   })
 

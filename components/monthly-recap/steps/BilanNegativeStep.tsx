@@ -137,7 +137,6 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
   const snapshotState: 'locked' | 'active' | 'done' =
     !piggyEmpty || !savingsEmpty ? 'locked' : snapshotTotal > 0 ? 'done' : 'active'
 
-  const savingsByBudget = summary.budgets.filter((b) => b.cumulatedSavings > 0)
   const showContinuer = deficitRemaining <= 0.01
 
   const handleContinue = async () => {
@@ -180,7 +179,7 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
         context={context}
         state={savingsState}
         totalSavings={summary.totalSavings}
-        savingsByBudget={savingsByBudget}
+        budgets={summary.budgets}
         deficitRemaining={deficitRemaining}
         refloatedFromSavings={recap.refloatedFromSavings}
         onError={handleError}

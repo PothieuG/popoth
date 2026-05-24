@@ -13,8 +13,8 @@ import type { BudgetSummary, RecapContext } from '@/lib/recap'
  *   message d'attente.
  * - `active` : la tirelire est vide ET il reste des économies à drainer
  *   ET le déficit n'est pas comblé. Carte cliquable.
- * - `done`   : économies drainées pendant ce recap (refloatedFromSavings > 0
- *   ET totalSavings = 0). Carte greyed avec récap.
+ * - `done`   : économies drainées pendant ce recap (refloatedFromSavings > 0).
+ *   Carte greyed avec récap + liste des nouvelles valeurs par budget.
  * - `empty`  : aucune économie disponible depuis le départ. Carte greyed
  *   "Pas d'économies disponibles."
  */
@@ -23,16 +23,13 @@ type SavingsLineState = 'locked' | 'active' | 'done' | 'empty'
 interface RefloatSavingsLineProps {
   context: RecapContext
   state: SavingsLineState
-  /** Toujours passé même en état non-active — sert au rendu du récap "done". */
   totalSavings: number
-  /** Filtré par l'orchestrateur sur `cumulatedSavings > 0`. Affiché en
-   *  preview (état active) ou vide (autres états). */
-  savingsByBudget: readonly BudgetSummary[]
-  /** Compteur déficit live recalculé par l'orchestrateur. Utilisé pour la
-   *  preview du transfert proportionnel. */
+  /** TOUS les budgets du contexte (pas pré-filtrés). Active state filtre
+   *  `cumulatedSavings > 0` pour la preview ; done state affiche toutes
+   *  les économies dont l'utilisateur a tracé le compteur pour qu'il voie
+   *  les nouvelles valeurs post-transfert. */
+  budgets: readonly BudgetSummary[]
   deficitRemaining: number
-  /** Cumulative debit du `monthly_recaps.refloated_from_savings` — utilisé
-   *  pour labelliser `done` state. */
   refloatedFromSavings: number
   onError: (code: string) => void
   onSuccess: (message: string) => void
@@ -47,19 +44,20 @@ interface RefloatSavingsLineProps {
  * famille violet, contrairement aux budgets = orange).
  *
  * État `active` :
- *   - Texte d'explication : "Les économies sont transférées proportionnellement…"
- *   - Liste budgets : "Courses : 75€ → 30€ (transfert 45€)" — preview de
- *     ce qui va se passer pour chaque budget si l'utilisateur clique.
- *   - Bouton "Transférer les économies"
+ *   - Texte d'explication.
+ *   - Liste budgets qui ont des économies : "Courses 75€ → 25€ (−50€)" — preview.
+ *   - Bouton "Transférer les économies".
  *
- * Sur succès, l'orchestrateur affiche la snackbar via `onSuccess(...)` puis
- * la carte rerend en `done` (carte greyed avec récap "XX€ transférés").
+ * État `done` :
+ *   - Phrase "X€ d'économies transférés vers le déficit." (utilisateur a confirmé qu'elle suffit).
+ *   - Liste de TOUS les budgets avec leurs nouvelles cumulated_savings — l'utilisateur
+ *     voit ce qui reste (souvent 0 après full drain, parfois >0 après partial drain).
  */
 export function RefloatSavingsLine({
   context,
   state,
   totalSavings,
-  savingsByBudget,
+  budgets,
   deficitRemaining,
   refloatedFromSavings,
   onError,
@@ -92,11 +90,21 @@ export function RefloatSavingsLine({
         <p className="mt-1 text-xs text-gray-600">
           {formatEuro(refloatedFromSavings)} d&apos;économies transférés vers le déficit.
         </p>
+        <p className="mt-3 text-xs text-gray-500">Nouvelles valeurs par budget :</p>
+        <ul className="mt-1 space-y-1 text-xs text-gray-700">
+          {budgets.map((b) => (
+            <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
+              <span className="truncate">{b.budgetName}</span>
+              <span className="shrink-0 tabular-nums">{formatEuro(b.cumulatedSavings)}</span>
+            </li>
+          ))}
+        </ul>
       </section>
     )
   }
 
-  // active
+  // active — filter to budgets that have savings to drain
+  const savingsByBudget = budgets.filter((b) => b.cumulatedSavings > 0)
   const allocation = computeProportionalSavingsRefloat(
     deficitRemaining,
     savingsByBudget.map((b) => ({ budgetId: b.budgetId, cumulatedSavings: b.cumulatedSavings })),

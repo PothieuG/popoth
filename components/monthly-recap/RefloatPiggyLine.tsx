@@ -70,7 +70,14 @@ export function RefloatPiggyLine({
       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
         <p className="text-sm font-medium text-gray-700">Tirelire</p>
         <p className="mt-1 text-xs text-gray-600">
-          {formatEuro(refloatedFromPiggy)} transférés depuis la tirelire vers le déficit.
+          {formatEuro(refloatedFromPiggy)} de la tirelire utilisée pour combler le déficit.
+        </p>
+        <p className="mt-1 text-xs text-gray-600">
+          Il reste{' '}
+          <span className="font-semibold text-gray-900 tabular-nums">
+            {formatEuro(piggyAmount)}
+          </span>{' '}
+          dans la tirelire.
         </p>
       </section>
     )

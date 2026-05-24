@@ -14,27 +14,23 @@ import type { BudgetSummary, RecapContext } from '@/lib/recap'
  * - `active` : tout est épuisé en amont ET le déficit reste à combler.
  *   Carte cliquable avec preview du snapshot.
  * - `done`   : snapshot déjà persisté pendant ce recap (la map
- *   `snapshotData` est non vide). Carte greyed avec récap "X€ puisés".
+ *   `snapshotData` est non vide). Carte greyed avec récap + liste des
+ *   nouvelles valeurs par budget (carryover + snapshot / estimated).
  */
 type SnapshotLineState = 'locked' | 'active' | 'done'
 
 interface RefloatBudgetSnapshotLineProps {
   context: RecapContext
   state: SnapshotLineState
-  /** Tous les budgets du contexte (pour le rendu du tableau). */
   budgets: readonly BudgetSummary[]
-  /** Compteur déficit live recalculé par l'orchestrateur. Utilisé pour la
-   *  preview du snapshot proportionnel. */
   deficitRemaining: number
-  /** Snapshot déjà persisté côté serveur (si déjà cliqué pendant le recap).
-   *  Utilisé pour le rendu `done` ET pour calculer la valeur "après" affichée. */
   snapshotData: Record<string, number> | null
   onError: (code: string) => void
   onSuccess: (message: string) => void
 }
 
 /**
- * Sprint 13 — BilanNegativeStep ligne 3 (cf. spec §4.B). Snapshot
+ * Sprint 13 — BilanNegativeStep ligne 3 (cf. spec §4.B). Équilibrage
  * proportionnel : combien retirer de chaque budget pour combler le déficit
  * (3e et dernière étape de la cascade, après tirelire + économies).
  *
@@ -42,13 +38,14 @@ interface RefloatBudgetSnapshotLineProps {
  * la famille violet tirelire/économies).
  *
  * État `active` :
- *   - Texte d'explication : "On retire le déficit restant…" (effet différé)
- *   - Liste budgets : "Courses : 33/400 → 53/400 (puiser 20€)" — preview
- *     additionnée du carryover existant.
- *   - Bouton "Puiser"
+ *   - Texte d'explication (effet différé à la finalisation).
+ *   - Liste budgets : "Courses 33/400 → 53/400 (+20€)" — preview.
+ *   - Bouton "Équilibrer".
  *
- * Sur succès, l'orchestrateur affiche la snackbar via `onSuccess(...)` puis
- * la carte rerend en `done` (carte greyed avec totalSnapshotPuisé).
+ * État `done` :
+ *   - Phrase "X€ équilibrés depuis les budgets."
+ *   - Liste de TOUS les budgets avec leurs nouvelles valeurs
+ *     `consommé / estimé` (consommé = carryoverSpentAmount + snapshot).
  */
 export function RefloatBudgetSnapshotLine({
   context,
@@ -64,7 +61,7 @@ export function RefloatBudgetSnapshotLine({
   if (state === 'locked') {
     return (
       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700">Puiser dans les budgets existants</p>
+        <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
         <p className="mt-1 text-xs text-gray-500">
           Disponible après avoir épuisé la tirelire et les économies.
         </p>
@@ -73,14 +70,29 @@ export function RefloatBudgetSnapshotLine({
   }
 
   if (state === 'done') {
-    const totalSnapshot = snapshotData ? Object.values(snapshotData).reduce((s, v) => s + v, 0) : 0
+    const totalEquilibre = snapshotData ? Object.values(snapshotData).reduce((s, v) => s + v, 0) : 0
     return (
       <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700">Puiser dans les budgets existants</p>
+        <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
         <p className="mt-1 text-xs text-gray-600">
-          {formatEuro(totalSnapshot)} puisés depuis les budgets (effectif à la finalisation du
+          {formatEuro(totalEquilibre)} équilibrés depuis les budgets (effectif à la finalisation du
           récap).
         </p>
+        <p className="mt-3 text-xs text-gray-500">Nouvelles valeurs par budget :</p>
+        <ul className="mt-1 space-y-1 text-xs text-gray-700">
+          {budgets.map((b) => {
+            const snapshotShare = snapshotData?.[b.budgetId] ?? 0
+            const consumed = b.carryoverSpentAmount + snapshotShare
+            return (
+              <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
+                <span className="truncate">{b.budgetName}</span>
+                <span className="shrink-0 tabular-nums">
+                  {formatEuro(consumed)} / {formatEuro(b.estimatedAmount)}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
       </section>
     )
   }
@@ -95,8 +107,8 @@ export function RefloatBudgetSnapshotLine({
   const handleClick = async () => {
     try {
       const result = await mutation.mutateAsync()
-      const totalPuised = Object.values(result.snapshot).reduce((s, v) => s + v, 0)
-      onSuccess(`${formatEuro(totalPuised)} puisés depuis les budgets`)
+      const totalEquilibre = Object.values(result.snapshot).reduce((s, v) => s + v, 0)
+      onSuccess(`${formatEuro(totalEquilibre)} équilibrés depuis les budgets`)
     } catch (e) {
       onError(e instanceof Error ? e.message : 'unknown')
     }
@@ -104,7 +116,7 @@ export function RefloatBudgetSnapshotLine({
 
   return (
     <section className="rounded-2xl border border-orange-200 bg-orange-50/40 p-4">
-      <p className="text-sm font-medium text-orange-900">Puiser dans les budgets existants</p>
+      <p className="text-sm font-medium text-orange-900">Équilibrer avec les budgets</p>
       <p className="mt-2 text-xs leading-relaxed text-gray-600">
         On retire le déficit restant proportionnellement à chaque budget (en fonction de leur
         taille). Les budgets ne seront effectivement débités qu&apos;à la finalisation du récap.
@@ -142,7 +154,7 @@ export function RefloatBudgetSnapshotLine({
         onClick={handleClick}
         disabled={mutation.isPending || budgets.length === 0}
       >
-        {mutation.isPending ? 'Chargement…' : 'Puiser'}
+        {mutation.isPending ? 'Chargement…' : 'Équilibrer'}
       </Button>
     </section>
   )
