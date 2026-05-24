@@ -135,9 +135,7 @@ describe('BilanPositiveStep', () => {
         screen.getByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
       )
 
-      expect(
-        screen.getByRole('heading', { name: 'Répartir vers la tirelire' }),
-      ).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Répartir vers la tirelire' })).toBeInTheDocument()
     })
 
     it('"Répartir" button remains visible after the user closes the drawer without transferring', async () => {
