@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { useMonthlyRecap } from '@/hooks/useMonthlyRecap'
 import type { RecapContext } from '@/lib/recap'
@@ -19,6 +19,13 @@ import { WelcomeStep } from './steps/WelcomeStep'
 export function RecapWizard({ context }: { context: RecapContext }) {
   const router = useRouter()
   const { data, isLoading, error } = useMonthlyRecap(context)
+
+  // Sprint 14 — transient flag lifted here so SalaryUpdateStep (écran 4)
+  // can signal a successful salary submit AND FinalRecapStep (écran 5) can
+  // surface "Salaire mis à jour" / "Contribution mise à jour". Refresh
+  // resets to false (trade-off accepté — pas de tracking serveur).
+  const [salaryUpdated, setSalaryUpdated] = useState(false)
+  const markSalaryUpdated = useCallback(() => setSalaryUpdated(true), [])
 
   const kind = data?.status.kind ?? null
 
@@ -101,8 +108,17 @@ export function RecapWizard({ context }: { context: RecapContext }) {
         ) : (
           <BilanPositiveStep context={context} summary={summary} />
         ))}
-      {status.step === 'salary_update' && <SalaryUpdateStep context={context} summary={summary} />}
-      {status.step === 'final_recap' && <FinalRecapStep context={context} summary={summary} />}
+      {status.step === 'salary_update' && (
+        <SalaryUpdateStep context={context} summary={summary} onSalaryUpdated={markSalaryUpdated} />
+      )}
+      {status.step === 'final_recap' && (
+        <FinalRecapStep
+          context={context}
+          summary={summary}
+          recap={recap}
+          salaryUpdated={salaryUpdated}
+        />
+      )}
       {status.step === 'completed' && (
         <p className="text-center text-sm text-gray-700">Redirection…</p>
       )}

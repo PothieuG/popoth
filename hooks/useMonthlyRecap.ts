@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
 import type { RecapContext, RecapStatusKind, RecapStep, RecapSummary } from '@/lib/recap'
 
 /**
@@ -366,6 +367,117 @@ export function useSaveBudgetSnapshot(context: RecapContext) {
           : old.recap
         return { ...old, recap: nextRecap }
       })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 14 — salary update + finalize mutations (SalaryUpdateStep + FinalRecapStep)
+// ---------------------------------------------------------------------------
+
+export interface UpdateSalariesVars {
+  salaries: ReadonlyArray<{ profileId: string; salary: number }>
+}
+
+export interface UpdateSalariesResult {
+  updated: number
+  nextStep: 'final_recap'
+  contributionsRecalculated: boolean
+}
+
+/**
+ * Sprint 14 — écran 4 "Mise à jour du salaire". POST
+ * /api/monthly-recap/update-salaries with `{ context, salaries: [...] }`.
+ *
+ * The server validates initiator + step + group membership, UPDATEs
+ * `profiles.salary`, and (group context only) re-invokes
+ * `calculate_group_contributions`. **It auto-advances** `current_step →
+ * 'salary_update' → 'final_recap'` — the wizard re-renders the next step
+ * after invalidation.
+ *
+ * Invalidates `['monthly-recap', 'status', context]` AND the financial
+ * refresh keys (`['financial-summary']`, `['group-contributions']`,
+ * `['budgets']`, `['progress-data']`, `['savings-data']`) since the new
+ * salary/contributions feed the dashboard read-only rows + group header
+ * after the recap completes (sprint 16 — read-only virtual rows).
+ */
+export function useUpdateSalaries(context: RecapContext) {
+  const qc = useQueryClient()
+  return useMutation<UpdateSalariesResult, Error, UpdateSalariesVars>({
+    mutationFn: async ({ salaries }) => {
+      const res = await fetch('/api/monthly-recap/update-salaries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context, salaries }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? 'update_salaries_failed')
+      }
+      const json = (await res.json()) as { data: UpdateSalariesResult }
+      return json.data
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+      void qc.invalidateQueries({ queryKey: ['profile'] })
+      invalidateFinancialRefreshes(qc)
+    },
+  })
+}
+
+export interface CompleteRecapResult {
+  /** Present on first success — the recap that was just finalized. */
+  recapId?: string
+  completed?: true
+  snapshotApplied?: { applied: ReadonlyArray<{ budget_id: string; amount: number }> } | null
+  transactions?: {
+    deleted_expenses: number
+    deleted_incomes: number
+    carried_expenses: number
+    carried_incomes: number
+  }
+  /** Present on idempotent re-call when the recap was already completed. */
+  alreadyCompleted?: true
+  recap?: { id: string; completed_at: string; current_step: string }
+}
+
+/**
+ * Sprint 14 — écran 5 "Retourner au dashboard" button. POST
+ * /api/monthly-recap/complete with just `{ context }`. The server orchestrates
+ * `finalize_recap_apply_snapshot` (deferred budget snapshot → carryover_spent)
+ * + `process_recap_transactions` (DELETE validated, flag carried) and marks
+ * `monthly_recaps.completed_at = now()`.
+ *
+ * **Idempotent** on re-click : if the recap was already completed for this
+ * month, the server returns `{ alreadyCompleted: true, recap }` with HTTP 200
+ * (not an error). The caller treats both shapes as success.
+ *
+ * Invalidates `['monthly-recap', 'status', context]` so the wizard's
+ * `useEffect(kind === 'completed')` fires `router.replace` to the dashboard.
+ * Also invalidates the financial refresh keys since `process_recap_transactions`
+ * DELETEs validated real_expenses/real_incomes and the finalize snapshot
+ * UPDATEs `estimated_budgets.carryover_spent_amount` — both impact the
+ * dashboard summary immediately on landing.
+ */
+export function useCompleteRecap(context: RecapContext) {
+  const qc = useQueryClient()
+  return useMutation<CompleteRecapResult, Error, void>({
+    mutationFn: async () => {
+      const res = await fetch('/api/monthly-recap/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? 'complete_failed')
+      }
+      const json = (await res.json()) as { data: CompleteRecapResult }
+      return json.data
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+      invalidateFinancialRefreshes(qc)
     },
   })
 }
