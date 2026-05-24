@@ -20,14 +20,22 @@ import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
 import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
-import { useProfile } from '@/hooks/useProfile'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
+import type { ReadOnlyIncome } from '@/lib/finance'
 
 interface PlanningDrawerProps {
   isOpen: boolean
   onClose: () => void
   onPlanningChange?: () => Promise<void>
   context?: 'profile' | 'group'
+  /**
+   * Sprint 16 Monthly Recap V3 — lignes virtuelles read-only à afficher en
+   * tête de la liste des revenus estimés (salaire en perso, contribution
+   * groupe en groupe). Source de vérité backend (`FinancialData.meta`),
+   * forward via `<FinancialIndicators>`. Présentation-only : aucun bouton
+   * Modifier/Supprimer, juste cadre + label + montant + cadenas.
+   */
+  readOnlyIncomes?: ReadOnlyIncome[]
 }
 
 type TabType = 'budgets' | 'revenus'
@@ -52,6 +60,7 @@ export default function PlanningDrawer({
   onClose,
   onPlanningChange,
   context,
+  readOnlyIncomes = [],
 }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
@@ -151,10 +160,13 @@ export default function PlanningDrawer({
     </div>
   )
 
-  // Récupérer le salaire du profil pour l'injecter comme revenu read-only
-  const { profile } = useProfile()
-  const profileSalary = context !== 'group' && profile?.salary ? profile.salary : 0
-  const totalIncomesWithSalary = totalIncomes + profileSalary
+  // Sprint 16 V3 — les lignes virtuelles read-only (salaire perso /
+  // contribution groupe) sont injectées via la prop `readOnlyIncomes` (source
+  // backend `FinancialData.meta`). Le total affiché est purement présentationnel :
+  // il somme les revenus réels + les virtuelles pour rester cohérent avec
+  // les lignes visibles. Aucun impact sur `totalEstimatedIncome` côté backend.
+  const readOnlyIncomesTotal = readOnlyIncomes.reduce((sum, r) => sum + r.amount, 0)
+  const totalIncomesWithReadOnly = totalIncomes + readOnlyIncomesTotal
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -637,7 +649,7 @@ export default function PlanningDrawer({
                   {isIncomesBusy ? (
                     <Skeleton className="h-3 w-14" />
                   ) : (
-                    <span className="font-medium">{formatAmount(totalIncomesWithSalary)}</span>
+                    <span className="font-medium">{formatAmount(totalIncomesWithReadOnly)}</span>
                   )}
                   <span>(sans les économies)</span>
                 </div>
@@ -646,7 +658,7 @@ export default function PlanningDrawer({
               {/* Incomes List or Empty State */}
               {isIncomesBusy ? (
                 renderSkeletonRows()
-              ) : incomes.length === 0 && profileSalary === 0 ? (
+              ) : incomes.length === 0 && readOnlyIncomes.length === 0 ? (
                 <div className="py-12 text-center">
                   <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                     <svg
@@ -678,19 +690,27 @@ export default function PlanningDrawer({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {/* Salaire du profil (read-only) */}
-                  {profileSalary > 0 && (
-                    <div className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md">
+                  {/* Sprint 16 V3 — lignes virtuelles read-only en tête (salaire
+                     en perso, contribution groupe en groupe). Cadre vert clair
+                     + badge "Profil"/"Groupe" + cadenas. Aucune action possible. */}
+                  {readOnlyIncomes.map((row) => (
+                    <div
+                      key={`readonly-${row.kind}`}
+                      className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md"
+                      data-testid={`readonly-income-${row.kind}`}
+                    >
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-gray-900">Salaire</span>
+                            <span className="text-sm font-semibold text-gray-900">{row.label}</span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
                               <svg
                                 className="h-3 w-3"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
+                                aria-label="Lecture seule"
+                                role="img"
                               >
                                 <path
                                   strokeLinecap="round"
@@ -699,16 +719,16 @@ export default function PlanningDrawer({
                                   d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
                                 />
                               </svg>
-                              Profil
+                              {row.kind === 'salary' ? 'Profil' : 'Groupe'}
                             </span>
                           </div>
                           <p className="mt-1 text-sm font-medium text-green-700">
-                            {formatAmount(profileSalary)}
+                            {formatAmount(row.amount)}
                           </p>
                         </div>
                       </div>
                     </div>
-                  )}
+                  ))}
                   {incomes.map((income) => {
                     const progress = incomeProgresses.find((p) => p.incomeId === income.id)
                     if (!progress) return null
@@ -791,14 +811,14 @@ export default function PlanningDrawer({
             <span
               className={cn(
                 'text-lg font-bold',
-                totalIncomesWithSalary - totalBudgets > 0
+                totalIncomesWithReadOnly - totalBudgets > 0
                   ? 'text-green-700'
-                  : totalIncomesWithSalary - totalBudgets < 0
+                  : totalIncomesWithReadOnly - totalBudgets < 0
                     ? 'text-red-700'
                     : 'text-gray-900',
               )}
             >
-              {formatAmount(totalIncomesWithSalary - totalBudgets)}
+              {formatAmount(totalIncomesWithReadOnly - totalBudgets)}
             </span>
           </div>
           <p className="mt-1 text-xs text-gray-500">Revenus - Budgets</p>
@@ -810,7 +830,7 @@ export default function PlanningDrawer({
           onClose={() => setIsAddBudgetOpen(false)}
           onSave={handleAddBudget}
           currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomesWithSalary}
+          totalEstimatedIncome={totalIncomesWithReadOnly}
         />
 
         {/* Add Income Dialog */}
@@ -818,7 +838,7 @@ export default function PlanningDrawer({
           isOpen={isAddIncomeOpen}
           onClose={() => setIsAddIncomeOpen(false)}
           onSave={handleAddIncome}
-          currentIncomesTotal={totalIncomesWithSalary}
+          currentIncomesTotal={totalIncomesWithReadOnly}
         />
 
         {/* Edit Budget Dialog — conditional render + key on editingBudget.id
@@ -831,7 +851,7 @@ export default function PlanningDrawer({
             onSave={handleSaveEditedBudget}
             budget={editingBudget}
             currentBudgetsTotal={totalBudgets}
-            totalEstimatedIncome={totalIncomesWithSalary}
+            totalEstimatedIncome={totalIncomesWithReadOnly}
           />
         )}
 
@@ -842,7 +862,7 @@ export default function PlanningDrawer({
             onClose={() => setIsEditIncomeOpen(false)}
             onSave={handleSaveEditedIncome}
             income={editingIncome}
-            currentIncomesTotal={totalIncomesWithSalary}
+            currentIncomesTotal={totalIncomesWithReadOnly}
           />
         )}
 
@@ -862,14 +882,14 @@ export default function PlanningDrawer({
             // Income with estimated amount → show new total estimated income.
             // Sprint 2026-05-22 / Delete-Header-And-Income-Concise.
             if (deletingItem.type === 'income' && deletingItem.estimatedAmount > 0) {
-              const newTotal = totalIncomesWithSalary - deletingItem.estimatedAmount
+              const newTotal = totalIncomesWithReadOnly - deletingItem.estimatedAmount
               return (
                 <div className="space-y-1.5 text-left">
                   <p className="text-sm font-medium text-gray-700">Après suppression :</p>
                   <p>
                     Vos revenus estimés passeront de{' '}
                     <span className="font-semibold text-green-600">
-                      {formatAmount(totalIncomesWithSalary)}
+                      {formatAmount(totalIncomesWithReadOnly)}
                     </span>{' '}
                     à <span className="font-semibold text-green-600">{formatAmount(newTotal)}</span>
                     .

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import SavingsDrawer from './SavingsDrawer'
+import type { ReadOnlyIncome } from '@/lib/finance'
 
 const PlanningDrawer = dynamic(() => import('./PlanningDrawer'), { ssr: false })
 
@@ -22,6 +23,12 @@ interface FinancialIndicatorsProps {
    * pour préserver le squelette structurel.
    */
   isFetching?: boolean
+  /**
+   * Sprint 16 V3 — lignes virtuelles read-only à afficher en tête du drawer
+   * Planification (salaire perso, contribution groupe). Forward direct ;
+   * source backend `FinancialData.meta.readOnlyIncomes`.
+   */
+  readOnlyIncomes?: ReadOnlyIncome[]
 }
 
 /**
@@ -37,6 +44,7 @@ export default function FinancialIndicators({
   onPlanningChange,
   context,
   isFetching = false,
+  readOnlyIncomes,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -265,6 +273,7 @@ export default function FinancialIndicators({
         onClose={() => setIsPlanningOpen(false)}
         onPlanningChange={onPlanningChange}
         context={context}
+        readOnlyIncomes={readOnlyIncomes}
       />
 
       {/* Savings Drawer */}

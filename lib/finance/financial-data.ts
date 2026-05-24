@@ -32,9 +32,23 @@ import { EMPTY_FINANCIAL_DATA } from './constants'
 import { asContextFilter, resolveContextIds, type ContextFilter } from './context'
 import { calculateIncomeCompensation } from './income-compensation'
 import { saveRavToDatabase } from './rav-persistence'
-import type { FinancialData } from './types'
+import type { FinancialData, ReadOnlyIncome } from './types'
 
-async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData> {
+interface LoadFinancialDataOptions {
+  /**
+   * Sprint 16 — pour le contexte groupe uniquement : userId du membre courant,
+   * utilisé pour exposer SA contribution personnelle via `meta.readOnlyIncomes`.
+   * Sans cette valeur, le tableau reste vide (backward-compat pour les call
+   * sites internes — load-summary, snapshots, budget-savings-detail — qui
+   * n'ont pas besoin de la ligne virtuelle).
+   */
+  currentUserId?: string
+}
+
+async function _loadFinancialData(
+  filter: ContextFilter,
+  options: LoadFinancialDataOptions = {},
+): Promise<FinancialData> {
   // resolveContextIds enforces the discriminated-union invariant at runtime
   // (throws if neither id is set) and exposes them as `string | undefined`,
   // letting us narrow with a single ternary.
@@ -215,6 +229,35 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // 12. Persister le RAV
     await saveRavToDatabase(isProfile ? ownerId : null, isProfile ? null : ownerId, remainingToLive)
 
+    // 13. Sprint 16 Monthly Recap V3 — lignes virtuelles read-only à afficher
+    // dans le drawer Planification (salaire perso, contribution groupe). Ces
+    // valeurs sont déjà incluses dans le RAV via incomeContribution (perso) et
+    // totalProfileContributions (groupe) — donc PAS de double-comptage côté
+    // backend. Le `meta.readOnlyIncomes` est purement présentationnel pour
+    // l'UI ; pas d'impact sur totalEstimatedIncome ni sur les calculs du
+    // recap mensuel (load-summary.ts).
+    const readOnlyIncomes: ReadOnlyIncome[] = []
+    if (isProfile) {
+      if (profileSalary > 0) {
+        readOnlyIncomes.push({ kind: 'salary', label: 'Salaire', amount: profileSalary })
+      }
+    } else if (options.currentUserId) {
+      const { data: userContribRow } = await supabaseServer
+        .from('group_contributions')
+        .select('contribution_amount')
+        .eq('group_id', ownerId)
+        .eq('profile_id', options.currentUserId)
+        .maybeSingle()
+      const userContribution = userContribRow?.contribution_amount ?? 0
+      if (userContribution > 0) {
+        readOnlyIncomes.push({
+          kind: 'contribution',
+          label: 'Contribution groupe',
+          amount: userContribution,
+        })
+      }
+    }
+
     return {
       availableBalance,
       remainingToLive,
@@ -223,10 +266,11 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       totalEstimatedBudgets,
       totalRealIncome,
       totalRealExpenses,
+      meta: { readOnlyIncomes },
     }
   } catch (error) {
     logger.error('Erreur lors du calcul des données financières', { ownerColumn, ownerId, error })
-    return { ...EMPTY_FINANCIAL_DATA }
+    return { ...EMPTY_FINANCIAL_DATA, meta: { readOnlyIncomes: [] } }
   }
 }
 
@@ -235,7 +279,18 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
   return _loadFinancialData(asContextFilter({ profile_id: profileId }))
 }
 
-/** Récupère les données financières pour un groupe. Fail-soft → EMPTY_FINANCIAL_DATA. */
-export async function getGroupFinancialData(groupId: string): Promise<FinancialData> {
-  return _loadFinancialData(asContextFilter({ group_id: groupId }))
+/**
+ * Récupère les données financières pour un groupe. Fail-soft → EMPTY_FINANCIAL_DATA.
+ *
+ * Sprint 16 Monthly Recap V3 — `userId` optionnel : si fourni, expose la
+ * contribution personnelle du membre via `meta.readOnlyIncomes` (consommé par
+ * le drawer Planification dashboard groupe). Les call sites internes
+ * (load-summary, snapshots, budget-savings-detail) qui n'ont pas besoin de
+ * cette ligne virtuelle continuent de passer un seul argument.
+ */
+export async function getGroupFinancialData(
+  groupId: string,
+  userId?: string,
+): Promise<FinancialData> {
+  return _loadFinancialData(asContextFilter({ group_id: groupId }), { currentUserId: userId })
 }

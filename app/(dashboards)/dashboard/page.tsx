@@ -129,6 +129,7 @@ export default function DashboardPage() {
               onPlanningChange={refreshFinancialData}
               context="profile"
               isFetching={financialFetching}
+              readOnlyIncomes={financialData?.meta?.readOnlyIncomes ?? []}
             />
           </div>
 

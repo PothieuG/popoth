@@ -29,4 +29,5 @@ export const EMPTY_FINANCIAL_DATA: Readonly<FinancialData> = Object.freeze({
   totalEstimatedBudgets: 0,
   totalRealIncome: 0,
   totalRealExpenses: 0,
+  meta: { readOnlyIncomes: [] },
 })

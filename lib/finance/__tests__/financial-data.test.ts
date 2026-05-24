@@ -55,32 +55,46 @@ describe.skipIf(!ENABLED)(
       totalEstimatedBudgets: 500,
       totalRealIncome: 850,
       totalRealExpenses: 230,
+      // Sprint 16 V3 — salaire exposé en virtual row (profile.salary = 1500 > 0).
+      meta: { readOnlyIncomes: [{ kind: 'salary', label: 'Salaire', amount: 1500 }] },
     }
 
     // Golden math for the group path (single-member group → contribution =
     // 100% of monthly_budget_estimate via the calculate_group_contributions
     // trigger: contribution_amount = (user_salary / total_member_salaries) *
-    // monthly_budget_estimate = (1500/1500) * 750 = 750).
+    // monthly_budget_estimate).
+    //
+    // Sprint Group-Budget-Auto-Sync (2026-05-19) — le trigger
+    // `estimated_budgets_sync_group_budget` réécrit `groups.monthly_budget_estimate`
+    // à `SUM(estimated_budgets.estimated_amount)` à chaque INSERT/UPDATE/DELETE
+    // d'un budget. La valeur initialement seedée (GROUP_MONTHLY_BUDGET=750) est
+    // immédiatement overridée à 600 par l'INSERT du budget600 ci-dessous, donc :
+    //   contribution = (1500/1500) * 600 = 600
+    //
     // - estimated_incomes: 1000 → totalEstimatedIncome = 1000 (no salary for group)
     // - real_incomes: 1000 linked → totalRealIncome = 1000
-    // - estimated_budgets: 600 → totalEstimatedBudgets = 600
+    // - estimated_budgets: 600 → totalEstimatedBudgets = 600 (et auto-sync monthly_budget_estimate=600)
     // - real_expenses: 400 linked → totalRealExpenses = 400
     // - bank_balance = 1200 → availableBalance = 1200 (pure bank semantic)
     // - piggy_bank = 100 → totalSavings = 100
     // - incomeCompensation = 1000 → incomeContribution = 1000 (no salary)
     // - exceptionalIncomes = 0; exceptionalExpenses = 0
-    // - totalProfileContributions = 750
-    // - remainingToLive = 1000 + 0 + 750 - 600 - 0 - 0 = 1150
+    // - totalProfileContributions = 600 (post-trigger)
+    // - remainingToLive = 1000 + 0 + 600 - 600 - 0 - 0 = 1000
     const GROUP_MONTHLY_BUDGET = 750
-    const GROUP_EXPECTED_CONTRIBUTION = 750
+    const GROUP_EXPECTED_CONTRIBUTION = 600
     const GOLDEN_GROUP = {
       availableBalance: 1200,
-      remainingToLive: 1150,
+      remainingToLive: 1000,
       totalSavings: 100,
       totalEstimatedIncome: 1000,
       totalEstimatedBudgets: 600,
       totalRealIncome: 1000,
       totalRealExpenses: 400,
+      // Sprint 16 V3 — call site `getGroupFinancialData(groupId)` sans userId :
+      // backward-compat, pas de virtual row contribution. Voir nouveau cas
+      // gated qui passe `(groupId, userId)` pour valider l'injection.
+      meta: { readOnlyIncomes: [] },
     }
 
     beforeAll(async () => {
@@ -469,6 +483,10 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
   }, 30_000)
 
   it('case 5 — fail-soft: unknown UUIDs return all-zero FinancialData, never throw', async () => {
+    // Sprint 16 V3 — `meta.readOnlyIncomes` est exposé partout, même sur fail-soft :
+    // chemin happy path (UUID inconnu, salary null/0 ou pas de contribution
+    // user) → tableau vide. La forme garantie est `{...EMPTY_FINANCIAL_DATA}`
+    // + `meta: { readOnlyIncomes: [] }` (constants.ts + financial-data.ts catch).
     const EMPTY_SHAPE = {
       availableBalance: 0,
       remainingToLive: 0,
@@ -477,12 +495,160 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
       totalEstimatedBudgets: 0,
       totalRealIncome: 0,
       totalRealExpenses: 0,
+      meta: { readOnlyIncomes: [] },
     }
     const profileData = await getProfileFinancialData(randomUUID())
     expect(profileData).toEqual(EMPTY_SHAPE)
 
     const groupData = await getGroupFinancialData(randomUUID())
     expect(groupData).toEqual(EMPTY_SHAPE)
+  }, 30_000)
+})
+
+// Sprint 16 Monthly Recap V3 (2026-05-25) — virtual read-only rows.
+// Couvre l'injection conditionnelle de `meta.readOnlyIncomes` selon le
+// contexte (salaire perso > 0, contribution groupe avec userId fourni). Les
+// cas profile-with-salary et group-no-userId sont déjà couverts par les
+// goldens ci-dessus ; ce describe cible les cas edge.
+describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)', () => {
+  let admin: SupabaseClient<Database>
+  let getProfileFinancialData: FinCalcMod['getProfileFinancialData']
+  let getGroupFinancialData: FinCalcMod['getGroupFinancialData']
+
+  const stamp = Date.now()
+  const noSalaryEmail = `finance-nosalary-${stamp}@popoth.test`
+  const noSalaryPassword = `nosalary-${randomUUID()}`
+  let noSalaryUserId: string
+
+  const memberEmail = `finance-member-${stamp}@popoth.test`
+  const memberPassword = `member-${randomUUID()}`
+  let memberUserId: string
+  let memberGroupId: string
+
+  const outsiderEmail = `finance-outsider-${stamp}@popoth.test`
+  const outsiderPassword = `outsider-${randomUUID()}`
+  let outsiderUserId: string
+
+  beforeAll(async () => {
+    if (!SUPABASE_URL || !SERVICE_KEY) {
+      throw new Error(
+        'financial-data meta tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
+      )
+    }
+    admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const finCalcMod = await import('@/lib/finance')
+    getProfileFinancialData = finCalcMod.getProfileFinancialData
+    getGroupFinancialData = finCalcMod.getGroupFinancialData
+
+    // Profile sans salaire (salary null) — utilisé pour valider que
+    // readOnlyIncomes reste vide en perso quand salary <= 0.
+    const { data: noSalaryUser, error: noSalaryErr } = await admin.auth.admin.createUser({
+      email: noSalaryEmail,
+      password: noSalaryPassword,
+      email_confirm: true,
+    })
+    if (noSalaryErr || !noSalaryUser.user) throw noSalaryErr ?? new Error('createUser failed')
+    noSalaryUserId = noSalaryUser.user.id
+
+    const { error: noSalaryProfErr } = await admin.from('profiles').insert({
+      id: noSalaryUserId,
+      first_name: 'NoSalary',
+      last_name: 'Fixture',
+    })
+    if (noSalaryProfErr) throw noSalaryProfErr
+
+    // Membre d'un groupe single-member — contribution_amount = monthly_budget
+    // via trigger calculate_group_contributions. Salary > 0 obligatoire pour
+    // que le trigger calcule un montant.
+    const { data: memberUser, error: memberErr } = await admin.auth.admin.createUser({
+      email: memberEmail,
+      password: memberPassword,
+      email_confirm: true,
+    })
+    if (memberErr || !memberUser.user) throw memberErr ?? new Error('createUser failed')
+    memberUserId = memberUser.user.id
+
+    const { error: memberProfErr } = await admin.from('profiles').insert({
+      id: memberUserId,
+      first_name: 'Member',
+      last_name: 'Fixture',
+      salary: 2000,
+    })
+    if (memberProfErr) throw memberProfErr
+
+    const { data: groupRow, error: groupErr } = await admin
+      .from('groups')
+      .insert({
+        name: `Meta Test Group ${stamp}`,
+        creator_id: memberUserId,
+        monthly_budget_estimate: 1500,
+      })
+      .select('id')
+      .single()
+    if (groupErr || !groupRow) throw groupErr ?? new Error('group insert returned no id')
+    memberGroupId = groupRow.id
+
+    const { error: linkErr } = await admin
+      .from('profiles')
+      .update({ group_id: memberGroupId })
+      .eq('id', memberUserId)
+    if (linkErr) throw linkErr
+
+    // Outsider : user qui N'EST PAS membre du groupe → aucune ligne dans
+    // group_contributions pour son couple (profile_id, group_id). Sert à
+    // valider que readOnlyIncomes reste vide même si on passe son userId.
+    const { data: outsiderUser, error: outsiderErr } = await admin.auth.admin.createUser({
+      email: outsiderEmail,
+      password: outsiderPassword,
+      email_confirm: true,
+    })
+    if (outsiderErr || !outsiderUser.user) throw outsiderErr ?? new Error('createUser failed')
+    outsiderUserId = outsiderUser.user.id
+
+    const { error: outsiderProfErr } = await admin.from('profiles').insert({
+      id: outsiderUserId,
+      first_name: 'Outsider',
+      last_name: 'Fixture',
+    })
+    if (outsiderProfErr) throw outsiderProfErr
+  }, 60_000)
+
+  afterAll(async () => {
+    if (!admin) return
+    await admin.from('group_contributions').delete().eq('group_id', memberGroupId)
+    await admin.from('profiles').update({ group_id: null }).eq('id', memberUserId)
+    await admin.from('groups').delete().eq('id', memberGroupId)
+    await admin.from('profiles').delete().eq('id', noSalaryUserId)
+    await admin.from('profiles').delete().eq('id', memberUserId)
+    await admin.from('profiles').delete().eq('id', outsiderUserId)
+    await admin.auth.admin.deleteUser(noSalaryUserId)
+    await admin.auth.admin.deleteUser(memberUserId)
+    await admin.auth.admin.deleteUser(outsiderUserId)
+  }, 60_000)
+
+  it('profile sans salaire (null) → meta.readOnlyIncomes vide', async () => {
+    const data = await getProfileFinancialData(noSalaryUserId)
+    expect(data.meta?.readOnlyIncomes).toEqual([])
+  }, 30_000)
+
+  it('group avec userId membre → meta.readOnlyIncomes contient la contribution', async () => {
+    const data = await getGroupFinancialData(memberGroupId, memberUserId)
+    expect(data.meta?.readOnlyIncomes).toEqual([
+      { kind: 'contribution', label: 'Contribution groupe', amount: 1500 },
+    ])
+  }, 30_000)
+
+  it('group sans userId fourni → meta.readOnlyIncomes vide (backward-compat)', async () => {
+    const data = await getGroupFinancialData(memberGroupId)
+    expect(data.meta?.readOnlyIncomes).toEqual([])
+  }, 30_000)
+
+  it('group avec userId outsider (pas membre) → meta.readOnlyIncomes vide', async () => {
+    const data = await getGroupFinancialData(memberGroupId, outsiderUserId)
+    expect(data.meta?.readOnlyIncomes).toEqual([])
   }, 30_000)
 })
 

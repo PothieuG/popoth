@@ -104,6 +104,7 @@ export default function GroupDashboardPage() {
               onPlanningChange={refreshFinancialData}
               context="group"
               isFetching={financialFetching}
+              readOnlyIncomes={financialData?.meta?.readOnlyIncomes ?? []}
             />
           </div>
 
