@@ -50,7 +50,7 @@ export function RecapWizard({ context }: { context: RecapContext }) {
   }
 
   if (!data) return null
-  const { status, summary } = data
+  const { status, summary, recap } = data
 
   if (status.kind === 'locked_by_other') {
     return (
@@ -93,7 +93,11 @@ export function RecapWizard({ context }: { context: RecapContext }) {
       {status.step === 'summary' && <SummaryStep context={context} summary={summary} />}
       {status.step === 'manage_bilan' &&
         (summary.bilanSign === 'negative' ? (
-          <BilanNegativeStep context={context} summary={summary} />
+          recap ? (
+            <BilanNegativeStep context={context} summary={summary} recap={recap} />
+          ) : (
+            <p className="text-center text-sm text-red-700">Erreur interne : recap manquant.</p>
+          )
         ) : (
           <BilanPositiveStep context={context} summary={summary} />
         ))}

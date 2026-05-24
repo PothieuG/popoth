@@ -12,6 +12,7 @@ function makeBudget(overrides: Partial<BudgetSummary>): BudgetSummary {
     estimatedAmount: 200,
     spentThisMonth: 150,
     cumulatedSavings: 0,
+    carryoverSpentAmount: 0,
     surplus: 50,
     deficit: 0,
     ...overrides,

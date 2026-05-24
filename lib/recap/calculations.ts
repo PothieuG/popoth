@@ -33,6 +33,10 @@ export function computeRecapSummary(input: {
     estimatedAmount: number
     spentThisMonth: number
     cumulatedSavings: number
+    /** Optional — defaults to 0. Carried over from prior-month snapshots
+     *  via finalize (sprint 08). Sprint-13 negative snapshot line reads
+     *  it to display `Nom → carryoverSpentAmount/estimatedAmount`. */
+    carryoverSpentAmount?: number
   }>
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
@@ -43,6 +47,7 @@ export function computeRecapSummary(input: {
       estimatedAmount: b.estimatedAmount,
       spentThisMonth: b.spentThisMonth,
       cumulatedSavings: b.cumulatedSavings,
+      carryoverSpentAmount: b.carryoverSpentAmount ?? 0,
       surplus,
       deficit,
     }

@@ -11,6 +11,12 @@ export interface BudgetSummary {
   estimatedAmount: number
   spentThisMonth: number
   cumulatedSavings: number
+  /** Amount carried over from prior-month snapshots (sprint 08 finalize
+   *  applies `monthly_recaps.budget_snapshot_data` into this column). Used
+   *  by the sprint 13 negative-flow snapshot line which displays each
+   *  budget as `Nom → carryoverSpentAmount/estimatedAmount` (matching the
+   *  planner display). Zero when no prior snapshot ever fired. */
+  carryoverSpentAmount: number
   surplus: number
   deficit: number
 }

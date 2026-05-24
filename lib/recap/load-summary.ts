@@ -64,7 +64,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     context === 'profile' ? getProfileFinancialData(profileId) : getGroupFinancialData(groupId!),
     supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, cumulated_savings')
+      .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
       .eq(ownerColumn, ownerId),
     supabaseServer
       .from('real_expenses')
@@ -104,6 +104,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       estimatedAmount: Number(b.estimated_amount),
       spentThisMonth: spentByBudgetId.get(b.id) ?? 0,
       cumulatedSavings: Number(b.cumulated_savings ?? 0),
+      carryoverSpentAmount: Number(b.carryover_spent_amount ?? 0),
     })),
   })
 }

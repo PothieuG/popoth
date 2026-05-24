@@ -44,35 +44,19 @@ import {
   computeProportionalSavingsRefloat,
 } from './calculations'
 import type { RecapContext } from './check-status'
+import { coerceSnapshot, computeDeficitRemaining } from './deficit-math'
 import { loadRecapSummary } from './load-summary'
 import type { RecapSummary } from './types'
 
 // ---------------------------------------------------------------------------
-// Pure helpers (shared client/server)
+// Pure helpers — extracted to `./deficit-math` (sprint 13) so client
+// components can import them without dragging `supabaseServer` into the
+// browser bundle. Re-exported here to preserve the public API and the
+// existing test surface (`__tests__/actions-negative.test.ts`).
 // ---------------------------------------------------------------------------
 
-export function sumSnapshotValues(snapshot: Record<string, number> | null | undefined): number {
-  if (!snapshot) return 0
-  return round2(Object.values(snapshot).reduce((s, v) => s + Number(v), 0))
-}
-
-export interface ComputeDeficitArgs {
-  /** `summary.bilan` — negative when the recap is in deficit. Positive values
-   *  produce a negative or zero return (caller must check). */
-  initialBilan: number
-  refloatedFromPiggy: number
-  refloatedFromSavings: number
-  snapshotData: Record<string, number> | null | undefined
-}
-
-export function computeDeficitRemaining(args: ComputeDeficitArgs): number {
-  return round2(
-    Math.abs(args.initialBilan) -
-      args.refloatedFromPiggy -
-      args.refloatedFromSavings -
-      sumSnapshotValues(args.snapshotData),
-  )
-}
+export { computeDeficitRemaining, sumSnapshotValues } from './deficit-math'
+export type { ComputeDeficitArgs } from './deficit-math'
 
 // ---------------------------------------------------------------------------
 // Typed business errors (deserialized to HTTP by the routes)
@@ -391,14 +375,4 @@ export async function executeSaveBudgetSnapshot(
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
-}
-
-function coerceSnapshot(raw: Json | null | undefined): Record<string, number> | null {
-  if (raw === null || raw === undefined) return null
-  if (typeof raw !== 'object' || Array.isArray(raw)) return null
-  const out: Record<string, number> = {}
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof v === 'number') out[k] = v
-  }
-  return out
 }

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { MonthlyRecapStatusResponse } from '@/hooks/useMonthlyRecap'
+import type { MonthlyRecapStatusResponse, RecapProgress } from '@/hooks/useMonthlyRecap'
 import type { RecapStatusKind, RecapSummary } from '@/lib/recap'
 
 const useMonthlyRecapMock = vi.fn<
@@ -19,6 +19,9 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useAdvanceStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTransferSurplusesToPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTransformRemainingSurplusesToSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRefloatFromPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRefloatFromSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSaveBudgetSnapshot: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -46,9 +49,13 @@ function makeSummary(overrides?: Partial<RecapSummary>): RecapSummary {
   }
 }
 
-function mockStatus(status: RecapStatusKind, summary: RecapSummary | null = null) {
+function mockStatus(
+  status: RecapStatusKind,
+  summary: RecapSummary | null = null,
+  recap: RecapProgress | null = null,
+) {
   useMonthlyRecapMock.mockReturnValue({
-    data: { status, summary },
+    data: { status, summary, recap },
     isLoading: false,
     error: null,
   })
@@ -112,9 +119,16 @@ describe('RecapWizard', () => {
         startedByProfileId: 'u1',
       },
       makeSummary({ bilanSign: 'negative', bilan: -75 }),
+      {
+        id: 'r1',
+        currentStep: 'manage_bilan',
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+      },
     )
     render(<RecapWizard context="profile" />)
-    expect(screen.getByRole('heading', { name: 'Bilan négatif' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
   })
 
   it('renders GroupLockScreen without the frieze when locked_by_other', () => {

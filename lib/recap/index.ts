@@ -1,5 +1,5 @@
-export { computeDeficitRemaining, sumSnapshotValues } from './actions-negative'
-export type { ComputeDeficitArgs } from './actions-negative'
+export { coerceSnapshot, computeDeficitRemaining, sumSnapshotValues } from './deficit-math'
+export type { ComputeDeficitArgs } from './deficit-math'
 export {
   computeBudgetSurplus,
   computeProportionalBudgetSnapshot,

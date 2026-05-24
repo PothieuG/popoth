@@ -9,8 +9,15 @@
  * locked_by_other = écran de verrou ; completed = le user voit le dashboard
  * standard).
  *
+ * Sprint 13 — quand `in_progress`, retourne aussi `recap`, un sibling expose
+ * les trackers de progression du `monthly_recaps` row (refloatedFromPiggy /
+ * refloatedFromSavings / snapshotData / currentStep). Le négatif
+ * `BilanNegativeStep` recalcule le compteur déficit live à partir de ces
+ * trackers, ce qui garantit la cohérence à chaque visite (cf. memory
+ * `feedback_recap_exact_reentry`). `null` dans tous les autres états.
+ *
  * Codes HTTP :
- *   - 200 { data: { status, summary | null } }                — happy path
+ *   - 200 { data: { status, summary | null, recap | null } } — happy path
  *   - 400 { error: 'Query invalide', issues }                  — Zod fail
  *   - 400 { error: 'Utilisateur ne fait partie d'aucun groupe' } — NO_GROUP
  *   - 404 { error: 'Profil utilisateur non trouvé' }           — PROFILE_NOT_FOUND
@@ -27,9 +34,25 @@ import { NextResponse } from 'next/server'
 import { handleBadRequest, parseQuery } from '@/lib/api/parse-body'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
+import { getActiveRecap } from '@/lib/recap/active-recap'
 import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
+import { coerceSnapshot } from '@/lib/recap/deficit-math'
 import { loadRecapSummary } from '@/lib/recap/load-summary'
+import type { RecapStep } from '@/lib/recap/state'
 import { statusQuerySchema } from '@/lib/schemas/recap'
+
+const VALID_STEPS: readonly RecapStep[] = [
+  'welcome',
+  'summary',
+  'manage_bilan',
+  'salary_update',
+  'final_recap',
+  'completed',
+]
+
+function coerceStep(raw: string): RecapStep {
+  return (VALID_STEPS as readonly string[]).includes(raw) ? (raw as RecapStep) : 'welcome'
+}
 
 export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
   try {
@@ -38,15 +61,29 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
     const result = await checkRecapStatus(userId, context)
 
     if (result.status.kind === 'in_progress') {
-      const summary = await loadRecapSummary({
-        context,
-        profileId: userId,
-        groupId: profile.group_id,
-      })
-      return NextResponse.json({ data: { status: result.status, summary } })
+      const [summary, recapRow] = await Promise.all([
+        loadRecapSummary({
+          context,
+          profileId: userId,
+          groupId: profile.group_id,
+        }),
+        getActiveRecap({ context, userId, profile }),
+      ])
+
+      const recap = recapRow
+        ? {
+            id: recapRow.id,
+            currentStep: coerceStep(recapRow.current_step),
+            refloatedFromPiggy: Number(recapRow.refloated_from_piggy ?? 0),
+            refloatedFromSavings: Number(recapRow.refloated_from_savings ?? 0),
+            snapshotData: coerceSnapshot(recapRow.budget_snapshot_data),
+          }
+        : null
+
+      return NextResponse.json({ data: { status: result.status, summary, recap } })
     }
 
-    return NextResponse.json({ data: { status: result.status, summary: null } })
+    return NextResponse.json({ data: { status: result.status, summary: null, recap: null } })
   } catch (error) {
     const handled = handleBadRequest(error)
     if (handled) return handled
