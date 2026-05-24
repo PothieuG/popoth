@@ -81,6 +81,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary({ totalSurplus: 150, bilanSign: 'positive' })}
         recap={makeRecap()}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -95,6 +97,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary({ totalSurplus: 0, bilan: 0, bilanSign: 'zero' })}
         recap={makeRecap()}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -112,6 +116,8 @@ describe('FinalRecapStep', () => {
           snapshotData: { b1: 15, b2: 10 },
         })}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -137,6 +143,8 @@ describe('FinalRecapStep', () => {
           snapshotData: null,
         })}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -152,6 +160,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary({ totalSurplus: 50, bilanSign: 'positive' })}
         recap={makeRecap({ refloatedFromPiggy: 150 })}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -170,6 +180,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary()}
         recap={makeRecap()}
         salaryUpdated={true}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
     expect(screen.getByText(/Salaire mis à jour/)).toBeInTheDocument()
@@ -191,6 +203,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary()}
         recap={makeRecap()}
         salaryUpdated={true}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
     expect(screen.getByText(/Contribution mise à jour/)).toBeInTheDocument()
@@ -217,6 +231,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary()}
         recap={makeRecap()}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -235,6 +251,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary()}
         recap={makeRecap()}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -252,6 +270,8 @@ describe('FinalRecapStep', () => {
         summary={makeSummary()}
         recap={makeRecap()}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
 
@@ -269,9 +289,65 @@ describe('FinalRecapStep', () => {
         summary={makeSummary({ totalSurplus: 100, bilanSign: 'positive' })}
         recap={null}
         salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
       />,
     )
     // No refloats → falls through to positive summary
     expect(screen.getByText(/Vous avez transformé/)).toBeInTheDocument()
+  })
+
+  it('groupRecapPending=true + groupName: renders "Aller au recap du groupe « <name> »" button', () => {
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary()}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={true}
+        groupName="Famille Martin"
+      />,
+    )
+
+    expect(
+      screen.getByRole('button', { name: /Aller au recap du groupe « Famille Martin »/ }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retourner au dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('groupRecapPending=true + null groupName: falls back to "Retourner au dashboard"', () => {
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary()}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={true}
+        groupName={null}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Retourner au dashboard' })).toBeInTheDocument()
+  })
+
+  it('groupRecapPending=true button still fires the complete mutation (wizard handles redirect)', async () => {
+    const user = userEvent.setup()
+    completeMock.mockResolvedValueOnce({ recapId: 'r1', completed: true })
+
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary()}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={true}
+        groupName="G"
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: /Aller au recap du groupe/ }))
+    await waitFor(() => {
+      expect(completeMock).toHaveBeenCalledTimes(1)
+    })
   })
 })

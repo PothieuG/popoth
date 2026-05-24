@@ -2,19 +2,21 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MonthlyRecapStatusResponse, RecapProgress } from '@/hooks/useMonthlyRecap'
-import type { RecapStatusKind, RecapSummary } from '@/lib/recap'
+import type { RecapContext, RecapStatusKind, RecapSummary } from '@/lib/recap'
 
-const useMonthlyRecapMock = vi.fn<
-  () => {
-    data: MonthlyRecapStatusResponse | undefined
-    isLoading: boolean
-    error: Error | null
-  }
->()
 const routerReplaceMock = vi.fn()
+const mockResponses: Record<RecapContext, MonthlyRecapStatusResponse | undefined> = {
+  profile: undefined,
+  group: undefined,
+}
+let mockProfile: { id: string; group_id: string | null; group_name: string | null } | null = null
 
 vi.mock('@/hooks/useMonthlyRecap', () => ({
-  useMonthlyRecap: (...args: unknown[]) => useMonthlyRecapMock(...(args as [])),
+  useMonthlyRecap: (context: RecapContext, options?: { enabled?: boolean }) => ({
+    data: options?.enabled === false ? undefined : mockResponses[context],
+    isLoading: false,
+    error: null,
+  }),
   useStartRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdvanceStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTransferSurplusesToPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -22,6 +24,8 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useRefloatFromPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRefloatFromSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSaveBudgetSnapshot: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateSalaries: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useCompleteRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +34,14 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/useAuth', () => ({
   useLogoutAndRedirect: () => ({ logoutAndRedirect: vi.fn() }),
+}))
+
+vi.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: mockProfile }),
+}))
+
+vi.mock('@/hooks/useGroupContributions', () => ({
+  useGroupContributions: () => ({ contributions: [], isLoading: false, error: null }),
 }))
 
 import { RecapWizard } from '../RecapWizard'
@@ -54,16 +66,27 @@ function mockStatus(
   summary: RecapSummary | null = null,
   recap: RecapProgress | null = null,
 ) {
-  useMonthlyRecapMock.mockReturnValue({
-    data: { status, summary, recap },
-    isLoading: false,
-    error: null,
-  })
+  // Default: mirror to BOTH contexts so existing tests that render with
+  // context="group" while calling mockStatus(...) keep working. The
+  // `redirects to /monthly-recap?context=group` test overrides
+  // mockResponses.group via mockGroupStatus AFTER calling mockStatus.
+  mockResponses.profile = { status, summary, recap }
+  mockResponses.group = { status, summary, recap }
+}
+
+function mockGroupStatus(
+  status: RecapStatusKind,
+  summary: RecapSummary | null = null,
+  recap: RecapProgress | null = null,
+) {
+  mockResponses.group = { status, summary, recap }
 }
 
 describe('RecapWizard', () => {
   beforeEach(() => {
-    useMonthlyRecapMock.mockReset()
+    mockResponses.profile = undefined
+    mockResponses.group = undefined
+    mockProfile = null
     routerReplaceMock.mockReset()
   })
 
@@ -151,6 +174,43 @@ describe('RecapWizard', () => {
     expect(screen.getByText(/Redirection vers le dashboard/)).toBeInTheDocument()
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith('/dashboard')
+    })
+  })
+
+  it('redirects to /monthly-recap?context=group when profile recap completed AND group recap pending', async () => {
+    mockProfile = {
+      id: 'u1',
+      group_id: 'g1',
+      group_name: 'Famille Martin',
+    }
+    mockStatus({ kind: 'completed', recapId: 'r1', completedAt: '2026-05-23T11:00:00Z' })
+    mockGroupStatus({ kind: 'no_recap' })
+    render(<RecapWizard context="profile" />)
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith('/monthly-recap?context=group')
+    })
+    expect(routerReplaceMock).not.toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('redirects to /dashboard when profile recap completed AND group recap also completed', async () => {
+    mockProfile = {
+      id: 'u1',
+      group_id: 'g1',
+      group_name: 'Famille Martin',
+    }
+    mockStatus({ kind: 'completed', recapId: 'r1', completedAt: '2026-05-23T11:00:00Z' })
+    mockGroupStatus({ kind: 'completed', recapId: 'rG', completedAt: '2026-05-22T08:00:00Z' })
+    render(<RecapWizard context="profile" />)
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith('/dashboard')
+    })
+  })
+
+  it('redirects to /group-dashboard when group recap completed (group context)', async () => {
+    mockStatus({ kind: 'completed', recapId: 'rG', completedAt: '2026-05-23T11:00:00Z' })
+    render(<RecapWizard context="group" />)
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith('/group-dashboard')
     })
   })
 })

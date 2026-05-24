@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 import { useMonthlyRecap } from '@/hooks/useMonthlyRecap'
+import { useProfile } from '@/hooks/useProfile'
 import type { RecapContext } from '@/lib/recap'
 
 import { GroupLockScreen } from './GroupLockScreen'
@@ -39,6 +40,7 @@ function RecapRedirecting({ copy }: { copy: string }) {
 export function RecapWizard({ context }: { context: RecapContext }) {
   const router = useRouter()
   const { data, isLoading, error } = useMonthlyRecap(context)
+  const { profile } = useProfile()
 
   // Sprint 14 — transient flag lifted here so SalaryUpdateStep (écran 4)
   // can signal a successful salary submit AND FinalRecapStep (écran 5) can
@@ -47,14 +49,36 @@ export function RecapWizard({ context }: { context: RecapContext }) {
   const [salaryUpdated, setSalaryUpdated] = useState(false)
   const markSalaryUpdated = useCallback(() => setSalaryUpdated(true), [])
 
+  // Sprint 14 follow-up 2026-05-25 — Peek at the group recap status when
+  // the user just finished a profile recap and belongs to a group, so the
+  // final screen can nudge them to do the group recap next (the proxy
+  // gating only checks the context the user navigates to, so a profile
+  // recap completion leaves the group recap silently pending). Reverse
+  // direction (group→profile) is NOT implemented yet — the proxy already
+  // catches /dashboard for profile recap, but if the user lands on
+  // /group-dashboard their profile recap goes unprompted (followup
+  // candidate).
+  const peekGroupRecap = context === 'profile' && profile?.group_id != null
+  const { data: groupRecapData } = useMonthlyRecap('group', { enabled: peekGroupRecap })
+  const groupRecapPending =
+    peekGroupRecap && groupRecapData != null && groupRecapData.status.kind !== 'completed'
+  const groupName = profile?.group_name ?? null
+
   const kind = data?.status.kind ?? null
 
   useEffect(() => {
     if (kind === 'completed') {
-      const target = context === 'group' ? '/group-dashboard' : '/dashboard'
+      let target: string
+      if (groupRecapPending) {
+        target = '/monthly-recap?context=group'
+      } else if (context === 'group') {
+        target = '/group-dashboard'
+      } else {
+        target = '/dashboard'
+      }
       router.replace(target)
     }
-  }, [kind, context, router])
+  }, [kind, context, groupRecapPending, router])
 
   if (isLoading) {
     return (
@@ -137,6 +161,8 @@ export function RecapWizard({ context }: { context: RecapContext }) {
           summary={summary}
           recap={recap}
           salaryUpdated={salaryUpdated}
+          groupRecapPending={groupRecapPending}
+          groupName={groupName}
         />
       )}
       {status.step === 'completed' && <RecapRedirecting copy="Redirection vers le dashboard…" />}

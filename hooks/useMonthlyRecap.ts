@@ -31,7 +31,17 @@ export interface MonthlyRecapStatusResponse {
 
 const recapStatusKey = (context: RecapContext) => ['monthly-recap', 'status', context] as const
 
-export function useMonthlyRecap(context: RecapContext) {
+export interface UseMonthlyRecapOptions {
+  /**
+   * Skip the fetch when false. Used by `RecapWizard` to conditionally peek
+   * at the OTHER context's recap (profile context wizard peeking at group
+   * recap status to know if it should redirect there post-finalize instead
+   * of `/dashboard`). Defaults to true. Sprint 14 follow-up 2026-05-25.
+   */
+  enabled?: boolean
+}
+
+export function useMonthlyRecap(context: RecapContext, options?: UseMonthlyRecapOptions) {
   return useQuery<MonthlyRecapStatusResponse>({
     queryKey: recapStatusKey(context),
     queryFn: async ({ signal }) => {
@@ -43,6 +53,7 @@ export function useMonthlyRecap(context: RecapContext) {
       const json = (await res.json()) as { data: MonthlyRecapStatusResponse }
       return json.data
     },
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })

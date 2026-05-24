@@ -31,6 +31,15 @@ interface FinalRecapStepProps {
    *  the salary form on screen 4 during this session. False on "Non" path
    *  or on refresh (trade-off accepté). */
   salaryUpdated: boolean
+  /** Sprint 14 follow-up — true iff the user belongs to a group AND that
+   *  group's monthly recap is not yet completed. Drives the alternate
+   *  "Aller au recap du groupe" button (vs "Retourner au dashboard"). The
+   *  wizard's redirect logic mirrors this — see `RecapWizard.useEffect`. */
+  groupRecapPending: boolean
+  /** Group display name (from `profile.group_name`) — null when the user
+   *  has no group or when the profile hasn't loaded yet. Used in the button
+   *  label `Aller au recap du groupe « <name> »`. */
+  groupName: string | null
 }
 
 /**
@@ -66,7 +75,14 @@ interface FinalRecapStepProps {
  * alreadyCompleted: true }` (HTTP 200, traité comme succès) et le wizard
  * a déjà entamé sa redirection.
  */
-export function FinalRecapStep({ context, summary, recap, salaryUpdated }: FinalRecapStepProps) {
+export function FinalRecapStep({
+  context,
+  summary,
+  recap,
+  salaryUpdated,
+  groupRecapPending,
+  groupName,
+}: FinalRecapStepProps) {
   const [error, setError] = useState<string | null>(null)
 
   const completeMutation = useCompleteRecap(context)
@@ -148,7 +164,11 @@ export function FinalRecapStep({ context, summary, recap, salaryUpdated }: Final
         onClick={handleComplete}
         disabled={completeMutation.isPending}
       >
-        {completeMutation.isPending ? 'Finalisation…' : 'Retourner au dashboard'}
+        {completeMutation.isPending
+          ? 'Finalisation…'
+          : groupRecapPending && groupName
+            ? `Aller au recap du groupe « ${groupName} »`
+            : 'Retourner au dashboard'}
       </Button>
 
       {error && (
