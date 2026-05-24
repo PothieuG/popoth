@@ -1,6 +1,6 @@
-# Roadmap détaillé — Part 22 : Screen-Bilan-Negative-V3
+# Roadmap détaillé — Part 22 : Screens 13-14 V3
 
-> Chronologie du sprint 13/17 Monthly Recap V3 (livré 2026-05-24). Split forcé : la Part 21 dépassait le cap 39.5k après ajout du verbatim sprint 13 (~19.5k chars).
+> Chronologie des sprints 13 et 14/17 Monthly Recap V3 (livrés 2026-05-24 et 2026-05-25). Split forcé : la Part 21 dépassait le cap 39.5k après ajout du verbatim sprint 13 (~19.5k chars). Sprint 14 ajouté à cette part par capacité résiduelle.
 
 ## Sprints
 
@@ -102,3 +102,80 @@
   - `70ad690` (feat) — cascade séquentielle (gating 1 ligne active à la fois) + preview per-budget + setQueryData stay-on-page + snackbar succès centralisée + charte couleur violet/orange + scripts B (4 deficit scenarios) + section "Code couleur UI Popoth" dans prompts 14-17.
   - `b85f4a7` (feat) — done state enrichi (piggy "X utilisée / Y reste", savings + budgets listes nouvelles valeurs) + "Puiser" → "Équilibrer".
   - `f2e4009` (refactor) — drop bascule positive (stay-on-page partout) + état `unneeded` aux 3 lignes (déficit comblé en amont) + done state couleur famille (violet/orange au lieu de gray) + 2-line preview layout + `bg-white` pour cards inactives (contraste vs fond bleu gradient).
+
+- ✅ **Sprint Screens-Salary-Final-V3** (sprint 14/17 Monthly Recap V3, livré 2026-05-25). Closes the wizard UI loop avec les deux derniers écrans (salary update optionnel + final recap qui finalise et redirige). Le user peut désormais dérouler un cycle Monthly Recap V3 complet de bout en bout via UI mobile. **Tests 566 → 599 non-gated** (+33 cas : 27 RTL sprint 14 + 6 RTL follow-ups). Routes API inchangées (les 3 endpoints `/update-salaries`, `/advance-step`, `/complete` étaient livrés sprint 08). 8 commits incrémentaux (1 main + 7 itérations basées sur retours user smoke-test).
+
+  **Architecture installée** :
+
+  **(1) `SalaryUpdateStep.tsx` (~210 LOC)** — écran 4. State local `decided: 'yes'|'no'|null` + 3 branches conditionnelles. **"Non"** → `useAdvanceStep({ fromStep: 'salary_update', toStep: 'final_recap' })`. **"Oui" + profile** → form 1-input pré-rempli via `useProfile().profile.salary`, submit POST `/update-salaries` (server auto-advance le step). **"Oui" + group** → délégue à `<GroupMemberSalaryForm>`. Callback `onSalaryUpdated()` propagé au parent (RecapWizard lift state) — fired uniquement sur succès update-salaries (pas sur Non).
+
+  **(2) `GroupMemberSalaryForm.tsx` (~125 LOC)** — subforme group. Consomme `useGroupContributions()` (queryKey `['group-contributions']`) qui expose déjà `[{ profile_id, salary, profile: { first_name, last_name } }]`. **Pas de nouvel endpoint nécessaire** : `GET /api/groups/[id]/members` existe mais n'expose PAS le salaire — bypass via le hook existant. RHF dual-type `useForm<{members: Array<{profileId, salary}>}>` avec `zodResolver` + `z.coerce.number().nonnegative().finite()`. Form rendu seulement après load (gate sur `isLoading`) → évite le pattern `form.reset(defaultValues)` async. Skeleton mobile-first pendant fetch.
+
+  **(3) `FinalRecapStep.tsx` (~290 LOC)** — écran 5. 3 cas de rendu :
+  - **Cascade pos/nég** (`bilanSign === 'positive' && totalRefloated > 0`) : 2 sections "Renflouement initial : X€" avec breakdown par source + "Surplus transformé : +Y€ en économies". Forward-compatible — ne fire pas en sprint 13 actuel (BilanNegativeStep ne bascule pas vers PositiveStep), mais code prêt si la spec évolue.
+  - **Positif pur** : "Vous avez transformé +X€ en économies" depuis `summary.totalSurplus`.
+  - **Négatif pur** : "Vous avez renfloué votre déficit de X€" + breakdown par source (tirelire violet / économies violet / puisage budgets orange — couleurs charte sprint 13). Lignes > 0 uniquement.
+
+  Ligne "Salaire mis à jour" / "Contribution mise à jour" affichée conditionnellement quand `salaryUpdated=true` (depuis profile.salary ou userContribution.contribution_amount). Bouton principal "Retourner au dashboard" → `useCompleteRecap`. **Idempotent** : POST `/complete` re-call renvoie `{ alreadyCompleted: true }` (HTTP 200), traité comme succès — le wizard redirige quand même via `useEffect(kind === 'completed')`.
+
+  **(4) `hooks/useMonthlyRecap.ts` étendu** : 2 nouvelles mutations + 1 option.
+  - `useUpdateSalaries(context)` : POST `/update-salaries` avec `{ context, salaries: [...] }`. onSuccess invalide `recapStatusKey(context)` + `['profile']` + `invalidateFinancialRefreshes(qc)` (clés financières incluent `['group-contributions']`). Le serveur auto-advance le step côté serveur, donc pas besoin d'`advance-step` explicite.
+  - `useCompleteRecap(context)` : POST `/complete` avec `{ context }`. Response idempotente (`{ recapId, completed, snapshotApplied, transactions }` OU `{ alreadyCompleted: true, recap }`). onSuccess invalide status + financial refreshes (process_recap_transactions DELETE des real_expenses validées + apply snapshot UPDATE budgets carryover).
+  - **`useMonthlyRecap(context, options?: { enabled? })`** : ajout option `enabled` pour conditional fetch. Defaults `true` (backward compat). Utilisé par RecapWizard pour peek conditionnel sur le group recap status (uniquement si `context === 'profile'` ET `profile.group_id` set).
+
+  **(5) `RecapWizard.tsx` étendu** : 3 nouvelles capacités.
+  - **Lift `salaryUpdated` state** : `useState(false)` au wizard, propagé via `onSalaryUpdated` à SalaryUpdateStep + `salaryUpdated` prop à FinalRecapStep. Refresh wizard reset à false (trade-off accepté — pas de tracking serveur).
+  - **Peek group recap status** : `useMonthlyRecap('group', { enabled: peekGroupRecap })` avec `peekGroupRecap = context === 'profile' && profile?.group_id != null`. Dérive `groupRecapPending` consommé par 2 endroits : (a) la prop passée à FinalRecapStep pour le bouton label, (b) la logique de redirect dans `useEffect`.
+  - **Redirect logic ternary** : `if (groupRecapPending) target = '/monthly-recap?context=group'` ; `else if (context === 'group') target = '/group-dashboard'` ; `else target = '/dashboard'`. Le user qui finit son recap perso ET dont le groupe n'a pas encore commencé son recap est nudgé vers le wizard groupe au lieu de retomber sur /dashboard (le proxy gating ne checke que le contexte navigué — sans cette logique, le recap groupe restait silencieusement pending).
+
+  **(6) `RecapShell.tsx` étendu** — prop `headerLabel?: string | null`. Pill centrée au top de la shell, identifie pour qui le recap est fait. Profile : `Recap de <prénom>` (depuis `profile.first_name`). Group : `Recap du groupe « <name> »` (depuis `profile.group_name`, fallback `Recap du groupe`). Profile sans `first_name` chargé → null (skip rendu, évite "Recap de undefined" flicker). Style **nuances de gris** (`border-gray-300 bg-gray-50 text-gray-700 rounded-full`) — sobre, contraste lisible sur le fond bleu/indigo, ne compete avec aucune couleur métier (orange brand / violet tirelire / vert succès / rouge déficit). Première itération en teal, refusée par user : "partons sur des nuances de gris".
+
+  **(7) Loader transition `RecapRedirecting`** — petit composant local dans RecapWizard. Centered `<Loader2 className="h-10 w-10 animate-spin text-orange-500">` + copy. Replace le précédent texte mono-ligne "Redirection…" / "Récap déjà terminé, redirection…" (les deux branches du wizard `status.kind === 'completed'` et `status.step === 'completed'`). `role="status" aria-live="polite"`.
+
+  **(8) `useAdvanceStep` onError stale_step recovery** — nouvelle gestion d'erreur. Le serveur retourne 409 `stale_step` quand `current_step !== fromStep` (cas typique : snapshot save sprint 13 auto-advance server-side mais cache client reste sur `manage_bilan` pour afficher le snackbar + Continuer ; le clic Continuer fire advance-step `{ manage_bilan → salary_update }` qui collide). `BilanNegativeStep` swallow déjà l'erreur silencieusement mais `onSuccess` (= invalidate) ne fire pas car la mutation a erroré → wizard stuck sur step 3B jusqu'à refresh manuel. Fix : `onError: (error) => if (error.message === 'stale_step' || error.message === 'invalid_step') void qc.invalidateQueries({ queryKey: recapStatusKey(context) })`. Le refetch resyncs le cache avec l'état serveur et le wizard re-render au step actuel.
+
+  **(9) `lib/recap/actions-salary.ts` — explicit `calculate_group_contributions` pour profile context** — refactor des conditions. Ancien comportement : RPC `calculate_group_contributions` appelée uniquement en `context === 'group'` (relyait sur le trigger DB `profiles_contribution_recalc` pour le cas profile-with-group). Smoke test sprint 14 a montré au moins un cas où le trigger ne propageait pas → header dashboard restait à "à définir". Nouveau : RPC appelée dès que `args.profile.group_id` non null, indépendamment du context. Le trigger reste comme backstop pour les mutations non-recap. Fail-soft préservé.
+
+  **(10) Bg-white sur `DecimalFormInput` du salary form** — le shadcn `Input` default est `bg-transparent` ce qui blendait l'input avec le fond de la shell wizard. Fix par className `bg-white` explicite (1-line edit dans SalaryUpdateStep + GroupMemberSalaryForm).
+
+  **(11) Seed script `chain-profile-done-group-pending.mjs` (~120 LOC)** — nouveau scénario QA. Profile A à `step='final_recap'` (parcours positif +200€), groupe G sans recap row → état `no_recap` côté serveur. Permet de smoke-tester le bouton "Aller au recap du groupe « X »" + le chain redirect en navigateur. `ensureGroupMembership()` vérifie A+B dans G (groupId hardcodé `92dbf6f2-7aa1-4f63-b31c-b85c57e3657e` matche celui demandé par le user).
+
+  **Tests** (+33 cas non-gated, 566 → 599) :
+  - `components/monthly-recap/__tests__/SalaryUpdateStep.test.tsx` (9 cas RTL — render profile/group, click Non, click Oui profile form, submit POST avec payload, click Oui group → subform, skeleton si profile pas loaded, role="alert" sur 500, disabled pending advance, disabled pending update).
+  - `components/monthly-recap/__tests__/GroupMemberSalaryForm.test.tsx` (6 cas RTL — skeleton pendant fetch, role="alert" sur error, N inputs prefilled, fallback "Membre" si profile null, submit payload tuples corrects, disabled isSubmitting).
+  - `components/monthly-recap/__tests__/FinalRecapStep.test.tsx` (12 cas RTL — positive/zero/negative paths, cascade pos/neg, salaryUpdated profile/group, click Retour fires mutation, pending Finalisation, role="alert" sur 500, null recap fallback, **3 cas chain-to-group** : groupRecapPending+groupName affiche "Aller au recap du groupe", groupRecapPending+null fallback "Retourner au dashboard", click chain fires complete).
+  - `components/monthly-recap/__tests__/RecapWizard.test.tsx` (+3 redirect target cases : profile completed + group pending → `/monthly-recap?context=group`, profile completed + group completed → `/dashboard`, group context completed → `/group-dashboard`). Refactored mock setup : `mockResponses: Record<RecapContext, ...>` au lieu d'un single mock — mockStatus mirror sur les 2 contexts (backward compat), mockGroupStatus override le group seulement.
+  - Mocks ajoutés (useProfile + useGroupContributions + useUpdateSalaries + useCompleteRecap) dans RecapWizard.test.tsx.
+
+  **Conventions / leçons** :
+  - **Conditional fetch via `enabled` option** : pattern propre pour skipper un fetch TanStack Query selon une condition (vs créer un hook séparé ou faire un fetch inline). L'option `enabled` est lue par TanStack — quand false, queryFn n'est pas appelée, data reste `undefined`. Backward-compatible : sans option, defaults à true.
+
+  - **stale_step recovery au niveau hook** : un seul `onError` invalide le cache, vs gérer ça dans chaque call-site. Le call-site (`BilanNegativeStep`) continue de swallow l'erreur silencieusement (UX silencieuse), le hook fait le ménage côté cache. Séparation des responsabilités : UX → call-site, cache integrity → hook.
+
+  - **Chain redirect — close proxy gating gap** : le proxy ne checke que le contexte navigué. Pattern : à la fin d'un recap, peek le statut de l'AUTRE contexte (si applicable) et redirige le user vers le wizard qui reste à faire. Évite que le user "oublie" un recap pending. Reverse direction (group → profile) non implémentée — le `/dashboard` proxy gate la catch déjà ; mais si le user atterrit sur `/group-dashboard` après un recap groupe et que son perso est pending, c'est laissé à un sprint futur (candidat followup).
+
+  - **Lift transient flag plutôt que tracking serveur** : le flag `salaryUpdated` (true seulement après un submit salary réussi en cette session) est lifté au wizard via `useState`. Un refresh perd le flag → la ligne "Salaire mis à jour" disparaît. Trade-off accepté : pas de scope-creep server-side pour ce nice-to-have UI. Pattern applicable à tout signal éphémère cross-step dans un wizard.
+
+  - **bg-white explicit sur shadcn Input avec parent coloré** : le default `bg-transparent` de [components/ui/input.tsx](../../components/ui/input.tsx) blende l'input avec le fond du parent. Sur fond bleu gradient (recap shell), pose `bg-white` via className. Pattern miroir de la règle sprint 13 "bg-white pour cards inactives sur fond bleu gradient".
+
+  - **Couleur jamais utilisée = piste fragile** : la 1re itération du header pill utilisait teal-50/200/800 (jamais utilisé ailleurs dans le codebase). User a refusé : "partons sur des nuances de gris". Leçon : "jamais utilisé" ≠ "voulu". Pour les éléments d'identification (vs accent métier), le gris sobre est plus sûr — il ne suggère pas une sémantique nouvelle à apprendre. Couleurs accent doivent rester réservées aux signaux métier (tirelire violet, surplus vert, déficit rouge).
+
+  - **Explicit > implicit pour les recalc DB** : abandonner l'hypothèse "le trigger va le faire" quand on a un endpoint qui peut explicitement appeler la RPC. Cas vu sprint 14 : profile context salary update relyait sur `profiles_contribution_recalc` trigger ; smoke test a montré au moins un cas de non-propagation. Fix : appel RPC explicite côté endpoint. Trigger reste comme backstop. **Règle** : pour les colonnes dérivées mises à jour par trigger, dans un endpoint qui MUTE la source, ajouter un appel explicite à la RPC de recalc (idempotent + cheap) plutôt que de relyer sur le trigger seul.
+
+  - **Use existing hook over new endpoint** : pour le form group, plutôt que créer un endpoint `/api/groups/[id]/members?include=salary`, réutiliser `useGroupContributions` qui retourne déjà name + salary. Pattern : avant d'ajouter une route serveur, grep les hooks existants pour voir si la data est déjà fetched ailleurs.
+
+  - **Charte couleur identifier vs accent** : les couleurs métier (orange brand / violet tirelire / vert succès / rouge déficit) doivent rester réservées à leur sémantique. Les éléments d'identification (header pill "Recap de X") prennent du gris neutre ou un accent jamais sémantique. Ne PAS multiplier les couleurs sémantiques — le user lit la couleur comme une information.
+
+  **Files livrés** (sprint 14 + follow-ups) :
+  - **Nouveaux** (5) : `components/monthly-recap/GroupMemberSalaryForm.tsx`, `components/monthly-recap/__tests__/{SalaryUpdateStep,GroupMemberSalaryForm,FinalRecapStep}.test.tsx`, `scripts/seed-recap/chain-profile-done-group-pending.mjs`.
+  - **Modifiés** (8) : `components/monthly-recap/steps/{SalaryUpdateStep,FinalRecapStep}.tsx` (stub 20 LOC → ~210 LOC + ~290 LOC), `components/monthly-recap/{RecapWizard,RecapShell}.tsx`, `hooks/useMonthlyRecap.ts` (+2 mutations + enabled option + onError stale_step), `lib/recap/actions-salary.ts` (explicit RPC for profile context), `components/monthly-recap/__tests__/RecapWizard.test.tsx` (refactored mock setup + 4 new cases).
+  - **Hors scope DB** : aucune migration, aucune RPC. Routes API toutes pré-existantes.
+
+  **Commits** (8 incrémentaux, dont 7 follow-ups basés sur retours user smoke-test) :
+  - `2459045` (feat) — sprint 14 main : 3 composants + 2 hooks + 12 tests RTL + RecapWizard wiring.
+  - `2b14876` (fix follow-up) — input bg-white + RecapRedirecting loader + explicit calc_group_contributions for profile context.
+  - `9c2d694` (fix follow-up) — useAdvanceStep onError invalidate on stale_step (close BilanNegativeStep race).
+  - `2ff17e8` (feat follow-up) — chain redirect profile→group sur écran 5 quand group recap pending + useMonthlyRecap { enabled } option + 6 nouveaux tests.
+  - `886c291` (test) — seed script chain-profile-done-group-pending.mjs.
+  - `4b0670e` (feat follow-up) — header pill teal au top de RecapShell.
+  - `ac172a8` (style follow-up) — header pill teal → nuances de gris (user pref).
