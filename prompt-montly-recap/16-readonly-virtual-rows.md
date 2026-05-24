@@ -21,6 +21,10 @@
 - Pas de migration DB ni nouvelle RPC dans cette sous-tâche.
 
 ## Patterns et conventions à respecter
+- **Code couleur UI Popoth** (à suivre autant que possible — vérifié sprint 13 follow-up 2026-05-24) :
+  - **Tirelire** = violet, **Économies des budgets** = violet (même famille), **Budgets** = orange, **Deficit** = red, **Surplus / succès** = green, **Neutral / locked / done / read-only** = gray.
+  - Pour les rows read-only (salaire + contribution), gray + icône cadenas est cohérent avec le pattern "done/locked" du flow recap.
+  - Vérifier `BilanPositiveStep`, `BilanNegativeStep`, `RefloatPiggyLine`, `RefloatSavingsLine`, `RefloatBudgetSnapshotLine`, `SurplusSelectionDrawer` avant de choisir une couleur.
 - **Virtual rows non-persistées** : `meta.readOnlyIncomes` est dérivé à la volée depuis `profile.salary` + `group_contributions.contribution_amount`. Aucune INSERT/UPDATE.
 - **Lock icon UI** : utiliser une icône lucide-react `Lock` ou `ShieldCheck` à côté du label. Pattern shadcn.
 - **Disable edit/delete** : sur les rows virtuelles, ne PAS rendre les boutons d'action OU les disable. Préférer ne pas les rendre (UX plus claire).

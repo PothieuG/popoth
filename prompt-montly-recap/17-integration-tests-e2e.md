@@ -19,6 +19,10 @@
 - CLAUDE.md §9 Tests — MAJ counters tests gated/non-gated
 
 ## Patterns et conventions à respecter
+- **Code couleur UI Popoth** (à suivre autant que possible — vérifié sprint 13 follow-up 2026-05-24) :
+  - **Tirelire** = violet, **Économies des budgets** = violet (même famille), **Budgets** = orange, **Deficit** = red, **Surplus / succès** = green, **Neutral / locked / done** = gray.
+  - Les tests E2E qui asseront sur des couleurs ou des classes Tailwind doivent matcher ces conventions. Si un screenshot baseline diverge, c'est la baseline qu'il faut mettre à jour, pas la convention.
+  - Vérifier `BilanPositiveStep`, `BilanNegativeStep`, `RefloatPiggyLine`, `RefloatSavingsLine`, `RefloatBudgetSnapshotLine`, `SurplusSelectionDrawer` avant de choisir une couleur.
 - **Tests gated** : `SUPABASE_RECAP_TESTS=1`. `describe.skipIf(!process.env.SUPABASE_RECAP_TESTS)`. `await import(...)` dans beforeAll pour load lazy. Cleanup cascade dans afterAll (cf. CLAUDE.md §9).
 - **Fixtures isolées** : créer un profile + group de test (UUIDs uniques) au beforeAll, cleanup au afterAll. Ne PAS polluer la prod.
 - **Helpers réutilisables** : extraire `seedScenarioForTest(scenarioKey, profileId)` pour réutiliser les scenarios dev → fixtures.

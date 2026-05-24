@@ -40,111 +40,135 @@ afterEach(() => {
 })
 
 describe('RefloatBudgetSnapshotLine', () => {
-  it('renders active button + budgets list regardless of amounts', () => {
-    const budgets = [
-      makeBudget({ budgetId: 'b1', budgetName: 'Courses', estimatedAmount: 400 }),
-      makeBudget({ budgetId: 'b2', budgetName: 'Loisirs', estimatedAmount: 100 }),
-    ]
+  describe('state=locked', () => {
+    it('renders waiting copy + no button when piggy or savings still has money', () => {
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="locked"
+          budgets={[makeBudget()]}
+          deficitRemaining={100}
+          snapshotData={null}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatBudgetSnapshotLine
-        context="profile"
-        budgets={budgets}
-        snapshotData={null}
-        onError={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
-    expect(screen.getByText('Courses')).toBeInTheDocument()
-    expect(screen.getByText('Loisirs')).toBeInTheDocument()
-  })
-
-  it('formats each budget as "X / Y" using carryoverSpentAmount as X', () => {
-    const budgets = [
-      makeBudget({
-        budgetId: 'b1',
-        budgetName: 'Courses',
-        estimatedAmount: 400,
-        carryoverSpentAmount: 33,
-      }),
-    ]
-
-    render(
-      <RefloatBudgetSnapshotLine
-        context="profile"
-        budgets={budgets}
-        snapshotData={null}
-        onError={vi.fn()}
-      />,
-    )
-
-    // "Courses 33,00 € / 400,00 €" — carryover only, no snapshot draft yet
-    const row = screen.getByText('Courses').closest('li')!
-    expect(row).toHaveTextContent(/33,00.+400,00/)
-  })
-
-  it('merges snapshotData into the X numerator when a draft snapshot exists', () => {
-    const budgets = [
-      makeBudget({
-        budgetId: 'b1',
-        budgetName: 'Courses',
-        estimatedAmount: 400,
-        carryoverSpentAmount: 33,
-      }),
-    ]
-
-    render(
-      <RefloatBudgetSnapshotLine
-        context="profile"
-        budgets={budgets}
-        snapshotData={{ b1: 10 }}
-        onError={vi.fn()}
-      />,
-    )
-
-    // "Courses 43,00 € / 400,00 €" — carryover 33 + snapshot 10 = 43
-    const row = screen.getByText('Courses').closest('li')!
-    expect(row).toHaveTextContent(/43,00.+400,00/)
-  })
-
-  it('click triggers mutation with no body (server-computed snapshot)', async () => {
-    const user = userEvent.setup()
-    saveSnapshotMock.mockResolvedValueOnce({})
-
-    render(
-      <RefloatBudgetSnapshotLine
-        context="profile"
-        budgets={[makeBudget()]}
-        snapshotData={null}
-        onError={vi.fn()}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Puiser' }))
-
-    await waitFor(() => {
-      expect(saveSnapshotMock).toHaveBeenCalledTimes(1)
+      expect(
+        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
   })
 
-  it('disables button + forwards error code on mutation failure', async () => {
-    saveSnapshotPending = false
-    const user = userEvent.setup()
-    const onError = vi.fn()
-    saveSnapshotMock.mockRejectedValueOnce(new Error('invalid_step'))
+  describe('state=done', () => {
+    it('renders total snapshot puised in a grey card', () => {
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="done"
+          budgets={[makeBudget()]}
+          deficitRemaining={0}
+          snapshotData={{ b1: 30, b2: 20 }}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatBudgetSnapshotLine
-        context="profile"
-        budgets={[makeBudget()]}
-        snapshotData={null}
-        onError={onError}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: 'Puiser' }))
+      expect(screen.getByText(/50,00.+puisés depuis les budgets/)).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+  })
 
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('invalid_step')
+  describe('state=active', () => {
+    it('renders per-budget preview "X / Y → X+puiser / Y" with the puiser delta', () => {
+      const budgets = [
+        makeBudget({
+          budgetId: 'b1',
+          budgetName: 'Courses',
+          estimatedAmount: 400,
+          carryoverSpentAmount: 33,
+        }),
+      ]
+
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="active"
+          budgets={budgets}
+          deficitRemaining={20}
+          snapshotData={null}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
+
+      // Single budget → full deficit (20€) puised : preview
+      // "33,00 € / 400,00 € → 53,00 € / 400,00 € (+20,00 €)"
+      const row = screen.getByText('Courses').closest('li')!
+      const text = row.textContent ?? ''
+      expect(text).toContain('33,00')
+      expect(text).toContain('53,00')
+      expect(text).toContain('400,00')
+      expect(text).toContain('+20,00')
+      expect(text).toContain('→')
+      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
+    })
+
+    it('click triggers mutation + onSuccess receives the total puised amount', async () => {
+      const user = userEvent.setup()
+      const onSuccess = vi.fn()
+      saveSnapshotMock.mockResolvedValueOnce({
+        newDeficit: 0,
+        snapshot: { b1: 30, b2: 20 },
+        perBudget: [
+          { budgetId: 'b1', amount: 30 },
+          { budgetId: 'b2', amount: 20 },
+        ],
+        shortfall: 0,
+        nextStep: 'salary_update',
+      })
+
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="active"
+          budgets={[makeBudget()]}
+          deficitRemaining={50}
+          snapshotData={null}
+          onError={vi.fn()}
+          onSuccess={onSuccess}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Puiser' }))
+
+      await waitFor(() => {
+        expect(saveSnapshotMock).toHaveBeenCalledTimes(1)
+      })
+      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/50,00.+puisés/))
+    })
+
+    it('forwards error code to onError on mutation failure', async () => {
+      const user = userEvent.setup()
+      const onError = vi.fn()
+      saveSnapshotMock.mockRejectedValueOnce(new Error('invalid_step'))
+
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="active"
+          budgets={[makeBudget()]}
+          deficitRemaining={50}
+          snapshotData={null}
+          onError={onError}
+          onSuccess={vi.fn()}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Puiser' }))
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith('invalid_step')
+      })
     })
   })
 })

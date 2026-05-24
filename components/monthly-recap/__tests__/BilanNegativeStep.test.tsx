@@ -11,25 +11,17 @@ const saveSnapshotMock = vi.fn()
 const advanceMock = vi.fn()
 const transformMock = vi.fn()
 const transferMock = vi.fn()
-let refloatPiggyPending = false
-let refloatSavingsPending = false
-let saveSnapshotPending = false
 let advancePending = false
-let transformPending = false
-let transferPending = false
 
 vi.mock('@/hooks/useMonthlyRecap', () => ({
-  useRefloatFromPiggy: () => ({ mutateAsync: refloatPiggyMock, isPending: refloatPiggyPending }),
-  useRefloatFromSavings: () => ({
-    mutateAsync: refloatSavingsMock,
-    isPending: refloatSavingsPending,
-  }),
-  useSaveBudgetSnapshot: () => ({ mutateAsync: saveSnapshotMock, isPending: saveSnapshotPending }),
+  useRefloatFromPiggy: () => ({ mutateAsync: refloatPiggyMock, isPending: false }),
+  useRefloatFromSavings: () => ({ mutateAsync: refloatSavingsMock, isPending: false }),
+  useSaveBudgetSnapshot: () => ({ mutateAsync: saveSnapshotMock, isPending: false }),
   useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: advancePending }),
-  useTransferSurplusesToPiggy: () => ({ mutateAsync: transferMock, isPending: transferPending }),
+  useTransferSurplusesToPiggy: () => ({ mutateAsync: transferMock, isPending: false }),
   useTransformRemainingSurplusesToSavings: () => ({
     mutateAsync: transformMock,
-    isPending: transformPending,
+    isPending: false,
   }),
 }))
 
@@ -89,12 +81,7 @@ beforeEach(() => {
   advanceMock.mockReset()
   transformMock.mockReset()
   transferMock.mockReset()
-  refloatPiggyPending = false
-  refloatSavingsPending = false
-  saveSnapshotPending = false
   advancePending = false
-  transformPending = false
-  transferPending = false
 })
 
 afterEach(() => {
@@ -102,56 +89,78 @@ afterEach(() => {
 })
 
 describe('BilanNegativeStep', () => {
-  describe('nominal cascade flow', () => {
-    it('renders the deficit header + all 3 lines when deficit > 0', () => {
+  describe('initial cascade gating', () => {
+    it('renders header + deficit counter + 3 lines (piggy active, savings locked, snapshot locked)', () => {
       render(<BilanNegativeStep context="profile" summary={makeSummary()} recap={makeRecap()} />)
 
       expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
-      // The deficit counter is the only <p class*="font-bold"> with 100,00 — scope by section.
       const header = screen.getByText('Montant à renflouer :').parentElement!
       expect(header).toHaveTextContent(/100,00/)
 
-      // 3 lines present
-      expect(screen.getByText('Tirelire')).toBeInTheDocument()
-      expect(screen.getByText('Économies des budgets')).toBeInTheDocument()
-      expect(screen.getByText('Puiser dans les budgets existants')).toBeInTheDocument()
+      // Piggy is active (button "Renflouer X€" visible)
+      expect(screen.getByRole('button', { name: /Renflouer/ })).toBeInTheDocument()
+
+      // Savings is LOCKED (waiting copy, no button)
+      expect(screen.getByText(/Disponible après avoir transféré la tirelire/)).toBeInTheDocument()
+
+      // Snapshot is LOCKED (waiting copy)
+      expect(
+        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
+      ).toBeInTheDocument()
     })
 
-    it('recomputes the deficit live from recap trackers (piggy=30 already refloated)', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary()}
-          recap={makeRecap({ refloatedFromPiggy: 30 })}
-        />,
-      )
-
-      // deficit = 100 - 30 - 0 - 0 = 70€
-      expect(screen.getByText(/70,00 €/)).toBeInTheDocument()
-    })
-
-    it('disables piggy line when piggyAmount is 0 but keeps the savings + snapshot lines active', () => {
+    it('savings unlocks when piggy is empty + has been used (refloatedFromPiggy > 0)', () => {
       render(
         <BilanNegativeStep
           context="profile"
           summary={makeSummary({ piggyAmount: 0 })}
-          recap={makeRecap()}
+          recap={makeRecap({ refloatedFromPiggy: 50 })}
         />,
       )
 
-      expect(screen.getByText("Pas d'argent dans la tirelire.")).toBeInTheDocument()
-      // Savings line still active
+      // Piggy done state
+      expect(screen.getByText(/50,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      // Savings active (button visible)
+      expect(screen.getByRole('button', { name: 'Transférer les économies' })).toBeInTheDocument()
+      // Snapshot still locked
       expect(
-        screen.getByRole('button', { name: 'Transférer mes économies dans le déficit' }),
+        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
       ).toBeInTheDocument()
-      // Snapshot line still active
+    })
+
+    it('snapshot unlocks when both piggy and savings are empty', () => {
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
+          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
+        />,
+      )
+
+      expect(screen.getByText(/50,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      expect(screen.getByText(/25,00.+d'économies transférés/)).toBeInTheDocument()
+      // Snapshot active
+      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
+    })
+
+    it('savings stays empty (greyed "Pas d\'économies") when totalSavings was 0 from the start', () => {
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
+          recap={makeRecap({ refloatedFromPiggy: 50 })}
+        />,
+      )
+
+      // Savings shows empty copy (no money was there to begin with, no transfer happened)
+      expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
+      // Snapshot active right away (both piggy + savings empty)
       expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
     })
   })
 
   describe('bascule positive (piggy alone covers deficit + residual)', () => {
-    it('renders BilanPositiveStep synthetically when refloatedFromPiggy = |bilan| AND piggyAmount > 0 AND savings untouched', () => {
-      // Scenario: original deficit 100, piggy was 150, refloated 100. Residual piggy 50, savings 0.
+    it('renders BilanPositiveStep synthetically', () => {
       render(
         <BilanNegativeStep
           context="profile"
@@ -160,13 +169,11 @@ describe('BilanNegativeStep', () => {
         />,
       )
 
-      // The positive step renders : look for its header.
       expect(screen.getByRole('heading', { name: 'Gestion du bilan positif' })).toBeInTheDocument()
-      // The negative header is NOT rendered.
       expect(screen.queryByRole('heading', { name: 'Gestion du déficit' })).not.toBeInTheDocument()
     })
 
-    it('does NOT bascule when savings have been touched (the simplified "Continuer" path applies instead)', () => {
+    it('does NOT bascule when savings have been touched (fallback to Continuer path)', () => {
       render(
         <BilanNegativeStep
           context="profile"
@@ -175,28 +182,13 @@ describe('BilanNegativeStep', () => {
         />,
       )
 
-      // deficit = 100 - 50 - 50 = 0 → success branch
       expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
-      expect(screen.getByText('Le déficit est comblé.')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
   })
 
-  describe('deficit covered without bascule → manual Continuer', () => {
-    it('renders success message + "Continuer" button when deficit = 0 (savings used)', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 0, refloatedFromSavings: 100 })}
-        />,
-      )
-
-      expect(screen.getByText('Le déficit est comblé.')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
-    })
-
-    it('Continuer click calls /advance-step manage_bilan → salary_update', async () => {
+  describe('Continuer (deficit = 0 without bascule)', () => {
+    it('renders Continuer button at the bottom + click calls advance-step', async () => {
       const user = userEvent.setup()
       advanceMock.mockResolvedValueOnce({})
 
@@ -204,7 +196,7 @@ describe('BilanNegativeStep', () => {
         <BilanNegativeStep
           context="profile"
           summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromSavings: 100 })}
+          recap={makeRecap({ refloatedFromPiggy: 0, refloatedFromSavings: 100 })}
         />,
       )
       await user.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -217,9 +209,29 @@ describe('BilanNegativeStep', () => {
       })
     })
 
-    it('shows mapped error copy when advance mutation rejects with invalid_step', async () => {
+    it('swallows invalid_step error gracefully (snapshot auto-advance race)', async () => {
       const user = userEvent.setup()
       advanceMock.mockRejectedValueOnce(new Error('invalid_step'))
+
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
+          recap={makeRecap({ snapshotData: { b1: 60, b2: 40 } })}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Continuer' }))
+
+      await waitFor(() => {
+        expect(advanceMock).toHaveBeenCalled()
+      })
+      // No alert should surface for invalid_step
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('shows mapped error copy when advance mutation rejects with a different code', async () => {
+      const user = userEvent.setup()
+      advanceMock.mockRejectedValueOnce(new Error('not_initiator'))
 
       render(
         <BilanNegativeStep
@@ -231,13 +243,27 @@ describe('BilanNegativeStep', () => {
       await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/Cette étape n'est plus accessible/)
+        expect(screen.getByRole('alert')).toHaveTextContent(/Tu n'es pas l'initiateur/)
       })
     })
   })
 
-  describe('error handling (cascade lines)', () => {
-    it('renders the mapped alert when the piggy mutation rejects with piggy_insufficient', async () => {
+  describe('success snackbar', () => {
+    it('shows a success snackbar after a successful piggy refloat', async () => {
+      const user = userEvent.setup()
+      refloatPiggyMock.mockResolvedValueOnce({})
+
+      render(<BilanNegativeStep context="profile" summary={makeSummary()} recap={makeRecap()} />)
+      await user.click(screen.getByRole('button', { name: /Renflouer/ }))
+
+      const snackbar = await screen.findByRole('status')
+      expect(snackbar).toHaveTextContent(/tirelire/)
+      // Auto-dismiss timer behavior is covered by the inline `setTimeout` in
+      // the component (matches ProfileSettingsCard pattern) — not tested here
+      // because user-event + fake timers don't combine reliably in jsdom.
+    })
+
+    it('shows error alert when a refloat fails (no snackbar)', async () => {
       const user = userEvent.setup()
       refloatPiggyMock.mockRejectedValueOnce(new Error('piggy_insufficient'))
 
@@ -245,10 +271,9 @@ describe('BilanNegativeStep', () => {
       await user.click(screen.getByRole('button', { name: /Renflouer/ }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(
-          /La tirelire n'a pas ce montant disponible/,
-        )
+        expect(screen.getByRole('alert')).toHaveTextContent(/tirelire n'a pas ce montant/)
       })
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
     })
   })
 })

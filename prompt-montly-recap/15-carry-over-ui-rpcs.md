@@ -22,6 +22,10 @@
 - CLAUDE.md §5.5 — MAJ EXPECTED_RPCS
 
 ## Patterns et conventions à respecter
+- **Code couleur UI Popoth** (à suivre autant que possible — vérifié sprint 13 follow-up 2026-05-24) :
+  - **Tirelire** = violet, **Économies des budgets** = violet (même famille), **Budgets** = orange, **Deficit** = red, **Surplus / succès** = green, **Neutral / locked / done** = gray.
+  - Pour les badges carry-over : si "report" est un signal neutre/passé, gray ou indigo cohérent ; éviter rouge (réservé déficit) et orange (réservé budgets).
+  - Vérifier `BilanPositiveStep`, `BilanNegativeStep`, `RefloatPiggyLine`, `RefloatSavingsLine`, `RefloatBudgetSnapshotLine`, `SurplusSelectionDrawer` avant de choisir une couleur.
 - **RPCs atomiques** : pas de séquence non-atomique pour les actions impliquant 2 tables. Une RPC composite par action.
 - **Long-press flip semantic** : "valider une transaction reportée" = la transaction redevient normal mois en cours. Donc 2 changements : `is_carried_over → false` + `applied_to_balance_at → now()`. Atomic via RPC.
 - **DELETE carried expense → piggy** : seul comportement spécifique aux dépenses. Pour les revenus carry-over, DELETE = pur retrait (no piggy impact). Cf. user response sur question 3.

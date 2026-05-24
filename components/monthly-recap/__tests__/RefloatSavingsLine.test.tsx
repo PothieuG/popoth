@@ -40,105 +40,144 @@ afterEach(() => {
 })
 
 describe('RefloatSavingsLine', () => {
-  it('renders grey indicative copy when totalSavings is 0', () => {
-    render(
-      <RefloatSavingsLine
-        context="profile"
-        totalSavings={0}
-        savingsByBudget={[]}
-        onError={vi.fn()}
-      />,
-    )
+  describe('state=locked', () => {
+    it('renders waiting copy + no button when piggy is not yet empty', () => {
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="locked"
+          totalSavings={100}
+          savingsByBudget={[makeBudget()]}
+          deficitRemaining={100}
+          refloatedFromSavings={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('renders total + per-budget list + transfer button when savings > 0', () => {
-    const budgets = [
-      makeBudget({ budgetId: 'b1', budgetName: 'Courses', cumulatedSavings: 80 }),
-      makeBudget({ budgetId: 'b2', budgetName: 'Loisirs', cumulatedSavings: 45.5 }),
-    ]
-
-    render(
-      <RefloatSavingsLine
-        context="profile"
-        totalSavings={125.5}
-        savingsByBudget={budgets}
-        onError={vi.fn()}
-      />,
-    )
-
-    expect(screen.getByText('Courses')).toBeInTheDocument()
-    expect(screen.getByText(/80,00/)).toBeInTheDocument()
-    expect(screen.getByText('Loisirs')).toBeInTheDocument()
-    expect(screen.getByText(/45,50/)).toBeInTheDocument()
-    expect(screen.getByText(/125,50/)).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Transférer mes économies dans le déficit' }),
-    ).toBeInTheDocument()
-  })
-
-  it('click triggers mutation with no body (server-computed allocation)', async () => {
-    const user = userEvent.setup()
-    refloatSavingsMock.mockResolvedValueOnce({})
-    const budgets = [makeBudget({ cumulatedSavings: 100 })]
-
-    render(
-      <RefloatSavingsLine
-        context="profile"
-        totalSavings={100}
-        savingsByBudget={budgets}
-        onError={vi.fn()}
-      />,
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Transférer mes économies dans le déficit' }),
-    )
-
-    await waitFor(() => {
-      expect(refloatSavingsMock).toHaveBeenCalledTimes(1)
+      expect(screen.getByText(/Disponible après avoir transféré la tirelire/)).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
-    // No args — the hook factory accepts undefined `void` calls.
-    expect(refloatSavingsMock).toHaveBeenCalledWith()
   })
 
-  it('disables button + shows loading copy while mutation is pending', () => {
-    refloatSavingsPending = true
-    const budgets = [makeBudget()]
+  describe('state=empty', () => {
+    it('renders "Pas d\'économies" grey card', () => {
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="empty"
+          totalSavings={0}
+          savingsByBudget={[]}
+          deficitRemaining={100}
+          refloatedFromSavings={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatSavingsLine
-        context="profile"
-        totalSavings={50}
-        savingsByBudget={budgets}
-        onError={vi.fn()}
-      />,
-    )
-
-    const btn = screen.getByRole('button', { name: 'Chargement…' })
-    expect(btn).toBeDisabled()
+      expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
   })
 
-  it('forwards error code to onError when mutation rejects', async () => {
-    const user = userEvent.setup()
-    const onError = vi.fn()
-    refloatSavingsMock.mockRejectedValueOnce(new Error('no_deficit'))
+  describe('state=done', () => {
+    it('renders the cumulative savings refloat in a grey card', () => {
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="done"
+          totalSavings={0}
+          savingsByBudget={[]}
+          deficitRemaining={20}
+          refloatedFromSavings={120}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatSavingsLine
-        context="profile"
-        totalSavings={100}
-        savingsByBudget={[makeBudget()]}
-        onError={onError}
-      />,
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Transférer mes économies dans le déficit' }),
-    )
+      expect(screen.getByText(/120,00.+d'économies transférés/)).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+  })
 
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('no_deficit')
+  describe('state=active', () => {
+    it('renders per-budget preview with current → after (-debit) format', () => {
+      const budgets = [
+        makeBudget({ budgetId: 'b1', budgetName: 'Courses', cumulatedSavings: 60 }),
+        makeBudget({ budgetId: 'b2', budgetName: 'Loisirs', cumulatedSavings: 40 }),
+      ]
+
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="active"
+          totalSavings={100}
+          savingsByBudget={budgets}
+          deficitRemaining={50}
+          refloatedFromSavings={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
+
+      // Total displayed
+      expect(screen.getByText(/100,00/)).toBeInTheDocument()
+      // Both budget names
+      expect(screen.getByText('Courses')).toBeInTheDocument()
+      expect(screen.getByText('Loisirs')).toBeInTheDocument()
+      // Preview "current → after" arrow per budget row
+      expect(screen.getAllByText('→')).toHaveLength(2)
+      // Button has the new lean label
+      expect(screen.getByRole('button', { name: 'Transférer les économies' })).toBeInTheDocument()
+    })
+
+    it('click triggers mutation + onSuccess receives the transferred amount', async () => {
+      const user = userEvent.setup()
+      const onSuccess = vi.fn()
+      refloatSavingsMock.mockResolvedValueOnce({ refloatedFromSavings: 50 })
+
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="active"
+          totalSavings={100}
+          savingsByBudget={[makeBudget({ cumulatedSavings: 100 })]}
+          deficitRemaining={50}
+          refloatedFromSavings={0}
+          onError={vi.fn()}
+          onSuccess={onSuccess}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Transférer les économies' }))
+
+      await waitFor(() => {
+        expect(refloatSavingsMock).toHaveBeenCalledTimes(1)
+      })
+      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/50,00.+économies transférées/))
+    })
+
+    it('forwards error code to onError on mutation failure', async () => {
+      const user = userEvent.setup()
+      const onError = vi.fn()
+      refloatSavingsMock.mockRejectedValueOnce(new Error('no_deficit'))
+
+      render(
+        <RefloatSavingsLine
+          context="profile"
+          state="active"
+          totalSavings={100}
+          savingsByBudget={[makeBudget()]}
+          deficitRemaining={50}
+          refloatedFromSavings={0}
+          onError={onError}
+          onSuccess={vi.fn()}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Transférer les économies' }))
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith('no_deficit')
+      })
     })
   })
 })

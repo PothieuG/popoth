@@ -21,6 +21,14 @@ Implémenter `SalaryUpdateStep.tsx` (question Oui/Non + form perso 1 input ou fo
 - `app/api/groups/[id]/members/route.ts` — à LIRE pour comprendre comment fetch les membres
 
 ## Patterns et conventions à respecter
+- **Code couleur UI Popoth** (à suivre autant que possible — vérifié sprint 13 follow-up 2026-05-24) :
+  - **Tirelire** = violet (`bg-violet-50`, `border-violet-200`, `text-violet-800/900`)
+  - **Économies des budgets** = violet (même famille que la tirelire)
+  - **Budgets** = orange (`bg-orange-50/100`, `border-orange-200/300`, `text-orange-800/900`)
+  - **Deficit** = red (compteur / sections déficit)
+  - **Surplus / succès** = green (transformation positive, snackbar succès `bg-green-600`)
+  - **Neutral / locked / done** = gray (cards greyed pour les étapes en attente ou terminées)
+  Pour toute nouvelle surface, vérifier si une convention existante s'applique (cf. `BilanPositiveStep`, `BilanNegativeStep`, `RefloatPiggyLine`, `RefloatSavingsLine`, `RefloatBudgetSnapshotLine`, `SurplusSelectionDrawer`) avant de choisir une couleur.
 - **`useForm` + `zodResolver`** : cf. [.claude/conventions/zod-patterns.md](../.claude/conventions/zod-patterns.md) §A Pattern dual-type. `useForm<FormInput, undefined, FormOutput>` + `<DecimalFormInput>` réutilisable pour les inputs salaire (decimal fr-FR comma→dot).
 - **GroupMembersFetch** : fetcher la liste des membres pour pré-remplir le form group. Soit via une route existante `GET /api/groups/<id>/members`, soit en passant la liste depuis le summary endpoint (étendre loadRecapSummary).
 - **router.replace post-complete** : `router.replace(context === 'group' ? '/group-dashboard' : '/dashboard')`. PAS `router.push` (cf. CLAUDE.md `❌ Auth + recap nav`).

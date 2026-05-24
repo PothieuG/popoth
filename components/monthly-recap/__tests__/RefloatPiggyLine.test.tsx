@@ -21,105 +21,143 @@ afterEach(() => {
 })
 
 describe('RefloatPiggyLine', () => {
-  it('renders grey indicative copy when piggyAmount is 0', () => {
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={0}
-        deficitRemaining={100}
-        onError={vi.fn()}
-      />,
-    )
+  describe('state=empty', () => {
+    it('renders grey indicative card with "Pas d\'argent dans la tirelire"', () => {
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="empty"
+          piggyAmount={0}
+          deficitRemaining={100}
+          refloatedFromPiggy={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    expect(screen.getByText("Pas d'argent dans la tirelire.")).toBeInTheDocument()
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('clamps "À utiliser" to deficitRemaining when piggy > deficit', () => {
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={200}
-        deficitRemaining={50}
-        onError={vi.fn()}
-      />,
-    )
-
-    // Disponible row : 200,00 € (1 occurrence)
-    expect(screen.getByText(/200,00/)).toBeInTheDocument()
-    // À utiliser row + button both render "50,00" (2 occurrences total)
-    expect(screen.getAllByText(/50,00/)).toHaveLength(2)
-    expect(screen.getByRole('button', { name: /Renflouer.+50,00/ })).toBeInTheDocument()
-  })
-
-  it('shows piggyAmount when piggy ≤ deficit (full piggy used)', () => {
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={30}
-        deficitRemaining={100}
-        onError={vi.fn()}
-      />,
-    )
-
-    // 3 occurrences : Disponible row + À utiliser row + button label
-    expect(screen.getAllByText(/30,00/)).toHaveLength(3)
-    expect(screen.getByRole('button', { name: /Renflouer.+30,00/ })).toBeInTheDocument()
-  })
-
-  it('click triggers mutation with clamped amount', async () => {
-    const user = userEvent.setup()
-    refloatPiggyMock.mockResolvedValueOnce({})
-
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={200}
-        deficitRemaining={75}
-        onError={vi.fn()}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: /Renflouer.+75,00/ }))
-
-    await waitFor(() => {
-      expect(refloatPiggyMock).toHaveBeenCalledTimes(1)
+      expect(screen.getByText("Pas d'argent dans la tirelire.")).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
-    expect(refloatPiggyMock).toHaveBeenCalledWith({ amount: 75 })
   })
 
-  it('disables button + shows loading copy while mutation is pending', () => {
-    refloatPiggyPending = true
+  describe('state=done', () => {
+    it('renders the cumulative refloat amount in the grey card', () => {
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="done"
+          piggyAmount={0}
+          deficitRemaining={50}
+          refloatedFromPiggy={80}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={100}
-        deficitRemaining={50}
-        onError={vi.fn()}
-      />,
-    )
-
-    const btn = screen.getByRole('button', { name: 'Chargement…' })
-    expect(btn).toBeDisabled()
+      expect(screen.getByText(/80,00 € transférés depuis la tirelire/)).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
   })
 
-  it('forwards error code to onError when mutation rejects', async () => {
-    const user = userEvent.setup()
-    const onError = vi.fn()
-    refloatPiggyMock.mockRejectedValueOnce(new Error('piggy_insufficient'))
+  describe('state=active', () => {
+    it('clamps "À transférer" to deficitRemaining when piggy > deficit', () => {
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="active"
+          piggyAmount={200}
+          deficitRemaining={50}
+          refloatedFromPiggy={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
 
-    render(
-      <RefloatPiggyLine
-        context="profile"
-        piggyAmount={100}
-        deficitRemaining={50}
-        onError={onError}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: /Renflouer/ }))
+      expect(screen.getByText(/200,00/)).toBeInTheDocument()
+      expect(screen.getAllByText(/50,00/)).toHaveLength(2) // À transférer + button label
+      expect(screen.getByRole('button', { name: /Renflouer.+50,00/ })).toBeInTheDocument()
+    })
 
-    await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith('piggy_insufficient')
+    it('uses full piggy when piggy ≤ deficit', () => {
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="active"
+          piggyAmount={30}
+          deficitRemaining={100}
+          refloatedFromPiggy={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
+
+      expect(screen.getAllByText(/30,00/)).toHaveLength(3) // Disponible + À transférer + button
+      expect(screen.getByRole('button', { name: /Renflouer.+30,00/ })).toBeInTheDocument()
+    })
+
+    it('click triggers mutation with clamped amount AND calls onSuccess', async () => {
+      const user = userEvent.setup()
+      const onSuccess = vi.fn()
+      refloatPiggyMock.mockResolvedValueOnce({})
+
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="active"
+          piggyAmount={200}
+          deficitRemaining={75}
+          refloatedFromPiggy={0}
+          onError={vi.fn()}
+          onSuccess={onSuccess}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: /Renflouer.+75,00/ }))
+
+      await waitFor(() => {
+        expect(refloatPiggyMock).toHaveBeenCalledWith({ amount: 75 })
+      })
+      expect(onSuccess).toHaveBeenCalledWith(expect.stringMatching(/75,00.+tirelire/))
+    })
+
+    it('disables button + shows loading copy while mutation is pending', () => {
+      refloatPiggyPending = true
+
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="active"
+          piggyAmount={100}
+          deficitRemaining={50}
+          refloatedFromPiggy={0}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByRole('button', { name: 'Chargement…' })).toBeDisabled()
+    })
+
+    it('forwards error code to onError when mutation rejects', async () => {
+      const user = userEvent.setup()
+      const onError = vi.fn()
+      refloatPiggyMock.mockRejectedValueOnce(new Error('piggy_insufficient'))
+
+      render(
+        <RefloatPiggyLine
+          context="profile"
+          state="active"
+          piggyAmount={100}
+          deficitRemaining={50}
+          refloatedFromPiggy={0}
+          onError={onError}
+          onSuccess={vi.fn()}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: /Renflouer/ }))
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith('piggy_insufficient')
+      })
     })
   })
 })

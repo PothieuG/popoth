@@ -332,9 +332,15 @@ export interface SaveBudgetSnapshotResult {
  * dans le flow négatif — advances `current_step → 'salary_update'` iff the
  * new deficit reaches 0.
  *
- * Cache update strategy: `invalidateQueries` — the response carries neither
- * a fresh `RecapSummary` nor the new `snapshotData`, and the step transition
- * needs a full re-fetch anyway for the wizard to render `SalaryUpdateStep`.
+ * Cache update strategy: `setQueryData` fast path — we patch
+ * `recap.snapshotData` in place with the server-computed snapshot so the
+ * UI re-renders the per-budget breakdown without a refetch ("stay on page"
+ * UX). We deliberately DO NOT mirror the server-side `current_step`
+ * auto-advance into the cache: even when the snapshot covers the deficit,
+ * the wizard stays on `BilanNegativeStep` so the user sees a final success
+ * snackbar + the "Continuer" button. The Continuer click then triggers a
+ * refetch (or an explicit advance-step), which is when the wizard moves to
+ * `SalaryUpdateStep`.
  */
 export function useSaveBudgetSnapshot(context: RecapContext) {
   const qc = useQueryClient()
@@ -352,8 +358,14 @@ export function useSaveBudgetSnapshot(context: RecapContext) {
       const json = (await res.json()) as { data: SaveBudgetSnapshotResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: (data) => {
+      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
+        if (!old) return old
+        const nextRecap: RecapProgress | null = old.recap
+          ? { ...old.recap, snapshotData: data.snapshot }
+          : old.recap
+        return { ...old, recap: nextRecap }
+      })
     },
   })
 }
