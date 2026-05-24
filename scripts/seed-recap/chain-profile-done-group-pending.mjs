@@ -98,9 +98,9 @@ runScenario('chain-profile-done-group-pending', async () => {
     expectedBehavior:
       'Le proxy redirige /dashboard → /monthly-recap?context=profile (le ' +
       'recap perso est encore in_progress à final_recap). Le wizard rouvre ' +
-      'à l\'écran 5 Final Recap, parcours positif (+200€ transformés en ' +
+      "à l'écran 5 Final Recap, parcours positif (+200€ transformés en " +
       'économies). Le bouton du bas affiche "Aller au recap du groupe « … »" ' +
-      'parce que le groupe G n\'a pas encore commencé son propre recap. ' +
+      "parce que le groupe G n'a pas encore commencé son propre recap. " +
       'Le clic finalise le recap perso puis redirige vers ' +
       '/monthly-recap?context=group où le wizard groupe démarre sur Welcome.',
     expectedFigures: {
