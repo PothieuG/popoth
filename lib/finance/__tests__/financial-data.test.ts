@@ -91,10 +91,12 @@ describe.skipIf(!ENABLED)(
       totalEstimatedBudgets: 600,
       totalRealIncome: 1000,
       totalRealExpenses: 400,
-      // Sprint 16 V3 — call site `getGroupFinancialData(groupId)` sans userId :
-      // backward-compat, pas de virtual row contribution. Voir nouveau cas
-      // gated qui passe `(groupId, userId)` pour valider l'injection.
-      meta: { readOnlyIncomes: [] },
+      // Sprint 16 V3 — une ligne read-only par membre du groupe avec
+      // contribution > 0. Single-member group (first_name = "Finance") →
+      // 1 ligne `Contribution de Finance` au montant post-trigger (600).
+      meta: {
+        readOnlyIncomes: [{ kind: 'contribution', label: 'Contribution de Finance', amount: 600 }],
+      },
     }
 
     beforeAll(async () => {
@@ -506,10 +508,13 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
 })
 
 // Sprint 16 Monthly Recap V3 (2026-05-25) — virtual read-only rows.
-// Couvre l'injection conditionnelle de `meta.readOnlyIncomes` selon le
-// contexte (salaire perso > 0, contribution groupe avec userId fourni). Les
-// cas profile-with-salary et group-no-userId sont déjà couverts par les
-// goldens ci-dessus ; ce describe cible les cas edge.
+// Couvre `meta.readOnlyIncomes` selon le contexte :
+//   - perso : ligne `Salaire` si profile.salary > 0
+//   - groupe : 1 ligne `Contribution de <prénom>` par membre avec
+//              contribution_amount > 0, triée par prénom
+// Les cas single-member-group et profile-with-salary sont couverts par les
+// goldens ci-dessus. Ce describe cible : profile sans salaire + groupe
+// multi-membres + group sans contribution > 0.
 describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)', () => {
   let admin: SupabaseClient<Database>
   let getProfileFinancialData: FinCalcMod['getProfileFinancialData']
@@ -520,14 +525,25 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
   const noSalaryPassword = `nosalary-${randomUUID()}`
   let noSalaryUserId: string
 
-  const memberEmail = `finance-member-${stamp}@popoth.test`
-  const memberPassword = `member-${randomUUID()}`
-  let memberUserId: string
-  let memberGroupId: string
+  // Multi-member group fixture : Alice (2000€) + Bob (1000€), budget 1500€.
+  // Trigger calcule : Alice = (2000/3000)*1500 = 1000, Bob = (1000/3000)*1500 = 500.
+  // Tri alphabétique attendu : Alice (1000) en premier, Bob (500) en second.
+  const aliceEmail = `finance-alice-${stamp}@popoth.test`
+  const alicePassword = `alice-${randomUUID()}`
+  let aliceUserId: string
 
-  const outsiderEmail = `finance-outsider-${stamp}@popoth.test`
-  const outsiderPassword = `outsider-${randomUUID()}`
-  let outsiderUserId: string
+  const bobEmail = `finance-bob-${stamp}@popoth.test`
+  const bobPassword = `bob-${randomUUID()}`
+  let bobUserId: string
+
+  let multiGroupId: string
+
+  // Groupe vide : aucune contribution (monthly_budget=0). Vérifie le
+  // fallback empty array.
+  const emptyGroupCreatorEmail = `finance-empty-${stamp}@popoth.test`
+  const emptyGroupCreatorPassword = `empty-${randomUUID()}`
+  let emptyGroupCreatorId: string
+  let emptyGroupId: string
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -543,8 +559,7 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
     getProfileFinancialData = finCalcMod.getProfileFinancialData
     getGroupFinancialData = finCalcMod.getGroupFinancialData
 
-    // Profile sans salaire (salary null) — utilisé pour valider que
-    // readOnlyIncomes reste vide en perso quand salary <= 0.
+    // Profile sans salaire : valide que readOnlyIncomes reste vide en perso.
     const { data: noSalaryUser, error: noSalaryErr } = await admin.auth.admin.createUser({
       email: noSalaryEmail,
       password: noSalaryPassword,
@@ -560,73 +575,111 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
     })
     if (noSalaryProfErr) throw noSalaryProfErr
 
-    // Membre d'un groupe single-member — contribution_amount = monthly_budget
-    // via trigger calculate_group_contributions. Salary > 0 obligatoire pour
-    // que le trigger calcule un montant.
-    const { data: memberUser, error: memberErr } = await admin.auth.admin.createUser({
-      email: memberEmail,
-      password: memberPassword,
+    // Multi-member group : Alice + Bob, salary > 0 → trigger calcule
+    // contributions proportionnelles au salaire (monthly_budget=1500).
+    const { data: aliceUser, error: aliceErr } = await admin.auth.admin.createUser({
+      email: aliceEmail,
+      password: alicePassword,
       email_confirm: true,
     })
-    if (memberErr || !memberUser.user) throw memberErr ?? new Error('createUser failed')
-    memberUserId = memberUser.user.id
+    if (aliceErr || !aliceUser.user) throw aliceErr ?? new Error('alice createUser failed')
+    aliceUserId = aliceUser.user.id
 
-    const { error: memberProfErr } = await admin.from('profiles').insert({
-      id: memberUserId,
-      first_name: 'Member',
+    const { data: bobUser, error: bobErr } = await admin.auth.admin.createUser({
+      email: bobEmail,
+      password: bobPassword,
+      email_confirm: true,
+    })
+    if (bobErr || !bobUser.user) throw bobErr ?? new Error('bob createUser failed')
+    bobUserId = bobUser.user.id
+
+    const { error: aliceProfErr } = await admin.from('profiles').insert({
+      id: aliceUserId,
+      first_name: 'Alice',
       last_name: 'Fixture',
       salary: 2000,
     })
-    if (memberProfErr) throw memberProfErr
+    if (aliceProfErr) throw aliceProfErr
 
-    const { data: groupRow, error: groupErr } = await admin
+    const { error: bobProfErr } = await admin.from('profiles').insert({
+      id: bobUserId,
+      first_name: 'Bob',
+      last_name: 'Fixture',
+      salary: 1000,
+    })
+    if (bobProfErr) throw bobProfErr
+
+    const { data: multiGroupRow, error: multiGroupErr } = await admin
       .from('groups')
       .insert({
-        name: `Meta Test Group ${stamp}`,
-        creator_id: memberUserId,
+        name: `Multi-Member Group ${stamp}`,
+        creator_id: aliceUserId,
         monthly_budget_estimate: 1500,
       })
       .select('id')
       .single()
-    if (groupErr || !groupRow) throw groupErr ?? new Error('group insert returned no id')
-    memberGroupId = groupRow.id
+    if (multiGroupErr || !multiGroupRow)
+      throw multiGroupErr ?? new Error('multi group insert returned no id')
+    multiGroupId = multiGroupRow.id
 
-    const { error: linkErr } = await admin
+    const { error: aliceLinkErr } = await admin
       .from('profiles')
-      .update({ group_id: memberGroupId })
-      .eq('id', memberUserId)
-    if (linkErr) throw linkErr
+      .update({ group_id: multiGroupId })
+      .eq('id', aliceUserId)
+    if (aliceLinkErr) throw aliceLinkErr
 
-    // Outsider : user qui N'EST PAS membre du groupe → aucune ligne dans
-    // group_contributions pour son couple (profile_id, group_id). Sert à
-    // valider que readOnlyIncomes reste vide même si on passe son userId.
-    const { data: outsiderUser, error: outsiderErr } = await admin.auth.admin.createUser({
-      email: outsiderEmail,
-      password: outsiderPassword,
+    const { error: bobLinkErr } = await admin
+      .from('profiles')
+      .update({ group_id: multiGroupId })
+      .eq('id', bobUserId)
+    if (bobLinkErr) throw bobLinkErr
+
+    // Groupe vide : creator sans member-link → group_contributions reste
+    // sans ligne → readOnlyIncomes = [].
+    const { data: emptyCreator, error: emptyCreatorErr } = await admin.auth.admin.createUser({
+      email: emptyGroupCreatorEmail,
+      password: emptyGroupCreatorPassword,
       email_confirm: true,
     })
-    if (outsiderErr || !outsiderUser.user) throw outsiderErr ?? new Error('createUser failed')
-    outsiderUserId = outsiderUser.user.id
+    if (emptyCreatorErr || !emptyCreator.user)
+      throw emptyCreatorErr ?? new Error('empty creator createUser failed')
+    emptyGroupCreatorId = emptyCreator.user.id
 
-    const { error: outsiderProfErr } = await admin.from('profiles').insert({
-      id: outsiderUserId,
-      first_name: 'Outsider',
+    const { error: emptyCreatorProfErr } = await admin.from('profiles').insert({
+      id: emptyGroupCreatorId,
+      first_name: 'EmptyCreator',
       last_name: 'Fixture',
     })
-    if (outsiderProfErr) throw outsiderProfErr
+    if (emptyCreatorProfErr) throw emptyCreatorProfErr
+
+    const { data: emptyGroupRow, error: emptyGroupErr } = await admin
+      .from('groups')
+      .insert({
+        name: `Empty Group ${stamp}`,
+        creator_id: emptyGroupCreatorId,
+        monthly_budget_estimate: 0,
+      })
+      .select('id')
+      .single()
+    if (emptyGroupErr || !emptyGroupRow)
+      throw emptyGroupErr ?? new Error('empty group insert returned no id')
+    emptyGroupId = emptyGroupRow.id
   }, 60_000)
 
   afterAll(async () => {
     if (!admin) return
-    await admin.from('group_contributions').delete().eq('group_id', memberGroupId)
-    await admin.from('profiles').update({ group_id: null }).eq('id', memberUserId)
-    await admin.from('groups').delete().eq('id', memberGroupId)
-    await admin.from('profiles').delete().eq('id', noSalaryUserId)
-    await admin.from('profiles').delete().eq('id', memberUserId)
-    await admin.from('profiles').delete().eq('id', outsiderUserId)
+    await admin.from('group_contributions').delete().eq('group_id', multiGroupId)
+    await admin.from('profiles').update({ group_id: null }).in('id', [aliceUserId, bobUserId])
+    await admin.from('groups').delete().eq('id', multiGroupId)
+    await admin.from('groups').delete().eq('id', emptyGroupId)
+    await admin
+      .from('profiles')
+      .delete()
+      .in('id', [noSalaryUserId, aliceUserId, bobUserId, emptyGroupCreatorId])
     await admin.auth.admin.deleteUser(noSalaryUserId)
-    await admin.auth.admin.deleteUser(memberUserId)
-    await admin.auth.admin.deleteUser(outsiderUserId)
+    await admin.auth.admin.deleteUser(aliceUserId)
+    await admin.auth.admin.deleteUser(bobUserId)
+    await admin.auth.admin.deleteUser(emptyGroupCreatorId)
   }, 60_000)
 
   it('profile sans salaire (null) → meta.readOnlyIncomes vide', async () => {
@@ -634,20 +687,16 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
     expect(data.meta?.readOnlyIncomes).toEqual([])
   }, 30_000)
 
-  it('group avec userId membre → meta.readOnlyIncomes contient la contribution', async () => {
-    const data = await getGroupFinancialData(memberGroupId, memberUserId)
+  it('group multi-membres → 1 ligne par membre, triée par prénom', async () => {
+    const data = await getGroupFinancialData(multiGroupId)
     expect(data.meta?.readOnlyIncomes).toEqual([
-      { kind: 'contribution', label: 'Contribution groupe', amount: 1500 },
+      { kind: 'contribution', label: 'Contribution de Alice', amount: 1000 },
+      { kind: 'contribution', label: 'Contribution de Bob', amount: 500 },
     ])
   }, 30_000)
 
-  it('group sans userId fourni → meta.readOnlyIncomes vide (backward-compat)', async () => {
-    const data = await getGroupFinancialData(memberGroupId)
-    expect(data.meta?.readOnlyIncomes).toEqual([])
-  }, 30_000)
-
-  it('group avec userId outsider (pas membre) → meta.readOnlyIncomes vide', async () => {
-    const data = await getGroupFinancialData(memberGroupId, outsiderUserId)
+  it('group sans contribution (monthly_budget=0, aucun membre) → meta.readOnlyIncomes vide', async () => {
+    const data = await getGroupFinancialData(emptyGroupId)
     expect(data.meta?.readOnlyIncomes).toEqual([])
   }, 30_000)
 })

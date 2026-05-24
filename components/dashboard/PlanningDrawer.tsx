@@ -693,9 +693,9 @@ export default function PlanningDrawer({
                   {/* Sprint 16 V3 — lignes virtuelles read-only en tête (salaire
                      en perso, contribution groupe en groupe). Cadre vert clair
                      + badge "Profil"/"Groupe" + cadenas. Aucune action possible. */}
-                  {readOnlyIncomes.map((row) => (
+                  {readOnlyIncomes.map((row, idx) => (
                     <div
-                      key={`readonly-${row.kind}`}
+                      key={`readonly-${row.kind}-${idx}`}
                       className="rounded-xl border border-green-200 bg-green-50/30 p-3 shadow-md"
                       data-testid={`readonly-income-${row.kind}`}
                     >

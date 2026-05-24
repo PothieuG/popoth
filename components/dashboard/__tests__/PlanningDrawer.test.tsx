@@ -125,8 +125,13 @@ import PlanningDrawer from '@/components/dashboard/PlanningDrawer'
 const SALARY_ROW: ReadOnlyIncome = { kind: 'salary', label: 'Salaire', amount: 2500 }
 const CONTRIBUTION_ROW: ReadOnlyIncome = {
   kind: 'contribution',
-  label: 'Contribution groupe',
-  amount: 750,
+  label: 'Contribution de Alice',
+  amount: 1000,
+}
+const CONTRIBUTION_ROW_BOB: ReadOnlyIncome = {
+  kind: 'contribution',
+  label: 'Contribution de Bob',
+  amount: 500,
 }
 
 function switchToRevenusTab(user: ReturnType<typeof userEvent.setup>) {
@@ -153,9 +158,28 @@ describe('PlanningDrawer — virtual read-only rows (Sprint 16 V3)', () => {
     await switchToRevenusTab(user)
 
     const row = await screen.findByTestId('readonly-income-contribution')
-    expect(row).toHaveTextContent('Contribution groupe')
+    expect(row).toHaveTextContent('Contribution de Alice')
     expect(row).toHaveTextContent('Groupe')
-    expect(row).toHaveTextContent(/750,00\s*€/)
+    expect(row).toHaveTextContent(/1\s*000,00\s*€/)
+  })
+
+  it('renders one line per member when readOnlyIncomes contains multiple contributions', async () => {
+    const user = userEvent.setup()
+    render(
+      <PlanningDrawer
+        isOpen
+        onClose={() => {}}
+        readOnlyIncomes={[CONTRIBUTION_ROW, CONTRIBUTION_ROW_BOB]}
+      />,
+    )
+    await switchToRevenusTab(user)
+
+    const rows = await screen.findAllByTestId('readonly-income-contribution')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Contribution de Alice')
+    expect(rows[0]).toHaveTextContent(/1\s*000,00\s*€/)
+    expect(rows[1]).toHaveTextContent('Contribution de Bob')
+    expect(rows[1]).toHaveTextContent(/500,00\s*€/)
   })
 
   it('renders virtual row(s) BEFORE the real income rows', async () => {

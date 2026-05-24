@@ -34,21 +34,7 @@ import { calculateIncomeCompensation } from './income-compensation'
 import { saveRavToDatabase } from './rav-persistence'
 import type { FinancialData, ReadOnlyIncome } from './types'
 
-interface LoadFinancialDataOptions {
-  /**
-   * Sprint 16 — pour le contexte groupe uniquement : userId du membre courant,
-   * utilisé pour exposer SA contribution personnelle via `meta.readOnlyIncomes`.
-   * Sans cette valeur, le tableau reste vide (backward-compat pour les call
-   * sites internes — load-summary, snapshots, budget-savings-detail — qui
-   * n'ont pas besoin de la ligne virtuelle).
-   */
-  currentUserId?: string
-}
-
-async function _loadFinancialData(
-  filter: ContextFilter,
-  options: LoadFinancialDataOptions = {},
-): Promise<FinancialData> {
+async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData> {
   // resolveContextIds enforces the discriminated-union invariant at runtime
   // (throws if neither id is set) and exposes them as `string | undefined`,
   // letting us narrow with a single ternary.
@@ -198,6 +184,20 @@ async function _loadFinancialData(
     // Profile : ajouter le salaire fixe à la contribution (group n'a pas de salaire)
     const incomeContribution = incomeCompensation + profileSalary
 
+    // Sprint 16 V3 — pour le groupe, on fetch une fois les contributions
+    // jointes au first_name des membres. Le résultat sert à la fois au RAV
+    // (somme totale) et aux lignes virtuelles read-only (une ligne par
+    // membre dans le drawer Planification groupe).
+    type GroupContribRow = { contribution_amount: number; profiles: { first_name: string } | null }
+    let groupContributions: GroupContribRow[] = []
+    if (!isProfile) {
+      const { data } = await supabaseServer
+        .from('group_contributions')
+        .select('contribution_amount, profiles:profile_id (first_name)')
+        .eq('group_id', ownerId)
+      groupContributions = (data ?? []) as unknown as GroupContribRow[]
+    }
+
     let remainingToLive: number
     if (isProfile) {
       remainingToLive = await calculateRemainingToLiveProfile(
@@ -208,13 +208,10 @@ async function _loadFinancialData(
         totalBudgetDeficits,
       )
     } else {
-      // Group-only: contributions des membres
-      const { data: groupContributions } = await supabaseServer
-        .from('group_contributions')
-        .select('contribution_amount')
-        .eq('group_id', ownerId)
-      const totalProfileContributions =
-        groupContributions?.reduce((sum, c) => sum + c.contribution_amount, 0) ?? 0
+      const totalProfileContributions = groupContributions.reduce(
+        (sum, c) => sum + c.contribution_amount,
+        0,
+      )
 
       remainingToLive = await calculateRemainingToLiveGroup(
         incomeContribution,
@@ -230,30 +227,33 @@ async function _loadFinancialData(
     await saveRavToDatabase(isProfile ? ownerId : null, isProfile ? null : ownerId, remainingToLive)
 
     // 13. Sprint 16 Monthly Recap V3 — lignes virtuelles read-only à afficher
-    // dans le drawer Planification (salaire perso, contribution groupe). Ces
-    // valeurs sont déjà incluses dans le RAV via incomeContribution (perso) et
-    // totalProfileContributions (groupe) — donc PAS de double-comptage côté
-    // backend. Le `meta.readOnlyIncomes` est purement présentationnel pour
-    // l'UI ; pas d'impact sur totalEstimatedIncome ni sur les calculs du
-    // recap mensuel (load-summary.ts).
+    // dans le drawer Planification (salaire perso, contribution de chaque
+    // membre en groupe). Ces valeurs sont déjà incluses dans le RAV via
+    // incomeContribution (perso) et totalProfileContributions (groupe) —
+    // donc PAS de double-comptage côté backend. `meta.readOnlyIncomes` est
+    // purement présentationnel ; aucun impact sur totalEstimatedIncome ni
+    // sur les calculs du recap mensuel (load-summary.ts).
     const readOnlyIncomes: ReadOnlyIncome[] = []
     if (isProfile) {
       if (profileSalary > 0) {
         readOnlyIncomes.push({ kind: 'salary', label: 'Salaire', amount: profileSalary })
       }
-    } else if (options.currentUserId) {
-      const { data: userContribRow } = await supabaseServer
-        .from('group_contributions')
-        .select('contribution_amount')
-        .eq('group_id', ownerId)
-        .eq('profile_id', options.currentUserId)
-        .maybeSingle()
-      const userContribution = userContribRow?.contribution_amount ?? 0
-      if (userContribution > 0) {
+    } else {
+      // Une ligne read-only par membre du groupe ayant une contribution > 0.
+      // Tri stable par prénom pour un affichage déterministe (utile pour les
+      // tests + l'UX).
+      const memberRows = groupContributions
+        .filter((c) => c.contribution_amount > 0)
+        .map((c) => ({
+          firstName: c.profiles?.first_name ?? '',
+          amount: c.contribution_amount,
+        }))
+        .sort((a, b) => a.firstName.localeCompare(b.firstName, 'fr'))
+      for (const row of memberRows) {
         readOnlyIncomes.push({
           kind: 'contribution',
-          label: 'Contribution groupe',
-          amount: userContribution,
+          label: row.firstName ? `Contribution de ${row.firstName}` : 'Contribution groupe',
+          amount: row.amount,
         })
       }
     }
@@ -282,15 +282,11 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
 /**
  * Récupère les données financières pour un groupe. Fail-soft → EMPTY_FINANCIAL_DATA.
  *
- * Sprint 16 Monthly Recap V3 — `userId` optionnel : si fourni, expose la
- * contribution personnelle du membre via `meta.readOnlyIncomes` (consommé par
- * le drawer Planification dashboard groupe). Les call sites internes
- * (load-summary, snapshots, budget-savings-detail) qui n'ont pas besoin de
- * cette ligne virtuelle continuent de passer un seul argument.
+ * Sprint 16 Monthly Recap V3 — `meta.readOnlyIncomes` expose la contribution
+ * de CHAQUE membre du groupe (label `Contribution de <prénom>`) en plus du
+ * calcul RAV existant. Pas de paramètre userId : on ne distingue pas
+ * visuellement la contribution du user courant des autres.
  */
-export async function getGroupFinancialData(
-  groupId: string,
-  userId?: string,
-): Promise<FinancialData> {
-  return _loadFinancialData(asContextFilter({ group_id: groupId }), { currentUserId: userId })
+export async function getGroupFinancialData(groupId: string): Promise<FinancialData> {
+  return _loadFinancialData(asContextFilter({ group_id: groupId }))
 }

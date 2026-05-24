@@ -35,9 +35,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     let financialData: FinancialData
     if (context === 'group') {
-      // Sprint 16 V3 — passer userId pour exposer la contribution personnelle
-      // du membre via meta.readOnlyIncomes (consommé par le drawer Planification).
-      financialData = await getGroupFinancialData(profile.group_id!, userId)
+      financialData = await getGroupFinancialData(profile.group_id!)
     } else {
       financialData = await getProfileFinancialData(userId)
     }
