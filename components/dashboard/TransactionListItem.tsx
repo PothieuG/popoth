@@ -445,6 +445,13 @@ export default function TransactionListItem({
    *                 crédite la tirelire). "Supprimer" simple pour les autres
    *                 cas (income carry-over, ou state B avec isApplied
    *                 bloquant la suppression jusqu'à dévalidation).
+   *   - Modifier : ABSENT quand `isCurrentlyCarried=true` (règle produit :
+   *                une transaction reportée ne peut qu'être validée ou
+   *                supprimée, pas modifiée). Une fois validée (state B),
+   *                Modifier réapparaît — la transaction est redevenue normale.
+   *                Défense en profondeur : PUT real_expenses/real_income_entries
+   *                retourne 409 'cannot-edit-carried-transaction' si jamais
+   *                la requête arrivait quand même.
    */
   const editItem = {
     label: 'Modifier',
@@ -496,7 +503,9 @@ export default function TransactionListItem({
       : 'Supprimer'
 
   const getDropdownItems = () => [
-    editItem,
+    // Modifier disparaît du menu pour une transaction actuellement reportée
+    // (règle produit). Réapparaît si l'utilisateur la valide d'abord.
+    ...(isCurrentlyCarried ? [] : [editItem]),
     {
       label: toggleLabel,
       icon: toggleIcon,

@@ -258,6 +258,17 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const body = await parseBody(request, updateRealIncomeBodySchema)
     const { id, amount, description, entry_date, estimated_income_id } = body
 
+    // Sprint 15 V3 (2026-05-27) — interdire la modification d'un revenu
+    // reporté du mois précédent (miroir guard expenses-real.ts).
+    const { data: carriedCheck } = await supabaseServer
+      .from('real_income_entries')
+      .select('is_carried_over')
+      .eq('id', id)
+      .maybeSingle()
+    if (carriedCheck?.is_carried_over) {
+      return NextResponse.json({ error: 'cannot-edit-carried-transaction' }, { status: 409 })
+    }
+
     const updates: RealIncomeUpdate = {}
     if (amount !== undefined) updates.amount = amount
     if (description !== undefined) updates.description = description

@@ -277,6 +277,22 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const body = await parseBody(request, updateRealExpenseBodySchema)
     const { id, amount, description, expense_date, estimated_budget_id } = body
 
+    // Sprint 15 V3 (2026-05-27) — interdire la modification d'une dépense
+    // reportée du mois précédent (`is_carried_over=true`). Règle produit :
+    // une carry-over ne peut qu'être validée (long-press) ou supprimée.
+    // Pour la modifier, l'utilisateur doit d'abord la valider — elle redevient
+    // alors une dépense normale et l'édition est ré-autorisée.
+    // L'UI omet déjà "Modifier" du dropdown pour les carry-overs ; ce guard
+    // est la défense en profondeur côté API.
+    const { data: carriedCheck } = await supabaseServer
+      .from('real_expenses')
+      .select('is_carried_over')
+      .eq('id', id)
+      .maybeSingle()
+    if (carriedCheck?.is_carried_over) {
+      return NextResponse.json({ error: 'cannot-edit-carried-transaction' }, { status: 409 })
+    }
+
     const updates: RealExpenseUpdate = {}
     if (amount !== undefined) updates.amount = amount
     if (description !== undefined) updates.description = description

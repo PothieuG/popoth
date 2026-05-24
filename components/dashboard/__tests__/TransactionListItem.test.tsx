@@ -643,6 +643,63 @@ describe('<TransactionListItem> carry-over (sprint 15)', () => {
     expect(screen.queryByRole('button', { name: 'Appliquer au solde' })).not.toBeInTheDocument()
   })
 
+  it('dropdown for currently-carried expense OMITS "Modifier" (cannot edit a carried transaction)', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={carriedExpense}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(screen.queryByRole('button', { name: 'Modifier' })).not.toBeInTheDocument()
+  })
+
+  it('dropdown for currently-carried income OMITS "Modifier"', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={carriedIncome}
+        type="income"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(screen.queryByRole('button', { name: 'Modifier' })).not.toBeInTheDocument()
+  })
+
+  it('dropdown for validated (was-carried) expense REINCLUDES "Modifier"', async () => {
+    // State B : is_carried_over=false, carried_from_recap_id stays set as
+    // memory. The transaction is now a regular applied expense → Modifier
+    // is back, regular allocation re-edit flow works.
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          is_carried_over: false,
+          carried_from_recap_id: 'recap-1',
+          applied_to_balance_at: '2026-05-27T10:00:00Z',
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+        })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(screen.getByRole('button', { name: 'Modifier' })).toBeInTheDocument()
+  })
+
   it('dropdown for currently-carried income shows "Valider…" and "Supprimer" (no piggy mention)', async () => {
     const user = userEvent.setup()
     render(
