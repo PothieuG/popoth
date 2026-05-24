@@ -55,11 +55,7 @@ describe('RefloatBudgetSnapshotLine', () => {
       />,
     )
 
-    expect(
-      screen.getByRole('button', {
-        name: 'Puiser proportionnellement dans tous les budgets pour renflouer',
-      }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
     expect(screen.getByText('Courses')).toBeInTheDocument()
     expect(screen.getByText('Loisirs')).toBeInTheDocument()
   })
@@ -124,11 +120,7 @@ describe('RefloatBudgetSnapshotLine', () => {
         onError={vi.fn()}
       />,
     )
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Puiser proportionnellement dans tous les budgets pour renflouer',
-      }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Puiser' }))
 
     await waitFor(() => {
       expect(saveSnapshotMock).toHaveBeenCalledTimes(1)
@@ -149,11 +141,7 @@ describe('RefloatBudgetSnapshotLine', () => {
         onError={onError}
       />,
     )
-    await user.click(
-      screen.getByRole('button', {
-        name: 'Puiser proportionnellement dans tous les budgets pour renflouer',
-      }),
-    )
+    await user.click(screen.getByRole('button', { name: 'Puiser' }))
 
     await waitFor(() => {
       expect(onError).toHaveBeenCalledWith('invalid_step')

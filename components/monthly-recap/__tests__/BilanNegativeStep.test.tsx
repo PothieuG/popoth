@@ -145,11 +145,7 @@ describe('BilanNegativeStep', () => {
         screen.getByRole('button', { name: 'Transférer mes économies dans le déficit' }),
       ).toBeInTheDocument()
       // Snapshot line still active
-      expect(
-        screen.getByRole('button', {
-          name: 'Puiser proportionnellement dans tous les budgets pour renflouer',
-        }),
-      ).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Puiser' })).toBeInTheDocument()
     })
   })
 
