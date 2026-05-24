@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -15,6 +16,25 @@ import { FinalRecapStep } from './steps/FinalRecapStep'
 import { SalaryUpdateStep } from './steps/SalaryUpdateStep'
 import { SummaryStep } from './steps/SummaryStep'
 import { WelcomeStep } from './steps/WelcomeStep'
+
+/**
+ * Plein-écran "redirecting" state — centered orange spinner + copy. Used
+ * by the wizard whenever the recap status moves to `completed` (post-finalize)
+ * but the router.replace hasn't unmounted us yet. Better UX than the previous
+ * single-line text (sprint 14 follow-up 2026-05-25).
+ */
+function RecapRedirecting({ copy }: { copy: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col items-center justify-center gap-3 py-16 text-center"
+    >
+      <Loader2 className="h-10 w-10 animate-spin text-orange-500" aria-hidden="true" />
+      <p className="text-sm font-medium text-gray-700">{copy}</p>
+    </div>
+  )
+}
 
 export function RecapWizard({ context }: { context: RecapContext }) {
   const router = useRouter()
@@ -70,7 +90,7 @@ export function RecapWizard({ context }: { context: RecapContext }) {
   if (status.kind === 'completed') {
     return (
       <RecapShell>
-        <p className="text-center text-sm text-gray-700">Récap déjà terminé, redirection…</p>
+        <RecapRedirecting copy="Redirection vers le dashboard…" />
       </RecapShell>
     )
   }
@@ -119,9 +139,7 @@ export function RecapWizard({ context }: { context: RecapContext }) {
           salaryUpdated={salaryUpdated}
         />
       )}
-      {status.step === 'completed' && (
-        <p className="text-center text-sm text-gray-700">Redirection…</p>
-      )}
+      {status.step === 'completed' && <RecapRedirecting copy="Redirection vers le dashboard…" />}
     </RecapShell>
   )
 }

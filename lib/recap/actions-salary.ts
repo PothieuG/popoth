@@ -80,10 +80,19 @@ export async function executeUpdateSalaries(
     }
   }
 
-  // 3. Group only: recalculate contributions (fail-soft — the trigger on next
-  //    budget change will eventually resync if this errors)
+  // 3. Recalculate contributions for any user with a group (profile context
+  //    with a group OR group context). Sprint 14 follow-up 2026-05-25 —
+  //    the previous gating on `context === 'group'` left profile-context
+  //    callers with a group dependent on the `profiles_contribution_recalc`
+  //    trigger ; we observed at least one case where the header stayed at
+  //    "à définir" despite the trigger being installed (root cause inconnue —
+  //    possibly TG_OP/RLS interaction with service_role). Explicit > implicit:
+  //    we now always invoke the RPC when the user belongs to a group, and
+  //    the trigger remains as a backstop for non-recap mutations to
+  //    profiles.salary. Fail-soft: the salary is already updated, the trigger
+  //    on next budget change will eventually resync if this errors.
   let contributionsRecalculated = false
-  if (args.context === 'group' && args.profile.group_id) {
+  if (args.profile.group_id) {
     const { error } = await supabaseServer.rpc('calculate_group_contributions', {
       group_id_param: args.profile.group_id,
     })

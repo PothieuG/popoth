@@ -198,7 +198,7 @@ function ProfileSalaryForm({
             ariaInvalid={hasError}
             ariaDescribedby={hasError ? 'profile-salary-error' : undefined}
             className={cn(
-              'h-auto rounded-xl px-4 py-3 pr-12',
+              'h-auto rounded-xl bg-white px-4 py-3 pr-12',
               hasError ? 'border-red-300' : 'border-gray-300',
             )}
           />

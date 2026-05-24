@@ -146,7 +146,9 @@ describe('RecapWizard', () => {
   it('redirects to /dashboard via router.replace when status is completed (profile)', async () => {
     mockStatus({ kind: 'completed', recapId: 'r1', completedAt: '2026-05-23T11:00:00Z' })
     render(<RecapWizard context="profile" />)
-    expect(screen.getByText(/Récap déjà terminé/)).toBeInTheDocument()
+    // Sprint 14 follow-up — centered spinner + "Redirection vers le dashboard…"
+    // replaced the previous "Récap déjà terminé, redirection…" text.
+    expect(screen.getByText(/Redirection vers le dashboard/)).toBeInTheDocument()
     await waitFor(() => {
       expect(routerReplaceMock).toHaveBeenCalledWith('/dashboard')
     })
