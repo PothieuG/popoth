@@ -27,12 +27,14 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
 
     if (!budgets) return []
 
+    // Sprint 15 V3 — exclure les carry-overs (purement visuels, spec §5.2).
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
       .select(
         'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
       )
       .eq('profile_id', profileId)
+      .eq('is_carried_over', false)
       .not('estimated_budget_id', 'is', null)
 
     const result: BudgetSavings[] = []

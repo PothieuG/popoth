@@ -49,6 +49,11 @@ const EXPECTED_RPCS = [
   // supabase/migrations/20260526000000_create_recap_finalize_rpcs.sql
   'finalize_recap_apply_snapshot',
   'process_recap_transactions',
+  // Sprint 15 Monthly Recap V3 (2026-05-27) — carry-over UI —
+  // supabase/migrations/20260527000000_create_carry_over_rpcs.sql
+  'toggle_carry_over_and_apply',
+  'toggle_carry_over_and_apply_income',
+  'delete_carried_expense_to_piggy',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

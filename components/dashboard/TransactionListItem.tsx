@@ -60,6 +60,20 @@ interface TransactionListItemProps {
    * sur la carte OU entrée dédiée du dropdown menu (alternative clavier).
    */
   onToggleApplied: (transactionId: string, apply: boolean) => Promise<ToggleAppliedOutcome>
+  /**
+   * Sprint 15 Monthly Recap V3 (2026-05-27). Toggle bidirectionnel pour les
+   * transactions carry-over (issues du recap du mois précédent). Le parent
+   * câble `useRealExpenses().toggleCarryApplied` ou
+   * `useRealIncomes().toggleCarryApplied`. Routing client-side : la carte
+   * appelle `onToggleCarryApplied` si `transaction.carried_from_recap_id`
+   * est non-null (la mémoire persiste même après une première validation),
+   * sinon `onToggleApplied` (chemin classique).
+   *
+   * Optional pour compat avec les tests RTL legacy qui n'exercent pas le
+   * chemin carry-over. En prod, TransactionTabsComponent câble toujours la
+   * prop ; en absence, un long-press sur carry-over no-op (warn logger).
+   */
+  onToggleCarryApplied?: (transactionId: string, validate: boolean) => Promise<ToggleAppliedOutcome>
   context?: 'profile' | 'group'
   /**
    * Pour un revenu régulier (estimated_income_id set + !is_exceptional), le
@@ -103,6 +117,7 @@ export default function TransactionListItem({
   onEdit,
   onDelete,
   onToggleApplied,
+  onToggleCarryApplied,
   context = 'profile',
   incomeSourceContext = null,
   currentRemainingToLive = null,
@@ -124,11 +139,34 @@ export default function TransactionListItem({
    */
   const isApplied = transaction.applied_to_balance_at != null
 
+  /**
+   * Sprint 15 Monthly Recap V3 (2026-05-27).
+   *   - hasCarryOverContext : la transaction a été reportée d'un recap au
+   *     moins une fois (la mémoire persiste même après validation, ce qui
+   *     permet le retour arrière bidirectionnel cf. spec §5.3).
+   *   - isCurrentlyCarried : état courant carry-over (badge visible, non
+   *     comptée dans le solde, dropdown adapté).
+   */
+  const hasCarryOverContext = transaction.carried_from_recap_id != null
+  const isCurrentlyCarried = transaction.is_carried_over === true
+
   const runToggle = async () => {
     if (isToggling) return
     setIsToggling(true)
     try {
-      await onToggleApplied(transaction.id, !isApplied)
+      if (hasCarryOverContext) {
+        if (!onToggleCarryApplied) {
+          logger.warn(
+            '[TransactionListItem] onToggleCarryApplied not wired for carry-over transaction',
+            { id: transaction.id },
+          )
+          return
+        }
+        // Bidirectional flip: validate=true si actuellement carried, false sinon.
+        await onToggleCarryApplied(transaction.id, !isApplied)
+      } else {
+        await onToggleApplied(transaction.id, !isApplied)
+      }
     } finally {
       setIsToggling(false)
     }
@@ -261,6 +299,34 @@ export default function TransactionListItem({
    * n'est dispo pour calculer l'état post-delete.
    */
   const buildDeleteDetails = (): ReactNode | undefined => {
+    // Sprint 15 V3 — branche carry-over expense : la suppression renvoie le
+    // montant en tirelire (RPC `delete_carried_expense_to_piggy`). On affiche
+    // le nouveau montant tirelire post-delete au lieu du panel classique
+    // d'allocation reversée.
+    if (isCurrentlyCarried && type === 'expense') {
+      const expense = transaction as RealExpense
+      const newPiggy = piggyBankAmount != null ? piggyBankAmount + expense.amount : null
+      if (newPiggy == null) {
+        return (
+          <div className="space-y-1.5 text-left">
+            <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+            <p className="text-gray-600">
+              Le montant sera renvoyé dans votre{' '}
+              <span className="font-medium text-violet-700">tirelire</span>.
+            </p>
+          </div>
+        )
+      }
+      return (
+        <div className="space-y-1.5 text-left">
+          <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+          <AfterOperationPanel compact>
+            <BalanceRow label={<EntityLabel type="piggy" />} amount={newPiggy} />
+          </AfterOperationPanel>
+        </div>
+      )
+    }
+
     const inner = type === 'expense' ? buildExpenseDeleteDetails() : buildIncomeDeleteDetails()
     if (inner == null) return undefined
     return (
@@ -369,57 +435,94 @@ export default function TransactionListItem({
    * (alternative clavier au long-press tactile). Supprimer est `disabled`
    * quand la transaction est appliquée — l'utilisateur doit d'abord la
    * retirer du solde (cf. 409 côté API DELETE).
+   *
+   * Sprint 15 V3 (2026-05-27) — pour les transactions carry-over
+   * (`hasCarryOverContext=true`), labels adaptés :
+   *   - Toggle : "Valider et appliquer au solde" (état carried) /
+   *              "Dévalider (remettre en attente)" (état was-carried-now-validé).
+   *   - Supprimer : "Supprimer (renvoyer en tirelire)" pour les dépenses
+   *                 carry-over actuellement carried (auto-détection serveur
+   *                 crédite la tirelire). "Supprimer" simple pour les autres
+   *                 cas (income carry-over, ou state B avec isApplied
+   *                 bloquant la suppression jusqu'à dévalidation).
    */
+  const editItem = {
+    label: 'Modifier',
+    icon: (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+        />
+      </svg>
+    ),
+    onClick: () => onEdit(transaction),
+  }
+
+  const toggleIcon = (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {isApplied ? (
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+      ) : (
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+      )}
+    </svg>
+  )
+
+  const deleteIcon = (
+    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
+    </svg>
+  )
+
+  const toggleLabel = hasCarryOverContext
+    ? isCurrentlyCarried
+      ? 'Valider et appliquer au solde'
+      : 'Dévalider (remettre en attente)'
+    : isApplied
+      ? 'Retirer du solde'
+      : 'Appliquer au solde'
+
+  const deleteLabel =
+    hasCarryOverContext && isCurrentlyCarried && type === 'expense'
+      ? 'Supprimer (renvoyer en tirelire)'
+      : 'Supprimer'
+
   const getDropdownItems = () => [
+    editItem,
     {
-      label: 'Modifier',
-      icon: (
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-          />
-        </svg>
-      ),
-      onClick: () => onEdit(transaction),
-    },
-    {
-      label: isApplied ? 'Retirer du solde' : 'Appliquer au solde',
-      icon: (
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          {isApplied ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-          )}
-        </svg>
-      ),
+      label: toggleLabel,
+      icon: toggleIcon,
       onClick: () => {
         void runToggle()
       },
       disabled: isToggling,
     },
     {
-      label: 'Supprimer',
-      icon: (
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-          />
-        </svg>
-      ),
+      label: deleteLabel,
+      icon: deleteIcon,
       onClick: () => setIsDeleteModalOpen(true),
       variant: 'danger' as const,
       disabled: isApplied,
     },
   ]
 
-  const appliedBgClass = isApplied ? (type === 'expense' ? 'bg-red-50' : 'bg-green-50') : 'bg-white'
+  // Sprint 15 V3 — carry-over visuel : fond gris très clair pour signaler
+  // "hors solde, hors calculs" tant que la transaction reste reportée.
+  const appliedBgClass = isCurrentlyCarried
+    ? 'bg-gray-50'
+    : isApplied
+      ? type === 'expense'
+        ? 'bg-red-50'
+        : 'bg-green-50'
+      : 'bg-white'
 
   return (
     <>
@@ -429,9 +532,13 @@ export default function TransactionListItem({
         tabIndex={0}
         aria-pressed={isApplied}
         aria-label={
-          isApplied
-            ? `${type === 'expense' ? 'Dépense' : 'Revenu'} appliquée au solde, appuyez longuement pour retirer`
-            : `${type === 'expense' ? 'Dépense' : 'Revenu'} non appliquée au solde, appuyez longuement pour appliquer`
+          isCurrentlyCarried
+            ? `${type === 'expense' ? 'Dépense' : 'Revenu'} reportée du mois précédent, appuyez longuement pour valider`
+            : hasCarryOverContext && isApplied
+              ? `${type === 'expense' ? 'Dépense' : 'Revenu'} validée du mois précédent, appuyez longuement pour dévalider`
+              : isApplied
+                ? `${type === 'expense' ? 'Dépense' : 'Revenu'} appliquée au solde, appuyez longuement pour retirer`
+                : `${type === 'expense' ? 'Dépense' : 'Revenu'} non appliquée au solde, appuyez longuement pour appliquer`
         }
         className={cn(
           'relative overflow-hidden rounded-lg border border-gray-200 p-4 shadow-md transition-colors duration-300',
@@ -472,6 +579,17 @@ export default function TransactionListItem({
 
             {/* 3-line layout */}
             <div className="min-w-0 flex-1 space-y-0.5">
+              {/* Sprint 15 V3 — badge "Mois précédent" pour les transactions
+                  carry-over actuellement non-validées. Gris neutre (cf. décision
+                  produit) pour ne pas créer de conflit visuel avec les couleurs
+                  métier (violet=tirelire, orange=budgets, vert=succès, rouge=déficit). */}
+              {isCurrentlyCarried && (
+                <div className="flex">
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+                    Mois précédent
+                  </span>
+                </div>
+              )}
               {/* Line 1: Amount with breakdown badges */}
               <div className="flex items-baseline space-x-1.5">
                 <span

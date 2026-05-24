@@ -111,7 +111,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 | Invariant                              | Valeur                    | Source / Vérification                                                                                                    |
 | -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                        | **16**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| `EXPECTED_RPCS`                        | **19**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
 | Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |

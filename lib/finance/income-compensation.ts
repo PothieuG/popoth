@@ -36,11 +36,13 @@ export async function calculateIncomeCompensation(filter: ContextFilter): Promis
 
     if (!estimatedIncomes || estimatedIncomes.length === 0) return 0
 
-    // 2. Récupérer tous les revenus réels liés aux revenus estimés
+    // 2. Récupérer tous les revenus réels liés aux revenus estimés.
+    // Sprint 15 V3 — exclure les carry-overs (purement visuels, spec §5.2).
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
       .select('amount, estimated_income_id')
       .eq(ownerColumn, ownerId)
+      .eq('is_carried_over', false)
       .not('estimated_income_id', 'is', null)
 
     const realIncomesData = realIncomes ?? []

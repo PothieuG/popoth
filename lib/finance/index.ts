@@ -39,4 +39,12 @@ export {
   toggleRealIncomeAppliedToBalance,
   type AppliedToggleResult,
 } from './applied-balance'
+export {
+  CarryOverToggleNoOpError,
+  deleteCarriedExpenseToPiggy,
+  toggleCarryOverAndApply,
+  toggleCarryOverAndApplyIncome,
+  type CarryOverToggleResult,
+  type DeleteCarriedExpenseResult,
+} from './carry-over'
 export type { BudgetSavings, FinancialData } from './types'

@@ -544,3 +544,226 @@ describe('<TransactionListItem> apply-to-balance (long-press toggle)', () => {
     })
   })
 })
+
+// Sprint 15 Monthly Recap V3 (2026-05-27) — UI carry-over.
+// Couvre le rendu du badge "Mois précédent", le routing du long-press et du
+// dropdown vers onToggleCarryApplied (vs onToggleApplied) selon la présence
+// de carried_from_recap_id, et les labels adaptés ("Valider et appliquer au
+// solde" / "Dévalider…" / "Supprimer (renvoyer en tirelire)").
+describe('<TransactionListItem> carry-over (sprint 15)', () => {
+  const carriedExpense = buildExpense({
+    is_carried_over: true,
+    carried_from_recap_id: 'recap-1',
+    applied_to_balance_at: null,
+    amount_from_piggy_bank: 0,
+    amount_from_budget_savings: 0,
+    amount: 45,
+  })
+
+  const carriedIncome = buildIncome({
+    is_carried_over: true,
+    carried_from_recap_id: 'recap-1',
+    applied_to_balance_at: null,
+    amount: 200,
+  })
+
+  it('renders gray "Mois précédent" badge for carried expense', () => {
+    render(
+      <TransactionListItem
+        transaction={carriedExpense}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    const badge = screen.getByText('Mois précédent')
+    expect(badge).toBeInTheDocument()
+    expect(badge.className).toMatch(/bg-gray-100/)
+    expect(badge.className).toMatch(/text-gray-700/)
+  })
+
+  it('uses bg-gray-50 card background when currently carried', () => {
+    const { container } = render(
+      <TransactionListItem
+        transaction={carriedExpense}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    const root = container.querySelector('[role="button"]')
+    expect(root?.className).toMatch(/bg-gray-50/)
+  })
+
+  it('does NOT render the badge once validated (is_carried_over=false even if carried_from_recap_id remains)', () => {
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          is_carried_over: false,
+          carried_from_recap_id: 'recap-1',
+          applied_to_balance_at: '2026-05-27T10:00:00Z',
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+        })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    expect(screen.queryByText('Mois précédent')).not.toBeInTheDocument()
+  })
+
+  it('dropdown for currently-carried expense shows "Valider…" and "Supprimer (renvoyer en tirelire)"', async () => {
+    const user = userEvent.setup()
+    const onToggleCarry = vi.fn(async () => 'applied' as const)
+    render(
+      <TransactionListItem
+        transaction={carriedExpense}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={onToggleCarry}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(
+      screen.getByRole('button', { name: 'Valider et appliquer au solde' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Supprimer (renvoyer en tirelire)' }),
+    ).toBeInTheDocument()
+    // Regular "Appliquer au solde" should NOT be present (replaced by Valider…)
+    expect(screen.queryByRole('button', { name: 'Appliquer au solde' })).not.toBeInTheDocument()
+  })
+
+  it('dropdown for currently-carried income shows "Valider…" and "Supprimer" (no piggy mention)', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={carriedIncome}
+        type="income"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(
+      screen.getByRole('button', { name: 'Valider et appliquer au solde' }),
+    ).toBeInTheDocument()
+    // Income carry-over: regular "Supprimer", no piggy wording
+    expect(screen.getByRole('button', { name: 'Supprimer' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Supprimer (renvoyer en tirelire)' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('dropdown for validated (was-carried) expense shows "Dévalider…" and regular "Supprimer" disabled', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          is_carried_over: false,
+          carried_from_recap_id: 'recap-1',
+          applied_to_balance_at: '2026-05-27T10:00:00Z',
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+        })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'unapplied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(
+      screen.getByRole('button', { name: 'Dévalider (remettre en attente)' }),
+    ).toBeInTheDocument()
+    const deleteBtn = screen.getByRole('button', { name: 'Supprimer' })
+    expect(deleteBtn).toBeDisabled()
+  })
+
+  it('click "Valider…" calls onToggleCarryApplied(id, true) — NOT onToggleApplied', async () => {
+    const user = userEvent.setup()
+    const onToggleApplied = vi.fn(async () => 'applied' as const)
+    const onToggleCarry = vi.fn(async () => 'applied' as const)
+    render(
+      <TransactionListItem
+        transaction={carriedExpense}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={onToggleApplied}
+        onToggleCarryApplied={onToggleCarry}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    await user.click(screen.getByRole('button', { name: 'Valider et appliquer au solde' }))
+    expect(onToggleCarry).toHaveBeenCalledWith(carriedExpense.id, true)
+    expect(onToggleApplied).not.toHaveBeenCalled()
+  })
+
+  it('click "Dévalider…" calls onToggleCarryApplied(id, false)', async () => {
+    const user = userEvent.setup()
+    const onToggleCarry = vi.fn(async () => 'unapplied' as const)
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          is_carried_over: false,
+          carried_from_recap_id: 'recap-1',
+          applied_to_balance_at: '2026-05-27T10:00:00Z',
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+        })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'unapplied' as const)}
+        onToggleCarryApplied={onToggleCarry}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    await user.click(screen.getByRole('button', { name: 'Dévalider (remettre en attente)' }))
+    expect(onToggleCarry).toHaveBeenCalledWith('exp-1', false)
+  })
+
+  describe('long-press on carry-over', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('long-press 800ms on currently-carried expense calls onToggleCarryApplied(id, true)', async () => {
+      const onToggleApplied = vi.fn(async () => 'applied' as const)
+      const onToggleCarry = vi.fn(async () => 'applied' as const)
+      const { container } = render(
+        <TransactionListItem
+          transaction={carriedExpense}
+          type="expense"
+          onEdit={vi.fn()}
+          onDelete={vi.fn(async () => true)}
+          onToggleApplied={onToggleApplied}
+          onToggleCarryApplied={onToggleCarry}
+        />,
+      )
+      const root = container.querySelector('[role="button"]') as HTMLElement
+      fireEvent.pointerDown(root, { pointerType: 'touch' })
+      await act(async () => {
+        vi.advanceTimersByTime(800)
+      })
+      expect(onToggleCarry).toHaveBeenCalledWith(carriedExpense.id, true)
+      expect(onToggleApplied).not.toHaveBeenCalled()
+    })
+  })
+})

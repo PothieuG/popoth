@@ -485,3 +485,174 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
     expect(groupData).toEqual(EMPTY_SHAPE)
   }, 30_000)
 })
+
+// Sprint 15 Monthly Recap V3 (2026-05-27) — filter is_carried_over=false.
+// Fixture mixant transactions normales + carry-overs. Le filtre doit exclure
+// les carry-overs des sums totalRealExpenses/totalRealIncome ET du calcul
+// de spent_per_budget (indirect via totalBudgetDeficits → remainingToLive).
+describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', () => {
+  let admin: SupabaseClient<Database>
+  let getProfileFinancialData: FinCalcMod['getProfileFinancialData']
+
+  const stamp = Date.now()
+  const carryEmail = `finance-carry-${stamp}@popoth.test`
+  const carryPassword = `carry-${randomUUID()}`
+  let carryUserId: string
+  let carryRecapId: string
+
+  beforeAll(async () => {
+    if (!SUPABASE_URL || !SERVICE_KEY) {
+      throw new Error(
+        'financial-data carry-over tests require NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY',
+      )
+    }
+    admin = createClient<Database>(SUPABASE_URL, SERVICE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+
+    const finCalcMod = await import('@/lib/finance')
+    getProfileFinancialData = finCalcMod.getProfileFinancialData
+
+    const { data: userData, error: userErr } = await admin.auth.admin.createUser({
+      email: carryEmail,
+      password: carryPassword,
+      email_confirm: true,
+    })
+    if (userErr || !userData.user) throw userErr ?? new Error('createUser failed')
+    carryUserId = userData.user.id
+
+    const { error: profErr } = await admin.from('profiles').insert({
+      id: carryUserId,
+      first_name: 'CarryFilter',
+      last_name: 'Fixture',
+    })
+    if (profErr) throw profErr
+
+    const { error: bankErr } = await admin.from('bank_balances').insert({
+      profile_id: carryUserId,
+      balance: 1000,
+    })
+    if (bankErr) throw bankErr
+
+    // Recap row used as carried_from_recap_id FK.
+    const { data: recapData, error: recapErr } = await admin
+      .from('monthly_recaps')
+      .insert({
+        profile_id: carryUserId,
+        recap_month: 4,
+        recap_year: 2026,
+        current_step: 'completed',
+        completed_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    if (recapErr || !recapData) throw recapErr ?? new Error('insert recap failed')
+    carryRecapId = recapData.id
+
+    // 3 dépenses normales (sum 150) + 2 carry-overs (sum 80). Filter doit
+    // exclure les carry-overs → totalRealExpenses = 150.
+    await admin.from('real_expenses').insert([
+      {
+        profile_id: carryUserId,
+        amount: 50,
+        description: 'normal 1',
+        expense_date: '2026-05-10',
+        is_exceptional: true,
+        is_carried_over: false,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 70,
+        description: 'normal 2',
+        expense_date: '2026-05-12',
+        is_exceptional: true,
+        is_carried_over: false,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 30,
+        description: 'normal 3',
+        expense_date: '2026-05-15',
+        is_exceptional: true,
+        is_carried_over: false,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 45,
+        description: 'carry 1',
+        expense_date: '2026-04-20',
+        is_exceptional: true,
+        is_carried_over: true,
+        carried_from_recap_id: carryRecapId,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 35,
+        description: 'carry 2',
+        expense_date: '2026-04-22',
+        is_exceptional: true,
+        is_carried_over: true,
+        carried_from_recap_id: carryRecapId,
+      },
+    ])
+
+    // 2 revenus normaux (sum 300) + 1 carry-over (200). Filter exclut → totalRealIncome = 300.
+    await admin.from('real_income_entries').insert([
+      {
+        profile_id: carryUserId,
+        amount: 100,
+        description: 'income normal 1',
+        entry_date: '2026-05-05',
+        is_exceptional: true,
+        is_carried_over: false,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 200,
+        description: 'income normal 2',
+        entry_date: '2026-05-07',
+        is_exceptional: true,
+        is_carried_over: false,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 200,
+        description: 'income carry 1',
+        entry_date: '2026-04-25',
+        is_exceptional: true,
+        is_carried_over: true,
+        carried_from_recap_id: carryRecapId,
+      },
+    ])
+  }, 60_000)
+
+  afterAll(async () => {
+    if (!admin || !carryUserId) return
+    await admin.from('real_expenses').delete().eq('profile_id', carryUserId)
+    await admin.from('real_income_entries').delete().eq('profile_id', carryUserId)
+    await admin.from('bank_balances').delete().eq('profile_id', carryUserId)
+    await admin.from('monthly_recaps').delete().eq('profile_id', carryUserId)
+    await admin.auth.admin.deleteUser(carryUserId)
+  }, 30_000)
+
+  it('totalRealExpenses excludes carry-over rows (150, not 230)', async () => {
+    const data = await getProfileFinancialData(carryUserId)
+    expect(data.totalRealExpenses).toBe(150)
+  }, 30_000)
+
+  it('totalRealIncome excludes carry-over rows (300, not 500)', async () => {
+    const data = await getProfileFinancialData(carryUserId)
+    expect(data.totalRealIncome).toBe(300)
+  }, 30_000)
+
+  it('remainingToLive uses filtered sums (carry-overs not in RAV)', async () => {
+    // Profile with no estimated budgets/incomes, no salary → all calcs flow
+    // through exceptionalIncomes/Expenses. RAV formula:
+    //   RAV = incomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - deficits
+    //   RAV = 0 + 300 - 0 - 150 - 0 = 150
+    // Si le filter is_carried_over=false était absent :
+    //   RAV erroné = 0 + 500 - 0 - 230 - 0 = 270 (différence 120 = somme carry-overs nets)
+    const data = await getProfileFinancialData(carryUserId)
+    expect(data.remainingToLive).toBe(150)
+  }, 30_000)
+})

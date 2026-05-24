@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { saveRemainingToLiveSnapshot } from '@/lib/finance'
+import { deleteCarriedExpenseToPiggy, saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { reverseAllocation, applyAllocation } from '@/lib/expense-allocation'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
@@ -380,10 +380,32 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { data: expenseToDelete } = await supabaseServer
       .from('real_expenses')
       .select(
-        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, applied_to_balance_at',
+        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, applied_to_balance_at, is_carried_over',
       )
       .eq('id', id)
       .single()
+
+    // Sprint 15 Monthly Recap V3 (2026-05-27) — auto-detect carry-over.
+    // Une dépense reportée (`is_carried_over=true`) doit être supprimée via
+    // la RPC atomique `delete_carried_expense_to_piggy` qui DELETE la row
+    // ET crédite la tirelire en 1 tx. Le client envoie un simple DELETE,
+    // le serveur reconnaît l'état carry-over et applique la procédure
+    // appropriée — pas de signal client à passer.
+    if (expenseToDelete?.is_carried_over) {
+      try {
+        const result = await deleteCarriedExpenseToPiggy(id)
+        return NextResponse.json({
+          message: 'Dépense reportée supprimée — montant renvoyé en tirelire',
+          piggy_credited: result.piggyCredited,
+        })
+      } catch (carryError) {
+        logger.error('[DELETE/expense] delete_carried_expense_to_piggy failed', carryError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la suppression de la dépense reportée' },
+          { status: 500 },
+        )
+      }
+    }
 
     // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) — bloquer la
     // suppression d'une dépense déjà appliquée au solde. L'UI doit forcer

@@ -26,6 +26,19 @@ export interface RealExpense {
    * `toggle_real_expense_applied_to_balance`.
    */
   applied_to_balance_at?: string | null
+  /**
+   * Sprint 15 Monthly Recap V3 (2026-05-27). `true` = la dépense vient
+   * du mois précédent et n'est pas comptée dans le RAV/solde/calculs
+   * tant que l'utilisateur ne l'a pas validée via long-press. Badge "Mois
+   * précédent" affiché sur la carte.
+   */
+  is_carried_over?: boolean
+  /**
+   * Sprint 15 V3 — mémoire du recap d'origine. Conservée même après
+   * validation pour permettre le retour arrière (dévalider → re-flagger
+   * carry-over).
+   */
+  carried_from_recap_id?: string | null
   estimated_budget?: {
     name: string
   }
@@ -78,6 +91,13 @@ interface UseRealExpensesReturn {
   updateExpense: (expenseData: UpdateRealExpenseRequest) => Promise<boolean>
   deleteExpense: (expenseId: string) => Promise<boolean>
   toggleApplied: (expenseId: string, apply: boolean) => Promise<ToggleAppliedOutcome>
+  /**
+   * Sprint 15 V3 — flip bidirectionnel `is_carried_over` + `applied_to_balance_at`
+   * en 1 tx atomique pour une dépense carry-over. Cf. RPC
+   * `toggle_carry_over_and_apply`. Renvoie `'no-op'` (HTTP 409) si déjà dans
+   * l'état cible.
+   */
+  toggleCarryApplied: (expenseId: string, validate: boolean) => Promise<ToggleAppliedOutcome>
   refreshExpenses: () => Promise<void>
 }
 
@@ -267,6 +287,83 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     },
   })
 
+  /**
+   * Sprint 15 Monthly Recap V3 (2026-05-27). Bidirectional toggle for
+   * carry-over expenses. Flips both `is_carried_over` AND
+   * `applied_to_balance_at` in 1 tx via composite RPC. Optimistic update
+   * mirrors both flags pre-server. 409 → no-op (already in target state).
+   */
+  type CarryToggleVars = { id: string; validate: boolean }
+  type CarryToggleContext = { previous: RealExpense[] | undefined }
+  const toggleCarryAppliedMutation = useMutation<
+    | { ok: true; balance: number; appliedAt: string | null; isCarriedOver: boolean }
+    | { ok: false; status: number },
+    Error,
+    CarryToggleVars,
+    CarryToggleContext
+  >({
+    mutationFn: async ({ id, validate }) => {
+      const response = await fetch('/api/finance/expenses/real/toggle-carry-applied', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, validate }),
+      })
+      if (response.status === 409) return { ok: false, status: 409 }
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Erreur ${response.status}`)
+      }
+      const json = await response.json()
+      return {
+        ok: true,
+        balance: json.data.balance,
+        appliedAt: json.data.appliedToBalanceAt,
+        isCarriedOver: json.data.isCarriedOver,
+      }
+    },
+    onMutate: async ({ id, validate }) => {
+      await queryClient.cancelQueries({ queryKey })
+      const previous = queryClient.getQueryData<RealExpense[]>(queryKey)
+      // Optimistic: validate=true → is_carried_over=false + applied=now()
+      //             validate=false → is_carried_over=true + applied=null
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                is_carried_over: !validate,
+                applied_to_balance_at: validate ? new Date().toISOString() : null,
+              }
+            : e,
+        ),
+      )
+      return { previous }
+    },
+    onSuccess: (result, { id }) => {
+      if (!result.ok) return
+      queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                is_carried_over: result.isCarriedOver,
+                applied_to_balance_at: result.appliedAt,
+              }
+            : e,
+        ),
+      )
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
+      logger.error('❌ [useRealExpenses] Error in toggleCarryApplied:', err)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
+      invalidateFinancialRefreshes(queryClient)
+    },
+  })
+
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   const latestError =
@@ -315,6 +412,15 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         const result = await toggleAppliedMutation.mutateAsync({ id: expenseId, apply })
         if (!result.ok) return 'no-op'
         return apply ? 'applied' : 'unapplied'
+      } catch {
+        return 'error'
+      }
+    },
+    toggleCarryApplied: async (expenseId, validate) => {
+      try {
+        const result = await toggleCarryAppliedMutation.mutateAsync({ id: expenseId, validate })
+        if (!result.ok) return 'no-op'
+        return validate ? 'applied' : 'unapplied'
       } catch {
         return 'error'
       }

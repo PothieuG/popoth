@@ -747,6 +747,10 @@ export type Database = {
         }
         Returns: Json
       }
+      delete_carried_expense_to_piggy: {
+        Args: { p_expense_id: string }
+        Returns: Json
+      }
       finalize_recap_apply_snapshot: {
         Args: { p_recap_id: string; p_snapshot: Json }
         Returns: Json
@@ -763,6 +767,14 @@ export type Database = {
           p_started_by_profile_id: string
           p_year: number
         }
+        Returns: Json
+      }
+      toggle_carry_over_and_apply: {
+        Args: { p_expense_id: string; p_validate: boolean }
+        Returns: Json
+      }
+      toggle_carry_over_and_apply_income: {
+        Args: { p_income_id: string; p_validate: boolean }
         Returns: Json
       }
       toggle_real_expense_applied_to_balance: {

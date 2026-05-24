@@ -75,6 +75,7 @@ export default function TransactionTabsComponent({
     error: expensesError,
     deleteExpense,
     toggleApplied: toggleExpenseApplied,
+    toggleCarryApplied: toggleExpenseCarryApplied,
   } = useRealExpenses(context)
 
   const {
@@ -84,6 +85,7 @@ export default function TransactionTabsComponent({
     error: incomesError,
     deleteIncome,
     toggleApplied: toggleIncomeApplied,
+    toggleCarryApplied: toggleIncomeCarryApplied,
   } = useRealIncomes(context)
 
   // For the precise RAV-delta details in the delete confirmation of a regular
@@ -234,6 +236,37 @@ export default function TransactionTabsComponent({
   }
 
   /**
+   * Sprint 15 Monthly Recap V3 (2026-05-27). Toggle bidirectionnel pour les
+   * transactions carry-over. Snackbar avec wording "validée / dévalidée"
+   * pour distinguer du toggle classique apply/unapply.
+   */
+  const handleToggleCarryApplied = async (
+    transaction: EditableTransaction,
+    type: EditableType,
+    validate: boolean,
+  ) => {
+    const toggle = type === 'expense' ? toggleExpenseCarryApplied : toggleIncomeCarryApplied
+    const outcome = await toggle(transaction.id, validate)
+    if (outcome === 'applied') {
+      setSnackbar({
+        message: `${type === 'expense' ? 'Dépense' : 'Revenu'} validée · ${formatAmount(transaction.amount)}`,
+        tone: 'success',
+      })
+    } else if (outcome === 'unapplied') {
+      setSnackbar({
+        message: `${type === 'expense' ? 'Dépense' : 'Revenu'} dévalidée — retour en attente`,
+        tone: 'success',
+      })
+    } else if (outcome === 'error') {
+      setSnackbar({
+        message: 'Erreur lors de la mise à jour du report',
+        tone: 'error',
+      })
+    }
+    return outcome
+  }
+
+  /**
    * Get tab button styling
    */
   const getTabButtonClass = (tabType: TabType): string => {
@@ -373,6 +406,9 @@ export default function TransactionTabsComponent({
                 onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
                 onDelete={handleDeleteExpense}
                 onToggleApplied={(id, apply) => handleToggleApplied(expense, 'expense', apply)}
+                onToggleCarryApplied={(id, validate) =>
+                  handleToggleCarryApplied(expense, 'expense', validate)
+                }
               />
             )
           })}
@@ -406,6 +442,9 @@ export default function TransactionTabsComponent({
                 onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
                 onDelete={handleDeleteIncome}
                 onToggleApplied={(id, apply) => handleToggleApplied(income, 'income', apply)}
+                onToggleCarryApplied={(id, validate) =>
+                  handleToggleCarryApplied(income, 'income', validate)
+                }
               />
             )
           })}

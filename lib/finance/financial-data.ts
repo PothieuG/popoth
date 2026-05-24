@@ -87,20 +87,25 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     const totalEstimatedBudgets =
       estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0
 
-    // 4. Revenus réels
+    // 4. Revenus réels. Sprint 15 V3 — exclure les carry-overs : ils sont
+    // affichés en lecture sur le dashboard mais ne comptent pas dans le RAV,
+    // le solde, ou tout autre calcul tant que l'utilisateur ne les a pas
+    // validés via long-press (spec §5.2).
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
       .select('amount, estimated_income_id')
       .eq(ownerColumn, ownerId)
+      .eq('is_carried_over', false)
     const totalRealIncome = realIncomes?.reduce((sum, x) => sum + x.amount, 0) ?? 0
 
-    // 5. Dépenses réelles
+    // 5. Dépenses réelles (idem §4 — exclure les carry-overs).
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select(
         'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
       )
       .eq(ownerColumn, ownerId)
+      .eq('is_carried_over', false)
     const totalRealExpenses = realExpenses?.reduce((sum, x) => sum + x.amount, 0) ?? 0
 
     // 6. Tirelire
