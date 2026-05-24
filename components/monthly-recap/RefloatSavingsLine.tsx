@@ -7,27 +7,24 @@ import { computeProportionalSavingsRefloat } from '@/lib/recap/calculations'
 import type { BudgetSummary, RecapContext } from '@/lib/recap'
 
 /**
- * États possibles de la ligne dans la cascade séquentielle :
+ * État de la ligne dans la cascade séquentielle :
  *
- * - `locked` : la tirelire n'est pas encore vide. Carte greyed avec
- *   message d'attente.
- * - `active` : la tirelire est vide ET il reste des économies à drainer
- *   ET le déficit n'est pas comblé. Carte cliquable.
- * - `done`   : économies drainées pendant ce recap (refloatedFromSavings > 0).
- *   Carte greyed avec récap + liste des nouvelles valeurs par budget.
- * - `empty`  : aucune économie disponible depuis le départ. Carte greyed
- *   "Pas d'économies disponibles."
+ * - `locked`   : la tirelire n'est pas encore vide. En attente.
+ * - `active`   : tirelire vide + économies à drainer + déficit non comblé.
+ * - `done`     : économies drainées pendant ce recap. Récap + liste des
+ *   nouvelles valeurs par budget.
+ * - `empty`    : pas d'économies dès le départ.
+ * - `unneeded` : économies disponibles mais déficit déjà comblé par la
+ *   tirelire.
  */
-type SavingsLineState = 'locked' | 'active' | 'done' | 'empty'
+type SavingsLineState = 'locked' | 'active' | 'done' | 'empty' | 'unneeded'
 
 interface RefloatSavingsLineProps {
   context: RecapContext
   state: SavingsLineState
   totalSavings: number
-  /** TOUS les budgets du contexte (pas pré-filtrés). Active state filtre
-   *  `cumulatedSavings > 0` pour la preview ; done state affiche toutes
-   *  les économies dont l'utilisateur a tracé le compteur pour qu'il voie
-   *  les nouvelles valeurs post-transfert. */
+  /** Tous les budgets du contexte (l'orchestrateur ne filtre pas, la ligne
+   *  filtre en interne selon l'état). */
   budgets: readonly BudgetSummary[]
   deficitRemaining: number
   refloatedFromSavings: number
@@ -36,22 +33,14 @@ interface RefloatSavingsLineProps {
 }
 
 /**
- * Sprint 13 — BilanNegativeStep ligne 2 (cf. spec §4.B). Transfert
- * proportionnel des `cumulated_savings` de chaque budget vers le déficit
- * (2e étape de la cascade, après la tirelire).
+ * Sprint 13 — BilanNegativeStep ligne 2. Transfert proportionnel des
+ * économies cumulées de chaque budget vers le déficit.
  *
- * Theme **violet** (convention UI Popoth : économies + tirelire = même
- * famille violet, contrairement aux budgets = orange).
+ * Theme **violet** (convention UI Popoth : économies = violet, même
+ * famille que la tirelire).
  *
- * État `active` :
- *   - Texte d'explication.
- *   - Liste budgets qui ont des économies : "Courses 75€ → 25€ (−50€)" — preview.
- *   - Bouton "Transférer les économies".
- *
- * État `done` :
- *   - Phrase "X€ d'économies transférés vers le déficit." (utilisateur a confirmé qu'elle suffit).
- *   - Liste de TOUS les budgets avec leurs nouvelles cumulated_savings — l'utilisateur
- *     voit ce qui reste (souvent 0 après full drain, parfois >0 après partial drain).
+ * Layout active : liste 2-lignes par budget (nom + delta sur ligne 1,
+ * before → after sur ligne 2) — évite la troncature sur mobile.
  */
 export function RefloatSavingsLine({
   context,
@@ -67,7 +56,7 @@ export function RefloatSavingsLine({
 
   if (state === 'locked') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-medium text-gray-700">Économies des budgets</p>
         <p className="mt-1 text-xs text-gray-500">Disponible après avoir transféré la tirelire.</p>
       </section>
@@ -76,26 +65,38 @@ export function RefloatSavingsLine({
 
   if (state === 'empty') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-medium text-gray-700">Économies des budgets</p>
         <p className="mt-1 text-xs text-gray-500">Pas d&apos;économies disponibles.</p>
       </section>
     )
   }
 
+  if (state === 'unneeded') {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
+        <p className="text-sm font-medium text-gray-700">Économies des budgets</p>
+        <p className="mt-1 text-xs text-gray-500">Pas nécessaire — le déficit est déjà comblé.</p>
+      </section>
+    )
+  }
+
   if (state === 'done') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700">Économies des budgets</p>
-        <p className="mt-1 text-xs text-gray-600">
-          {formatEuro(refloatedFromSavings)} d&apos;économies transférés vers le déficit.
+      <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+        <p className="text-sm font-medium text-violet-900">Économies des budgets</p>
+        <p className="mt-2 text-xs text-gray-700">
+          <span className="font-semibold tabular-nums">{formatEuro(refloatedFromSavings)}</span>{' '}
+          d&apos;économies transférés vers le déficit.
         </p>
         <p className="mt-3 text-xs text-gray-500">Nouvelles valeurs par budget :</p>
         <ul className="mt-1 space-y-1 text-xs text-gray-700">
           {budgets.map((b) => (
             <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
               <span className="truncate">{b.budgetName}</span>
-              <span className="shrink-0 tabular-nums">{formatEuro(b.cumulatedSavings)}</span>
+              <span className="shrink-0 font-medium text-violet-800 tabular-nums">
+                {formatEuro(b.cumulatedSavings)}
+              </span>
             </li>
           ))}
         </ul>
@@ -123,9 +124,9 @@ export function RefloatSavingsLine({
   }
 
   return (
-    <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+    <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
       <p className="text-sm font-medium text-violet-900">Économies des budgets</p>
-      <p className="mt-2 text-xs leading-relaxed text-gray-600">
+      <p className="mt-2 text-xs leading-relaxed text-gray-700">
         Les économies de chaque budget sont transférées proportionnellement à leur taille pour
         combler le déficit. Effet immédiat sur les budgets.
       </p>
@@ -133,23 +134,25 @@ export function RefloatSavingsLine({
         Total disponible :{' '}
         <span className="font-semibold text-gray-900 tabular-nums">{formatEuro(totalSavings)}</span>
       </p>
-      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+      <ul className="mt-2 space-y-2 text-xs text-gray-700">
         {savingsByBudget.map((b) => {
           const debit = perBudgetDebit.get(b.budgetId) ?? 0
           const after = Math.max(0, b.cumulatedSavings - debit)
           return (
-            <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
-              <span className="truncate">{b.budgetName}</span>
-              <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
-                <span className="text-gray-500">{formatEuro(b.cumulatedSavings)}</span>
+            <li key={b.budgetId} className="space-y-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate">{b.budgetName}</span>
+                <span className="shrink-0 font-medium text-violet-700 tabular-nums">
+                  −{formatEuro(debit)}
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1.5 text-gray-500 tabular-nums">
+                <span>{formatEuro(b.cumulatedSavings)}</span>
                 <span aria-hidden="true" className="text-gray-400">
                   →
                 </span>
                 <span className="font-semibold text-violet-800">{formatEuro(after)}</span>
-                <span className="text-[0.7rem] font-medium text-violet-700">
-                  (−{formatEuro(debit)})
-                </span>
-              </span>
+              </div>
             </li>
           )
         })}

@@ -54,12 +54,16 @@ describe('RefloatPiggyLine', () => {
         />,
       )
 
-      expect(
-        screen.getByText(/80,00.+de la tirelire utilisée pour combler le déficit/),
-      ).toBeInTheDocument()
-      expect(screen.getByText(/Il reste/)).toBeInTheDocument()
-      // 0,00 € post-transfer (full drain) is shown explicitly
-      expect(screen.getByText('0,00 €')).toBeInTheDocument()
+      // "80,00 €" and "de la tirelire utilisée…" are in 2 sibling nodes (span + text).
+      // Verify via the parent <p> textContent.
+      const usedLine = screen
+        .getByText(/de la tirelire utilisée pour combler le déficit/)
+        .closest('p')!
+      expect(usedLine).toHaveTextContent(/80,00/)
+      // Same shape for the "Il reste X dans la tirelire" line.
+      const remainingLine = screen.getByText(/Il reste/).closest('p')!
+      expect(remainingLine).toHaveTextContent(/0,00/)
+      expect(remainingLine).toHaveTextContent(/dans la tirelire/)
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
   })

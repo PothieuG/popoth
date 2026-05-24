@@ -95,7 +95,8 @@ describe('RefloatSavingsLine', () => {
         />,
       )
 
-      expect(screen.getByText(/120,00.+d'économies transférés/)).toBeInTheDocument()
+      const transferLine = screen.getByText(/d'économies transférés vers le déficit/).closest('p')!
+      expect(transferLine).toHaveTextContent(/120,00/)
       expect(screen.queryByRole('button')).not.toBeInTheDocument()
     })
   })

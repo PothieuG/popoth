@@ -7,17 +7,15 @@ import { computeProportionalBudgetSnapshot } from '@/lib/recap/calculations'
 import type { BudgetSummary, RecapContext } from '@/lib/recap'
 
 /**
- * États possibles de la ligne dans la cascade séquentielle :
+ * État de la ligne dans la cascade séquentielle :
  *
- * - `locked` : la tirelire OU les économies des budgets ne sont pas encore
- *   épuisées. Carte greyed avec message d'attente.
- * - `active` : tout est épuisé en amont ET le déficit reste à combler.
- *   Carte cliquable avec preview du snapshot.
- * - `done`   : snapshot déjà persisté pendant ce recap (la map
- *   `snapshotData` est non vide). Carte greyed avec récap + liste des
- *   nouvelles valeurs par budget (carryover + snapshot / estimated).
+ * - `locked`   : tirelire OU économies non encore épuisées. En attente.
+ * - `active`   : tout est épuisé en amont ET déficit non comblé. Cliquable.
+ * - `done`     : snapshot déjà persisté pendant ce recap. Récap + liste des
+ *   nouvelles valeurs par budget (consommé / estimé).
+ * - `unneeded` : déficit déjà comblé par la tirelire et/ou les économies.
  */
-type SnapshotLineState = 'locked' | 'active' | 'done'
+type SnapshotLineState = 'locked' | 'active' | 'done' | 'unneeded'
 
 interface RefloatBudgetSnapshotLineProps {
   context: RecapContext
@@ -30,22 +28,14 @@ interface RefloatBudgetSnapshotLineProps {
 }
 
 /**
- * Sprint 13 — BilanNegativeStep ligne 3 (cf. spec §4.B). Équilibrage
- * proportionnel : combien retirer de chaque budget pour combler le déficit
- * (3e et dernière étape de la cascade, après tirelire + économies).
+ * Sprint 13 — BilanNegativeStep ligne 3. Équilibrage proportionnel : combien
+ * retirer de chaque budget pour combler le déficit (3e et dernière étape).
  *
  * Theme **orange** (convention UI Popoth : budgets = orange, distinct de
  * la famille violet tirelire/économies).
  *
- * État `active` :
- *   - Texte d'explication (effet différé à la finalisation).
- *   - Liste budgets : "Courses 33/400 → 53/400 (+20€)" — preview.
- *   - Bouton "Équilibrer".
- *
- * État `done` :
- *   - Phrase "X€ équilibrés depuis les budgets."
- *   - Liste de TOUS les budgets avec leurs nouvelles valeurs
- *     `consommé / estimé` (consommé = carryoverSpentAmount + snapshot).
+ * Layout active : liste 2-lignes par budget (nom + delta sur ligne 1,
+ * before → after / max sur ligne 2) — évite la troncature sur mobile.
  */
 export function RefloatBudgetSnapshotLine({
   context,
@@ -60,7 +50,7 @@ export function RefloatBudgetSnapshotLine({
 
   if (state === 'locked') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
         <p className="mt-1 text-xs text-gray-500">
           Disponible après avoir épuisé la tirelire et les économies.
@@ -69,14 +59,23 @@ export function RefloatBudgetSnapshotLine({
     )
   }
 
+  if (state === 'unneeded') {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
+        <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
+        <p className="mt-1 text-xs text-gray-500">Pas nécessaire — le déficit est déjà comblé.</p>
+      </section>
+    )
+  }
+
   if (state === 'done') {
     const totalEquilibre = snapshotData ? Object.values(snapshotData).reduce((s, v) => s + v, 0) : 0
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
-        <p className="mt-1 text-xs text-gray-600">
-          {formatEuro(totalEquilibre)} équilibrés depuis les budgets (effectif à la finalisation du
-          récap).
+      <section className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
+        <p className="text-sm font-medium text-orange-900">Équilibrer avec les budgets</p>
+        <p className="mt-2 text-xs text-gray-700">
+          <span className="font-semibold tabular-nums">{formatEuro(totalEquilibre)}</span>{' '}
+          équilibrés depuis les budgets (effectif à la finalisation du récap).
         </p>
         <p className="mt-3 text-xs text-gray-500">Nouvelles valeurs par budget :</p>
         <ul className="mt-1 space-y-1 text-xs text-gray-700">
@@ -86,7 +85,7 @@ export function RefloatBudgetSnapshotLine({
             return (
               <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
                 <span className="truncate">{b.budgetName}</span>
-                <span className="shrink-0 tabular-nums">
+                <span className="shrink-0 font-medium text-orange-800 tabular-nums">
                   {formatEuro(consumed)} / {formatEuro(b.estimatedAmount)}
                 </span>
               </li>
@@ -115,34 +114,34 @@ export function RefloatBudgetSnapshotLine({
   }
 
   return (
-    <section className="rounded-2xl border border-orange-200 bg-orange-50/40 p-4">
+    <section className="rounded-2xl border border-orange-200 bg-orange-50 p-4">
       <p className="text-sm font-medium text-orange-900">Équilibrer avec les budgets</p>
-      <p className="mt-2 text-xs leading-relaxed text-gray-600">
+      <p className="mt-2 text-xs leading-relaxed text-gray-700">
         On retire le déficit restant proportionnellement à chaque budget (en fonction de leur
         taille). Les budgets ne seront effectivement débités qu&apos;à la finalisation du récap.
       </p>
-      <ul className="mt-3 space-y-1 text-xs text-gray-700">
+      <ul className="mt-3 space-y-2 text-xs text-gray-700">
         {budgets.map((b) => {
           const previewDebit = previewByBudget.get(b.budgetId) ?? 0
           const consumedBefore = b.carryoverSpentAmount
           const consumedAfter = consumedBefore + previewDebit
           return (
-            <li key={b.budgetId} className="flex items-baseline justify-between gap-2">
-              <span className="truncate">{b.budgetName}</span>
-              <span className="flex shrink-0 items-baseline gap-1.5 tabular-nums">
-                <span className="text-gray-500">
-                  {formatEuro(consumedBefore)} / {formatEuro(b.estimatedAmount)}
+            <li key={b.budgetId} className="space-y-0.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="truncate">{b.budgetName}</span>
+                <span className="shrink-0 font-medium text-orange-700 tabular-nums">
+                  +{formatEuro(previewDebit)}
                 </span>
+              </div>
+              <div className="flex items-baseline gap-1.5 text-gray-500 tabular-nums">
+                <span>{formatEuro(consumedBefore)}</span>
                 <span aria-hidden="true" className="text-gray-400">
                   →
                 </span>
-                <span className="font-semibold text-orange-800">
-                  {formatEuro(consumedAfter)} / {formatEuro(b.estimatedAmount)}
-                </span>
-                <span className="text-[0.7rem] font-medium text-orange-700">
-                  (+{formatEuro(previewDebit)})
-                </span>
-              </span>
+                <span className="font-semibold text-orange-800">{formatEuro(consumedAfter)}</span>
+                <span className="text-gray-400">/</span>
+                <span>{formatEuro(b.estimatedAmount)}</span>
+              </div>
             </li>
           )
         })}

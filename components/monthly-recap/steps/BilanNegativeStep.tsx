@@ -12,8 +12,6 @@ import { RefloatBudgetSnapshotLine } from '../RefloatBudgetSnapshotLine'
 import { RefloatPiggyLine } from '../RefloatPiggyLine'
 import { RefloatSavingsLine } from '../RefloatSavingsLine'
 
-import { BilanPositiveStep } from './BilanPositiveStep'
-
 const ERROR_COPY: Record<string, string> = {
   invalid_step: "Cette étape n'est plus accessible. Recharge la page.",
   not_initiator: "Tu n'es pas l'initiateur du récap.",
@@ -36,12 +34,11 @@ interface BilanNegativeStepProps {
 
 /**
  * Sprint 13 — Écran 3B du wizard Monthly Recap V3 quand `bilanSign === 'negative'`.
- * Spec verbatim §4.B + UX overhaul 2026-05-24 :
+ * Spec verbatim §4.B + UX overhaul 2026-05-24 (rounds 1-4).
  *
- *   1. **Cascade séquentielle** : 1 seule ligne active à la fois. La
- *      tirelire est la 1re ; les économies sont locked tant que la tirelire
- *      n'est pas vide ; le snapshot budgets est locked tant que les
- *      économies ne sont pas vidées.
+ *   1. **Cascade séquentielle** : 1 seule ligne active à la fois (la suivante
+ *      est `locked` tant que la précédente n'est pas "done" — soit utilisée
+ *      soit vide depuis le départ).
  *
  *   2. **Pas de page change** post-mutation : chaque hook (`useRefloatFromPiggy`
  *      / `useRefloatFromSavings` / `useSaveBudgetSnapshot`) update le cache
@@ -52,14 +49,17 @@ interface BilanNegativeStepProps {
  *   3. **Bouton "Continuer" en bas** quand le déficit est comblé. Le clic
  *      appelle `/advance-step` `manage_bilan → salary_update`. Si le snapshot
  *      a déjà auto-advance côté serveur, l'erreur `invalid_step` est swallow
- *      + on invalidate la query (le wizard rerend sur le step à jour).
+ *      gracieusement (le wizard se réaligne via le refetch).
  *
- *   4. **Bascule positive** : cas spécial où la tirelire seule a couvert le
- *      déficit ET il en reste dans la tirelire ET les économies n'ont pas
- *      été touchées. On rend `<BilanPositiveStep>` synthétiquement — le user
- *      peut alors enrichir la tirelire avec les surplus de budgets. Le
- *      `transformMutation` interne de BilanPositiveStep avance vers
- *      `salary_update` côté serveur.
+ *   4. **Pas de bascule** vers `BilanPositiveStep` : tout est traité dans
+ *      cet écran, y compris quand la tirelire seule couvre le déficit avec
+ *      du residual. Le residual reste dans la tirelire et le user clique
+ *      Continuer pour passer à salary_update.
+ *
+ *   5. **État `unneeded`** : quand le déficit est comblé par une étape
+ *      antérieure de la cascade, les lignes suivantes (et même la tirelire
+ *      si jamais elle est vide d'argent) passent en `unneeded` (greyed,
+ *      "Pas nécessaire — déficit comblé") au lieu de `active` ou `locked`.
  *
  * Theme couleurs (cf. convention UI Popoth) :
  *   - tirelire = violet
@@ -72,8 +72,6 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const advanceMutation = useAdvanceStep(context)
 
-  // Auto-dismiss the success snackbar 3s after it appears (cf. CLAUDE.md
-  // operational-rules-ui-modals "feedback transient post-mutation").
   useEffect(() => {
     if (!successMessage) return
     const timer = setTimeout(() => setSuccessMessage(null), 3000)
@@ -96,48 +94,56 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
     setSuccessMessage(message)
   }
 
-  // Bascule positive : la tirelire seule a couvert tout le déficit ET il
-  // reste de la tirelire à distribuer ET on n'a pas déjà puisé dans les
-  // économies (sinon ce n'est plus "piggy seule"). Le rendu synthétique
-  // de `<BilanPositiveStep>` donne accès à la sous-UI positive (transferts
-  // surplus → tirelire) puis advance vers salary_update via son propre
-  // bouton "Continuer".
-  const piggyOnlyCoveredDeficit =
-    deficitRemaining <= 0.01 && recap.refloatedFromSavings === 0 && summary.piggyAmount > 0.01
-  if (piggyOnlyCoveredDeficit) {
-    return <BilanPositiveStep context={context} summary={{ ...summary, bilanSign: 'positive' }} />
-  }
-
   // --- Cascade gating ---------------------------------------------------
-  // Piggy is always the 1st step ; savings unlocks when piggy is empty ;
-  // snapshot unlocks when both piggy and savings are empty. Each line also
-  // has a `done` state when its resource was used during this recap, and
-  // an `empty` state when the resource was 0 from the start.
+  // Une ligne est "done" soit parce qu'elle a été utilisée pendant ce
+  // recap (refloated_* > 0 ou snapshot non vide), soit parce que la
+  // ressource était vide depuis le départ. Une ligne est "active" si
+  // la précédente est done ET la ressource a du carburant ET le déficit
+  // n'est pas encore comblé. Sinon, `locked` (en attente) ou `unneeded`
+  // (déficit déjà comblé, pas besoin).
 
-  const piggyEmpty = summary.piggyAmount <= 0
-  const savingsEmpty = summary.totalSavings <= 0
-
-  const piggyState: 'active' | 'done' | 'empty' =
-    !piggyEmpty && deficitRemaining > 0.01
-      ? 'active'
-      : recap.refloatedFromPiggy > 0
-        ? 'done'
-        : 'empty'
-
-  const savingsState: 'locked' | 'active' | 'done' | 'empty' = !piggyEmpty
-    ? 'locked'
-    : !savingsEmpty && deficitRemaining > 0.01
-      ? 'active'
-      : recap.refloatedFromSavings > 0
-        ? 'done'
-        : 'empty'
-
+  const deficitCovered = deficitRemaining <= 0.01
+  const piggyEmpty = summary.piggyAmount <= 0.01
+  const savingsEmpty = summary.totalSavings <= 0.01
   const snapshotData = recap.snapshotData
   const snapshotTotal = snapshotData ? Object.values(snapshotData).reduce((s, v) => s + v, 0) : 0
-  const snapshotState: 'locked' | 'active' | 'done' =
-    !piggyEmpty || !savingsEmpty ? 'locked' : snapshotTotal > 0 ? 'done' : 'active'
 
-  const showContinuer = deficitRemaining <= 0.01
+  // Ordre des conditions : done > empty > deficitCovered (unneeded) >
+  // locked > active. Ainsi un déficit comblé en amont fait passer les lignes
+  // suivantes directement en `unneeded` au lieu de `locked`.
+
+  const piggyDone = recap.refloatedFromPiggy > 0
+  const piggyState: 'active' | 'done' | 'empty' | 'unneeded' = piggyDone
+    ? 'done'
+    : piggyEmpty
+      ? 'empty'
+      : deficitCovered
+        ? 'unneeded'
+        : 'active'
+
+  const piggyOutOfTheWay = piggyDone || piggyEmpty
+  const savingsActuallyUsed = recap.refloatedFromSavings > 0
+  const savingsState: 'locked' | 'active' | 'done' | 'empty' | 'unneeded' = savingsActuallyUsed
+    ? 'done'
+    : savingsEmpty
+      ? 'empty'
+      : deficitCovered
+        ? 'unneeded'
+        : !piggyOutOfTheWay
+          ? 'locked'
+          : 'active'
+
+  const savingsOutOfTheWay = piggyOutOfTheWay && (savingsActuallyUsed || savingsEmpty)
+  const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' =
+    snapshotTotal > 0
+      ? 'done'
+      : deficitCovered
+        ? 'unneeded'
+        : !savingsOutOfTheWay
+          ? 'locked'
+          : 'active'
+
+  const showContinuer = deficitCovered
 
   const handleContinue = async () => {
     setError(null)
@@ -145,10 +151,9 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
       await advanceMutation.mutateAsync({ fromStep: 'manage_bilan', toStep: 'salary_update' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
-      // Snapshot auto-advance côté serveur a déjà bougé le step → le client
-      // déclenche un refetch via invalidate (déjà fait dans useAdvanceStep
-      // onError n'est pas un retry, mais la réception du fresh state aligne
-      // le client). On surface quand même l'erreur si autre chose a foiré.
+      // Snapshot auto-advance côté serveur peut avoir déjà bougé le step
+      // → le refetch de useAdvanceStep onError ramène l'état correct ;
+      // on swallow gracieusement invalid_step / stale_step.
       if (code !== 'invalid_step' && code !== 'stale_step') {
         setError(pickErrorCopy(code))
       }

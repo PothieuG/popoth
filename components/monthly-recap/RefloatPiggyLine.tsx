@@ -8,42 +8,32 @@ import type { RecapContext } from '@/lib/recap'
 /**
  * État de la ligne dans la cascade séquentielle :
  *
- * - `active` : la ligne attend une action de l'utilisateur (tirelire non
- *   vide ET déficit non comblé). Bouton "Renflouer X€" cliquable.
- * - `done`   : la ligne a déjà été utilisée pendant ce recap (refloatedFromPiggy > 0
- *   ET tirelire vidée maintenant). Carte greyed avec récap "X€ transférés".
- * - `empty`  : la tirelire est vide depuis le départ — aucune action n'a
- *   été faite et il n'y a rien à faire. Carte greyed avec "Pas d'argent".
- *
- * Pas de variante `locked` ici : la tirelire est toujours la 1re ligne
- * de la cascade, jamais bloquée par une autre.
+ * - `active`   : tirelire non vide ET déficit non comblé. Bouton "Renflouer X€".
+ * - `done`     : tirelire utilisée pendant ce recap. Récap "X utilisée, Y reste".
+ * - `empty`    : tirelire vide depuis le départ (jamais touchée). Carte greyed.
+ * - `unneeded` : tirelire a de l'argent mais le déficit est déjà couvert par
+ *   autre chose (cas rare puisque la tirelire est toujours la 1re étape).
  */
-type PiggyLineState = 'active' | 'done' | 'empty'
+type PiggyLineState = 'active' | 'done' | 'empty' | 'unneeded'
 
 interface RefloatPiggyLineProps {
   context: RecapContext
   state: PiggyLineState
   piggyAmount: number
   deficitRemaining: number
-  /** Cumulative amount already pulled from the piggy during this recap.
-   *  Used to label the `done` state ("XX€ déjà transférés vers le déficit"). */
   refloatedFromPiggy: number
   onError: (code: string) => void
   onSuccess: (message: string) => void
 }
 
 /**
- * Sprint 13 — BilanNegativeStep ligne 1 (cf. spec §4.B). Renflouement
- * depuis la tirelire (1re étape de la cascade séquentielle).
+ * Sprint 13 — BilanNegativeStep ligne 1. Renflouement depuis la tirelire.
  *
- * Theme **violet** (cf. convention UI Popoth : tirelire = violet, même
- * code couleur que `BilanPositiveStep` + `SurplusSelectionDrawer`).
+ * Theme **violet** (convention UI Popoth : tirelire = violet).
  *
- * 3 états visuels (cf. `PiggyLineState` ci-dessus). Sur succès de la
- * mutation, le compteur déficit recalcule automatiquement via
- * `setQueryData` côté hook → la carte rerend en `done` si la tirelire est
- * vidée. La snackbar de feedback est gérée au niveau orchestrateur
- * (`BilanNegativeStep`) via le callback `onSuccess`.
+ * Le done state utilise la même couleur violet (cohérence visuelle de la
+ * famille tirelire/économies) ; les états inactifs (empty/unneeded) sont
+ * en `bg-white` pour bien contraster avec le fond bleu de la page wizard.
  */
 export function RefloatPiggyLine({
   context,
@@ -58,23 +48,33 @@ export function RefloatPiggyLine({
 
   if (state === 'empty') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-medium text-gray-700">Tirelire</p>
         <p className="mt-1 text-sm text-gray-500">Pas d&apos;argent dans la tirelire.</p>
       </section>
     )
   }
 
+  if (state === 'unneeded') {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
+        <p className="text-sm font-medium text-gray-700">Tirelire</p>
+        <p className="mt-1 text-sm text-gray-500">Pas nécessaire — le déficit est déjà comblé.</p>
+      </section>
+    )
+  }
+
   if (state === 'done') {
     return (
-      <section className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-700">Tirelire</p>
-        <p className="mt-1 text-xs text-gray-600">
-          {formatEuro(refloatedFromPiggy)} de la tirelire utilisée pour combler le déficit.
+      <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+        <p className="text-sm font-medium text-violet-900">Tirelire</p>
+        <p className="mt-2 text-xs text-gray-700">
+          <span className="font-semibold tabular-nums">{formatEuro(refloatedFromPiggy)}</span> de la
+          tirelire utilisée pour combler le déficit.
         </p>
-        <p className="mt-1 text-xs text-gray-600">
+        <p className="mt-1 text-xs text-gray-700">
           Il reste{' '}
-          <span className="font-semibold text-gray-900 tabular-nums">
+          <span className="font-semibold text-violet-800 tabular-nums">
             {formatEuro(piggyAmount)}
           </span>{' '}
           dans la tirelire.
@@ -96,9 +96,9 @@ export function RefloatPiggyLine({
   }
 
   return (
-    <section className="rounded-2xl border border-violet-200 bg-violet-50/40 p-4">
+    <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
       <p className="text-sm font-medium text-violet-900">Tirelire</p>
-      <p className="mt-2 text-xs leading-relaxed text-gray-600">
+      <p className="mt-2 text-xs leading-relaxed text-gray-700">
         On utilise la tirelire en priorité pour combler le déficit. Le montant transféré sortira
         immédiatement de la tirelire.
       </p>

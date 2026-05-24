@@ -120,7 +120,7 @@ describe('BilanNegativeStep', () => {
 
       // Piggy done state
       expect(
-        screen.getByText(/50,00.+de la tirelire utilisée pour combler le déficit/),
+        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
       ).toBeInTheDocument()
       // Savings active (button visible)
       expect(screen.getByRole('button', { name: 'Transférer les économies' })).toBeInTheDocument()
@@ -140,9 +140,9 @@ describe('BilanNegativeStep', () => {
       )
 
       expect(
-        screen.getByText(/50,00.+de la tirelire utilisée pour combler le déficit/),
+        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
       ).toBeInTheDocument()
-      expect(screen.getByText(/25,00.+d'économies transférés/)).toBeInTheDocument()
+      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
       // Snapshot active
       expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
     })
@@ -163,30 +163,48 @@ describe('BilanNegativeStep', () => {
     })
   })
 
-  describe('bascule positive (piggy alone covers deficit + residual)', () => {
-    it('renders BilanPositiveStep synthetically', () => {
+  describe('deficit covered → "unneeded" cascade lines + Continuer', () => {
+    it('piggy alone covers deficit with residual → piggy done (with residual), savings/snapshot unneeded, Continuer visible', () => {
+      // Scenario: deficit 100, piggy was 150, refloated 100. Residual piggy 50.
+      // Savings has 75€ (default makeSummary) but is not needed.
       render(
         <BilanNegativeStep
           context="profile"
-          summary={makeSummary({ piggyAmount: 50, totalSavings: 0 })}
+          summary={makeSummary({ piggyAmount: 50 })}
           recap={makeRecap({ refloatedFromPiggy: 100 })}
         />,
       )
 
-      expect(screen.getByRole('heading', { name: 'Gestion du bilan positif' })).toBeInTheDocument()
-      expect(screen.queryByRole('heading', { name: 'Gestion du déficit' })).not.toBeInTheDocument()
+      // Stays on BilanNegativeStep (no bascule)
+      expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
+      // Piggy done state visible
+      expect(
+        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
+      ).toBeInTheDocument()
+      // Savings + Snapshot are both "unneeded" (deficit already covered)
+      expect(screen.getAllByText(/Pas nécessaire — le déficit est déjà comblé/)).toHaveLength(2)
+      // Continuer at the bottom
+      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
 
-    it('does NOT bascule when savings have been touched (fallback to Continuer path)', () => {
+    it('savings cover the deficit → snapshot is unneeded (greyed), Continuer visible', () => {
+      // Scenario: deficit 100, piggy 0 from start, savings 100€ → full drain covers it.
+      // After: piggyEmpty, savingsEmpty (drained to 0), refloatedFromSavings=100.
       render(
         <BilanNegativeStep
           context="profile"
-          summary={makeSummary({ piggyAmount: 50, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 50 })}
+          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
+          recap={makeRecap({ refloatedFromSavings: 100 })}
         />,
       )
 
-      expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
+      // Savings done state
+      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
+      // Snapshot is unneeded (deficit covered)
+      expect(screen.getByText(/Pas nécessaire — le déficit est déjà comblé/)).toBeInTheDocument()
+      // Snapshot button NOT visible (it's unneeded, not active)
+      expect(screen.queryByRole('button', { name: 'Équilibrer' })).not.toBeInTheDocument()
+      // Continuer visible
       expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
   })

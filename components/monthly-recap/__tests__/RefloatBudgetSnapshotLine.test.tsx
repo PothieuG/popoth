@@ -90,8 +90,9 @@ describe('RefloatBudgetSnapshotLine', () => {
         />,
       )
 
-      // Phrase total
-      expect(screen.getByText(/50,00.+équilibrés depuis les budgets/)).toBeInTheDocument()
+      // Phrase total (text split across span + text node — assert via parent)
+      const totalLine = screen.getByText(/équilibrés depuis les budgets/).closest('p')!
+      expect(totalLine).toHaveTextContent(/50,00/)
       // Per-budget new values "consumed / estimated"
       // Courses : 0 (carryover) + 30 (snapshot) = 30 / 400
       expect(screen.getByText('Courses').closest('li')).toHaveTextContent(/30,00.+\/.+400,00/)
