@@ -102,6 +102,16 @@ export interface AdvanceStepMutationResult {
  *
  * Invalidates `['monthly-recap', 'status', context]` on success — the
  * wizard re-fetches and renders the new step component automatically.
+ *
+ * **`stale_step` recovery (sprint 14 follow-up 2026-05-25)** : the negative
+ * flow's `save-budget-snapshot` and the salary flow's `update-salaries`
+ * both auto-advance `current_step` server-side. When the client subsequently
+ * fires an explicit advance-step with the old `fromStep`, the server
+ * answers 409 `stale_step`. Without invalidation in that branch, the cache
+ * stayed on the prior step and the wizard wouldn't render the new step
+ * until the user refreshed. We now invalidate on `stale_step` too so the
+ * cache resyncs with the actual server state — `BilanNegativeStep` already
+ * swallows the error silently, this just closes the missing refetch.
  */
 export function useAdvanceStep(context: RecapContext) {
   const qc = useQueryClient()
@@ -121,6 +131,11 @@ export function useAdvanceStep(context: RecapContext) {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    },
+    onError: (error) => {
+      if (error.message === 'stale_step' || error.message === 'invalid_step') {
+        void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+      }
     },
   })
 }
