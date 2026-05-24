@@ -5,7 +5,13 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useAdvanceStep, type RecapProgress } from '@/hooks/useMonthlyRecap'
 import { formatEuro } from '@/lib/format-currency'
-import { computeDeficitRemaining, type RecapContext, type RecapSummary } from '@/lib/recap'
+// Import the value directly from the pure module — going through the
+// `@/lib/recap` barrel pulls `check-status.ts → supabaseServer` into the
+// browser bundle, which crashes with "supabaseKey is required." in the
+// client. Type-only imports from the barrel stay safe (erased at compile
+// time via `verbatimModuleSyntax`).
+import { computeDeficitRemaining } from '@/lib/recap/deficit-math'
+import type { RecapContext, RecapSummary } from '@/lib/recap'
 
 import { RefloatBudgetSnapshotLine } from '../RefloatBudgetSnapshotLine'
 import { RefloatPiggyLine } from '../RefloatPiggyLine'
