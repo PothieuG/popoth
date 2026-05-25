@@ -43,8 +43,8 @@
     "jose": "^6.1.0",
     "lucide-react": "^0.544.0",
     "next": "16.2.6",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
     "react-hook-form": "^7.75.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
@@ -60,8 +60,8 @@
     "@testing-library/user-event": "^14",
     "@types/jest-axe": "^3.5.9",
     "@types/node": "^20.19.14",
-    "@types/react": "^19.1.13",
-    "@types/react-dom": "^19.1.9",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.1.6",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.6",
@@ -115,8 +115,8 @@
       "picomatch@4": "^4.0.4",
       "playwright": "^1.55.1",
       "postcss": "^8.5.10",
-      "react": "19.1.1",
-      "react-dom": "19.1.1",
+      "react": "19.2.6",
+      "react-dom": "19.2.6",
       "serialize-javascript": "^7.0.5",
       "yaml@2": "^2.8.3"
     }
