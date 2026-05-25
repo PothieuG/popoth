@@ -199,7 +199,7 @@ Détails capture-then-drop + DROP workflow + push gate + Dependabot triage → [
 
 Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architecture, livrés 2026-05-06/08) dans [.claude/history/sprint-history-security-part-1-foundation-ci.md](.claude/history/sprint-history-security-part-1-foundation-ci.md) + [part-2](.claude/history/sprint-history-security-part-2-quality-architecture.md). État résumé :
 
-- ✅ **Sprints 0 / DB / Refactor / Hardening** : `ignoreBuildErrors` retiré (C1), 20 routes debug `blockInProduction` (C2), 4 RPC atomiques C3, RLS `piggy_bank` (D1), policies group_contributions + remaining_to_live_snapshots fixées (D2/D3), baseline schéma versionné (D5), `createClient<Database>` wirage (R2), `pnpm db:check-drift` (R4), 17 scope-casts unwound + 3 bugs surfacés (H1), overdraft `bank_balance` (H3), `pnpm db:check-rpcs` (H4).
+- ✅ **Sprints 0 / DB / Refactor / Hardening** : `ignoreBuildErrors` retiré (C1), 20 routes debug `blockInProduction` (C2), 4 RPC atomiques C3, RLS `piggy_bank` (D1), policies group_contributions + remaining_to_live_snapshots fixées (D2/D3), baseline schéma versionné (D5), `createClient<Database>` wirage (R2), `pnpm db:check-drift` (R4), 17 scope-casts unwound + 3 bugs surfacés (H1), ~~H3 overdraft~~ retiré 2026-05-25, `pnpm db:check-rpcs` (H4).
 - ✅ **Sprints Polish → Stabilize-Deps** (9 sprints) : consolidations CI / db-audit / dependabot.
 
 **Drift C3 résolu** ([post-mortem](doc2/audit/POST-MORTEM-C3-DRIFT.md)) : filet = `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` + tests gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.

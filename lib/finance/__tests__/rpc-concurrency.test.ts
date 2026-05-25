@@ -185,21 +185,20 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
     expect(piggy + savings).toBe(1000)
   }, 120_000)
 
-  it('updateBankBalance rejects overdraft and leaves balance untouched (Sprint Hardening / H3)', async () => {
-    // Reset to a known state: balance = 100.
+  it('updateBankBalance allows negative balance (Sprint Allow-Bank-Balance-Negative 2026-05-25)', async () => {
+    // Reset to balance = 100.
     const { error: resetErr } = await admin
       .from('bank_balances')
       .update({ balance: 100 })
       .eq('profile_id', testUserId)
     expect(resetErr).toBeNull()
 
-    // -200 would land at -100. RPC must throw, balance must stay at 100.
-    // Either error wins: the new RPC guard ("cannot become negative") or the
-    // existing CHECK constraint (bank_balances_balance_check). Both preserve
-    // the invariant — accept either message.
-    await expect(updateBankBalance({ profile_id: testUserId }, -200)).rejects.toThrow(
-      /negative|bank_balances_balance_check/i,
-    )
+    // -200 lands at -100. After Sprint Allow-Bank-Balance-Negative (DROP
+    // CHECK constraint + RPC guard removal), the operation must succeed
+    // and the balance must reflect the negative value. Use case : recap
+    // mensuel applying contribution debit before salary credit.
+    const result = await updateBankBalance({ profile_id: testUserId }, -200)
+    expect(Number(result)).toBe(-100)
 
     const { data, error } = await admin
       .from('bank_balances')
@@ -207,7 +206,7 @@ describe.skipIf(!ENABLED)('RPC concurrency (Sprint DB D9)', () => {
       .eq('profile_id', testUserId)
       .single()
     expect(error).toBeNull()
-    expect(Number(data?.balance)).toBe(100)
+    expect(Number(data?.balance)).toBe(-100)
   }, 60_000)
 
   it('updateBudgetCumulatedSavings × 100 alternating ±1 returns to start', async () => {

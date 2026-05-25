@@ -229,19 +229,20 @@ here instead.
 
 ## Migration timeline
 
-| Timestamp      | File                                  | What                                                                                |
-| -------------- | ------------------------------------- | ----------------------------------------------------------------------------------- |
-| 20260101000000 | `_remote_schema.sql`                  | Hand-curated baseline (pre-Sprint DB schema snapshot)                               |
-| 20260506000000 | `_create_finance_rpcs.sql`            | Sprint 0 / C3 — 4 atomic finance RPCs                                               |
-| 20260507000000 | `_enable_rls_piggy_bank.sql`          | Sprint DB / D1 — enable RLS + owner policies on piggy_bank                          |
-| 20260507000001 | `_fix_group_contributions_policy.sql` | Sprint DB / D2 — restrict to actual group members                                   |
-| 20260507000002 | `_fix_remaining_to_live_insert.sql`   | Sprint DB / D3 — restrict INSERT to service_role                                    |
-| 20260508000000 | `_add_piggy_bank_indexes.sql`         | Sprint DB / D7 — partial unique indexes                                             |
-| 20260508000001 | `_add_piggy_bank_constraints.sql`     | Sprint DB / D8 — amount ≥ 0 + owner XOR                                             |
-| 20260509000000 | `_dedupe_profiles_policies.sql`       | Sprint DB / D10 — drop redundant public SELECT policy                               |
-| 20260510000000 | `_dedupe_indexes_constraints.sql`     | Sprint Refactor / R3 — drop dup indexes/FKs/CHECKs + fix budget_transfers NULL hole |
-| 20260510000001 | `_drop_recursive_profiles_policy.sql` | Sprint Refactor / R6 — drop self-referencing profiles SELECT policy (42P17 fix)     |
-| 20260511000000 | `_align_bank_balance_overdraft.sql`   | Sprint Hardening / H3 — align update_bank_balance overdraft guard with piggy bank   |
+| Timestamp      | File                                  | What                                                                                                      |
+| -------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 20260101000000 | `_remote_schema.sql`                  | Hand-curated baseline (pre-Sprint DB schema snapshot)                                                     |
+| 20260506000000 | `_create_finance_rpcs.sql`            | Sprint 0 / C3 — 4 atomic finance RPCs                                                                     |
+| 20260507000000 | `_enable_rls_piggy_bank.sql`          | Sprint DB / D1 — enable RLS + owner policies on piggy_bank                                                |
+| 20260507000001 | `_fix_group_contributions_policy.sql` | Sprint DB / D2 — restrict to actual group members                                                         |
+| 20260507000002 | `_fix_remaining_to_live_insert.sql`   | Sprint DB / D3 — restrict INSERT to service_role                                                          |
+| 20260508000000 | `_add_piggy_bank_indexes.sql`         | Sprint DB / D7 — partial unique indexes                                                                   |
+| 20260508000001 | `_add_piggy_bank_constraints.sql`     | Sprint DB / D8 — amount ≥ 0 + owner XOR                                                                   |
+| 20260509000000 | `_dedupe_profiles_policies.sql`       | Sprint DB / D10 — drop redundant public SELECT policy                                                     |
+| 20260510000000 | `_dedupe_indexes_constraints.sql`     | Sprint Refactor / R3 — drop dup indexes/FKs/CHECKs + fix budget_transfers NULL hole                       |
+| 20260510000001 | `_drop_recursive_profiles_policy.sql` | Sprint Refactor / R6 — drop self-referencing profiles SELECT policy (42P17 fix)                           |
+| 20260511000000 | `_align_bank_balance_overdraft.sql`   | Sprint Hardening / H3 — align update_bank_balance overdraft guard with piggy bank                         |
+| 20260525210000 | `_allow_bank_balance_negative.sql`    | Retire H3 — DROP CHECK balance ≥ 0 + retire le guard RPC (solde négatif autorisé, supporte le flow recap) |
 
 Re-running [scripts/export-schema.mjs](../../scripts/export-schema.mjs)
 against the linked project regenerates the baseline. The hand-curated
