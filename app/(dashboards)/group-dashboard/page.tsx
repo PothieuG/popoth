@@ -1,28 +1,38 @@
 'use client'
 
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProfile } from '@/hooks/useProfile'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import FinancialIndicators from '@/components/dashboard/FinancialIndicators'
+import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 import CentralLoader from '@/components/ui/CentralLoader'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
+import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealIncome } from '@/hooks/useRealIncomes'
+
+type EditableTransaction = RealExpense | RealIncome
 
 /**
  * Sprint P1 — mirror of DashboardPeriodSection (profile). Wraps usePeriodParam
  * inside a parent <Suspense>.
  */
 interface GroupDashboardPeriodSectionProps {
+  onEditTransaction: Parameters<typeof TransactionTabsComponent>[0]['onEditTransaction']
   onTransactionDeleted: Parameters<typeof TransactionTabsComponent>[0]['onTransactionDeleted']
 }
-function GroupDashboardPeriodSection({ onTransactionDeleted }: GroupDashboardPeriodSectionProps) {
+function GroupDashboardPeriodSection({
+  onEditTransaction,
+  onTransactionDeleted,
+}: GroupDashboardPeriodSectionProps) {
   const { period } = usePeriodParam()
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <TransactionTabsComponent
         context="group"
         period={period}
+        onEditTransaction={onEditTransaction}
         onTransactionDeleted={onTransactionDeleted}
         className="h-full"
       />
@@ -49,6 +59,18 @@ export default function GroupDashboardPage() {
   } = useFinancialData('group')
 
   const redirected = useRef(false)
+
+  const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
+  const [editingTransaction, setEditingTransaction] = useState<EditableTransaction | null>(null)
+  const [editingTransactionType, setEditingTransactionType] = useState<'expense' | 'income'>(
+    'expense',
+  )
+
+  const handleEditTransaction = (transaction: EditableTransaction, type: 'expense' | 'income') => {
+    setEditingTransaction(transaction)
+    setEditingTransactionType(type)
+    setIsEditTransactionModalOpen(true)
+  }
 
   useEffect(() => {
     if (!isLoading && profile && !profile.group_id && !redirected.current) {
@@ -110,9 +132,25 @@ export default function GroupDashboardPage() {
           </div>
 
           <Suspense fallback={null}>
-            <GroupDashboardPeriodSection onTransactionDeleted={refreshFinancialData} />
+            <GroupDashboardPeriodSection
+              onEditTransaction={handleEditTransaction}
+              onTransactionDeleted={refreshFinancialData}
+            />
           </Suspense>
         </>
+      )}
+
+      {isEditTransactionModalOpen && editingTransaction && (
+        <EditTransactionModal
+          onClose={() => {
+            setIsEditTransactionModalOpen(false)
+            setEditingTransaction(null)
+          }}
+          transaction={editingTransaction}
+          transactionType={editingTransactionType}
+          context="group"
+          onTransactionUpdated={refreshFinancialData}
+        />
       )}
     </div>
   )
