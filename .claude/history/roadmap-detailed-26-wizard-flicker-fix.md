@@ -1,4 +1,4 @@
-# Roadmap détaillée — Part 26 : Recap-Wizard-Flicker-Fix
+# Roadmap détaillée — Part 26 : Recap-Wizard-Flicker-Fix + Fix-Recap-Welcome-Skip
 
 > Append-only chronologique. Voir [CLAUDE.md §11](../../CLAUDE.md) pour l'index global. Part précédente : [Part 25](roadmap-detailed-25-salary-edit-gating.md) (Salary-Edit-Gating).
 
@@ -63,6 +63,33 @@
 
   Mécanisme idempotent : `cleanupCurrentMonth({ profile: true, group: false })` wipe le state du mois courant pour USER_A uniquement (le groupe n'est pas touché, contrairement à `_reset.mjs`).
 
+- ✅ **Sprint Fix-Recap-Welcome-Skip — Étape « Compléter le mois » sautée après l'écran de bienvenue** (livré 2026-05-31, 1 commit). Bug UX rapporté par le user sur la branche `monthly_recap` : depuis l'écran Welcome du wizard Monthly Recap V3, le clic « Commencer » envoyait l'utilisateur directement à l'écran Summary, court-circuitant l'étape « Compléter le mois » introduite au commit `0f7323a feat(recap): add "Compléter le mois" step before bilan` (Sprint Complete-Month-Step, 2026-05-29). L'étape — où l'utilisateur peut ajouter des dépenses/revenus oubliés du mois recapé avant le bilan — n'était jamais visible.
+
+  **Cause racine** : la RPC PG `start_monthly_recap` ([supabase/migrations/20260525000000_create_recap_start_rpc.sql](../../supabase/migrations/20260525000000_create_recap_start_rpc.sql) ligne 72) hardcode `current_step = 'summary'` au moment de l'INSERT initial dans `monthly_recaps`. Cascade :
+
+  1. `POST /api/monthly-recap/start` → RPC crée la ligne avec `current_step = 'summary'`.
+  2. `WelcomeStep` enchaîne `POST /api/monthly-recap/advance-step { fromStep: 'welcome', toStep: 'complete_month' }`.
+  3. L'endpoint advance-step lit la ligne DB → `current_step` est `'summary'`, pas `'welcome'` → `executeAdvanceStep` retourne `stale_step` → HTTP **409**.
+  4. `WelcomeStep` ligne 45 avale silencieusement `stale_step` (volontaire, Sprint Recap-Wizard-Flicker-Fix ci-dessus — garde-fou contre les double-clicks).
+  5. Le wizard re-fetch le status → trouve `'summary'` → route directement vers `SummaryStep`. `CompleteMonthStep` jamais affiché.
+
+  **Pourquoi le bug a passé** : à la création de la RPC (Sprint 05 V3, 2026-05-25), `'welcome'` était une carte client-only et le premier step server-persisted était `'summary'`. Le sprint Complete-Month-Step (2026-05-29) a inséré `'welcome'` puis `'complete_month'` comme premiers steps server-persisted en étendant l'enum `RECAP_STEP_ORDER` ([lib/recap/state.ts](../../lib/recap/state.ts)) et la CHECK constraint ([migration 20260529](../../supabase/migrations/20260529000000_extend_recap_step_complete_month.sql)), mais **sans rebaser la ligne 72 de la RPC start**. Le test d'intégration [`app/api/monthly-recap/start/__tests__/route.integration.test.ts:173`](../../app/api/monthly-recap/start/__tests__/route.integration.test.ts) ratifiait le mauvais comportement (`expect(body.data.recap.current_step).toBe('summary')`) — écrit avant le sprint Complete-Month-Step et non mis à jour à l'époque. Le swallow `stale_step` du sprint Flicker-Fix masquait l'erreur 409 qui aurait alerté.
+
+  **Fix** :
+  - Migration RPC ligne 72 : `'summary'` → `'welcome'`. Fix **in-place** (pas de nouvelle migration `CREATE OR REPLACE`) car la branche `monthly_recap` est encore feature, non shippée prod (cf. commit `0f7323a` « applied to dev; pending prod push as part of the V3 batch »). La migration commence par `DROP FUNCTION IF EXISTS ... CREATE OR REPLACE` (ligne 35-37) → ré-application idempotente via `node scripts/apply-sql.mjs supabase/migrations/20260525000000_create_recap_start_rpc.sql`.
+  - Test intégration ligne 173 : `'summary'` → `'welcome'`. Les autres usages de `'summary'` dans le fichier (lignes 198, 263) sont des fixtures pre-existing pour simuler un wizard déjà en cours sur les cas `resumed` / `locked_by_other` — non touchés.
+
+  **Files non-modifiés (vérifiés sains)** :
+  - [lib/recap/state.ts](../../lib/recap/state.ts) — `RECAP_STEP_ORDER` ordre correct `['welcome', 'complete_month', 'summary', ...]`.
+  - [components/monthly-recap/steps/WelcomeStep.tsx](../../components/monthly-recap/steps/WelcomeStep.tsx) ligne 42 — transition `welcome → complete_month` correcte ; swallow ligne 45 conservé (garde-fou idempotence Flicker-Fix).
+  - [app/api/monthly-recap/advance-step/route.ts](../../app/api/monthly-recap/advance-step/route.ts) — logique OK, retourne `409 stale_step` quand mismatch (c'est ce qui révélait le bug avant le swallow).
+
+  **Pipeline verify** : `pnpm typecheck` OK, `pnpm test:run` 658 non-gated passants 0 failed (count stable, edit in-place), tests gated `SUPABASE_RECAP_TESTS=1` sur `start + lib/recap` 112/113 passants (1 brittle pré-existant `check-status.test.ts:166` ISO format JS `'40.640Z'` vs PG `'40.64+00:00'` — confirmé indépendant via stash sur HEAD). `db:audit-functions` 28/28 ; `db:check-rpcs` 19/19 (`start_monthly_recap` listée ligne 13 du output) ; `db:check-functions` 5/5 ; `db:check-types-fresh` OK. `db:check-drift` fail pré-existant sur sprint 16 (`real_expenses.contribution_id` + `last_applied_amount` + 5 triggers jamais réexportés dans `20260101000000_remote_schema.sql`) — hors scope.
+
+  **Règle ❌ pinnée** (pour future référence — non-ajoutée dans operational-rules.md faute de marge 39.5k disponible) : **NE PAS hardcoder un step non-initial (`'summary'`, `'manage_bilan'`, etc.) comme literal `current_step` dans l'INSERT de `start_monthly_recap`**. Le wizard part toujours de `'welcome'` et avance explicitement via `POST /api/monthly-recap/advance-step`. Tout autre literal crée un mismatch DB ↔ client qui est silencieusement avalé par le swallow `stale_step` du WelcomeStep → l'étape (`'complete_month'` ou future) est sautée. Si jamais on doit changer le step initial, la nouvelle valeur DOIT être le premier élément de `RECAP_STEP_ORDER` (actuellement `'welcome'`).
+
+  **Risque résiduel** : si la migration 20260525 a été push en prod entre-temps, basculer vers une nouvelle migration `CREATE OR REPLACE FUNCTION start_monthly_recap` au moment du push prod du sprint V3 (pattern « never modify an applied prod migration »). À vérifier avec user avant push prod.
+
 ---
 
-**Synthèse Part 26** : 1 sprint fix UX + 1 outil QA. **8 fichiers app/components/hooks touchés** + **3 tests adaptés + 2 nouveaux**. **0 migration DB / 0 changement contrat API / 0 nouvelle RPC**. Tests **658 → 660 non-gated** (+2 generic-error guards). Pattern "await invalidate critique + void background" pinné dans operational-rules. Bonus : 28e scénario seed `random-profile.mjs` pour QA bout-en-bout.
+**Synthèse Part 26** : 2 sprints fix UX/DB + 1 outil QA. **Recap-Wizard-Flicker-Fix** : 8 fichiers app/components/hooks touchés + 3 tests adaptés + 2 nouveaux (658 → 660 non-gated, +2 generic-error guards) ; pattern "await invalidate critique + void background" pinné dans operational-rules. **Fix-Recap-Welcome-Skip** : 1 migration SQL + 1 test intégration (1 ligne chaque) ; 0 changement contrat API / 0 nouvelle RPC. Bonus : 28e scénario seed `random-profile.mjs` pour QA bout-en-bout.

@@ -170,7 +170,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
     }
     expect(body.data.recap.profile_id).toBe(userAId)
     expect(body.data.recap.started_by_profile_id).toBe(userAId)
-    expect(body.data.recap.current_step).toBe('summary')
+    expect(body.data.recap.current_step).toBe('welcome')
     expect(body.data.summary).not.toBeNull()
 
     const { data: row } = await admin

@@ -69,7 +69,7 @@ BEGIN
   )
   VALUES (
     p_profile_id, p_group_id, p_month, p_year,
-    'summary', p_started_by_profile_id, now()
+    'welcome', p_started_by_profile_id, now()
   )
   ON CONFLICT DO NOTHING
   RETURNING * INTO v_recap;
