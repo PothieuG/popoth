@@ -152,29 +152,29 @@ export default function TransactionListItem({
 
   /**
    * Feature "Contribution au groupe" (2026-05-28). Row auto-managée par
-   * trigger DB (cf. sync_contribution_real_expense). Dérive l'état UI :
+   * trigger DB (cf. sync_contribution_real_expense + auto-devalidate v2).
+   *
+   * Modèle d'état :
    *   - isContributionRow : on rend en mode read-only (catégorie grise,
    *     pas de bouton Modifier/Supprimer).
-   *   - needsInitialValidation : jamais validée → warning "première
-   *     validation requise".
-   *   - hasDrift : validée à un montant différent du courant (le trigger
-   *     a réécrit `amount` mais `last_applied_amount` reste figé) →
-   *     warning "désynchronisée, revalider".
-   *   - driftDelta : new amount - last_applied_amount (positif = augmentation,
-   *     négatif = diminution).
+   *   - needsValidation : !applied → warning visible.
+   *   - hasDelta : `last_applied_amount` connu ET différent de `amount`
+   *     courant → contribution a changé depuis la dernière validation.
+   *     Permet d'afficher le delta + verbe ajouter/retirer dans le warning.
+   *     Si `last_applied_amount IS NULL` (jamais validée) OU égal à
+   *     `amount` (en sync), warning court "doit être validée" sans delta.
+   *   - driftDelta : `amount - last_applied_amount` (positif = la
+   *     contribution a augmenté donc ajouter au pot ; négatif = retirer).
    */
   const isContributionRow =
     type === 'expense' && (transaction as RealExpense).contribution_id != null
   const contribLastApplied =
     type === 'expense' ? ((transaction as RealExpense).last_applied_amount ?? null) : null
-  const needsInitialValidation = isContributionRow && !isApplied && contribLastApplied == null
-  const hasDrift =
-    isContributionRow &&
-    isApplied &&
-    contribLastApplied != null &&
-    contribLastApplied !== transaction.amount
+  const needsValidation = isContributionRow && !isApplied
+  const hasDelta =
+    isContributionRow && contribLastApplied != null && contribLastApplied !== transaction.amount
   const driftDelta =
-    hasDrift && contribLastApplied != null ? transaction.amount - contribLastApplied : 0
+    hasDelta && contribLastApplied != null ? transaction.amount - contribLastApplied : 0
 
   const runToggle = async () => {
     if (isToggling) return
@@ -714,16 +714,19 @@ export default function TransactionListItem({
         </div>
 
         {/* Feature "Contribution au groupe" (2026-05-28) — bloc warning
-            in-card affiché dans 2 cas :
-              (1) première validation requise (never applied).
-              (2) drift entre amount auto-update et last_applied_amount
-                  → le user doit ajouter/retirer le delta du groupe et
-                  re-valider.
+            in-card affiché dès que la row n'est PAS validée (isApplied=false).
+            Deux variantes de message selon `hasDelta` :
+              - delta ≠ 0 : la contribution a changé depuis la dernière
+                validation → "vous devez ajouter|retirer X€ au groupe
+                avant de valider cette dépense".
+              - sinon : "La valeur de la contribution doit être validée."
+            Le trigger DB auto-devalidate la row dès que la contribution
+            change pendant qu'elle était applied : restitue le solde +
+            set applied_at=NULL + PRÉSERVE last_applied_amount → le user
+            voit immédiatement le warning + sait le delta à transférer.
             Bordure + fond orange légers (charte : orange = "needs attention",
-            distinct du red "déficit" et du yellow réservé "exceptionnel").
-            Le bloc apparaît dans la carte (pas un toast), au-dessous des
-            lignes d'info principales. */}
-        {isContributionRow && (needsInitialValidation || hasDrift) && (
+            distinct du red "déficit" et du yellow réservé "exceptionnel"). */}
+        {isContributionRow && needsValidation && (
           <div
             role="status"
             className="mt-2 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-2 text-xs text-orange-900"
@@ -743,17 +746,16 @@ export default function TransactionListItem({
               />
             </svg>
             <div className="flex-1">
-              {needsInitialValidation ? (
-                <p>La valeur de la contribution doit être validée.</p>
-              ) : (
+              {hasDelta ? (
                 <p>
                   La contribution au groupe a changé, vous devez{' '}
                   <span className="font-semibold">
-                    {driftDelta > 0 ? 'ajouter' : 'retirer'}{' '}
-                    {formatAmount(Math.abs(driftDelta))}
+                    {driftDelta > 0 ? 'ajouter' : 'retirer'} {formatAmount(Math.abs(driftDelta))}
                   </span>{' '}
                   au groupe avant de valider cette dépense.
                 </p>
+              ) : (
+                <p>La valeur de la contribution doit être validée.</p>
               )}
             </div>
           </div>

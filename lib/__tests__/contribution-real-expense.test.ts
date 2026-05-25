@@ -162,41 +162,52 @@ describe.skipIf(!ENABLED)('contribution real_expense trigger + drift RPC', () =>
     expect(re!.description).toBe(`Contribution au groupe ContribGroup-${stamp}`)
   }, 30_000)
 
-  it('2. UPDATE budget → trigger UPDATE amount, préserve applied_at + last_applied_amount', async () => {
-    // Pré-condition : on valide d'abord la row au montant initial pour pouvoir
-    // tester la préservation à l'update.
+  it('2. UPDATE budget pendant que applied → trigger AUTO-DEVALIDE : crédite solde, nullify applied_at, PRÉSERVE last_applied_amount', async () => {
+    // Pré-condition : on valide d'abord la row au montant initial.
     const re = (await getRealExpenseRow())!
-    const { error: rpcErr } = await admin.rpc('toggle_real_expense_applied_to_balance', {
+    const balanceBeforeApply = await readBalance()
+
+    const { error: applyErr } = await admin.rpc('toggle_real_expense_applied_to_balance', {
       p_expense_id: re.id,
       p_apply: true,
     })
-    expect(rpcErr).toBeNull()
+    expect(applyErr).toBeNull()
+
+    const balanceAfterApply = await readBalance()
+    expect(balanceAfterApply).toBe(balanceBeforeApply - INITIAL_BUDGET)
 
     const afterApply = (await getRealExpenseRow())!
     expect(afterApply.applied_to_balance_at).not.toBeNull()
     expect(Number(afterApply.last_applied_amount)).toBe(INITIAL_BUDGET)
 
     // Bump budget → trigger sync_group_monthly_budget_estimate → recalc
-    // contributions → sync_contribution_real_expense UPDATE.
+    // contributions → sync_contribution_real_expense AUTO-DEVALIDATE :
+    //   - balance += last_applied_amount (restitution du débit initial)
+    //   - applied_to_balance_at = NULL
+    //   - last_applied_amount PRÉSERVÉ (pour permettre le delta affiché côté UI)
     const { error: bumpErr } = await admin
       .from('estimated_budgets')
       .update({ estimated_amount: BUMPED_BUDGET })
       .eq('id', budgetId)
     expect(bumpErr).toBeNull()
 
+    const balanceAfterBump = await readBalance()
+    expect(balanceAfterBump).toBe(balanceAfterApply + INITIAL_BUDGET) // restitué = balance d'origine
+
     const afterBump = (await getRealExpenseRow())!
     expect(Number(afterBump.amount)).toBe(BUMPED_BUDGET) // amount mis à jour
-    expect(afterBump.applied_to_balance_at).not.toBeNull() // applied_at préservé
-    expect(Number(afterBump.last_applied_amount)).toBe(INITIAL_BUDGET) // last_applied préservé → drift
+    expect(afterBump.applied_to_balance_at).toBeNull() // AUTO-DEVALIDE
+    expect(Number(afterBump.last_applied_amount)).toBe(INITIAL_BUDGET) // PRÉSERVÉ pour delta UI
   }, 30_000)
 
-  it('3. toggle apply en drift → balance ajustée du delta, last_applied_amount mis à jour', async () => {
+  it('3. re-validate via simple apply après auto-devalidate → balance débitée du nouveau montant', async () => {
     const balanceBefore = await readBalance()
     const re = (await getRealExpenseRow())!
+    expect(re.applied_to_balance_at).toBeNull() // state C : auto-devalidated avec delta
     expect(Number(re.amount)).toBe(BUMPED_BUDGET)
     expect(Number(re.last_applied_amount)).toBe(INITIAL_BUDGET)
 
-    // Re-apply → delta = BUMPED - INITIAL = 300. Balance débitée de 300.
+    // Apply → debit full new amount, sync last_applied.
     const { error: rpcErr } = await admin.rpc('toggle_real_expense_applied_to_balance', {
       p_expense_id: re.id,
       p_apply: true,
@@ -204,13 +215,14 @@ describe.skipIf(!ENABLED)('contribution real_expense trigger + drift RPC', () =>
     expect(rpcErr).toBeNull()
 
     const balanceAfter = await readBalance()
-    expect(balanceAfter).toBe(balanceBefore - (BUMPED_BUDGET - INITIAL_BUDGET))
+    expect(balanceAfter).toBe(balanceBefore - BUMPED_BUDGET)
 
     const afterReapply = (await getRealExpenseRow())!
+    expect(afterReapply.applied_to_balance_at).not.toBeNull()
     expect(Number(afterReapply.last_applied_amount)).toBe(BUMPED_BUDGET) // sync
   }, 30_000)
 
-  it('4. toggle un-apply → balance créditée de last_applied_amount, fields reset', async () => {
+  it('4. toggle un-apply manuel → balance créditée de last_applied_amount, fields reset', async () => {
     const balanceBefore = await readBalance()
     const re = (await getRealExpenseRow())!
     const lastAppliedBefore = Number(re.last_applied_amount)
@@ -226,7 +238,7 @@ describe.skipIf(!ENABLED)('contribution real_expense trigger + drift RPC', () =>
 
     const after = (await getRealExpenseRow())!
     expect(after.applied_to_balance_at).toBeNull()
-    expect(after.last_applied_amount).toBeNull()
+    expect(after.last_applied_amount).toBeNull() // reset complet (≠ auto-devalidate qui préserve)
   }, 30_000)
 
   it('5. delete group_contributions (cascade) → row supprimée + balance restituée si applied', async () => {
