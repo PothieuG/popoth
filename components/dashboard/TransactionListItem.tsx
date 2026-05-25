@@ -744,19 +744,15 @@ export default function TransactionListItem({
             </svg>
             <div className="flex-1">
               {needsInitialValidation ? (
-                <p>
-                  Cette dépense n&apos;a pas encore été validée. Long-press pour valider{' '}
-                  <span className="font-semibold">{formatAmount(transaction.amount)}</span>.
-                </p>
+                <p>La valeur de la contribution doit être validée.</p>
               ) : (
                 <p>
-                  Attention, la valeur de la contribution est passée à{' '}
-                  <span className="font-semibold">{formatAmount(transaction.amount)}</span>{' '}
+                  La contribution au groupe a changé, vous devez{' '}
                   <span className="font-semibold">
-                    (soit {driftDelta >= 0 ? '+' : ''}
-                    {formatAmount(driftDelta)})
-                  </span>
-                  . Veuillez ajouter/retirer ce montant du groupe et re-valider la dépense.
+                    {driftDelta > 0 ? 'ajouter' : 'retirer'}{' '}
+                    {formatAmount(Math.abs(driftDelta))}
+                  </span>{' '}
+                  au groupe avant de valider cette dépense.
                 </p>
               )}
             </div>

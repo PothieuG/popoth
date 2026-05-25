@@ -25,7 +25,7 @@ const buildContrib = (overrides: Partial<RealExpense> = {}): RealExpense => ({
 })
 
 describe('<TransactionListItem> contribution row (Feature 2026-05-28)', () => {
-  it('jamais validée → bloc warning visible avec montant, label "Contribution groupe" en gris', () => {
+  it('jamais validée → warning "La valeur de la contribution doit être validée" (pas de mention long-press)', () => {
     render(
       <TransactionListItem
         transaction={buildContrib()}
@@ -39,11 +39,10 @@ describe('<TransactionListItem> contribution row (Feature 2026-05-28)', () => {
     expect(screen.getByText('Contribution groupe')).toBeInTheDocument()
     // Description du trigger
     expect(screen.getByText('Contribution au groupe Coloc')).toBeInTheDocument()
-    // Warning visible
-    expect(screen.getByRole('status')).toHaveTextContent(
-      /Cette dépense n'a pas encore été validée/i,
-    )
-    expect(screen.getByRole('status')).toHaveTextContent(/500,00\s*€/)
+    // Warning visible — message court sans mention long-press ni montant.
+    const warning = screen.getByRole('status')
+    expect(warning).toHaveTextContent(/La valeur de la contribution doit être validée/i)
+    expect(warning).not.toHaveTextContent(/long-press/i)
   })
 
   it('kebab dropdown absent — pas de bouton Options sur une row contribution', () => {
@@ -76,13 +75,13 @@ describe('<TransactionListItem> contribution row (Feature 2026-05-28)', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('drift positif → bloc warning avec nouveau montant + delta positif (+X€)', () => {
+  it('drift positif (contribution augmentée) → "vous devez ajouter X€ au groupe"', () => {
     render(
       <TransactionListItem
         transaction={buildContrib({
-          amount: 800, // nouveau montant
+          amount: 800, // nouvelle contribution
           applied_to_balance_at: '2026-05-28T11:00:00Z',
-          last_applied_amount: 500, // ancien validé
+          last_applied_amount: 500, // dernier montant validé
         })}
         type="expense"
         onEdit={vi.fn()}
@@ -91,17 +90,18 @@ describe('<TransactionListItem> contribution row (Feature 2026-05-28)', () => {
       />,
     )
     const warning = screen.getByRole('status')
-    expect(warning).toHaveTextContent(/Attention/i)
-    expect(warning).toHaveTextContent(/800,00\s*€/) // nouveau montant
-    expect(warning).toHaveTextContent(/\+300,00\s*€/) // delta positif
-    expect(warning).toHaveTextContent(/re-valider/i)
+    expect(warning).toHaveTextContent(/La contribution au groupe a changé/i)
+    expect(warning).toHaveTextContent(/ajouter\s+300,00\s*€/i)
+    expect(warning).toHaveTextContent(/au groupe avant de valider cette dépense/i)
+    // Pas de "retirer", pas de symbole +/- explicite dans le montant.
+    expect(warning).not.toHaveTextContent(/retirer/i)
   })
 
-  it('drift négatif → bloc warning avec delta négatif (-X€)', () => {
+  it('drift négatif (contribution réduite) → "vous devez retirer X€ au groupe"', () => {
     render(
       <TransactionListItem
         transaction={buildContrib({
-          amount: 300, // nouveau plus petit
+          amount: 300, // nouvelle contribution plus petite
           applied_to_balance_at: '2026-05-28T11:00:00Z',
           last_applied_amount: 500,
         })}
@@ -112,8 +112,11 @@ describe('<TransactionListItem> contribution row (Feature 2026-05-28)', () => {
       />,
     )
     const warning = screen.getByRole('status')
-    expect(warning).toHaveTextContent(/300,00\s*€/)
-    expect(warning).toHaveTextContent(/-200,00\s*€/)
+    expect(warning).toHaveTextContent(/La contribution au groupe a changé/i)
+    expect(warning).toHaveTextContent(/retirer\s+200,00\s*€/i)
+    expect(warning).not.toHaveTextContent(/ajouter/i)
+    // Pas de signe négatif explicite — on utilise la valeur absolue + le verbe.
+    expect(warning).not.toHaveTextContent(/-200/)
   })
 
   it('category text color is gray (pas yellow exceptionnel ni blue budgetée)', () => {
