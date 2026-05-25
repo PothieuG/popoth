@@ -317,6 +317,7 @@ export type Database = {
           current_step: string
           group_id: string | null
           id: string
+          piggy_transfers_data: Json
           profile_id: string | null
           recap_month: number
           recap_year: number
@@ -333,6 +334,7 @@ export type Database = {
           current_step?: string
           group_id?: string | null
           id?: string
+          piggy_transfers_data?: Json
           profile_id?: string | null
           recap_month: number
           recap_year: number
@@ -349,6 +351,7 @@ export type Database = {
           current_step?: string
           group_id?: string | null
           id?: string
+          piggy_transfers_data?: Json
           profile_id?: string | null
           recap_month?: number
           recap_year?: number

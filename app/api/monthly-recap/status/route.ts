@@ -69,14 +69,21 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
     const recapMonth = result.currentMonth
 
     if (result.status.kind === 'in_progress') {
-      const [summary, recapRow] = await Promise.all([
-        loadRecapSummary({
-          context,
-          profileId: userId,
-          groupId: profile.group_id,
-        }),
-        getActiveRecap({ context, userId, profile }),
-      ])
+      // Sprint Recap-Positive-Consume-Surplus (2026-05-25) — fetch the recap
+      // row FIRST so we can forward `piggy_transfers_data` to loadRecapSummary.
+      // The previous Promise.all parallelism is dropped: the summary depends
+      // on the tracker. One extra RTT (~10ms) is acceptable for a correctness
+      // gain (without the tracker, BilanPositiveStep keeps re-listing budgets
+      // that were already swept into the piggy bank).
+      const recapRow = await getActiveRecap({ context, userId, profile })
+      const piggyTransfersData = coerceSnapshot(recapRow?.piggy_transfers_data) ?? undefined
+
+      const summary = await loadRecapSummary({
+        context,
+        profileId: userId,
+        groupId: profile.group_id,
+        piggyTransfersData,
+      })
 
       const recap = recapRow
         ? {
@@ -85,6 +92,7 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
             refloatedFromPiggy: Number(recapRow.refloated_from_piggy ?? 0),
             refloatedFromSavings: Number(recapRow.refloated_from_savings ?? 0),
             snapshotData: coerceSnapshot(recapRow.budget_snapshot_data),
+            piggyTransfersData: piggyTransfersData ?? null,
           }
         : null
 

@@ -38,9 +38,19 @@ export function computeRecapSummary(input: {
      *  it to display `Nom → carryoverSpentAmount/estimatedAmount`. */
     carryoverSpentAmount?: number
   }>
+  /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). `{ [budgetId]: amount }`
+   *  des surplus déjà transférés vers la tirelire pendant ce recap actif. Le
+   *  montant est traité comme s'il avait été dépensé : il s'ajoute à
+   *  `spentThisMonth` avant calcul du surplus, ce qui le ramène à 0 quand le
+   *  transfert couvre exactement le sous-dépensé du mois. Le `spentThisMonth`
+   *  exposé dans le `BudgetSummary` reste la valeur brute originale — seul le
+   *  surplus/deficit est affecté. */
+  piggyTransfersData?: Record<string, number>
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
-    const { surplus, deficit } = computeBudgetSurplus(b.estimatedAmount, b.spentThisMonth)
+    const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
+    const effectiveSpent = b.spentThisMonth + transferredToPiggy
+    const { surplus, deficit } = computeBudgetSurplus(b.estimatedAmount, effectiveSpent)
     return {
       budgetId: b.budgetId,
       budgetName: b.budgetName,

@@ -213,6 +213,75 @@ describe('computeRecapSummary', () => {
 
     expect(result.bilan).toBe(0.01)
   })
+
+  // Sprint Recap-Positive-Consume-Surplus (2026-05-25) — piggyTransfersData
+  // tracker is treated as virtual spending so the surplus reaches 0 once the
+  // user has transferred everything to the piggy bank.
+
+  it('preserves surplus when piggyTransfersData is undefined (regression guard)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'A',
+          estimatedAmount: 100,
+          spentThisMonth: 50,
+          cumulatedSavings: 0,
+        },
+      ],
+    })
+
+    expect(result.budgets[0]?.surplus).toBe(50)
+  })
+
+  it('subtracts piggyTransfersData[budgetId] from the surplus computation', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'A',
+          estimatedAmount: 100,
+          spentThisMonth: 50,
+          cumulatedSavings: 0,
+        },
+      ],
+      piggyTransfersData: { a: 25 },
+    })
+
+    // estimated 100 - (spent 50 + transferred 25) = 25 remaining surplus
+    expect(result.budgets[0]?.surplus).toBe(25)
+    // spentThisMonth in the BudgetSummary stays the raw value — only the surplus is adjusted
+    expect(result.budgets[0]?.spentThisMonth).toBe(50)
+  })
+
+  it('clamps surplus at 0 when piggyTransfersData over-consumes (max guard)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'A',
+          estimatedAmount: 100,
+          spentThisMonth: 50,
+          cumulatedSavings: 0,
+        },
+      ],
+      // 60 > 50 of remaining surplus → must clamp at 0 (computeBudgetSurplus uses max(0, diff))
+      piggyTransfersData: { a: 60 },
+    })
+
+    expect(result.budgets[0]?.surplus).toBe(0)
+    // overshoot does NOT bleed into deficit — the tracker is a tirelire offset, not a real overspend
+    expect(result.budgets[0]?.deficit).toBe(10)
+  })
 })
 
 describe('computeProportionalSavingsRefloat', () => {

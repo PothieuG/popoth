@@ -19,6 +19,13 @@ export interface RecapProgress {
   refloatedFromPiggy: number
   refloatedFromSavings: number
   snapshotData: Record<string, number> | null
+  /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). `{ [budgetId]: amount }`
+   *  des surplus déjà transférés vers la tirelire pendant ce recap actif. Le
+   *  serveur soustrait déjà ces montants du `surplus` exposé dans
+   *  `summary.budgets[]`, donc `BilanPositiveStep` n'a pas besoin de relire
+   *  ce tracker — il est exposé ici pour parité avec `snapshotData` et pour
+   *  faciliter le cache update de `useTransferSurplusesToPiggy`. */
+  piggyTransfersData: Record<string, number> | null
 }
 
 export interface MonthlyRecapStatusResponse {
@@ -165,6 +172,10 @@ export interface TransferSurplusesToPiggyResult {
   transferred: ReadonlyArray<{ budgetId: string; amount: number }>
   failed: readonly string[]
   summary: RecapSummary
+  /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). The merged tracker
+   *  after the server applied the new transfers. Mirrored into `recap.piggyTransfersData`
+   *  in the cache below so a subsequent /status fetch is not needed for parity. */
+  piggyTransfersData: Record<string, number>
 }
 
 /**
@@ -198,9 +209,13 @@ export function useTransferSurplusesToPiggy(context: RecapContext) {
       return json.data
     },
     onSuccess: (data) => {
-      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) =>
-        old ? { ...old, summary: data.summary } : old,
-      )
+      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
+        if (!old) return old
+        const nextRecap: RecapProgress | null = old.recap
+          ? { ...old.recap, piggyTransfersData: data.piggyTransfersData }
+          : old.recap
+        return { ...old, summary: data.summary, recap: nextRecap }
+      })
     },
   })
 }

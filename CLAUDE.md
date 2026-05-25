@@ -116,8 +116,8 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **660**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped (sans env vars)    | **200**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
+| Tests non-gated passants               | **661**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped (sans env vars)    | **203**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **41**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **28/28**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
@@ -328,9 +328,9 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100/100. Lint 0/0. Tests 660 non-gated / 200 gated. 41 routes API. 19 RPCs + 28 fn versionnées (§5.5). **Monthly Recap V3** sprints 01-17 livrés (cf. §5 + Part 24). Salary-Edit-Gating → Part 25. Recap-Wizard-Flicker-Fix → Part 26.
+**État global** : Score ~100/100. Lint 0/0. Tests 661/203. 41 routes API. 19 RPCs + 28 fn (§5.5). **Monthly Recap V3** sprints 01-17 livrés (cf. §5 + Part 24). Récents : Salary-Edit-Gating (25), Wizard-Flicker-Fix (26), Recap-Positive-Consume-Surplus (27).
 
-**Historique** — 26 parts `.claude/history/roadmap-detailed-NN-*.md` (126 sprints) :
+**Historique** — 27 parts `.claude/history/roadmap-detailed-NN-*.md` (128 sprints) :
 
 - [Part 01](.claude/history/roadmap-detailed-01-sprint-0-to-architecture-v5.md) Sprint 0 → Refactor-Architecture-v5 (24) | [Part 02](.claude/history/roadmap-detailed-02-sprint-1-to-cleanup-lot-1.md) Sprint 1 → Lot 1 (11) | [Part 03](.claude/history/roadmap-detailed-03-lot-3-to-refactor-i5-followup-v2.md) Lot 3 → Refactor-I5-followup-v2 (8) | [Part 04](.claude/history/roadmap-detailed-04-followup-v3-to-atomicity-savings-v2.md) Refactor-I5-followup-v3 → Atomicity-Savings v2 (5)
 - [Part 05](.claude/history/roadmap-detailed-05-dead-code-to-lot-4b.md) Dead-Code-Purge → Lot 4b (6) | [Part 06](.claude/history/roadmap-detailed-06-lot-4c-to-lot-5d.md) Lot 4c → Lot 5d (7) | [Part 07](.claude/history/roadmap-detailed-07-audit-c2-to-zod-v3.md) Audit-Closeout C2 → Zod v3 (6) | [Part 08](.claude/history/roadmap-detailed-08-zod-v4-to-zod-v8.md) Zod v4 → v8 (5)

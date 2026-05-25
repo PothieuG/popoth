@@ -38,10 +38,18 @@ export interface LoadRecapSummaryInput {
   context: RecapContext
   profileId: string
   groupId: string | null
+  /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). Forwarded to
+   *  `computeRecapSummary` so per-budget surpluses already routed to the
+   *  piggy bank during this active recap are consumed (subtracted from the
+   *  monthly under-spend). Callers (status route + actions-positive) read
+   *  the value from `monthly_recaps.piggy_transfers_data` and pass it here
+   *  — this helper stays pure-load (no extra I/O). Pass `undefined` (or
+   *  omit) when there is no active recap or when the column is empty. */
+  piggyTransfersData?: Record<string, number>
 }
 
 export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<RecapSummary> {
-  const { context, profileId, groupId } = input
+  const { context, profileId, groupId, piggyTransfersData } = input
 
   if (context === 'group' && !groupId) {
     throw new Error('loadRecapSummary: group context requires non-null groupId')
@@ -106,6 +114,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       cumulatedSavings: Number(b.cumulated_savings ?? 0),
       carryoverSpentAmount: Number(b.carryover_spent_amount ?? 0),
     })),
+    piggyTransfersData,
   })
 }
 

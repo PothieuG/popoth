@@ -203,13 +203,16 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
     return data.id
   }
 
-  it('happy 3 budgets — sweeps every surplus into piggy, leaves cumulated_savings at 0', async () => {
+  it('happy 3 budgets — credits piggy with each monthly surplus, leaves cumulated_savings untouched', async () => {
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 100 })
-    const id2 = await seedBudget({ estimated: 50, cumulatedSavings: 50 })
-    const id3 = await seedBudget({ estimated: 150, cumulatedSavings: 150 })
+    // Realistic monthly-surplus scenario: cumulated_savings = 0 (the surplus
+    // is virtual — `estimated - spent` — and has never been credited to
+    // savings). The credit-only implementation does NOT touch cumulated_savings.
+    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 0 })
+    const id2 = await seedBudget({ estimated: 50, cumulatedSavings: 0 })
+    const id3 = await seedBudget({ estimated: 150, cumulatedSavings: 0 })
 
     const response = await POST(buildRequest({ context: 'profile', budgetIds: [id1, id2, id3] }))
     expect(response.status).toBe(200)
@@ -232,6 +235,9 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
       .maybeSingle()
     expect(piggy?.amount).toBe(300)
 
+    // cumulated_savings stays at 0 — the new implementation only credits the
+    // piggy bank; consuming the virtual surplus on the UI side is done via
+    // the piggy_transfers_data tracker, not by debiting savings.
     const { data: budgets } = await admin
       .from('estimated_budgets')
       .select('id, cumulated_savings')
@@ -241,13 +247,13 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
     expect(body.data.summary.piggyAmount).toBe(300)
   })
 
-  it('partial selection — only the selected budget gets transferred, others untouched', async () => {
+  it('partial selection — only the selected budget credits the piggy, others untouched', async () => {
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 100 })
-    const id2 = await seedBudget({ estimated: 50, cumulatedSavings: 50 })
-    const id3 = await seedBudget({ estimated: 150, cumulatedSavings: 150 })
+    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 0 })
+    const id2 = await seedBudget({ estimated: 50, cumulatedSavings: 0 })
+    const id3 = await seedBudget({ estimated: 150, cumulatedSavings: 0 })
 
     const response = await POST(buildRequest({ context: 'profile', budgetIds: [id1] }))
     expect(response.status).toBe(200)
@@ -265,14 +271,17 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
       .maybeSingle()
     expect(piggy?.amount).toBe(100)
 
+    // cumulated_savings of every budget stays at its seed value (0 here) — the
+    // monthly surplus is only mirrored in piggy_transfers_data, never written
+    // to the savings column.
     const { data: budgets } = await admin
       .from('estimated_budgets')
       .select('id, cumulated_savings')
       .eq('profile_id', userAId)
     const map = new Map(budgets?.map((b) => [b.id, Number(b.cumulated_savings ?? 0)]))
     expect(map.get(id1)).toBe(0)
-    expect(map.get(id2)).toBe(50)
-    expect(map.get(id3)).toBe(150)
+    expect(map.get(id2)).toBe(0)
+    expect(map.get(id3)).toBe(0)
   })
 
   it('budget without surplus in budgetIds — filtered out, no RPC call for it', async () => {
@@ -280,7 +289,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
     const idZero = await seedBudget({ estimated: 0, cumulatedSavings: 0 })
-    const idPositive = await seedBudget({ estimated: 50, cumulatedSavings: 50 })
+    const idPositive = await seedBudget({ estimated: 50, cumulatedSavings: 0 })
 
     const response = await POST(
       buildRequest({ context: 'profile', budgetIds: [idZero, idPositive] }),
@@ -370,5 +379,108 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/transfer-surpluses-to-piggy (
     mockedAuth.groupId = groupAId
     const response = await POST(buildRequest({ context: 'profile', budgetIds: [] }))
     expect(response.status).toBe(400)
+  })
+
+  // Sprint Recap-Positive-Consume-Surplus (2026-05-25) — piggy_transfers_data
+  // tracker persists per-budget transfers so the recomputed summary no longer
+  // re-lists already-handled budgets in BilanPositiveStep.
+
+  it('persists transferred amounts into monthly_recaps.piggy_transfers_data', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+    const recap = await seedRecap({ ownerKind: 'profile' })
+    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 100 })
+    const id2 = await seedBudget({ estimated: 50, cumulatedSavings: 50 })
+
+    const response = await POST(buildRequest({ context: 'profile', budgetIds: [id1, id2] }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: {
+        piggyTransfersData: Record<string, number>
+        summary: { budgets: Array<{ budgetId: string; surplus: number }> }
+      }
+    }
+    expect(body.data.piggyTransfersData).toEqual({ [id1]: 100, [id2]: 50 })
+    // Returned summary already discounts the tracker — surplus reaches 0 for
+    // the budgets that were just swept.
+    const surplusById = new Map(body.data.summary.budgets.map((b) => [b.budgetId, b.surplus]))
+    expect(surplusById.get(id1)).toBe(0)
+    expect(surplusById.get(id2)).toBe(0)
+
+    // Cross-check the column was UPDATEd, not just echoed by the route.
+    const { data: row } = await admin
+      .from('monthly_recaps')
+      .select('piggy_transfers_data')
+      .eq('id', recap.id)
+      .maybeSingle()
+    expect(row?.piggy_transfers_data).toEqual({ [id1]: 100, [id2]: 50 })
+  })
+
+  it('idempotent re-call on already-transferred budget — no-op (filter on surplus > 0)', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+    const recap = await seedRecap({ ownerKind: 'profile' })
+    const id1 = await seedBudget({ estimated: 100, cumulatedSavings: 100 })
+
+    const first = await POST(buildRequest({ context: 'profile', budgetIds: [id1] }))
+    expect(first.status).toBe(200)
+    const firstBody = (await first.json()) as {
+      data: { transferred: Array<{ budgetId: string }> }
+    }
+    expect(firstBody.data.transferred).toHaveLength(1)
+
+    // Second call on the same budget — the tracker now claims the surplus is
+    // consumed, so loadRecapSummary returns surplus=0 and the loop filters
+    // the target out before invoking the RPC (which would otherwise raise
+    // "cumulated_savings would become negative" since the first call drove it
+    // to 0).
+    const second = await POST(buildRequest({ context: 'profile', budgetIds: [id1] }))
+    expect(second.status).toBe(200)
+    const secondBody = (await second.json()) as {
+      data: { transferred: unknown[]; failed: unknown[] }
+    }
+    expect(secondBody.data.transferred).toEqual([])
+    expect(secondBody.data.failed).toEqual([])
+
+    // Tracker stays at the first-call value (no double-credit).
+    const { data: row } = await admin
+      .from('monthly_recaps')
+      .select('piggy_transfers_data')
+      .eq('id', recap.id)
+      .maybeSingle()
+    expect(row?.piggy_transfers_data).toEqual({ [id1]: 100 })
+
+    // Piggy bank also reflects a single credit, not two.
+    const { data: piggy } = await admin
+      .from('piggy_bank')
+      .select('amount')
+      .eq('profile_id', userAId)
+      .maybeSingle()
+    expect(piggy?.amount).toBe(100)
+  })
+
+  it('merges across multiple sessions — A in call 1, B in call 2 → tracker holds both', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+    const recap = await seedRecap({ ownerKind: 'profile' })
+    const idA = await seedBudget({ estimated: 100, cumulatedSavings: 100 })
+    const idB = await seedBudget({ estimated: 50, cumulatedSavings: 50 })
+
+    const first = await POST(buildRequest({ context: 'profile', budgetIds: [idA] }))
+    expect(first.status).toBe(200)
+
+    const second = await POST(buildRequest({ context: 'profile', budgetIds: [idB] }))
+    expect(second.status).toBe(200)
+    const secondBody = (await second.json()) as {
+      data: { piggyTransfersData: Record<string, number> }
+    }
+    expect(secondBody.data.piggyTransfersData).toEqual({ [idA]: 100, [idB]: 50 })
+
+    const { data: row } = await admin
+      .from('monthly_recaps')
+      .select('piggy_transfers_data')
+      .eq('id', recap.id)
+      .maybeSingle()
+    expect(row?.piggy_transfers_data).toEqual({ [idA]: 100, [idB]: 50 })
   })
 })

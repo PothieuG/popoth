@@ -173,6 +173,7 @@ describe('RecapWizard', () => {
         refloatedFromPiggy: 0,
         refloatedFromSavings: 0,
         snapshotData: null,
+        piggyTransfersData: null,
       },
     )
     render(<RecapWizard context="profile" />)

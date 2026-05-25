@@ -59,16 +59,22 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     const filter: ContextFilter =
       body.context === 'profile' ? { profile_id: userId } : { group_id: profile.group_id as string }
 
-    const { outcome, summary } = await executeTransferSurplusesToPiggy({
+    const { outcome, summary, piggyTransfersData } = await executeTransferSurplusesToPiggy({
       context: body.context,
       filter,
       profileId: userId,
       groupId: profile.group_id,
       budgetIds: body.budgetIds,
+      recap,
     })
 
     return NextResponse.json({
-      data: { transferred: outcome.transferred, failed: outcome.failed, summary },
+      data: {
+        transferred: outcome.transferred,
+        failed: outcome.failed,
+        summary,
+        piggyTransfersData,
+      },
     })
   } catch (error) {
     const handled = handleBadRequest(error)

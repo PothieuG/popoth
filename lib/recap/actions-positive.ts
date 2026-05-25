@@ -19,14 +19,16 @@
  * Both helpers re-use the already-atomic per-row RPCs; no new SQL needed.
  */
 
+import type { Json } from '@/lib/database.types'
 import { updateBudgetCumulatedSavings } from '@/lib/finance/budget-savings'
 import type { ContextFilter } from '@/lib/finance/context'
-import { transferBudgetToPiggyBank } from '@/lib/finance/savings'
+import { ensurePiggyBankRow, updatePiggyBank } from '@/lib/finance/piggy-bank'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 import type { MonthlyRecapRow } from './active-recap'
 import type { RecapContext } from './check-status'
+import { coerceSnapshot } from './deficit-math'
 import { loadRecapSummary } from './load-summary'
 import type { RecapSummary } from './types'
 
@@ -58,15 +60,28 @@ export interface ExecuteTransferArgs {
   profileId: string
   groupId: string | null
   budgetIds: string[]
+  /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). The active recap row,
+   *  forwarded by the route handler (`getActiveRecap` already fetched it for
+   *  the gating checks). We read `piggy_transfers_data` from it so the
+   *  pre-transfer surplus computation already discounts what's been moved
+   *  before in earlier sessions, and we UPDATE it after the loop to persist
+   *  the new transfers so the next /status call returns surplus = 0 for the
+   *  budgets just handled. */
+  recap: MonthlyRecapRow
 }
 
-export async function executeTransferSurplusesToPiggy(
-  args: ExecuteTransferArgs,
-): Promise<{ outcome: TransferOutcome; summary: RecapSummary }> {
+export async function executeTransferSurplusesToPiggy(args: ExecuteTransferArgs): Promise<{
+  outcome: TransferOutcome
+  summary: RecapSummary
+  piggyTransfersData: Record<string, number>
+}> {
+  const existingTracker = coerceSnapshot(args.recap.piggy_transfers_data) ?? {}
+
   const summaryBefore = await loadRecapSummary({
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    piggyTransfersData: existingTracker,
   })
 
   const selected = new Set(args.budgetIds)
@@ -75,16 +90,52 @@ export async function executeTransferSurplusesToPiggy(
   const transferred: BudgetActionResult[] = []
   const failed: BudgetActionFailure[] = []
 
+  // Ensure a piggy_bank row exists before crediting — the underlying RPC
+  // RAISEs "row not found" when its UPDATE affects 0 rows (fresh user with
+  // no piggy history). One idempotent INSERT (no-op on existing row via the
+  // partial unique indexes) covers all per-budget transfers below.
+  if (targets.length > 0) {
+    try {
+      await ensurePiggyBankRow(args.filter)
+    } catch (error) {
+      // The credit loop below will also fail — propagate the same reason for
+      // every selected budget instead of silently masking the issue.
+      const reason = error instanceof Error ? error.message : String(error)
+      logger.error('[recap/positive] piggy row ensure failed', { reason })
+      for (const budget of targets) {
+        failed.push({ budgetId: budget.budgetId, reason })
+      }
+      const summaryAfterEnsure = await loadRecapSummary({
+        context: args.context,
+        profileId: args.profileId,
+        groupId: args.groupId,
+        piggyTransfersData: existingTracker,
+      })
+      return {
+        outcome: { transferred, failed },
+        summary: summaryAfterEnsure,
+        piggyTransfersData: existingTracker,
+      }
+    }
+  }
+
   for (const budget of targets) {
     try {
-      await transferBudgetToPiggyBank(args.filter, {
-        fromBudgetId: budget.budgetId,
-        amount: budget.surplus,
-      })
+      // CREDIT the piggy with the monthly surplus. We deliberately do NOT
+      // call `transferBudgetToPiggyBank` (which debits cumulated_savings on
+      // top of the credit) — the monthly surplus is virtual (estimated -
+      // spent for the current month), it has never been credited to
+      // cumulated_savings. Trying to debit that would raise "cumulated_savings
+      // would become negative" on every fresh recap (the same-test-seed
+      // exception aside) and silently route everything into failed[].
+      // The piggy_transfers_data tracker UPDATEd below makes loadRecapSummary
+      // consume the surplus virtually — the next /status returns surplus=0
+      // and the UI list / drawer / button gate naturally.
+      await updatePiggyBank(args.filter, budget.surplus)
       transferred.push({ budgetId: budget.budgetId, amount: budget.surplus })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
-      logger.error('[recap/positive] transfer-to-piggy failed', {
+      logger.error('[recap/positive] piggy credit failed', {
         budgetId: budget.budgetId,
         amount: budget.surplus,
         reason,
@@ -93,13 +144,45 @@ export async function executeTransferSurplusesToPiggy(
     }
   }
 
+  // Merge successful transfers into the tracker and persist. We read-modify-write
+  // in JS (vs. an atomic Postgres `||` merge) because the screen is mono-initiator
+  // and concurrent transfers from the same user on two tabs are not a realistic
+  // scenario for this surface. The merged tracker is also forwarded to the
+  // second loadRecapSummary call so the returned summary matches the post-write
+  // state without an extra round-trip.
+  const mergedTracker: Record<string, number> = { ...existingTracker }
+  for (const t of transferred) {
+    mergedTracker[t.budgetId] = round2((mergedTracker[t.budgetId] ?? 0) + t.amount)
+  }
+  if (transferred.length > 0) {
+    const { error } = await supabaseServer
+      .from('monthly_recaps')
+      .update({ piggy_transfers_data: mergedTracker as unknown as Json })
+      .eq('id', args.recap.id)
+    if (error) {
+      logger.error('[recap/positive] piggy_transfers_data update failed', {
+        recapId: args.recap.id,
+        error,
+      })
+    }
+  }
+
   const summary = await loadRecapSummary({
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    piggyTransfersData: mergedTracker,
   })
 
-  return { outcome: { transferred, failed }, summary }
+  return {
+    outcome: { transferred, failed },
+    summary,
+    piggyTransfersData: mergedTracker,
+  }
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
 export interface ExecuteTransformArgs {
@@ -112,11 +195,19 @@ export interface ExecuteTransformArgs {
 export async function executeTransformRemainingToSavings(
   args: ExecuteTransformArgs,
 ): Promise<TransformOutcome> {
+  const existingTracker = coerceSnapshot(args.recap.piggy_transfers_data) ?? {}
   const summary = await loadRecapSummary({
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    piggyTransfersData: existingTracker,
   })
+  // `surplus > 0` is already enough — loadRecapSummary subtracted the tracker
+  // amounts so budgets fully routed to the piggy bank have `surplus === 0` and
+  // are filtered out naturally. Belt-and-braces would add `&& !existingTracker[b.budgetId]`
+  // but that would block the legitimate case "partial transfer + remainder
+  // still positive" (which our UI doesn't expose today but the logic stays
+  // future-proof without it).
   const targets = summary.budgets.filter((b) => b.surplus > 0)
 
   const transformed: BudgetActionResult[] = []
