@@ -66,7 +66,6 @@
 - ✅ **Sprint Fix-Recap-Welcome-Skip — Étape « Compléter le mois » sautée après l'écran de bienvenue** (livré 2026-05-31, 1 commit). Bug UX rapporté par le user sur la branche `monthly_recap` : depuis l'écran Welcome du wizard Monthly Recap V3, le clic « Commencer » envoyait l'utilisateur directement à l'écran Summary, court-circuitant l'étape « Compléter le mois » introduite au commit `0f7323a feat(recap): add "Compléter le mois" step before bilan` (Sprint Complete-Month-Step, 2026-05-29). L'étape — où l'utilisateur peut ajouter des dépenses/revenus oubliés du mois recapé avant le bilan — n'était jamais visible.
 
   **Cause racine** : la RPC PG `start_monthly_recap` ([supabase/migrations/20260525000000_create_recap_start_rpc.sql](../../supabase/migrations/20260525000000_create_recap_start_rpc.sql) ligne 72) hardcode `current_step = 'summary'` au moment de l'INSERT initial dans `monthly_recaps`. Cascade :
-
   1. `POST /api/monthly-recap/start` → RPC crée la ligne avec `current_step = 'summary'`.
   2. `WelcomeStep` enchaîne `POST /api/monthly-recap/advance-step { fromStep: 'welcome', toStep: 'complete_month' }`.
   3. L'endpoint advance-step lit la ligne DB → `current_step` est `'summary'`, pas `'welcome'` → `executeAdvanceStep` retourne `stale_step` → HTTP **409**.
