@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -117,10 +117,6 @@ export default function AddTransactionModal({
   // reste pour passer `use_savings: true` à l'API + `useSavingsToggle: true`
   // aux helpers `calculateBreakdown` / `useRavValidation`.
   const useSavings = true
-  // P4 Phase 2 — ordered list of budget IDs the user selected to source
-  // cross-budget savings from. Drained first-fit in selection order to
-  // cover the overflow (each entry takes min(remaining, its savings)).
-  const [crossBudgetSelected, setCrossBudgetSelected] = useState<string[]>([])
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
@@ -174,10 +170,11 @@ export default function AddTransactionModal({
     useSavingsToggle: useSavings,
   })
 
-  // P4 Phase 2 — compute the overflow (amount not covered by destination
-  // budget + its local savings). When > 0, the user is offered to draw
-  // from OTHER budgets' savings (cross-budget cascade). The list of
-  // currently-selected sources is allocated first-fit in selection order.
+  // Sprint Auto-Cascade-Piggy (2026-05-25) — l'utilisateur ne sélectionne
+  // plus manuellement les budgets sources en cas de dépassement. Le serveur
+  // applique automatiquement : tirelire d'abord, puis cascade proportionnelle
+  // sur les économies des autres budgets. On calcule juste l'overflow ici
+  // pour afficher l'encart violet informatif si > 0.
   const budgetProgress = expenseProgress[budgetId]
   const budgetRemainingLocal = budgetProgress
     ? budgetProgress.estimatedAmount - budgetProgress.spentAmount
@@ -189,44 +186,6 @@ export default function AddTransactionModal({
         })
       : null
   const overflow = localBreakdown?.overflow ?? 0
-
-  const { crossBudgetAllocations, crossBudgetTotal, remainingOvershoot } = useMemo(() => {
-    if (overflow <= 0) {
-      return { crossBudgetAllocations: [], crossBudgetTotal: 0, remainingOvershoot: 0 }
-    }
-    const allocations: Array<{ budget_id: string; amount: number }> = []
-    let remaining = overflow
-    for (const id of crossBudgetSelected) {
-      if (remaining <= 0) break
-      const b = budgets.find((x) => x.id === id)
-      const available = b?.cumulated_savings ?? 0
-      const take = Math.min(remaining, available)
-      if (take > 0) {
-        allocations.push({ budget_id: id, amount: take })
-        remaining -= take
-      }
-    }
-    const total = allocations.reduce((s, a) => s + a.amount, 0)
-    return {
-      crossBudgetAllocations: allocations,
-      crossBudgetTotal: total,
-      remainingOvershoot: Math.max(0, overflow - total),
-    }
-  }, [overflow, crossBudgetSelected, budgets])
-
-  const availableCrossBudgets = budgets.filter(
-    (b) => b.id !== budgetId && (b.cumulated_savings ?? 0) > 0,
-  )
-
-  const toggleCrossBudget = (id: string) => {
-    setCrossBudgetSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }
-
-  // Reset cross-budget selection when key fields change (avoid stale state)
-  // when user changes the destination budget or the amount.
-  const resetCrossBudget = () => setCrossBudgetSelected([])
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
@@ -360,8 +319,6 @@ export default function AddTransactionModal({
             : (data.estimated_budget_id ?? undefined),
           is_for_group: context === 'group',
           use_savings: useSavings,
-          cross_budget_cascade:
-            crossBudgetAllocations.length > 0 ? crossBudgetAllocations : undefined,
         })
       } else {
         success = await addIncome({
@@ -891,82 +848,21 @@ export default function AddTransactionModal({
                 )}
               </div>
 
-              {/* P4 Phase 2: cross-budget cascade section — only when overflow > 0 */}
-              {overflow > 0 && availableCrossBudgets.length > 0 && (
-                <div className="space-y-2 rounded-lg border border-orange-200 bg-orange-50 p-3">
-                  <div className="flex items-start justify-between gap-1.5">
-                    <p className="text-sm font-medium text-orange-900">
-                      Dépassement de{' '}
-                      {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={resetCrossBudget}
-                      disabled={isSubmitting || crossBudgetSelected.length === 0}
-                      className="text-xs text-orange-700 underline disabled:opacity-50"
-                    >
-                      Réinitialiser
-                    </button>
-                  </div>
-                  <p className="text-xs text-orange-800">
-                    Vous pouvez puiser dans les économies d&apos;autres budgets pour couvrir ce
-                    dépassement.
+              {/* Sprint Auto-Cascade-Piggy (2026-05-25) — encart violet
+                  informatif quand la dépense dépasse le budget + ses
+                  économies locales. La tirelire est puisée en priorité,
+                  puis les économies des autres budgets proportionnellement.
+                  Pas de sélection manuelle — détail dans Impact/Après. */}
+              {overflow > 0 && (
+                <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                  <p className="text-sm font-medium text-violet-900">
+                    Dépassement de{' '}
+                    {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                   </p>
-                  <ul className="space-y-1.5">
-                    {availableCrossBudgets.map((b) => {
-                      const isSelected = crossBudgetSelected.includes(b.id)
-                      const savings = b.cumulated_savings ?? 0
-                      return (
-                        <li key={b.id}>
-                          <button
-                            type="button"
-                            onClick={() => toggleCrossBudget(b.id)}
-                            disabled={isSubmitting}
-                            className={cn(
-                              'flex w-full items-center justify-between rounded-md border p-2 text-left text-sm transition-all disabled:opacity-50',
-                              isSelected
-                                ? 'border-orange-400 bg-orange-100 text-orange-900'
-                                : 'border-orange-200 bg-white hover:bg-orange-50',
-                            )}
-                            aria-pressed={isSelected}
-                          >
-                            <span>
-                              <span className="font-medium">{b.name}</span>
-                              <span className="ml-1.5 text-xs text-orange-700">
-                                (
-                                {savings.toLocaleString('fr-FR', {
-                                  style: 'currency',
-                                  currency: 'EUR',
-                                })}{' '}
-                                dispo)
-                              </span>
-                            </span>
-                            {isSelected && (
-                              <span className="text-xs font-medium text-orange-700">✓</span>
-                            )}
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                  <div className="flex items-center justify-between rounded bg-white/60 p-2 text-xs">
-                    <span className="text-orange-900">
-                      Couvert :{' '}
-                      {crossBudgetTotal.toLocaleString('fr-FR', {
-                        style: 'currency',
-                        currency: 'EUR',
-                      })}
-                    </span>
-                    {remainingOvershoot > 0 && (
-                      <span className="font-medium text-red-700">
-                        Reste à découvert :{' '}
-                        {remainingOvershoot.toLocaleString('fr-FR', {
-                          style: 'currency',
-                          currency: 'EUR',
-                        })}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-xs text-violet-800">
+                    La tirelire sera utilisée en priorité, puis les économies des autres budgets
+                    proportionnellement. Le détail apparaît ci-dessous.
+                  </p>
                 </div>
               )}
 

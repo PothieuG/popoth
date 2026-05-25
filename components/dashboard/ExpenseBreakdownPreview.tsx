@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useFinancialData } from '@/hooks/useFinancialData'
-import { useProgressData } from '@/hooks/useProgressData'
 import {
   BalanceRow,
   BudgetRecapRow,
@@ -27,6 +26,14 @@ interface ExpenseBreakdownPreviewProps {
   useSavings?: boolean
 }
 
+interface CrossBudgetDebitPreviewUi {
+  budget_id: string
+  budget_name: string
+  amount: number
+  available_before: number
+  available_after: number
+}
+
 interface BreakdownData {
   total_amount: number
   from_piggy_bank: number
@@ -40,6 +47,7 @@ interface BreakdownData {
   budget_spent_after: number
   budget_estimated: number
   budget_name: string
+  cross_budget_debits: CrossBudgetDebitPreviewUi[]
 }
 
 /**
@@ -68,7 +76,6 @@ export default function ExpenseBreakdownPreview({
 }: ExpenseBreakdownPreviewProps) {
   const enabled = amount > 0 && !!budgetId
   const { financialData } = useFinancialData(context)
-  const { expenseProgress } = useProgressData(context)
 
   const {
     data: breakdown = null,
@@ -129,11 +136,12 @@ export default function ExpenseBreakdownPreview({
     return null
   }
 
-  // currentBudgetSpent (= sum across all expenses on this budget INCLUDING
-  // the one being edited, since the route preview-breakdown doesn't revert
-  // it before SELECT). Fallback expenseProgress si l'API n'a pas pu calculer
-  // (edge case race condition au mount).
-  const currentBudgetSpent = expenseProgress[budgetId]?.spentAmount ?? breakdown.budget_spent_before
+  // currentBudgetSpent = fresh DB read via la route preview-breakdown. On
+  // utilise `breakdown.budget_spent_before` exclusivement (drop dépendance
+  // useProgressData qui peut être stale entre 2 ouvertures rapides du modal :
+  // `?? fallback` ne tire pas sur `0`, donc un cache stale à 0 cassait le
+  // delta et affichait une ligne Budget fantôme dans Impact).
+  const currentBudgetSpent = breakdown.budget_spent_before
   const currentOverflow = Math.max(0, currentBudgetSpent - breakdown.budget_estimated)
   const newOverflow = Math.max(0, breakdown.budget_spent_after - breakdown.budget_estimated)
   const ravDelta = newOverflow - currentOverflow
@@ -154,15 +162,13 @@ export default function ExpenseBreakdownPreview({
   const piggyDebit = breakdown.from_piggy_bank
   const savingsDebit = breakdown.from_budget_savings
   const budgetName = breakdown.budget_name
+  const crossBudgetDebits = breakdown.cross_budget_debits ?? []
 
-  // Impact lines visibility
   const showPiggyImpact = piggyDebit > 0
   const showSavingsImpact = savingsDebit > 0
   const showBudgetImpact = budgetPoolDelta !== 0
   const showRavImpact = ravDelta !== 0
 
-  // Recap lines visibility — Tirelire/Économies seulement si touchées,
-  // Budget toujours, RAV seulement si overflow change.
   const showPiggyRecap = piggyDebit > 0
   const showSavingsRecap = savingsDebit > 0
   const showRavRecap = ravDelta !== 0 && newRav != null
@@ -173,10 +179,7 @@ export default function ExpenseBreakdownPreview({
         <p className="text-sm font-medium text-gray-700">Impact de la dépense :</p>
 
         {/* Sources débitées + impact RAV (« posé »).
-            Sign convention: amount > 0 = green refund (+X), amount < 0 = red debit (-X).
-            Tirelire/Économies : amount = -new.from_X (always debit in current flows).
-            Budget : amount = -budgetPoolDelta (sign-flipped delta).
-            RAV : amount = -ravDelta (sign-flipped delta). */}
+            Sign convention: amount > 0 = green refund (+X), amount < 0 = red debit (-X). */}
         <div className="space-y-1">
           {showPiggyImpact && (
             <ImpactRow label={<EntityLabel type="piggy" />} amount={-piggyDebit} />
@@ -187,6 +190,13 @@ export default function ExpenseBreakdownPreview({
               amount={-savingsDebit}
             />
           )}
+          {crossBudgetDebits.map((d) => (
+            <ImpactRow
+              key={d.budget_id}
+              label={<EntityLabel type="savings" budgetName={d.budget_name} />}
+              amount={-d.amount}
+            />
+          ))}
           {showBudgetImpact && (
             <ImpactRow
               label={<EntityLabel type="budget" budgetName={budgetName} />}
@@ -196,7 +206,6 @@ export default function ExpenseBreakdownPreview({
           {showRavImpact && <ImpactRow label={<EntityLabel type="rav" />} amount={-ravDelta} />}
         </div>
 
-        {/* Divider + Après opération */}
         <div className="flex items-center gap-2 pt-1">
           <div className="h-px flex-1 bg-blue-200" />
           <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
@@ -205,15 +214,23 @@ export default function ExpenseBreakdownPreview({
           <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {/* Soldes après opération — Tirelire/Économies si touchées, Budget
-            destination toujours affiché, RAV seulement si delta != 0. */}
         <div className="space-y-1">
           {showPiggyRecap && (
             <BalanceRow label={<EntityLabel type="piggy" />} amount={breakdown.piggy_bank_after} />
           )}
           {showSavingsRecap && (
-            <BalanceRow label={<EntityLabel type="savings" />} amount={breakdown.savings_after} />
+            <BalanceRow
+              label={<EntityLabel type="savings" budgetName={budgetName} />}
+              amount={breakdown.savings_after}
+            />
           )}
+          {crossBudgetDebits.map((d) => (
+            <BalanceRow
+              key={d.budget_id}
+              label={<EntityLabel type="savings" budgetName={d.budget_name} />}
+              amount={d.available_after}
+            />
+          ))}
           <BudgetRecapRow
             budgetName={budgetName}
             spent={breakdown.budget_spent_after}

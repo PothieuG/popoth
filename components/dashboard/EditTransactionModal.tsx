@@ -20,6 +20,7 @@ import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
+import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
@@ -158,6 +159,36 @@ export default function EditTransactionModal({
   const previewAmount =
     typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+
+  // Sprint Auto-Cascade-Piggy / EDIT (2026-05-26) — calcul overflow post-reverse
+  // pour décider d'afficher l'encart violet. Imprécis pour dépenses pré-sprint
+  // (pas de trace cross-budget), mais OK comme indicateur — le détail exact
+  // vient de la route preview-breakdown via ExpenseBreakdownPreview.
+  const editExpense =
+    transactionType === 'expense' && !isOriginallyExceptional
+      ? (transaction as RealExpense | null)
+      : null
+  const editBudgetId = watchedBudgetId ? String(watchedBudgetId) : ''
+  const editSelectedBudget = budgets.find((b) => b.id === editBudgetId)
+  const editBudgetSpentPostReverse = editExpense
+    ? calculateRealSpentAmount(editBudgetId) - (editExpense.amount_from_budget ?? 0)
+    : 0
+  const editBudgetRemainingPostReverse = editSelectedBudget
+    ? editSelectedBudget.estimated_amount - editBudgetSpentPostReverse
+    : 0
+  const editSavingsPostReverse =
+    (editSelectedBudget?.cumulated_savings ?? 0) + (editExpense?.amount_from_budget_savings ?? 0)
+  const editLocalBreakdown =
+    editExpense && editBudgetId && previewSafe > 0
+      ? calculateBreakdown(previewSafe, editBudgetRemainingPostReverse, editSavingsPostReverse, {
+          useSavingsToggle: true,
+        })
+      : null
+  const editOverflow = editLocalBreakdown?.overflow ?? 0
+  const editAmountChanged =
+    editExpense && previewSafe > 0
+      ? Math.round(previewSafe * 100) !== Math.round(editExpense.amount * 100)
+      : false
 
   /**
    * Handle form submission
@@ -420,6 +451,27 @@ export default function EditTransactionModal({
                 </p>
               )}
             </div>
+
+            {/* Sprint Auto-Cascade-Piggy / EDIT (2026-05-26) — encart violet
+                informatif quand le nouveau montant produit un dépassement.
+                La cascade auto sera appliquée (tirelire + autres budgets
+                proportionnellement) avec refund précis des sources d'origine
+                via la trace expense_savings_sources. */}
+            {transactionType === 'expense' && editAmountChanged && editOverflow > 0 && (
+              <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                <p className="text-sm font-medium text-violet-900">
+                  Dépassement de{' '}
+                  {editOverflow.toLocaleString('fr-FR', {
+                    style: 'currency',
+                    currency: 'EUR',
+                  })}
+                </p>
+                <p className="text-xs text-violet-800">
+                  La tirelire sera utilisée en priorité, puis les économies des autres budgets
+                  proportionnellement. Le détail apparaît ci-dessous.
+                </p>
+              </div>
+            )}
 
             {/* Expense Breakdown Preview - only for budgeted expenses.
                 Gated sur `previewSafe !== transaction.amount` (comparé en

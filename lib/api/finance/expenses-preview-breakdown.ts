@@ -4,7 +4,15 @@ import { supabaseServer } from '@/lib/supabase-server'
 import { withAuth } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
-import { calculateBreakdown } from '@/lib/expense-allocation'
+import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
+
+export interface CrossBudgetDebitPreview {
+  budget_id: string
+  budget_name: string
+  amount: number
+  available_before: number
+  available_after: number
+}
 
 export interface ExpenseBreakdownPreview {
   total_amount: number
@@ -19,16 +27,20 @@ export interface ExpenseBreakdownPreview {
   budget_spent_after: number
   budget_estimated: number
   budget_name: string
+  cross_budget_debits: CrossBudgetDebitPreview[]
 }
 
 /**
  * GET /api/finance/expenses/preview-breakdown
  *
- * Previews how an expense will be allocated without actually creating it
- * Query params:
- * - amount: expense amount
- * - budget_id: estimated budget ID
- * - context: 'profile' or 'group'
+ * Previews the breakdown of a budgeted expense — ADD mode (no expense_id) or
+ * EDIT mode (with expense_id). Sprint Auto-Cascade-Piggy / Traceability
+ * (2026-05-26) — les deux modes utilisent désormais
+ * `calculateBreakdownWithAutoCascade` :
+ *   - ADD : cascade fresh sur l'état DB courant.
+ *   - EDIT : cascade fresh sur l'état post-reverse virtuel (sources d'origine
+ *     restaurées dans les pools courants, lecture via expense_savings_sources
+ *     ou fallback colonnes consolidées si pas de trace).
  */
 export const GET = withAuth(async (request: NextRequest, { userId }) => {
   try {
@@ -37,10 +49,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budget_id: budgetId,
       context,
       expense_id: expenseId,
-      use_savings: useSavings,
     } = parseQuery(request, previewBreakdownQuerySchema)
 
-    // Determine context filter
     const isGroup = context === 'group'
     let contextFilter: { group_id: string } | { profile_id: string }
 
@@ -59,22 +69,23 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       contextFilter = { profile_id: userId }
     }
 
-    // Get piggy bank
     const { data: piggyBankData } = await supabaseServer
       .from('piggy_bank')
       .select('amount')
       .match(contextFilter)
       .maybeSingle()
+    const piggyBankCurrent = piggyBankData?.amount || 0
 
-    let piggyBankBefore = piggyBankData?.amount || 0
-
-    // En mode edition: restaurer virtuellement l'allocation de la depense existante
     let existingExpense: {
       amount: number
       amount_from_piggy_bank: number
       amount_from_budget_savings: number
       amount_from_budget: number
     } | null = null
+    const oldSourcesByBudget = new Map<string, number>()
+    let oldPiggyFromSources = 0
+    let hasTrace = false
+
     if (expenseId) {
       const { data: expData } = await supabaseServer
         .from('real_expenses')
@@ -89,12 +100,34 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
           amount_from_budget_savings: expData.amount_from_budget_savings || 0,
           amount_from_budget: expData.amount_from_budget || 0,
         }
-        // Simuler le reverse: rendre les montants aux pools
-        piggyBankBefore += existingExpense.amount_from_piggy_bank
+
+        const { data: sources } = await supabaseServer
+          .from('expense_savings_sources')
+          .select('source_type, source_budget_id, amount')
+          .eq('real_expense_id', expenseId)
+
+        hasTrace = (sources?.length ?? 0) > 0
+        for (const s of sources ?? []) {
+          if (s.source_type === 'piggy') {
+            oldPiggyFromSources += s.amount
+          } else if (s.source_type === 'budget_savings' && s.source_budget_id) {
+            oldSourcesByBudget.set(
+              s.source_budget_id,
+              (oldSourcesByBudget.get(s.source_budget_id) ?? 0) + s.amount,
+            )
+          }
+        }
       }
     }
 
-    // Get budget info
+    const piggyBankBefore =
+      piggyBankCurrent +
+      (existingExpense
+        ? hasTrace
+          ? oldPiggyFromSources
+          : existingExpense.amount_from_piggy_bank
+        : 0)
+
     const { data: budgetData, error: budgetError } = await supabaseServer
       .from('estimated_budgets')
       .select('id, name, estimated_amount, cumulated_savings')
@@ -106,34 +139,21 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       return NextResponse.json({ error: 'Budget non trouvé' }, { status: 404 })
     }
 
-    let savingsBefore = budgetData.cumulated_savings || 0
+    const destinationOldClaim = existingExpense
+      ? hasTrace
+        ? (oldSourcesByBudget.get(budgetId) ?? 0)
+        : existingExpense.amount_from_budget_savings
+      : 0
+    const savingsBefore = (budgetData.cumulated_savings || 0) + destinationOldClaim
 
-    // En mode edition: restaurer virtuellement les economies
-    if (existingExpense) {
-      savingsBefore += existingExpense.amount_from_budget_savings
-    }
-
-    // Get current spent amount - only count amount_from_budget
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
       .select('id, amount, amount_from_budget')
       .eq('estimated_budget_id', budgetId)
       .match(contextFilter)
 
-    // Sum d'amount_from_budget across TOUTES les dépenses du budget — y compris
-    // celle en cours d'édition (NE PAS soustraire). Ce un-reverted budget pool
-    // miroir le comportement du PUT serveur : `applyAllocation` lit la table
-    // `real_expenses` AVANT que la nouvelle valeur soit écrite, donc l'ancienne
-    // amount_from_budget de la dépense éditée est toujours dans la somme.
-    // Sprint 2026-05-21 fix : le subtract précédent (`-= existingExpense.amount_from_budget`)
-    // donnait des `budgetRemaining` virtuellement plus grands → l'allocation
-    // P4-strict mettait tout sur le budget et négligeait la cascade savings.
-    // Bug remonté : édition d'une dépense de 123€→130€ affichait `-130€ budget`
-    // alors que le serveur stocke `-105€ budget + -25€ savings` (existing 98+25
-    // → delta +7 absorbé par budget cap-105, savings cascade resorbé overflow).
-    const budgetSpentBefore =
+    const budgetSpentCurrent =
       expenses?.reduce((sum, e) => {
-        // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         const amountFromBudget =
           e.amount_from_budget !== null && e.amount_from_budget !== undefined
             ? e.amount_from_budget
@@ -141,70 +161,61 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         return sum + amountFromBudget
       }, 0) || 0
 
-    // Mode EDIT (existingExpense fourni) : algorithme « delta-based cascade »
-    // Sprint 2026-05-21 (refinement). Le serveur PUT (applyAllocation) applique
-    // le même algorithme — duplication inline car la route ne peut pas importer
-    // la version server (qui fait des UPDATE). Toute modif doit toucher les
-    // deux endroits. Mode ADD : P4-strict (ou P5 toggle) — budget first,
-    // savings cascade.
-    let fromPiggyBank: number
-    let fromBudgetSavings: number
-    let fromBudget: number
-    if (existingExpense) {
-      const eP = existingExpense.amount_from_piggy_bank
-      const eS = existingExpense.amount_from_budget_savings
-      const eB = existingExpense.amount_from_budget
-      const existingAmount = existingExpense.amount
-      const delta = Math.round((amount - existingAmount) * 100) / 100
+    // En EDIT : on soustrait la contribution budget de l'existing pour
+    // simuler l'état post-reverse virtuel. En ADD : pas de soustraction.
+    const budgetSpentBefore = existingExpense
+      ? budgetSpentCurrent - existingExpense.amount_from_budget
+      : budgetSpentCurrent
+    const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
 
-      if (delta === 0) {
-        fromPiggyBank = eP
-        fromBudgetSavings = eS
-        fromBudget = eB
-      } else if (delta > 0) {
-        // Le delta supplémentaire pioche d'abord dans les économies libres
-        // (savingsBefore est le pool post-virtual-revert, donc on retire `eS`
-        // pour obtenir l'extra room non-claimed). Budget absorbe le reste.
-        // Piggy stays at `eP` — jamais auto-débitée même en EDIT (P4 strict).
-        const extraSavings = Math.max(0, savingsBefore - eS)
-        let remaining = delta
-        const addSavings = Math.min(remaining, extraSavings)
-        remaining -= addSavings
-        const addBudget = remaining
-        fromPiggyBank = eP
-        fromBudgetSavings = eS + addSavings
-        fromBudget = eB + addBudget
-      } else {
-        // delta < 0 : refund priorité reverse — budget vidé d'abord, puis
-        // savings (préserve la portion savings tant que le budget peut
-        // absorber le refund), puis piggy en dernier recours.
-        let remainingRefund = -delta
-        const refundFromBudget = Math.min(remainingRefund, eB)
-        remainingRefund -= refundFromBudget
-        const refundFromSavings = Math.min(remainingRefund, eS)
-        remainingRefund -= refundFromSavings
-        const refundFromPiggy = Math.min(remainingRefund, eP)
-        fromPiggyBank = eP - refundFromPiggy
-        fromBudgetSavings = eS - refundFromSavings
-        fromBudget = eB - refundFromBudget
-      }
-    } else {
-      const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
-      const allocation = calculateBreakdown(amount, budgetRemaining, savingsBefore, {
-        useSavingsToggle: useSavings,
+    // Lire les autres budgets avec savings (post-reverse en EDIT).
+    const { data: otherBudgets } = await supabaseServer
+      .from('estimated_budgets')
+      .select('id, name, cumulated_savings')
+      .match(contextFilter)
+      .neq('id', budgetId)
+
+    const otherBudgetsPostReverse = (otherBudgets ?? [])
+      .map((b) => {
+        const current = b.cumulated_savings ?? 0
+        const oldClaim = existingExpense && hasTrace ? (oldSourcesByBudget.get(b.id) ?? 0) : 0
+        return {
+          budget_id: b.id,
+          budget_name: b.name,
+          available_before: current + oldClaim,
+        }
       })
-      fromPiggyBank = allocation.fromPiggyBank
-      fromBudgetSavings = allocation.fromBudgetSavings
-      fromBudget = allocation.fromBudget + allocation.overflow
-    }
+      .filter((b) => b.available_before > 0)
 
-    // Pour le `budget_spent_after` (état post-édit affiché côté UI) on DOIT
-    // soustraire la contribution de l'existing (qui va être remplacée par
-    // `fromBudget`). Cf. server flow : applyAllocation calcule la nouvelle
-    // amount_from_budget, puis l'UPDATE remplace l'ancienne sur la ligne en DB.
-    // Donc total spent post-save = budgetSpentBefore - existing.amount_from_budget + fromBudget.
-    const existingBudgetPortion = existingExpense?.amount_from_budget ?? 0
-    const budgetSpentAfter = budgetSpentBefore - existingBudgetPortion + fromBudget
+    const allocation = calculateBreakdownWithAutoCascade(
+      amount,
+      budgetRemaining,
+      savingsBefore,
+      piggyBankBefore,
+      otherBudgetsPostReverse.map((b) => ({
+        budget_id: b.budget_id,
+        available: b.available_before,
+      })),
+    )
+    const fromPiggyBank = allocation.fromPiggyBank
+    const fromBudgetSavings = allocation.fromBudgetSavings
+    const fromBudget = allocation.fromBudget
+
+    const crossBudgetDebitsPreview: CrossBudgetDebitPreview[] = allocation.crossBudgetDebits.map(
+      (d) => {
+        const src = otherBudgetsPostReverse.find((b) => b.budget_id === d.budget_id)
+        const availableBefore = src?.available_before ?? 0
+        return {
+          budget_id: d.budget_id,
+          budget_name: src?.budget_name ?? '',
+          amount: d.amount,
+          available_before: availableBefore,
+          available_after: Math.round((availableBefore - d.amount) * 100) / 100,
+        }
+      },
+    )
+
+    const budgetSpentAfter = budgetSpentBefore + fromBudget
 
     const breakdown: ExpenseBreakdownPreview = {
       total_amount: amount,
@@ -219,6 +230,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budget_spent_after: budgetSpentAfter,
       budget_estimated: budgetData.estimated_amount,
       budget_name: budgetData.name,
+      cross_budget_debits: crossBudgetDebitsPreview,
     }
 
     return NextResponse.json({ breakdown })

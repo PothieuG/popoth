@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
-import { calculateBreakdown } from '@/lib/expense-allocation'
+import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
 import { addExpenseWithBreakdown, addExpenseWithCrossBudgetCascade } from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
@@ -57,14 +57,7 @@ export interface ExpenseBreakdown {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
-    const {
-      amount,
-      description,
-      expense_date,
-      estimated_budget_id,
-      use_savings,
-      cross_budget_cascade,
-    } = body
+    const { amount, description, expense_date, estimated_budget_id, use_savings } = body
     const is_for_group = body.is_for_group ?? false
 
     // Determine profile_id or group_id
@@ -180,40 +173,51 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
         )
       }, 0) || 0
 
-    // Step 4: Calculate the breakdown. P5 toggle (use_savings) opts in to
-    // savings-first ; otherwise P4 strict (budget first, savings cascade
-    // on overflow). Piggy never auto-debited in either mode.
+    // Step 4: Auto-cascade breakdown — serveur autoritatif. Le client peut
+    // envoyer `cross_budget_cascade` mais on l'ignore : le serveur recalcule
+    // entièrement (piggy-first puis cross-budget proportionnel) depuis l'état
+    // DB courant. Évite les drifts client/serveur et les payloads obsolètes.
     const budgetRemaining = (budgetData.estimated_amount || 0) - budgetSpentBefore
-    const { fromPiggyBank, fromBudgetSavings, fromBudget, overflow } = calculateBreakdown(
+
+    const { data: otherBudgetsRaw } = await supabaseServer
+      .from('estimated_budgets')
+      .select('id, cumulated_savings')
+      .match(contextFilter)
+      .neq('id', estimated_budget_id)
+      .gt('cumulated_savings', 0)
+
+    const otherBudgetsSavings = (otherBudgetsRaw ?? []).map((b) => ({
+      budget_id: b.id,
+      available: b.cumulated_savings ?? 0,
+    }))
+
+    const allocation = calculateBreakdownWithAutoCascade(
       amount,
       budgetRemaining,
       savingsBefore,
+      piggyBankBefore,
+      otherBudgetsSavings,
       { useSavingsToggle: use_savings },
     )
-
-    // Cross-budget cascade (P4 Phase 2): if the client provided sources to
-    // draw from, dispatch to the multi-budget composite RPC. The cross-budget
-    // total covers part of the overflow; any remainder is absorbed as
-    // additional fromBudget (budget deficit, RAV impact). Without
-    // cross-budget cascade, all overflow goes to fromBudget.
-    const crossBudgetTotal = (cross_budget_cascade ?? []).reduce((s, x) => s + x.amount, 0)
-    const uncoveredOverflow = Math.max(0, overflow - crossBudgetTotal)
-    const fromBudgetWithOverflow = fromBudget + uncoveredOverflow
+    const fromPiggyBank = allocation.fromPiggyBank
+    const fromBudgetSavings = allocation.fromBudgetSavings
+    const fromBudgetWithOverflow = allocation.fromBudget
+    const crossBudgetDebits = allocation.crossBudgetDebits
 
     const piggyBankAfter = piggyBankBefore - fromPiggyBank
     const savingsAfter = savingsBefore - fromBudgetSavings
     const budgetSpentAfter = budgetSpentBefore + fromBudgetWithOverflow
 
-    // Step 5: Single atomic op. Two paths depending on whether the client
-    // provided a cross-budget cascade:
-    //   - With cross-budget: `add_expense_with_cross_budget_cascade` debits
-    //     local savings + each cross-budget source + INSERTs in one tx.
-    //   - Without: `add_expense_with_breakdown` debits piggy + local savings
-    //     + INSERTs in one tx (piggy always 0 in P4 strict).
+    // Step 5: Single atomic op. Cascade auto → dispatch :
+    //   - piggy > 0 OU crossBudgetDebits non vide → composite RPC
+    //     `add_expense_with_cross_budget_cascade` (gère piggy + multi-source).
+    //   - Sinon → RPC simple `add_expense_with_breakdown` (piggy=0, budget
+    //     destination + savings local uniquement).
     const todayIso = new Date().toISOString().split('T')[0] as string
+    const needsCrossBudgetRpc = fromPiggyBank > 0 || crossBudgetDebits.length > 0
     let expenseId: string
     try {
-      if (cross_budget_cascade && cross_budget_cascade.length > 0) {
+      if (needsCrossBudgetRpc) {
         const result = await addExpenseWithCrossBudgetCascade(
           contextFilter as unknown as FinanceContextFilter,
           {
@@ -224,7 +228,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
             amountFromPiggyBank: fromPiggyBank,
             amountFromLocalSavings: fromBudgetSavings,
             amountFromBudget: fromBudgetWithOverflow,
-            crossBudgetDebits: cross_budget_cascade,
+            crossBudgetDebits,
             createdByProfileId: userId,
           },
         )

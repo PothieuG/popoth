@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -233,6 +233,48 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      expense_savings_sources: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          real_expense_id: string
+          source_budget_id: string | null
+          source_type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          real_expense_id: string
+          source_budget_id?: string | null
+          source_type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          real_expense_id?: string
+          source_budget_id?: string | null
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_savings_sources_real_expense_id_fkey"
+            columns: ["real_expense_id"]
+            isOneToOne: false
+            referencedRelation: "real_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_savings_sources_source_budget_id_fkey"
+            columns: ["source_budget_id"]
+            isOneToOne: false
+            referencedRelation: "estimated_budgets"
             referencedColumns: ["id"]
           },
         ]
@@ -770,6 +812,10 @@ export type Database = {
         Args: { p_expense_id: string }
         Returns: Json
       }
+      delete_expense_with_sources_refund: {
+        Args: { p_expense_id: string }
+        Returns: Json
+      }
       finalize_recap_apply_snapshot: {
         Args: { p_recap_id: string; p_snapshot: Json }
         Returns: Json
@@ -861,6 +907,19 @@ export type Database = {
       update_budget_cumulated_savings: {
         Args: { p_budget_id: string; p_delta: number }
         Returns: number
+      }
+      update_expense_with_sources_reapply: {
+        Args: {
+          p_expense_id: string
+          p_new_amount: number
+          p_new_amount_from_budget: number
+          p_new_amount_from_local_savings: number
+          p_new_amount_from_piggy_bank: number
+          p_new_cross_budget_debits: Json
+          p_new_description: string
+          p_new_expense_date: string
+        }
+        Returns: Json
       }
       update_piggy_bank_amount: {
         Args: { p_delta: number; p_group_id?: string; p_profile_id?: string }

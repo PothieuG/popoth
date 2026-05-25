@@ -54,6 +54,11 @@ const EXPECTED_RPCS = [
   'toggle_carry_over_and_apply',
   'toggle_carry_over_and_apply_income',
   'delete_carried_expense_to_piggy',
+  // Sprint Auto-Cascade-Piggy / Traceability (2026-05-26) —
+  // supabase/migrations/20260531020000_create_delete_expense_with_sources_refund_rpc.sql
+  // supabase/migrations/20260531030000_create_update_expense_with_sources_reapply_rpc.sql
+  'delete_expense_with_sources_refund',
+  'update_expense_with_sources_reapply',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

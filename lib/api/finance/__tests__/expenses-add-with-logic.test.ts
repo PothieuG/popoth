@@ -1,29 +1,20 @@
 /**
  * Mocked unit tests for POST /api/finance/expenses/add-with-logic.
  *
- * Updated by Sprint Atomicity-Expenses: the smart-allocation path now
- * delegates piggy debit + savings debit + INSERT real_expenses to the
- * composite atomic RPC `add_expense_with_breakdown` via
- * `addExpenseWithBreakdown` from @/lib/finance/expenses. The pre-fix
- * REGRESSION-GUARD test (Cas 4) which pinned the atomicity gap is
- * reformulated as Cas 3 PIN ATOMIC CONTRACT — it now asserts the
- * handler trusts the RPC atomicity (single mutation entry point, no
- * fallback to direct piggy/savings ops, no compensating action needed
- * because Postgres rolls back the whole tx on overdraft / INSERT
- * failure).
+ * Sprint Auto-Cascade-Piggy (2026-05-25) — la route a basculé sur
+ * `calculateBreakdownWithAutoCascade` (piggy-first + proportionnel quand
+ * overflow > 0) au lieu de `calculateBreakdown` legacy. Le dispatch RPC
+ * suit : piggy > 0 ou cross_budget_debits non vide → composite RPC
+ * `add_expense_with_cross_budget_cascade` ; sinon → `add_expense_with_breakdown`.
  *
- * Mock strategy mirrors lib/recap/__tests__/step1-persist.test.ts —
- * `vi.mock` hoisted with withAuth passthrough, dynamic `await import`
- * in test bodies. `calculateBreakdown` is kept REAL (pure-sync, ~62 LOC,
- * mocking adds complexity for zero coverage gain). @/lib/logger is
- * mocked. @/lib/finance/piggy-bank and @/lib/finance/budget-savings
- * are no longer mocked — the handler no longer calls them directly.
+ * `calculateBreakdownWithAutoCascade` est gardée REAL (pure-sync). Les
+ * helpers RPC sont mockés. `addExpenseWithBreakdown` et
+ * `addExpenseWithCrossBudgetCascade` ont chacune leur entry point selon
+ * la présence de piggy/cross debits.
  */
 
 import type { NextRequest } from 'next/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-// Hoisted mocks ---------------------------------------------------------------
 
 vi.mock('@/lib/api/with-auth', () => {
   type AnyHandler = (...args: unknown[]) => Promise<unknown>
@@ -47,23 +38,21 @@ vi.mock('@/lib/logger', () => ({
   },
 }))
 
-// Supabase chain mock: thenable so `await chain.match(...)` (no terminal)
-// resolves a separate matchAwait queue; terminal `.single()` / `.maybeSingle()`
-// use their own queues. All chain methods return the chain itself.
 vi.mock('@/lib/supabase-server', () => {
   const single = vi.fn(async () => ({ data: null, error: null }))
   const maybeSingle = vi.fn(async () => ({ data: null, error: null }))
   const matchAwait = vi.fn(async () => ({ data: [], error: null }))
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chain is intentionally thenable + chainable; precise typing wouldn't help
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chain is intentionally thenable + chainable
   const chain: any = {}
   chain.select = vi.fn(() => chain)
   chain.eq = vi.fn(() => chain)
+  chain.neq = vi.fn(() => chain)
+  chain.gt = vi.fn(() => chain)
   chain.match = vi.fn(() => chain)
   chain.insert = vi.fn(() => chain)
   chain.single = single
   chain.maybeSingle = maybeSingle
-  // Thenable: enables `await chain.match(...)` returning the matchAwait queue.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- arbitrary onResolve/onReject signatures
   chain.then = (onResolve: any, onReject: any) => matchAwait().then(onResolve, onReject)
 
@@ -80,14 +69,17 @@ vi.mock('@/lib/finance', () => ({
 
 vi.mock('@/lib/finance/expenses', () => ({
   addExpenseWithBreakdown: vi.fn(async () => ({ expense_id: 'rx-mock' })),
+  addExpenseWithCrossBudgetCascade: vi.fn(async () => ({
+    expense_id: 'rx-mock-cascade',
+    cross_budget_total: 0,
+    consolidated_savings: 0,
+  })),
 }))
 
 afterEach(() => {
   vi.restoreAllMocks()
   vi.clearAllMocks()
 })
-
-// Test helpers ---------------------------------------------------------------
 
 function buildRequest(body: unknown): NextRequest {
   return { json: async () => body } as unknown as NextRequest
@@ -103,7 +95,10 @@ type SupabaseMocks = {
   }
 }
 
-type ExpensesMocks = { addExpenseWithBreakdown: ReturnType<typeof vi.fn> }
+type ExpensesMocks = {
+  addExpenseWithBreakdown: ReturnType<typeof vi.fn>
+  addExpenseWithCrossBudgetCascade: ReturnType<typeof vi.fn>
+}
 type LoggerMocks = { logger: { error: ReturnType<typeof vi.fn> } }
 
 async function importMocks() {
@@ -113,23 +108,11 @@ async function importMocks() {
   return { supabase, expensesMod, loggerMod }
 }
 
-// Tests ----------------------------------------------------------------------
-
-describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic)', () => {
-  it('P4 strict happy path: amount fits budget, savings & piggy untouched', async () => {
-    // Sprint P4-P5-P6 — calculateBreakdown was refactored to be budget-first
-    // (P4 strict). With amount=150 and budgetRemaining=200, the breakdown is
-    // 150 budget / 0 savings / 0 piggy. The cascade-aggressive behavior of
-    // pre-P4 (100 piggy + 30 savings + 20 budget) is no longer correct.
-    // The piggy bank is NEVER auto-debited in P4 strict mode.
+describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
+  it('happy path no overflow: amount fits budget → addExpenseWithBreakdown, piggy untouched', async () => {
     const { supabase, expensesMod, loggerMod } = await importMocks()
 
-    // L129 piggy_bank fetch (maybeSingle) — read for response shape, not for cascade
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    // L138 estimated_budgets fetch (single) — estimated_amount=200, spent=0 → room=200
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: '11111111-1111-4111-8111-111111111111',
@@ -139,11 +122,11 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       },
       error: null,
     })
-    // L153 real_expenses listing (awaited chain, no terminal) — empty → spent=0
+    // real_expenses listing (no existing expenses)
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    // RPC resolves with the new expense id
+    // other budgets listing (no other budgets with savings)
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
     expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-1' })
-    // Re-fetch the inserted row + estimated_budget join
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: 'rx-1',
@@ -155,7 +138,6 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     })
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    // amount=150, budgetRemaining=200, savings=30 → P4 strict {0, 0, 150}
     const response = await POST(
       buildRequest({
         amount: 150,
@@ -173,43 +155,15 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       from_budget_savings: 0,
       from_budget: 150,
     })
-    // Single mutation entry point — atomic RPC called exactly once with the
-    // full breakdown (piggy debit + savings debit + INSERT all live inside).
     expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
-    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
-      { profile_id: 'user-1' },
-      expect.objectContaining({
-        amount: 150,
-        description: 'Lunch',
-        estimatedBudgetId: '11111111-1111-4111-8111-111111111111',
-        amountFromPiggyBank: 0,
-        amountFromBudgetSavings: 0,
-        amountFromBudget: 150,
-        // Sprint Group-Transaction-Creator-Avatar : userId passed through.
-        createdByProfileId: 'user-1',
-      }),
-    )
-    // The handler does NOT INSERT real_expenses directly — the INSERT lives
-    // inside the RPC (mocked here).
-    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
 
-  it('P4 strict overflow path: budget+savings cascade, remainder absorbed as fromBudget', async () => {
-    // Sprint P4-P5-P6 — when amount exceeds budgetRemaining, savings cascade
-    // (P4 strict). If amount also exceeds savings, the overflow is absorbed
-    // into fromBudget (budget deficit) — Phase 2 cross-budget cascade is the
-    // proper resolution but isn't wired here yet. RAV impact is visible via
-    // budgetDeficits in the dashboard.
+  it('overflow with piggy auto-cascade: piggy covers entirely → addExpenseWithCrossBudgetCascade', async () => {
     const { supabase, expensesMod } = await importMocks()
 
-    // piggy_bank fetch
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    // estimated_budgets fetch — estimated_amount=200, will compute budgetRemaining
-    // from spent (180), so budgetRemaining=20.
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: '11111111-1111-4111-8111-111111111111',
@@ -219,29 +173,153 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       },
       error: null,
     })
-    // real_expenses listing — 1 existing expense with amount_from_budget=180
+    // real_expenses listing — 180 already spent → budgetRemaining=20
     supabase.__mocks.matchAwait.mockResolvedValueOnce({
       data: [{ amount: 180, amount_from_budget: 180 }],
       error: null,
     })
-    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-2' })
+    // other budgets listing (empty — piggy alone will cover)
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithCrossBudgetCascade.mockResolvedValueOnce({
+      expense_id: 'rx-2',
+      cross_budget_total: 0,
+      consolidated_savings: 30,
+    })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: {
-        id: 'rx-2',
-        amount: 150,
-        description: 'Lunch',
-        estimated_budget: { name: 'Budget 1' },
-      },
+      data: { id: 'rx-2', amount: 150, description: 'L', estimated_budget: { name: 'Budget 1' } },
       error: null,
     })
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    // amount=150, budgetRemaining=20, savings=30 → P4 strict {0, 30, 20} + overflow 100
-    // → fromBudget = 20 + 100 = 120 (overshoot absorbed)
+    // amount=150, budgetRemaining=20, savings=30, piggy=100, others=[]
+    // P4 strict local: budget=20 + savings=30 → overflow=100
+    // Auto-cascade: piggy=min(100,100)=100, remaining=0 → fromBudget stays at 20
     const response = await POST(
       buildRequest({
         amount: 150,
-        description: 'Lunch',
+        description: 'L',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+      }),
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.breakdown).toMatchObject({
+      from_piggy_bank: 100,
+      from_budget_savings: 30,
+      from_budget: 20,
+    })
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amount: 150,
+        amountFromPiggyBank: 100,
+        amountFromLocalSavings: 30,
+        amountFromBudget: 20,
+        crossBudgetDebits: [],
+        createdByProfileId: 'user-1',
+      }),
+    )
+    expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
+  })
+
+  it('overflow with piggy partial + cross-budget proportional cascade', async () => {
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 50 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Loyer',
+        estimated_amount: 800,
+        cumulated_savings: 0,
+      },
+      error: null,
+    })
+    // 800 already spent → budgetRemaining=0
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 800, amount_from_budget: 800 }],
+      error: null,
+    })
+    // other budgets: Courses 100€, Loisirs 200€
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [
+        { id: 'b-courses', cumulated_savings: 100 },
+        { id: 'b-loisirs', cumulated_savings: 200 },
+      ],
+      error: null,
+    })
+    expensesMod.addExpenseWithCrossBudgetCascade.mockResolvedValueOnce({
+      expense_id: 'rx-3',
+      cross_budget_total: 100,
+      consolidated_savings: 100,
+    })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: 'rx-3', amount: 150, description: 'L', estimated_budget: { name: 'Loyer' } },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    // amount=150, budgetRemaining=0, savings=0, piggy=50, others=[100,200]
+    // Local: overflow=150
+    // Piggy: 50 used, remaining=100
+    // Cross proportional sum 300 → toAllocate=100 :
+    //   Courses 100*100/300=33.33, Loisirs 100*200/300=66.67
+    const response = await POST(
+      buildRequest({
+        amount: 150,
+        description: 'L',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amount: 150,
+        amountFromPiggyBank: 50,
+        amountFromLocalSavings: 0,
+        amountFromBudget: 0,
+        crossBudgetDebits: [
+          { budget_id: 'b-courses', amount: 33.33 },
+          { budget_id: 'b-loisirs', amount: 66.67 },
+        ],
+      }),
+    )
+  })
+
+  it('overflow with no piggy and no cross sources → residual absorbed as fromBudget (deficit)', async () => {
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 0 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Budget',
+        estimated_amount: 100,
+        cumulated_savings: 0,
+      },
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 100, amount_from_budget: 100 }],
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-4' })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: 'rx-4', amount: 50, description: 'X', estimated_budget: { name: 'Budget' } },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    const response = await POST(
+      buildRequest({
+        amount: 50,
+        description: 'X',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
       }),
@@ -251,30 +329,18 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     expect(response.status).toBe(200)
     expect(json.breakdown).toMatchObject({
       from_piggy_bank: 0,
-      from_budget_savings: 30,
-      from_budget: 120, // 20 budget remaining + 100 overflow
+      from_budget_savings: 0,
+      from_budget: 50,
     })
-    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
-      { profile_id: 'user-1' },
-      expect.objectContaining({
-        amountFromPiggyBank: 0,
-        amountFromBudgetSavings: 30,
-        amountFromBudget: 120,
-      }),
-    )
+    // No piggy, no cross → addExpenseWithBreakdown (legacy single-budget path)
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
   })
 
-  it('P5 toggle use_savings=true: savings consumed first, then budget', async () => {
-    // Sprint P4-P5-P6 / P5 — when the user opts in to drawing from savings
-    // (toggle on), the breakdown reverses priority: savings first, budget
-    // second. Same RPC, different breakdown shape.
+  it('P5 toggle use_savings=true: savings consumed first, no overflow → addExpenseWithBreakdown', async () => {
     const { supabase, expensesMod } = await importMocks()
 
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    // budgetRemaining will be 200 - 0 = 200, savings = 30
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: '11111111-1111-4111-8111-111111111111',
@@ -285,18 +351,18 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
       error: null,
     })
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-3' })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-5' })
     supabase.__mocks.single.mockResolvedValueOnce({
-      data: { id: 'rx-3', amount: 100, description: 'Lunch', estimated_budget: { name: 'B' } },
+      data: { id: 'rx-5', amount: 100, description: 'L', estimated_budget: { name: 'B' } },
       error: null,
     })
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    // amount=100, savings=30, budget=200, use_savings=true → savings 30 first, budget 70
     const response = await POST(
       buildRequest({
         amount: 100,
-        description: 'Lunch',
+        description: 'L',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
         use_savings: true,
@@ -320,114 +386,51 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
     )
   })
 
-  it('atomic RPC throws (overdraft or INSERT failure): 500, no fallback ops', async () => {
-    // Consolidates the pre-fix Cas 2 ("piggy RPC throws") and Cas 3 ("savings
-    // RPC throws") — post-fix all overdraft / INSERT failures funnel through
-    // a single throw from addExpenseWithBreakdown, which the handler maps to
-    // a 500. There is no compensating action needed because the entire
-    // composite RPC rolled back as one Postgres tx.
+  it('PIN ATOMIC CONTRACT: piggy>0 or cross>0 → cross-budget RPC is single entry; no breakdown RPC', async () => {
     const { supabase, expensesMod, loggerMod } = await importMocks()
 
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
     supabase.__mocks.single.mockResolvedValueOnce({
       data: {
         id: '11111111-1111-4111-8111-111111111111',
-        name: 'Budget 1',
-        estimated_amount: 200,
-        cumulated_savings: 30,
+        name: 'Budget',
+        estimated_amount: 100,
+        cumulated_savings: 0,
       },
       error: null,
     })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 100, amount_from_budget: 100 }],
+      error: null,
+    })
     supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    expensesMod.addExpenseWithBreakdown.mockRejectedValueOnce(
-      new Error('piggy_bank amount cannot become negative (current: -50)'),
+    expensesMod.addExpenseWithCrossBudgetCascade.mockRejectedValueOnce(
+      new Error('piggy_bank amount cannot become negative'),
     )
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
     const response = await POST(
       buildRequest({
-        amount: 150,
-        description: 'Lunch',
+        amount: 50,
+        description: 'L',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
       }),
     )
 
     expect(response.status).toBe(500)
-    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
-    // No direct INSERT, no re-fetch — handler bails on the RPC throw.
+    // piggy=100, overflow=50 → cross-budget RPC chosen (piggy debit needs the
+    // cascade RPC which accepts p_amount_from_piggy_bank > 0).
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).toHaveBeenCalledTimes(1)
+    expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
     expect(supabase.__mocks.insert).not.toHaveBeenCalled()
-    // logger.error fired with the atomic-op message
-    const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
-    expect(errorMessages).toEqual(
-      expect.arrayContaining([expect.stringMatching(/Erreur création dépense atomique/)]),
-    )
-  })
-
-  it('PIN ATOMIC CONTRACT: single mutation entry point, no compensating action on failure', async () => {
-    // Was Cas 4 REGRESSION-GUARD pre-fix — pinned the atomicity gap (piggy +
-    // savings debited but INSERT failed with no rollback). Post-fix the gap
-    // is closed at the DB level: the composite RPC wraps all three ops in one
-    // Postgres tx, so a thrown RPC means nothing was committed.
-    //
-    // This test now PINS the architectural invariant: the handler exposes
-    // a single mutation call site (addExpenseWithBreakdown) and does not
-    // attempt any per-resource rollback / compensating action on failure.
-    // If a future refactor reintroduces split mutation paths (e.g. calling
-    // updatePiggyBank or updateBudgetCumulatedSavings directly again), this
-    // test will likely still pass — but the gated DB-level atomicity tests
-    // in lib/finance/__tests__/add-expense-with-breakdown.test.ts will fail
-    // by proving partial state can leak. Keep both layers.
-    const { supabase, expensesMod, loggerMod } = await importMocks()
-
-    supabase.__mocks.maybeSingle.mockResolvedValueOnce({
-      data: { amount: 100 },
-      error: null,
-    })
-    supabase.__mocks.single.mockResolvedValueOnce({
-      data: {
-        id: '11111111-1111-4111-8111-111111111111',
-        name: 'Budget 1',
-        estimated_amount: 200,
-        cumulated_savings: 30,
-      },
-      error: null,
-    })
-    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
-    // Atomic RPC throws as if the INSERT (final step inside the RPC) failed.
-    // In production, this also rolls back any prior debits in the same tx.
-    expensesMod.addExpenseWithBreakdown.mockRejectedValueOnce(
-      new Error('insert or update on table "real_expenses" violates check constraint'),
-    )
-
-    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
-    const response = await POST(
-      buildRequest({
-        amount: 150,
-        description: 'Lunch',
-        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
-        is_for_group: false,
-      }),
-    )
-
-    expect(response.status).toBe(500)
-    // Single call site invariant
-    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
-    // No compensating actions: handler does NOT call any restore RPC nor a
-    // second mutation path. INSERT is not attempted directly.
-    expect(supabase.__mocks.insert).not.toHaveBeenCalled()
-    // Single logger.error site (atomic-op label)
     const errorMessages = loggerMod.logger.error.mock.calls.map((args) => args[0] as string)
     expect(errorMessages.filter((m) => /atomique/.test(m))).toHaveLength(1)
   })
 
-  it('exceptional path (no estimated_budget_id): single INSERT, atomic RPC not called', async () => {
+  it('exceptional path (no estimated_budget_id): single INSERT, no cascade RPC', async () => {
     const { supabase, expensesMod } = await importMocks()
 
-    // Exceptional INSERT result (single after insert+select)
     supabase.__mocks.single.mockResolvedValueOnce({
       data: { id: 'rx-exceptional', amount: 50, description: 'Coffee', is_exceptional: true },
       error: null,
@@ -435,24 +438,18 @@ describe('POST /api/finance/expenses/add-with-logic — smart allocation (atomic
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
     const response = await POST(
-      buildRequest({
-        amount: 50,
-        description: 'Coffee',
-        is_for_group: false,
-        // no estimated_budget_id → exceptional path
-      }),
+      buildRequest({ amount: 50, description: 'Coffee', is_for_group: false }),
     )
     const json = await response.json()
 
     expect(response.status).toBe(200)
     expect(json.breakdown).toBeNull()
     expect(json.real_expense).toBeDefined()
-    // INSERT called once (the exceptional path — direct INSERT, no RPC)
     expect(supabase.__mocks.insert).toHaveBeenCalledTimes(1)
     expect(supabase.__mocks.insert).toHaveBeenCalledWith(
       expect.objectContaining({ amount: 50, is_exceptional: true }),
     )
-    // Atomic RPC NOT called for exceptional path
     expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
   })
 })

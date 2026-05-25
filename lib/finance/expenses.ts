@@ -113,3 +113,58 @@ export async function addExpenseWithCrossBudgetCascade(
     consolidated_savings: number
   }
 }
+
+/**
+ * Composite atomic helper pour SUPPRIMER une dépense avec refund précis
+ * vers chaque source d'origine via la trace `expense_savings_sources`.
+ * Sprint Auto-Cascade-Piggy / Traceability (2026-05-26).
+ *
+ * Legacy fallback : si la dépense n'a aucune row trace (créée avant le
+ * sprint), refund selon les colonnes consolidées comme avant.
+ */
+export async function deleteExpenseWithSourcesRefund(
+  expenseId: string,
+): Promise<{ expense_id: string; sources_refunded: number }> {
+  const { data, error } = await supabaseServer.rpc('delete_expense_with_sources_refund', {
+    p_expense_id: expenseId,
+  })
+  if (error) throw error
+  return data as { expense_id: string; sources_refunded: number }
+}
+
+/**
+ * Composite atomic helper pour MODIFIER une dépense via reverse-then-reapply
+ * complet. Crédite toutes les sources d'origine, débite toutes les nouvelles
+ * sources passées en args, UPDATE consolidé sur `real_expenses`, remplace
+ * les rows `expense_savings_sources`.
+ *
+ * Le destination budget reste immutable via cette RPC. Pour changer de
+ * budget destination, le call site doit faire delete + add fresh.
+ */
+export async function updateExpenseWithSourcesReapply(args: {
+  expenseId: string
+  newAmount: number
+  newDescription: string
+  newExpenseDate: string
+  newAmountFromPiggyBank: number
+  newAmountFromLocalSavings: number
+  newAmountFromBudget: number
+  newCrossBudgetDebits: CrossBudgetDebit[]
+}): Promise<{ expense_id: string; cross_budget_total: number; consolidated_savings: number }> {
+  const { data, error } = await supabaseServer.rpc('update_expense_with_sources_reapply', {
+    p_expense_id: args.expenseId,
+    p_new_amount: args.newAmount,
+    p_new_description: args.newDescription,
+    p_new_expense_date: args.newExpenseDate,
+    p_new_amount_from_piggy_bank: args.newAmountFromPiggyBank,
+    p_new_amount_from_local_savings: args.newAmountFromLocalSavings,
+    p_new_amount_from_budget: args.newAmountFromBudget,
+    p_new_cross_budget_debits: args.newCrossBudgetDebits as unknown as Json,
+  })
+  if (error) throw error
+  return data as {
+    expense_id: string
+    cross_budget_total: number
+    consolidated_savings: number
+  }
+}
