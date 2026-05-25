@@ -112,6 +112,7 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
       await advanceMutation.mutateAsync({ fromStep: 'summary', toStep: 'manage_bilan' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(ADVANCE_ERROR_COPY[code] ?? "Impossible de passer à l'étape suivante.")
     }
   }

@@ -369,7 +369,7 @@ describe('BilanPositiveStep', () => {
   })
 
   describe('error handling', () => {
-    it('renders alert with mapped copy when transform mutation rejects with invalid_step', async () => {
+    it('swallows stale_step / invalid_step from transform mutation (hook re-routes, no alert)', async () => {
       const user = userEvent.setup()
       transformMock.mockRejectedValueOnce(new Error('invalid_step'))
 
@@ -377,8 +377,9 @@ describe('BilanPositiveStep', () => {
       await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
       await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/Cette étape n'est plus accessible/)
+        expect(transformMock).toHaveBeenCalledTimes(1)
       })
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('renders alert with generic copy when transform mutation rejects with unknown error', async () => {

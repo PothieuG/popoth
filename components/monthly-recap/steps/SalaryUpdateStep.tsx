@@ -80,6 +80,7 @@ export function SalaryUpdateStep({ context, onSalaryUpdated }: SalaryUpdateStepP
       await advanceMutation.mutateAsync({ fromStep: 'salary_update', toStep: 'final_recap' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(pickErrorCopy(code))
     }
   }
@@ -93,6 +94,7 @@ export function SalaryUpdateStep({ context, onSalaryUpdated }: SalaryUpdateStepP
       onSalaryUpdated()
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(pickErrorCopy(code))
     }
   }

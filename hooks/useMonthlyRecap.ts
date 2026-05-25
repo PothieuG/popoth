@@ -95,8 +95,8 @@ export function useStartRecap(context: RecapContext) {
       const json = (await res.json()) as { data: StartRecapMutationResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
     },
   })
 }
@@ -146,12 +146,12 @@ export function useAdvanceStep(context: RecapContext) {
       const json = (await res.json()) as { data: AdvanceStepMutationResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
     },
-    onError: (error) => {
+    onError: async (error) => {
       if (error.message === 'stale_step' || error.message === 'invalid_step') {
-        void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+        await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
       }
     },
   })
@@ -237,8 +237,8 @@ export function useTransformRemainingSurplusesToSavings(context: RecapContext) {
       const json = (await res.json()) as { data: TransformRemainingSurplusesResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
     },
   })
 }
@@ -449,8 +449,8 @@ export function useUpdateSalaries(context: RecapContext) {
       const json = (await res.json()) as { data: UpdateSalariesResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
       void qc.invalidateQueries({ queryKey: ['profile'] })
       invalidateFinancialRefreshes(qc)
     },
@@ -507,8 +507,8 @@ export function useCompleteRecap(context: RecapContext) {
       const json = (await res.json()) as { data: CompleteRecapResult }
       return json.data
     },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: recapStatusKey(context) })
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
       invalidateFinancialRefreshes(qc)
     },
   })

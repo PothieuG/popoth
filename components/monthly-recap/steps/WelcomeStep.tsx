@@ -42,6 +42,7 @@ export function WelcomeStep({ context }: { context: RecapContext }) {
       await advanceMutation.mutateAsync({ fromStep: 'welcome', toStep: 'complete_month' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(pickErrorCopy(code))
       if (code === 'already_completed') {
         const target = context === 'group' ? '/group-dashboard' : '/dashboard'

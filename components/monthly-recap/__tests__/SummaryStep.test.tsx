@@ -141,7 +141,7 @@ describe('SummaryStep', () => {
     })
   })
 
-  it('shows error message when advance mutation fails (stale_step)', async () => {
+  it('swallows stale_step / invalid_step from advance mutation (hook re-routes, no alert)', async () => {
     const user = userEvent.setup()
     advanceMock.mockRejectedValueOnce(new Error('stale_step'))
 
@@ -149,7 +149,20 @@ describe('SummaryStep', () => {
     await user.click(screen.getByRole('button', { name: 'Étape suivante' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/L'étape a évolué/)
+      expect(advanceMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows error message when advance mutation fails with an unmapped code', async () => {
+    const user = userEvent.setup()
+    advanceMock.mockRejectedValueOnce(new Error('boom'))
+
+    render(<SummaryStep context="profile" summary={makeSummary()} />)
+    await user.click(screen.getByRole('button', { name: 'Étape suivante' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/Impossible de passer à l'étape suivante/)
     })
   })
 })

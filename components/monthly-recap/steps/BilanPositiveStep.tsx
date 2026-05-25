@@ -66,6 +66,7 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
       await transformMutation.mutateAsync()
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(pickErrorCopy(code))
     }
   }

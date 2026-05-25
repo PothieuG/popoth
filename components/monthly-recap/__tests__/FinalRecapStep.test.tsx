@@ -260,7 +260,7 @@ describe('FinalRecapStep', () => {
     expect(btn).toBeDisabled()
   })
 
-  it('surfaces role="alert" with mapped copy when complete mutation rejects with invalid_step', async () => {
+  it('swallows stale_step / invalid_step from complete mutation (hook re-routes, no alert)', async () => {
     const user = userEvent.setup()
     completeMock.mockRejectedValueOnce(new Error('invalid_step'))
 
@@ -278,7 +278,30 @@ describe('FinalRecapStep', () => {
     await user.click(screen.getByRole('button', { name: 'Retourner au dashboard' }))
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/Cette étape n'est plus accessible/)
+      expect(completeMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('surfaces role="alert" with generic copy when complete mutation rejects with an unmapped error', async () => {
+    const user = userEvent.setup()
+    completeMock.mockRejectedValueOnce(new Error('boom'))
+
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary()}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Retourner au dashboard' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/Une erreur est survenue/)
     })
   })
 

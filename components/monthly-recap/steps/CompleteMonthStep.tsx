@@ -76,9 +76,9 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
       await advanceMutation.mutateAsync({ fromStep: 'complete_month', toStep: 'summary' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
-      // stale_step → invalidation déjà déclenchée par le hook, le wizard
-      // se re-route au refetch suivant ; on n'affiche pas l'erreur.
-      if (code === 'stale_step') return
+      // stale_step / invalid_step → invalidation déjà déclenchée par le hook,
+      // le wizard se re-route au refetch suivant ; on n'affiche pas l'erreur.
+      if (code === 'stale_step' || code === 'invalid_step') return
       setError(ADVANCE_ERROR_COPY[code] ?? "Impossible de passer à l'étape suivante.")
     }
   }
