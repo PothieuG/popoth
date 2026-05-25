@@ -31,6 +31,7 @@ export { asContextFilter, resolveContextIds, type ContextFilter, type ContextIds
 export { calculateIncomeCompensation } from './income-compensation'
 export { getBudgetSavingsDetail } from './budget-savings-detail'
 export { getGroupFinancialData, getProfileFinancialData } from './financial-data'
+export { canEditSalary, isPlannerEmpty, type PlannerScope } from './planner-emptiness'
 export { getRavFromDatabase, saveRavToDatabase } from './rav-persistence'
 export { saveRemainingToLiveSnapshot } from './snapshots'
 export {

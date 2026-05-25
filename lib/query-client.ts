@@ -35,6 +35,12 @@ export function createQueryClient() {
  * dashboard perso (montant updated, potentiellement auto-devalidate qui
  * crédite le solde back). Sans ces 2 keys, le user devait refresh la vue
  * perso manuellement pour voir la nouvelle valeur.
+ *
+ * `salary-editability` was added by Sprint Salary-Edit-Gating (2026-05-25)
+ * — l'édition du salaire dans Settings est conditionnée à un planificateur
+ * vierge. Toute mutation sur les 4 tables planificateur (budgets/incomes
+ * estimés ou réels) doit refetch la décision serveur pour relâcher (ou
+ * resserrer) le verrou côté UI sans refresh manuel.
  */
 export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['financial-summary'] })
@@ -44,4 +50,5 @@ export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['savings-data'] })
   qc.invalidateQueries({ queryKey: ['real-expenses'] })
   qc.invalidateQueries({ queryKey: ['bank-balance'] })
+  qc.invalidateQueries({ queryKey: ['salary-editability'] })
 }

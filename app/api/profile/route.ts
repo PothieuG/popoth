@@ -4,6 +4,7 @@ import type { TablesUpdate } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { createProfileBodySchema, updateProfileBodySchema } from '@/lib/schemas/profile'
+import { canEditSalary } from '@/lib/finance/planner-emptiness'
 import { logger } from '@/lib/logger'
 
 export interface ProfileData {
@@ -153,6 +154,31 @@ export const POST = withAuth(async (request, { userId }) => {
 export const PUT = withAuth(async (request, { userId }) => {
   try {
     const body = await parseBody(request, updateProfileBodySchema)
+
+    // Salary edit gating (Sprint Salary-Edit-Gating) — if the user tries to
+    // change their salary while the planner is not vierge, reject with 409.
+    // Aligns Settings with the wizard recap (only authorized path otherwise).
+    if (body.salary !== undefined) {
+      const { data: existing, error: fetchError } = await supabaseServer
+        .from('profiles')
+        .select('id, group_id, salary')
+        .eq('id', userId)
+        .single()
+
+      if (fetchError || !existing) {
+        return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
+      }
+
+      if (body.salary !== existing.salary) {
+        const decision = await canEditSalary({ id: existing.id, group_id: existing.group_id })
+        if (!decision.editable) {
+          return NextResponse.json(
+            { error: 'cannot-edit-salary-when-planner-not-empty' },
+            { status: 409 },
+          )
+        }
+      }
+    }
 
     // Schema already trims names + validates salary range + enforces the
     // "at least one field" refine. We just project to the DB row shape,

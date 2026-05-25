@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,7 @@ import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
+import { useSalaryEditability } from '@/hooks/useSalaryEditability'
 import {
   calculateUserContribution,
   formatCurrency,
@@ -64,6 +66,8 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
   const { updateProfile } = useProfile()
   const { currentGroup, hasGroup } = useGroups()
   const { contributions } = useGroupContributions()
+  const { editable: salaryEditable, isLoading: salaryEditabilityLoading } = useSalaryEditability()
+  const salaryLocked = !salaryEditable
 
   // Form state — lazy init from the (non-null) profile prop. The outer
   // gates rendering until profile is loaded, so the legacy sync effect
@@ -137,19 +141,22 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
       newErrors.lastName = 'Le nom ne peut pas être vide'
     }
 
-    // Salary is now required
-    if (!salary.trim()) {
-      newErrors.salary = 'Le salaire est requis'
-    } else {
-      const salaryNum = parseFloat(salary)
-      if (isNaN(salaryNum) || salaryNum <= 0 || salaryNum > 999999.99) {
-        newErrors.salary = 'Le salaire doit être un nombre entre 1 et 999,999.99 €'
+    // Salary validation only when editable — if locked, the field is read-only
+    // and the user can't change it (the existing DB value is preserved).
+    if (!salaryLocked) {
+      if (!salary.trim()) {
+        newErrors.salary = 'Le salaire est requis'
+      } else {
+        const salaryNum = parseFloat(salary)
+        if (isNaN(salaryNum) || salaryNum <= 0 || salaryNum > 999999.99) {
+          newErrors.salary = 'Le salaire doit être un nombre entre 1 et 999,999.99 €'
+        }
       }
-    }
 
-    // Check if there's a contribution warning (blocking error)
-    if (contributionWarning) {
-      newErrors.salary = contributionWarning.message
+      // Check if there's a contribution warning (blocking error)
+      if (contributionWarning) {
+        newErrors.salary = contributionWarning.message
+      }
     }
 
     setErrors(newErrors)
@@ -188,10 +195,15 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
 
     setIsSaving(true)
     try {
-      const updates = {
+      // When the salary field is locked (planificateur not vierge), skip it
+      // from the update payload — server-side enforcement rejects mismatches
+      // with 409, but omitting the field keeps the partial PUT semantics.
+      const updates: Parameters<typeof updateProfile>[0] = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        salary: salary.trim() ? parseFloat(salary) : 0,
+      }
+      if (!salaryLocked) {
+        updates.salary = salary.trim() ? parseFloat(salary) : 0
       }
 
       const success = await updateProfile(updates)
@@ -397,7 +409,13 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                 value={salary}
                 onChange={(e) => handleSalaryChange(e.target.value)}
                 placeholder="Ex: 2500"
-                className={`pr-8 ${errors.salary || contributionWarning ? 'border-red-300 focus:border-red-500' : ''}`}
+                disabled={salaryLocked}
+                aria-describedby={salaryLocked ? 'salary-locked-hint' : undefined}
+                className={`pr-8 ${
+                  errors.salary || (contributionWarning && !salaryLocked)
+                    ? 'border-red-300 focus:border-red-500'
+                    : ''
+                } ${salaryLocked ? 'cursor-not-allowed bg-gray-50 text-gray-500' : ''}`}
               />
               <span className="absolute top-1/2 right-3 -translate-y-1/2 transform text-sm text-gray-500">
                 €
@@ -407,8 +425,10 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
               <p className="col-start-2 -mt-1 text-xs text-red-600">{errors.salary}</p>
             )}
 
-            {/* Contribution Warning — span both columns */}
-            {contributionWarning && !errors.salary && (
+            {/* Contribution Warning — span both columns. Hidden when salary
+                is locked (the field is read-only so any "trop élevé" warning
+                from the un-saved input would be misleading). */}
+            {contributionWarning && !errors.salary && !salaryLocked && (
               <div className="col-span-2 rounded-md border border-red-200 bg-red-50 p-3">
                 <div className="flex items-start">
                   <svg
@@ -441,16 +461,34 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
               </div>
             )}
 
-            <p className="col-start-2 text-xs text-gray-500">
-              <span className="text-red-500">*</span> Requis pour la contribution au groupe
-            </p>
+            {salaryLocked && !salaryEditabilityLoading ? (
+              <p
+                id="salary-locked-hint"
+                className="col-start-2 flex items-start gap-1.5 text-xs text-gray-500"
+              >
+                <Lock className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                <span>
+                  Modifiable à la fin de ton recap mensuel, ou quand ton planificateur est
+                  complètement vide.
+                </span>
+              </p>
+            ) : (
+              <p className="col-start-2 text-xs text-gray-500">
+                <span className="text-red-500">*</span> Requis pour la contribution au groupe
+              </p>
+            )}
           </div>
 
           {/* Action Buttons */}
           <div className="mt-3 flex gap-1.5">
             <Button
               onClick={handleSave}
-              disabled={isSaving || contributionWarning !== null || Object.keys(errors).length > 0}
+              disabled={
+                isSaving ||
+                salaryEditabilityLoading ||
+                (!salaryLocked && contributionWarning !== null) ||
+                Object.keys(errors).length > 0
+              }
               className="flex-1 bg-linear-to-r from-blue-600 to-purple-600 text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isSaving && <InlineSpinner className="mr-1.5" />}
