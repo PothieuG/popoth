@@ -200,14 +200,25 @@ describe('BilanPositiveStep', () => {
   })
 
   describe('without surplus (bilanSign=zero edge case OR all transferred)', () => {
-    it('shows "Aucun surplus" copy + only Continuer button (no Répartir)', () => {
+    it('shows "Aucun surplus" copy + Continuer button + Répartir button rendered but disabled', () => {
       render(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
 
       expect(screen.getByText('Aucun surplus à transformer.')).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
-      ).not.toBeInTheDocument()
+      const repartirBtn = screen.getByRole('button', { name: 'Aucun surplus à répartir' })
+      expect(repartirBtn).toBeInTheDocument()
+      expect(repartirBtn).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
+    })
+
+    it('clicking the disabled Répartir button does not open the drawer', async () => {
+      const user = userEvent.setup()
+      render(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
+
+      await user.click(screen.getByRole('button', { name: 'Aucun surplus à répartir' }))
+
+      expect(
+        screen.queryByRole('heading', { name: 'Répartir vers la tirelire' }),
+      ).not.toBeInTheDocument()
     })
 
     it('Continuer click calls transform mutation (no-op safe + advances step)', async () => {
@@ -220,6 +231,41 @@ describe('BilanPositiveStep', () => {
       await waitFor(() => {
         expect(transformMock).toHaveBeenCalledTimes(1)
       })
+    })
+  })
+
+  describe('piggy bank card', () => {
+    it('renders the violet "Tirelire actuelle" card with the formatted amount', () => {
+      render(<BilanPositiveStep context="profile" summary={makeSummary({ piggyAmount: 123.45 })} />)
+
+      const card = screen.getByRole('region', { name: 'Tirelire actuelle' })
+      expect(card).toBeInTheDocument()
+      expect(card).toHaveTextContent('Tirelire actuelle')
+      expect(card).toHaveTextContent(/123,45/)
+    })
+
+    it('renders the card even when piggyAmount is 0', () => {
+      render(<BilanPositiveStep context="profile" summary={makeSummary({ piggyAmount: 0 })} />)
+
+      const card = screen.getByRole('region', { name: 'Tirelire actuelle' })
+      expect(card).toBeInTheDocument()
+      expect(card).toHaveTextContent(/0,00/)
+    })
+
+    it('renders the card even when there is no surplus (bilan=zero case)', () => {
+      render(
+        <BilanPositiveStep
+          context="profile"
+          summary={makeSummary({
+            ...emptySurplusSummary,
+            piggyAmount: 42,
+          })}
+        />,
+      )
+
+      const card = screen.getByRole('region', { name: 'Tirelire actuelle' })
+      expect(card).toBeInTheDocument()
+      expect(card).toHaveTextContent(/42,00/)
     })
   })
 
@@ -290,7 +336,7 @@ describe('BilanPositiveStep', () => {
       expect(screen.getByText('Transport')).toBeInTheDocument()
     })
 
-    it('after FULL transfer: drawer closes, Répartir disappears, only Continuer left', async () => {
+    it('after FULL transfer: drawer closes, Répartir becomes disabled, Continuer still active', async () => {
       const user = userEvent.setup()
       transferMock.mockResolvedValueOnce({
         transferred: [
@@ -315,9 +361,9 @@ describe('BilanPositiveStep', () => {
       await waitFor(() => {
         expect(screen.getByText('Aucun surplus à transformer.')).toBeInTheDocument()
       })
-      expect(
-        screen.queryByRole('button', { name: 'Répartir un surplus vers la tirelire ?' }),
-      ).not.toBeInTheDocument()
+      const repartirBtn = screen.getByRole('button', { name: 'Aucun surplus à répartir' })
+      expect(repartirBtn).toBeInTheDocument()
+      expect(repartirBtn).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
   })

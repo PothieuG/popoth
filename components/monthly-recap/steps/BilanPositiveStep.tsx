@@ -30,22 +30,24 @@ interface BilanPositiveStepProps {
 
 /**
  * Sprint 12 — Écran 3A du wizard Monthly Recap V3 quand `bilanSign ∈
- * {'positive', 'zero'}`. UI sans state machine "Oui/Non" : le bouton
- * "Répartir un surplus vers la tirelire ?" est toujours présent tant qu'il
- * reste des surplus à distribuer, et un bouton "Continuer" en bas finalise
- * l'étape en transformant le reste en économies. Fermer le drawer (volontaire
- * ou par mégarde) ne perd plus l'accès au split — le bouton "Répartir" reste
- * visible pour rouvrir le drawer autant de fois que voulu (Sprint 12 follow-up
- * UX, 2026-05-24).
+ * {'positive', 'zero'}`. UI sans state machine "Oui/Non" : carte tirelire
+ * en tête (toujours visible, reflète `summary.piggyAmount` en live), section
+ * indicative des surplus à transformer en économies, bouton persistent
+ * "Répartir un surplus vers la tirelire ?" (toujours rendu, disabled grisé
+ * quand `!hasSurplus`), bouton "Continuer" en bas qui finalise l'étape.
+ * Fermer le drawer (volontaire ou par mégarde) ne perd plus l'accès au
+ * split — le bouton "Répartir" reste là pour rouvrir le drawer autant de
+ * fois que voulu (Sprint 12 follow-up UX, 2026-05-24).
  *
- * - Tant que `hasSurplus` : section indicative (récap transformation) +
- *   bouton "Répartir" (ouvre `<SurplusSelectionDrawer>`) + bouton "Continuer"
- *   (appelle `/transform-remaining-surpluses-to-savings`, transforme tous les
- *   surplus restants en économies, le serveur fait avancer
- *   `current_step → 'salary_update'`).
+ * - Tant que `hasSurplus` : section verte indicative + bouton "Répartir"
+ *   actif (ouvre `<SurplusSelectionDrawer>`) + bouton "Continuer" (appelle
+ *   `/transform-remaining-surpluses-to-savings`, transforme tous les surplus
+ *   restants en économies, le serveur fait avancer `current_step →
+ *   'salary_update'`).
  * - Quand tous les surplus ont été transférés (ou bilan = 0 sans surplus) :
- *   message "Aucun surplus à transformer." + bouton "Continuer" seul (l'appel
- *   transform est no-op safe côté serveur, sert juste à avancer le step).
+ *   message "Aucun surplus à transformer." + bouton "Répartir" grisé +
+ *   bouton "Continuer" actif (l'appel transform est no-op safe côté serveur,
+ *   sert juste à avancer le step).
  */
 export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -88,6 +90,31 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-gray-900">Gestion du bilan positif</h1>
 
+      <section
+        aria-label="Tirelire actuelle"
+        className="flex items-center justify-between rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3"
+      >
+        <div className="flex items-center gap-3">
+          <div
+            aria-hidden="true"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-500 text-white"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 8v8m4-4H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <span className="text-sm font-medium text-violet-900">Tirelire actuelle</span>
+        </div>
+        <span className="text-base font-semibold text-violet-900 tabular-nums">
+          {formatEuro(summary.piggyAmount)}
+        </span>
+      </section>
+
       {hasSurplus ? (
         <section className="rounded-2xl border border-green-200 bg-green-50 p-4">
           <p className="mb-3 text-xs font-medium tracking-wide text-green-700 uppercase">
@@ -119,17 +146,16 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
         </section>
       )}
 
-      {hasSurplus && (
-        <Button
-          type="button"
-          variant="secondary"
-          className="w-full border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100"
-          onClick={() => setDrawerOpen(true)}
-          disabled={isBusy}
-        >
-          Répartir un surplus vers la tirelire ?
-        </Button>
-      )}
+      <Button
+        type="button"
+        variant="secondary"
+        className="w-full border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={() => setDrawerOpen(true)}
+        disabled={isBusy || !hasSurplus}
+        aria-label={hasSurplus ? undefined : 'Aucun surplus à répartir'}
+      >
+        Répartir un surplus vers la tirelire ?
+      </Button>
 
       <Button type="button" className="w-full" onClick={handleContinue} disabled={isBusy}>
         {transformMutation.isPending ? 'Chargement…' : 'Continuer'}
