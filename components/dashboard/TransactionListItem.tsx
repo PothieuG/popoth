@@ -150,6 +150,32 @@ export default function TransactionListItem({
   const hasCarryOverContext = transaction.carried_from_recap_id != null
   const isCurrentlyCarried = transaction.is_carried_over === true
 
+  /**
+   * Feature "Contribution au groupe" (2026-05-28). Row auto-managée par
+   * trigger DB (cf. sync_contribution_real_expense). Dérive l'état UI :
+   *   - isContributionRow : on rend en mode read-only (catégorie grise,
+   *     pas de bouton Modifier/Supprimer).
+   *   - needsInitialValidation : jamais validée → warning "première
+   *     validation requise".
+   *   - hasDrift : validée à un montant différent du courant (le trigger
+   *     a réécrit `amount` mais `last_applied_amount` reste figé) →
+   *     warning "désynchronisée, revalider".
+   *   - driftDelta : new amount - last_applied_amount (positif = augmentation,
+   *     négatif = diminution).
+   */
+  const isContributionRow =
+    type === 'expense' && (transaction as RealExpense).contribution_id != null
+  const contribLastApplied =
+    type === 'expense' ? ((transaction as RealExpense).last_applied_amount ?? null) : null
+  const needsInitialValidation = isContributionRow && !isApplied && contribLastApplied == null
+  const hasDrift =
+    isContributionRow &&
+    isApplied &&
+    contribLastApplied != null &&
+    contribLastApplied !== transaction.amount
+  const driftDelta =
+    hasDrift && contribLastApplied != null ? transaction.amount - contribLastApplied : 0
+
   const runToggle = async () => {
     if (isToggling) return
     setIsToggling(true)
@@ -231,8 +257,17 @@ export default function TransactionListItem({
 
   /**
    * Get transaction category name (budget or income name, or "Exceptionnel")
+   *
+   * Feature "Contribution au groupe" (2026-05-28) — les rows contribution
+   * affichent "Contribution groupe" en catégorie (au lieu d'"Exceptionnel"
+   * malgré is_exceptional=true côté DB). Le nom du groupe est déjà dans la
+   * description, on garde la catégorie courte et générique pour la lisibilité.
    */
   const getCategoryName = (): string => {
+    if (isContributionRow) {
+      return 'Contribution groupe'
+    }
+
     if (transaction.is_exceptional) {
       return 'Exceptionnel'
     }
@@ -255,6 +290,12 @@ export default function TransactionListItem({
    * comme ancre primaire (lisibilité mobile, hiérarchie visuelle).
    */
   const getCategoryTextColor = (): string => {
+    // Feature "Contribution au groupe" (2026-05-28) — gris neutre pour
+    // signaler le status read-only / auto-managé, distinct du jaune des
+    // exceptionnelles et du bleu des budgetées.
+    if (isContributionRow) {
+      return 'text-gray-600'
+    }
     if (transaction.is_exceptional) {
       return 'text-yellow-700'
     } else {
@@ -647,22 +688,80 @@ export default function TransactionListItem({
           {/* Actions dropdown - Bigger and centered. stopPropagation sur
               pointerdown empêche le long-press de la carte de démarrer quand
               on tape sur les 3 points (sinon hold sur le bouton fait toggle
-              du solde au lieu d'ouvrir le menu). */}
-          <div
-            className="ml-1.5 flex min-h-full shrink-0 items-center"
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <DropdownMenu
-              items={getDropdownItems()}
-              buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"
-              buttonContent={
-                <svg className="h-6 w-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                </svg>
-              }
-            />
-          </div>
+              du solde au lieu d'ouvrir le menu).
+
+              Feature "Contribution au groupe" (2026-05-28) — kebab masqué
+              entièrement pour les rows contribution : pas d'édition ni de
+              suppression manuelle possibles (cycle de vie 100% piloté par
+              triggers DB). Seule la validation/dévalidation via long-press
+              sur la carte reste disponible. */}
+          {!isContributionRow && (
+            <div
+              className="ml-1.5 flex min-h-full shrink-0 items-center"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <DropdownMenu
+                items={getDropdownItems()}
+                buttonClassName="p-3 hover:bg-gray-100 rounded-lg transition-colors flex items-center justify-center h-full"
+                buttonContent={
+                  <svg className="h-6 w-6 text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                  </svg>
+                }
+              />
+            </div>
+          )}
         </div>
+
+        {/* Feature "Contribution au groupe" (2026-05-28) — bloc warning
+            in-card affiché dans 2 cas :
+              (1) première validation requise (never applied).
+              (2) drift entre amount auto-update et last_applied_amount
+                  → le user doit ajouter/retirer le delta du groupe et
+                  re-valider.
+            Bordure + fond orange légers (charte : orange = "needs attention",
+            distinct du red "déficit" et du yellow réservé "exceptionnel").
+            Le bloc apparaît dans la carte (pas un toast), au-dessous des
+            lignes d'info principales. */}
+        {isContributionRow && (needsInitialValidation || hasDrift) && (
+          <div
+            role="status"
+            className="mt-2 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-2 text-xs text-orange-900"
+          >
+            <svg
+              className="mt-px h-4 w-4 shrink-0 text-orange-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"
+              />
+            </svg>
+            <div className="flex-1">
+              {needsInitialValidation ? (
+                <p>
+                  Cette dépense n&apos;a pas encore été validée. Long-press pour valider{' '}
+                  <span className="font-semibold">{formatAmount(transaction.amount)}</span>.
+                </p>
+              ) : (
+                <p>
+                  Attention, la valeur de la contribution est passée à{' '}
+                  <span className="font-semibold">{formatAmount(transaction.amount)}</span>{' '}
+                  <span className="font-semibold">
+                    (soit {driftDelta >= 0 ? '+' : ''}
+                    {formatAmount(driftDelta)})
+                  </span>
+                  . Veuillez ajouter/retirer ce montant du groupe et re-valider la dépense.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delete confirmation modal */}

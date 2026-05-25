@@ -470,6 +470,7 @@ export type Database = {
           amount_from_piggy_bank: number | null
           applied_to_balance_at: string | null
           carried_from_recap_id: string | null
+          contribution_id: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -479,6 +480,7 @@ export type Database = {
           id: string
           is_carried_over: boolean
           is_exceptional: boolean
+          last_applied_amount: number | null
           profile_id: string | null
         }
         Insert: {
@@ -488,6 +490,7 @@ export type Database = {
           amount_from_piggy_bank?: number | null
           applied_to_balance_at?: string | null
           carried_from_recap_id?: string | null
+          contribution_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -497,6 +500,7 @@ export type Database = {
           id?: string
           is_carried_over?: boolean
           is_exceptional?: boolean
+          last_applied_amount?: number | null
           profile_id?: string | null
         }
         Update: {
@@ -506,6 +510,7 @@ export type Database = {
           amount_from_piggy_bank?: number | null
           applied_to_balance_at?: string | null
           carried_from_recap_id?: string | null
+          contribution_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -515,6 +520,7 @@ export type Database = {
           id?: string
           is_carried_over?: boolean
           is_exceptional?: boolean
+          last_applied_amount?: number | null
           profile_id?: string | null
         }
         Relationships: [
@@ -523,6 +529,13 @@ export type Database = {
             columns: ["carried_from_recap_id"]
             isOneToOne: false
             referencedRelation: "monthly_recaps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "real_expenses_contribution_id_fkey"
+            columns: ["contribution_id"]
+            isOneToOne: false
+            referencedRelation: "group_contributions"
             referencedColumns: ["id"]
           },
           {
@@ -569,6 +582,7 @@ export type Database = {
           id: string
           is_carried_over: boolean
           is_exceptional: boolean
+          last_applied_amount: number | null
           profile_id: string | null
         }
         Insert: {
@@ -584,6 +598,7 @@ export type Database = {
           id?: string
           is_carried_over?: boolean
           is_exceptional?: boolean
+          last_applied_amount?: number | null
           profile_id?: string | null
         }
         Update: {
@@ -599,6 +614,7 @@ export type Database = {
           id?: string
           is_carried_over?: boolean
           is_exceptional?: boolean
+          last_applied_amount?: number | null
           profile_id?: string | null
         }
         Relationships: [

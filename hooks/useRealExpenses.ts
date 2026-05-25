@@ -39,6 +39,21 @@ export interface RealExpense {
    * carry-over).
    */
   carried_from_recap_id?: string | null
+  /**
+   * Feature "Contribution au groupe" (2026-05-28). Non-null = row auto-managée
+   * par le trigger DB `sync_contribution_real_expense` (la row reflète
+   * `group_contributions.contribution_amount` du user). L'UI rend cette
+   * row en mode read-only spécial : pas de bouton Modifier/Supprimer,
+   * catégorie en gris, warning + delta si désynchronisée.
+   */
+  contribution_id?: string | null
+  /**
+   * Feature "Contribution au groupe" (2026-05-28). Snapshot du montant
+   * de la dépense au moment de la dernière validation long-press. Sert à
+   * détecter le drift quand le trigger a réécrit `amount` après que le
+   * user a validé (delta = `amount - last_applied_amount`).
+   */
+  last_applied_amount?: number | null
   estimated_budget?: {
     name: string
   }

@@ -32,6 +32,19 @@ export interface RealExpenseData {
     last_name: string | null
     avatar_url: string | null
   } | null
+  /**
+   * Feature "Contribution au groupe" (2026-05-28) — non-null = row auto-managée
+   * par trigger `sync_contribution_real_expense`. Édition/suppression manuelle
+   * bloquées par les guards 409 PUT/DELETE. UI rend en mode read-only.
+   */
+  contribution_id?: string | null
+  /**
+   * Feature "Contribution au groupe" (2026-05-28) — snapshot du montant au
+   * moment de la dernière validation long-press. Utilisé par l'UI pour
+   * calculer le delta affiché si le trigger a auto-mis-à-jour `amount`
+   * pendant que la row était validée (= drift à re-valider).
+   */
+  last_applied_amount?: number | null
 }
 
 export interface CreateRealExpenseRequest {
@@ -284,13 +297,23 @@ export const PUT = withAuth(async (request: NextRequest) => {
     // alors une dépense normale et l'édition est ré-autorisée.
     // L'UI omet déjà "Modifier" du dropdown pour les carry-overs ; ce guard
     // est la défense en profondeur côté API.
-    const { data: carriedCheck } = await supabaseServer
+    //
+    // Feature "Contribution au groupe" (2026-05-28) — interdire aussi la
+    // modification d'une row contribution auto-managée (`contribution_id`
+    // non-null). Le montant suit `group_contributions.contribution_amount`
+    // via le trigger `sync_contribution_real_expense` ; la description suit
+    // le nom du groupe. Aucune édition manuelle ne doit pouvoir corrompre
+    // cet état dérivé.
+    const { data: protectedCheck } = await supabaseServer
       .from('real_expenses')
-      .select('is_carried_over')
+      .select('is_carried_over, contribution_id')
       .eq('id', id)
       .maybeSingle()
-    if (carriedCheck?.is_carried_over) {
+    if (protectedCheck?.is_carried_over) {
       return NextResponse.json({ error: 'cannot-edit-carried-transaction' }, { status: 409 })
+    }
+    if (protectedCheck?.contribution_id) {
+      return NextResponse.json({ error: 'cannot-edit-contribution-row' }, { status: 409 })
     }
 
     const updates: RealExpenseUpdate = {}
@@ -396,10 +419,20 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     const { data: expenseToDelete } = await supabaseServer
       .from('real_expenses')
       .select(
-        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, applied_to_balance_at, is_carried_over',
+        'profile_id, group_id, is_exceptional, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, applied_to_balance_at, is_carried_over, contribution_id',
       )
       .eq('id', id)
       .single()
+
+    // Feature "Contribution au groupe" (2026-05-28) — interdire la suppression
+    // manuelle d'une row contribution auto-managée. Le cycle de vie est piloté
+    // par les triggers DB (création/sync via `sync_contribution_real_expense`
+    // sur group_contributions UPSERT ; suppression via CASCADE quand le user
+    // quitte le groupe — le trigger `credit_balance_on_contribution_delete`
+    // restitue alors le solde si nécessaire).
+    if (expenseToDelete?.contribution_id) {
+      return NextResponse.json({ error: 'cannot-delete-contribution-row' }, { status: 409 })
+    }
 
     // Sprint 15 Monthly Recap V3 (2026-05-27) — auto-detect carry-over.
     // Une dépense reportée (`is_carried_over=true`) doit être supprimée via

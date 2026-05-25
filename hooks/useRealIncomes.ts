@@ -32,6 +32,13 @@ export interface RealIncome {
    * validation pour permettre le retour arrière.
    */
   carried_from_recap_id?: string | null
+  /**
+   * Feature "Contribution au groupe" (2026-05-28) — pattern symétrique de
+   * `RealExpense.last_applied_amount` : la RPC toggle écrit ce snapshot
+   * pour cohérence. Côté revenus, aucun trigger n'auto-update le montant,
+   * donc le drift est toujours = 0 (pas d'UI dédiée).
+   */
+  last_applied_amount?: number | null
   estimated_income?: {
     name: string
   }

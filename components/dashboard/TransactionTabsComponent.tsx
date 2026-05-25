@@ -103,12 +103,35 @@ export default function TransactionTabsComponent({
 
   // Sprint P1 — filter CSR by period. Range null = no filter applied.
   const dateRange = useMemo(() => (period ? computePeriodDateRange(period) : null), [period])
-  const filteredExpenses = useMemo(() => {
+  const filteredExpensesRaw = useMemo(() => {
     if (!dateRange) return expenses
     return expenses.filter(
       (e) => e.expense_date >= dateRange.startDate && e.expense_date <= dateRange.endDate,
     )
   }, [expenses, dateRange])
+
+  // Feature "Contribution au groupe" (2026-05-28) — float au top les rows
+  // contribution qui demandent l'attention du user (jamais validée OU drift
+  // après auto-update du trigger). Les rows contribution validées et en sync
+  // suivent l'ordre chronologique normal. Stable-sort : on préserve l'ordre
+  // serveur (expense_date DESC, created_at DESC) à l'intérieur de chaque
+  // bucket (warning vs normal).
+  const filteredExpenses = useMemo(() => {
+    const needsAttention = (e: (typeof filteredExpensesRaw)[number]) => {
+      if (!e.contribution_id) return false
+      const isApplied = e.applied_to_balance_at != null
+      if (!isApplied) return true
+      return e.last_applied_amount != null && e.last_applied_amount !== e.amount
+    }
+    const warning: typeof filteredExpensesRaw = []
+    const normal: typeof filteredExpensesRaw = []
+    for (const e of filteredExpensesRaw) {
+      if (needsAttention(e)) warning.push(e)
+      else normal.push(e)
+    }
+    return [...warning, ...normal]
+  }, [filteredExpensesRaw])
+
   const filteredIncomes = useMemo(() => {
     if (!dateRange) return incomes
     return incomes.filter(
