@@ -29,6 +29,12 @@ interface FinancialIndicatorsProps {
    * source backend `FinancialData.meta.readOnlyIncomes`.
    */
   readOnlyIncomes?: ReadOnlyIncome[]
+  /**
+   * Sprint 16 V3 (groupe uniquement) — somme des salaires des membres,
+   * forward au drawer Planification comme plafond de validation budget.
+   * Source backend `FinancialData.meta.groupSalaryTotal`.
+   */
+  groupSalaryTotal?: number
 }
 
 /**
@@ -45,6 +51,7 @@ export default function FinancialIndicators({
   context,
   isFetching = false,
   readOnlyIncomes,
+  groupSalaryTotal,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -274,6 +281,7 @@ export default function FinancialIndicators({
         onPlanningChange={onPlanningChange}
         context={context}
         readOnlyIncomes={readOnlyIncomes}
+        groupSalaryTotal={groupSalaryTotal}
       />
 
       {/* Savings Drawer */}

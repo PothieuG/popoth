@@ -23,13 +23,22 @@ export interface FinancialData {
   bankBalance?: number // Optional: solde bancaire (legacy field used in some logs)
   piggyBank?: number // Optional: tirelire (utilisé par useExpenseBreakdown)
   totalEstimatedBudget?: number // Optional: alias singulier (legacy logs)
-  // Sprint 16 Monthly Recap V3 — lignes "virtuelles" en lecture seule à
-  // afficher en tête de la liste des revenus estimés (drawer Planification) :
-  // salaire perso (profile context) ou contribution groupe (group context,
-  // userId requis sur getGroupFinancialData). Purement présentationnel ;
-  // n'impacte ni totalEstimatedIncome, ni les calculs du recap.
+  // Sprint 16 Monthly Recap V3 — métadonnées présentationnelles pour le
+  // drawer Planification.
+  //
+  // - readOnlyIncomes : lignes virtuelles read-only à afficher en tête de la
+  //   liste des revenus estimés (salaire perso, contribution de chaque membre
+  //   en groupe). Purement présentationnel, aucun impact sur les autres totaux.
+  // - groupSalaryTotal (groupe uniquement) : somme des salaires des membres,
+  //   utilisée par le formulaire "Ajouter/Modifier un budget" comme plafond
+  //   de validation. Sans ce plafond, un groupe vide est bloqué : pas de
+  //   budget → contribution = 0 → "Total revenus estimés" = 0 → impossible
+  //   d'ajouter le moindre budget. Le plafond salaires brise ce cycle :
+  //   le groupe ne peut pas budgéter plus que ce que ses membres gagnent
+  //   collectivement.
   meta?: {
     readOnlyIncomes: ReadOnlyIncome[]
+    groupSalaryTotal?: number
   }
 }
 

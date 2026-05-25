@@ -185,15 +185,20 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     const incomeContribution = incomeCompensation + profileSalary
 
     // Sprint 16 V3 — pour le groupe, on fetch une fois les contributions
-    // jointes au first_name des membres. Le résultat sert à la fois au RAV
-    // (somme totale) et aux lignes virtuelles read-only (une ligne par
-    // membre dans le drawer Planification groupe).
-    type GroupContribRow = { contribution_amount: number; profiles: { first_name: string } | null }
+    // jointes au first_name des membres + le snapshot de salaire. Le résultat
+    // sert à 3 calculs : (1) RAV via totalProfileContributions, (2) lignes
+    // virtuelles read-only une-par-membre, (3) plafond de validation budget
+    // (`meta.groupSalaryTotal`, voir types.ts).
+    type GroupContribRow = {
+      contribution_amount: number
+      salary: number
+      profiles: { first_name: string } | null
+    }
     let groupContributions: GroupContribRow[] = []
     if (!isProfile) {
       const { data } = await supabaseServer
         .from('group_contributions')
-        .select('contribution_amount, profiles:profile_id (first_name)')
+        .select('contribution_amount, salary, profiles:profile_id (first_name)')
         .eq('group_id', ownerId)
       groupContributions = (data ?? []) as unknown as GroupContribRow[]
     }
@@ -234,6 +239,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // purement présentationnel ; aucun impact sur totalEstimatedIncome ni
     // sur les calculs du recap mensuel (load-summary.ts).
     const readOnlyIncomes: ReadOnlyIncome[] = []
+    let groupSalaryTotal: number | undefined
     if (isProfile) {
       if (profileSalary > 0) {
         readOnlyIncomes.push({ kind: 'salary', label: 'Salaire', amount: profileSalary })
@@ -256,6 +262,10 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
           amount: row.amount,
         })
       }
+      // Somme des salaires des membres (snapshot via trigger), utilisée comme
+      // plafond de validation pour "Ajouter un budget" en contexte groupe.
+      // Brise le cycle "pas de budget → contribution = 0 → ajout budget bloqué".
+      groupSalaryTotal = groupContributions.reduce((sum, c) => sum + (c.salary ?? 0), 0)
     }
 
     return {
@@ -266,7 +276,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       totalEstimatedBudgets,
       totalRealIncome,
       totalRealExpenses,
-      meta: { readOnlyIncomes },
+      meta: { readOnlyIncomes, ...(groupSalaryTotal !== undefined && { groupSalaryTotal }) },
     }
   } catch (error) {
     logger.error('Erreur lors du calcul des données financières', { ownerColumn, ownerId, error })

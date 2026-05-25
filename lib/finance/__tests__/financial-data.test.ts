@@ -94,8 +94,11 @@ describe.skipIf(!ENABLED)(
       // Sprint 16 V3 — une ligne read-only par membre du groupe avec
       // contribution > 0. Single-member group (first_name = "Finance") →
       // 1 ligne `Contribution de Finance` au montant post-trigger (600).
+      // groupSalaryTotal = somme(salaires snapshot dans group_contributions) =
+      // 1500 (Finance.salary à la dernière exécution du trigger).
       meta: {
         readOnlyIncomes: [{ kind: 'contribution', label: 'Contribution de Finance', amount: 600 }],
+        groupSalaryTotal: 1500,
       },
     }
 
@@ -485,11 +488,11 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
   }, 30_000)
 
   it('case 5 — fail-soft: unknown UUIDs return all-zero FinancialData, never throw', async () => {
-    // Sprint 16 V3 — `meta.readOnlyIncomes` est exposé partout, même sur fail-soft :
-    // chemin happy path (UUID inconnu, salary null/0 ou pas de contribution
-    // user) → tableau vide. La forme garantie est `{...EMPTY_FINANCIAL_DATA}`
-    // + `meta: { readOnlyIncomes: [] }` (constants.ts + financial-data.ts catch).
-    const EMPTY_SHAPE = {
+    // Sprint 16 V3 — `meta` est toujours exposé, même sur UUID inconnu (le
+    // happy path n'arrête pas, il calcule juste avec 0 partout). Profile :
+    // pas de groupSalaryTotal (perso only). Groupe : groupSalaryTotal = 0
+    // (aucune contribution row → sum vide).
+    const PROFILE_EMPTY_SHAPE = {
       availableBalance: 0,
       remainingToLive: 0,
       totalSavings: 0,
@@ -499,11 +502,16 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
       totalRealExpenses: 0,
       meta: { readOnlyIncomes: [] },
     }
+    const GROUP_EMPTY_SHAPE = {
+      ...PROFILE_EMPTY_SHAPE,
+      meta: { readOnlyIncomes: [], groupSalaryTotal: 0 },
+    }
+
     const profileData = await getProfileFinancialData(randomUUID())
-    expect(profileData).toEqual(EMPTY_SHAPE)
+    expect(profileData).toEqual(PROFILE_EMPTY_SHAPE)
 
     const groupData = await getGroupFinancialData(randomUUID())
-    expect(groupData).toEqual(EMPTY_SHAPE)
+    expect(groupData).toEqual(GROUP_EMPTY_SHAPE)
   }, 30_000)
 })
 
@@ -695,9 +703,19 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
     ])
   }, 30_000)
 
+  it('group multi-membres → meta.groupSalaryTotal = somme des salaires (Alice 2000 + Bob 1000 = 3000)', async () => {
+    const data = await getGroupFinancialData(multiGroupId)
+    expect(data.meta?.groupSalaryTotal).toBe(3000)
+  }, 30_000)
+
   it('group sans contribution (monthly_budget=0, aucun membre) → meta.readOnlyIncomes vide', async () => {
     const data = await getGroupFinancialData(emptyGroupId)
     expect(data.meta?.readOnlyIncomes).toEqual([])
+  }, 30_000)
+
+  it('group sans membre → meta.groupSalaryTotal = 0 (plafond budget = 0)', async () => {
+    const data = await getGroupFinancialData(emptyGroupId)
+    expect(data.meta?.groupSalaryTotal).toBe(0)
   }, 30_000)
 })
 

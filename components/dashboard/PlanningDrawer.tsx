@@ -36,6 +36,13 @@ interface PlanningDrawerProps {
    * Modifier/Supprimer, juste cadre + label + montant + cadenas.
    */
   readOnlyIncomes?: ReadOnlyIncome[]
+  /**
+   * Sprint 16 V3 (groupe uniquement) — somme des salaires des membres,
+   * utilisée comme plafond pour la validation "Ajouter/Modifier un budget".
+   * Sans ce plafond, un groupe vide est bloqué (pas de budget → contribution
+   * = 0 → ajout budget refusé). Vit dans `FinancialData.meta.groupSalaryTotal`.
+   */
+  groupSalaryTotal?: number
 }
 
 type TabType = 'budgets' | 'revenus'
@@ -61,6 +68,7 @@ export default function PlanningDrawer({
   onPlanningChange,
   context,
   readOnlyIncomes = [],
+  groupSalaryTotal,
 }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
@@ -167,6 +175,15 @@ export default function PlanningDrawer({
   // les lignes visibles. Aucun impact sur `totalEstimatedIncome` côté backend.
   const readOnlyIncomesTotal = readOnlyIncomes.reduce((sum, r) => sum + r.amount, 0)
   const totalIncomesWithReadOnly = totalIncomes + readOnlyIncomesTotal
+
+  // Sprint 16 V3 — plafond de validation pour "Ajouter / Modifier un budget".
+  //   Perso : `totalIncomes + salaire` (= `totalIncomesWithReadOnly`).
+  //   Groupe : `sum(salaires membres) + revenus group additionnels`. Évite
+  //   le cycle "pas de budget → contribution = 0 → ajout bloqué".
+  const isGroupContext = context === 'group'
+  const budgetCeiling = isGroupContext
+    ? (groupSalaryTotal ?? 0) + totalIncomes
+    : totalIncomesWithReadOnly
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -824,13 +841,15 @@ export default function PlanningDrawer({
           <p className="mt-1 text-xs text-gray-500">Revenus - Budgets</p>
         </div>
 
-        {/* Add Budget Dialog */}
+        {/* Add Budget Dialog — Sprint 16 V3 : on passe `budgetCeiling` (en
+           groupe = sum salaires des membres ; en perso = totalIncomesWithReadOnly)
+           pour briser le cycle "groupe vide ne peut jamais bootstrapper". */}
         <AddBudgetDialog
           isOpen={isAddBudgetOpen}
           onClose={() => setIsAddBudgetOpen(false)}
           onSave={handleAddBudget}
           currentBudgetsTotal={totalBudgets}
-          totalEstimatedIncome={totalIncomesWithReadOnly}
+          totalEstimatedIncome={budgetCeiling}
         />
 
         {/* Add Income Dialog */}
@@ -851,7 +870,7 @@ export default function PlanningDrawer({
             onSave={handleSaveEditedBudget}
             budget={editingBudget}
             currentBudgetsTotal={totalBudgets}
-            totalEstimatedIncome={totalIncomesWithReadOnly}
+            totalEstimatedIncome={budgetCeiling}
           />
         )}
 
