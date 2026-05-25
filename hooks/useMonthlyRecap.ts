@@ -27,6 +27,12 @@ export interface MonthlyRecapStatusResponse {
   /** Sprint 13 — present iff `status.kind === 'in_progress'`. Nullable to
    *  keep the field tolerant of degraded/legacy responses. */
   recap: RecapProgress | null
+  /** Sprint Complete-Month-Step (2026-05-29) — year/month being recapped,
+   *  derived server-side from `checkRecapStatus`. Used by CompleteMonthStep
+   *  to filter the transaction list to the recapped period and default the
+   *  AddTransactionModal date to the last day of the recap month. */
+  recapYear: number
+  recapMonth: number
 }
 
 const recapStatusKey = (context: RecapContext) => ['monthly-recap', 'status', context] as const

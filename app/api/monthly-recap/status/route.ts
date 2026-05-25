@@ -43,6 +43,7 @@ import { statusQuerySchema } from '@/lib/schemas/recap'
 
 const VALID_STEPS: readonly RecapStep[] = [
   'welcome',
+  'complete_month',
   'summary',
   'manage_bilan',
   'salary_update',
@@ -59,6 +60,13 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
     const { context } = parseQuery(request, statusQuerySchema)
 
     const result = await checkRecapStatus(userId, context)
+
+    // Sprint Complete-Month-Step (2026-05-29) — expose recapYear/recapMonth so
+    // the new wizard step can filter the transaction list to the recapped
+    // month and default the AddTransactionModal date. Derived server-side via
+    // `checkRecapStatus` so client doesn't drift when crossing a month boundary.
+    const recapYear = result.currentYear
+    const recapMonth = result.currentMonth
 
     if (result.status.kind === 'in_progress') {
       const [summary, recapRow] = await Promise.all([
@@ -80,10 +88,14 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
           }
         : null
 
-      return NextResponse.json({ data: { status: result.status, summary, recap } })
+      return NextResponse.json({
+        data: { status: result.status, summary, recap, recapYear, recapMonth },
+      })
     }
 
-    return NextResponse.json({ data: { status: result.status, summary: null, recap: null } })
+    return NextResponse.json({
+      data: { status: result.status, summary: null, recap: null, recapYear, recapMonth },
+    })
   } catch (error) {
     const handled = handleBadRequest(error)
     if (handled) return handled

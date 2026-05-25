@@ -120,6 +120,7 @@ export type StatusQuery = z.infer<typeof statusQuerySchema>
  */
 export const recapStepSchema = z.enum([
   'welcome',
+  'complete_month',
   'summary',
   'manage_bilan',
   'salary_update',

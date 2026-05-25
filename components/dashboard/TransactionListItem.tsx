@@ -104,6 +104,17 @@ interface TransactionListItemProps {
    * sur la ligne tirelire. Null/undefined si non disponible.
    */
   piggyBankAmount?: number | null
+  /**
+   * Sprint Complete-Month-Step (2026-05-29). Mode lecture seule pour le
+   * récap "Compléter le mois" : pas de kebab dropdown, pas de long-press
+   * toggle, pas de role=button (carte non-focusable). Le rendu visuel
+   * (avatar, montant, breakdown badges, description, date, badge carry-over,
+   * warning contribution) reste intact — c'est le "design exact du Dashboard"
+   * demandé par le sprint. Les handlers (onEdit/onDelete/onToggleApplied)
+   * restent typés requis (pas appelés en read-only) ; le parent passe des
+   * stubs no-op pour préserver la signature.
+   */
+  readOnly?: boolean
   className?: string
 }
 
@@ -123,6 +134,7 @@ export default function TransactionListItem({
   currentRemainingToLive = null,
   budgetSnapshot = null,
   piggyBankAmount = null,
+  readOnly = false,
   className,
 }: TransactionListItemProps) {
   const creatorProfile = toCreatorProfile(transaction.created_by)
@@ -574,36 +586,46 @@ export default function TransactionListItem({
         : 'bg-green-50'
       : 'bg-white'
 
+  // Sprint Complete-Month-Step (2026-05-29) — read-only mode strip toutes les
+  // affordances interactives : pas de long-press handler, pas de role=button,
+  // pas de tabIndex, pas d'aria-pressed. Le hover/shadow visuels restent (la
+  // carte reste lisible comme dans le Dashboard) mais l'utilisateur ne peut
+  // ni tap, ni focuser au clavier, ni déclencher le toggle apply-to-balance.
+  const interactiveProps = readOnly
+    ? ({} as Record<string, never>)
+    : {
+        ...longPress,
+        role: 'button' as const,
+        tabIndex: 0,
+        'aria-pressed': isApplied,
+        'aria-label': isCurrentlyCarried
+          ? `${type === 'expense' ? 'Dépense' : 'Revenu'} reportée du mois précédent, appuyez longuement pour valider`
+          : hasCarryOverContext && isApplied
+            ? `${type === 'expense' ? 'Dépense' : 'Revenu'} validée du mois précédent, appuyez longuement pour dévalider`
+            : isApplied
+              ? `${type === 'expense' ? 'Dépense' : 'Revenu'} appliquée au solde, appuyez longuement pour retirer`
+              : `${type === 'expense' ? 'Dépense' : 'Revenu'} non appliquée au solde, appuyez longuement pour appliquer`,
+        style: longPress.style,
+      }
+
   return (
     <>
       <div
-        {...longPress}
-        role="button"
-        tabIndex={0}
-        aria-pressed={isApplied}
-        aria-label={
-          isCurrentlyCarried
-            ? `${type === 'expense' ? 'Dépense' : 'Revenu'} reportée du mois précédent, appuyez longuement pour valider`
-            : hasCarryOverContext && isApplied
-              ? `${type === 'expense' ? 'Dépense' : 'Revenu'} validée du mois précédent, appuyez longuement pour dévalider`
-              : isApplied
-                ? `${type === 'expense' ? 'Dépense' : 'Revenu'} appliquée au solde, appuyez longuement pour retirer`
-                : `${type === 'expense' ? 'Dépense' : 'Revenu'} non appliquée au solde, appuyez longuement pour appliquer`
-        }
+        {...interactiveProps}
         className={cn(
           'relative overflow-hidden rounded-lg border border-gray-200 p-4 shadow-md transition-colors duration-300',
-          'hover:border-gray-300 hover:shadow-lg',
+          !readOnly && 'hover:border-gray-300 hover:shadow-lg',
           appliedBgClass,
           className,
         )}
-        style={longPress.style}
       >
         {/* Progress ring fill — apparaît seulement pendant un long-press
             sustained. width 0 → 100% en 800ms via transform scaleX (évite
             reflow). Couleur cohérente avec le statut cible (vert si on va
             apply un revenu, rouge si on va apply une dépense, gris si on
-            unapply). pointer-events-none pour ne pas intercepter le geste. */}
-        {isPressing && (
+            unapply). pointer-events-none pour ne pas intercepter le geste.
+            En read-only, jamais rendu (isPressing reste false sans long-press). */}
+        {!readOnly && isPressing && (
           <span
             ref={progressBarRef}
             aria-hidden="true"
@@ -694,8 +716,11 @@ export default function TransactionListItem({
               entièrement pour les rows contribution : pas d'édition ni de
               suppression manuelle possibles (cycle de vie 100% piloté par
               triggers DB). Seule la validation/dévalidation via long-press
-              sur la carte reste disponible. */}
-          {!isContributionRow && (
+              sur la carte reste disponible.
+
+              Sprint Complete-Month-Step (2026-05-29) — kebab également masqué
+              en mode readOnly (étape "Compléter le mois" du wizard récap). */}
+          {!isContributionRow && !readOnly && (
             <div
               className="ml-1.5 flex min-h-full shrink-0 items-center"
               onPointerDown={(e) => e.stopPropagation()}

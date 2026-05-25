@@ -263,9 +263,10 @@ describe('statusQuerySchema', () => {
 })
 
 describe('recapStepSchema', () => {
-  it('accepts the 6 RecapStep values', () => {
+  it('accepts the 7 RecapStep values', () => {
     for (const step of [
       'welcome',
+      'complete_month',
       'summary',
       'manage_bilan',
       'salary_update',
@@ -283,7 +284,27 @@ describe('recapStepSchema', () => {
 })
 
 describe('advanceStepBodySchema', () => {
-  it('accepts welcome → summary (profile)', () => {
+  it('accepts welcome → complete_month (profile, sprint Complete-Month-Step)', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'profile',
+        fromStep: 'welcome',
+        toStep: 'complete_month',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('accepts complete_month → summary (group, sprint Complete-Month-Step)', () => {
+    expect(
+      advanceStepBodySchema.safeParse({
+        context: 'group',
+        fromStep: 'complete_month',
+        toStep: 'summary',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('accepts welcome → summary (long-range forward skip)', () => {
     expect(
       advanceStepBodySchema.safeParse({
         context: 'profile',

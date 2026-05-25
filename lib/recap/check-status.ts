@@ -58,6 +58,7 @@ export class RecapStatusError extends Error {
 
 const VALID_STEPS: readonly RecapStep[] = [
   'welcome',
+  'complete_month',
   'summary',
   'manage_bilan',
   'salary_update',

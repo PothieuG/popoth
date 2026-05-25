@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { isAdvanceAllowed, nextRequiredStep, RECAP_STEP_ORDER, type RecapStep } from '@/lib/recap'
 
 describe('RECAP_STEP_ORDER', () => {
-  it('lists the six wizard steps in canonical order', () => {
+  it('lists the seven wizard steps in canonical order', () => {
     expect(RECAP_STEP_ORDER).toEqual([
       'welcome',
+      'complete_month',
       'summary',
       'manage_bilan',
       'salary_update',
@@ -12,10 +13,29 @@ describe('RECAP_STEP_ORDER', () => {
       'completed',
     ] satisfies readonly RecapStep[])
   })
+
+  it('places complete_month at index 1 (between welcome and summary)', () => {
+    // Sprint Complete-Month-Step (2026-05-29) — pin the position so a future
+    // reorder doesn't silently break the wizard's welcome → complete_month
+    // → summary linear flow.
+    expect(RECAP_STEP_ORDER.indexOf('complete_month')).toBe(1)
+    expect(RECAP_STEP_ORDER.indexOf('summary')).toBe(2)
+  })
 })
 
 describe('isAdvanceAllowed', () => {
-  it('accepts welcome → summary (consecutive forward)', () => {
+  it('accepts welcome → complete_month (new consecutive forward)', () => {
+    expect(isAdvanceAllowed('welcome', 'complete_month')).toBe(true)
+  })
+
+  it('accepts complete_month → summary (consecutive forward)', () => {
+    expect(isAdvanceAllowed('complete_month', 'summary')).toBe(true)
+  })
+
+  it('accepts welcome → summary (skip complete_month — long-range forward)', () => {
+    // isAdvanceAllowed deliberately permits non-adjacent forward skips. The
+    // wizard's WelcomeStep targets complete_month explicitly post-sprint, but
+    // skip semantics remain available to consumers (cf. test below).
     expect(isAdvanceAllowed('welcome', 'summary')).toBe(true)
   })
 
@@ -33,6 +53,14 @@ describe('isAdvanceAllowed', () => {
 
   it('accepts manage_bilan → completed (skip from middle)', () => {
     expect(isAdvanceAllowed('manage_bilan', 'completed')).toBe(true)
+  })
+
+  it('rejects summary → complete_month (backward)', () => {
+    expect(isAdvanceAllowed('summary', 'complete_month')).toBe(false)
+  })
+
+  it('rejects complete_month → welcome (backward)', () => {
+    expect(isAdvanceAllowed('complete_month', 'welcome')).toBe(false)
   })
 
   it('rejects summary → welcome (backward)', () => {
@@ -57,8 +85,12 @@ describe('isAdvanceAllowed', () => {
 })
 
 describe('nextRequiredStep', () => {
-  it('returns summary from welcome', () => {
-    expect(nextRequiredStep('welcome')).toBe('summary')
+  it('returns complete_month from welcome', () => {
+    expect(nextRequiredStep('welcome')).toBe('complete_month')
+  })
+
+  it('returns summary from complete_month', () => {
+    expect(nextRequiredStep('complete_month')).toBe('summary')
   })
 
   it('returns manage_bilan from summary', () => {

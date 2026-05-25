@@ -92,6 +92,42 @@ describe('executeAdvanceStep', () => {
     expect(outcome).toEqual({ success: true, currentStep: 'manage_bilan' })
   })
 
+  it('happy welcome → complete_month (sprint Complete-Month-Step)', async () => {
+    const { executeAdvanceStep } = await import('../actions-advance')
+
+    const outcome = await executeAdvanceStep({
+      recap: makeRecap('welcome'),
+      fromStep: 'welcome',
+      toStep: 'complete_month',
+    })
+
+    expect(outcome).toEqual({ success: true, currentStep: 'complete_month' })
+  })
+
+  it('happy complete_month → summary (sprint Complete-Month-Step)', async () => {
+    const { executeAdvanceStep } = await import('../actions-advance')
+
+    const outcome = await executeAdvanceStep({
+      recap: makeRecap('complete_month'),
+      fromStep: 'complete_month',
+      toStep: 'summary',
+    })
+
+    expect(outcome).toEqual({ success: true, currentStep: 'summary' })
+  })
+
+  it('rejects summary → complete_month (backward — sprint Complete-Month-Step)', async () => {
+    const { executeAdvanceStep } = await import('../actions-advance')
+
+    const outcome = await executeAdvanceStep({
+      recap: makeRecap('summary'),
+      fromStep: 'summary',
+      toStep: 'complete_month',
+    })
+
+    expect(outcome).toEqual({ success: false, error: 'invalid_transition' })
+  })
+
   it('rejects invalid_transition when from === to (self-loop)', async () => {
     const { executeAdvanceStep } = await import('../actions-advance')
     const m = await mocks()

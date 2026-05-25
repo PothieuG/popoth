@@ -13,6 +13,7 @@ import { RecapProgressFrieze } from './RecapProgressFrieze'
 import { RecapShell } from './RecapShell'
 import { BilanNegativeStep } from './steps/BilanNegativeStep'
 import { BilanPositiveStep } from './steps/BilanPositiveStep'
+import { CompleteMonthStep } from './steps/CompleteMonthStep'
 import { FinalRecapStep } from './steps/FinalRecapStep'
 import { SalaryUpdateStep } from './steps/SalaryUpdateStep'
 import { SummaryStep } from './steps/SummaryStep'
@@ -113,7 +114,7 @@ export function RecapWizard({ context }: { context: RecapContext }) {
   }
 
   if (!data) return null
-  const { status, summary, recap } = data
+  const { status, summary, recap, recapYear, recapMonth } = data
 
   if (status.kind === 'locked_by_other') {
     return (
@@ -153,6 +154,9 @@ export function RecapWizard({ context }: { context: RecapContext }) {
     <RecapShell headerLabel={headerLabel}>
       <RecapProgressFrieze currentStep={status.step} />
       {status.step === 'welcome' && <WelcomeStep context={context} />}
+      {status.step === 'complete_month' && (
+        <CompleteMonthStep context={context} recapYear={recapYear} recapMonth={recapMonth} />
+      )}
       {status.step === 'summary' && <SummaryStep context={context} summary={summary} />}
       {status.step === 'manage_bilan' &&
         (summary.bilanSign === 'negative' ? (

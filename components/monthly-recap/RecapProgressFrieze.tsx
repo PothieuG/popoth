@@ -4,6 +4,7 @@ import type { RecapStep } from '@/lib/recap'
 
 const STEPS: ReadonlyArray<{ step: RecapStep; label: string }> = [
   { step: 'welcome', label: 'Bienvenue' },
+  { step: 'complete_month', label: 'Compléter le mois' },
   { step: 'summary', label: 'Récap général' },
   { step: 'manage_bilan', label: 'Bilan du mois' },
   { step: 'salary_update', label: 'Salaire' },

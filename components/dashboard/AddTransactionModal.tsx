@@ -35,6 +35,22 @@ interface AddTransactionModalProps {
   onClose: () => void
   context?: 'profile' | 'group'
   onTransactionAdded?: () => void
+  /**
+   * Sprint Complete-Month-Step (2026-05-29) — date par défaut au mount + au
+   * switch expense/income. Format ISO YYYY-MM-DD. Si absent, fallback sur
+   * `todayIso()` (comportement Dashboard standard). Utilisé par le wizard
+   * récap "Compléter le mois" pour défaulter au dernier jour du mois recapé.
+   */
+  defaultDate?: string
+  /**
+   * Sprint Complete-Month-Step (2026-05-29) — bornes ISO YYYY-MM-DD passées
+   * en `min` / `max` natif au `<input type="date">`. Le mobile date picker
+   * iOS/Android contraint visuellement la sélection ; aucune validation
+   * Zod côté schema (l'API accepte toute date — c'est de l'UX-guard
+   * uniquement, pas de défense en profondeur).
+   */
+  dateMin?: string
+  dateMax?: string
 }
 
 type TransactionType = 'expense' | 'income'
@@ -82,7 +98,14 @@ export default function AddTransactionModal({
   onClose,
   context,
   onTransactionAdded,
+  defaultDate,
+  dateMin,
+  dateMax,
 }: AddTransactionModalProps) {
+  // Sprint Complete-Month-Step (2026-05-29) — pré-calcule la date d'initialisation
+  // du form. Si `defaultDate` est fourni (wizard récap), on l'utilise ; sinon
+  // fallback historique sur `todayIso()` (comportement Dashboard standard).
+  const initialDate = defaultDate ?? todayIso()
   const [serverError, setServerError] = useState<string | null>(null)
   const [wizardStep, setWizardStep] = useState<WizardStep>('select-type')
   // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
@@ -114,7 +137,7 @@ export default function AddTransactionModal({
       transactionType: 'expense',
       description: '',
       amount: 0,
-      expense_date: todayIso(),
+      expense_date: initialDate,
       is_exceptional: false,
       estimated_budget_id: null,
     },
@@ -262,7 +285,7 @@ export default function AddTransactionModal({
         transactionType: 'expense',
         description: current.description ?? '',
         amount: current.amount as never,
-        expense_date: todayIso(),
+        expense_date: initialDate,
         is_exceptional: false,
         estimated_budget_id: null,
       })
@@ -272,7 +295,7 @@ export default function AddTransactionModal({
         transactionType: 'income',
         description: current.description ?? '',
         amount: current.amount as never,
-        entry_date: todayIso(),
+        entry_date: initialDate,
         is_exceptional: false,
         estimated_income_id: null,
       })
@@ -826,6 +849,8 @@ export default function AddTransactionModal({
                       id="date"
                       type="date"
                       {...form.register('expense_date')}
+                      min={dateMin}
+                      max={dateMax}
                       aria-invalid={dateError ? 'true' : 'false'}
                       aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
                       className="w-full pl-10"
@@ -835,6 +860,8 @@ export default function AddTransactionModal({
                       id="date"
                       type="date"
                       {...form.register('entry_date')}
+                      min={dateMin}
+                      max={dateMax}
                       aria-invalid={dateError ? 'true' : 'false'}
                       aria-describedby={dateError ? 'add-transaction-date-error' : undefined}
                       className="w-full pl-10"

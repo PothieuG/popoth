@@ -35,7 +35,11 @@ export function WelcomeStep({ context }: { context: RecapContext }) {
       // row already exists for this initiator). Re-clicks during the same
       // session are safe — even mid-wizard refresh lands here at step='welcome'.
       await startMutation.mutateAsync()
-      await advanceMutation.mutateAsync({ fromStep: 'welcome', toStep: 'summary' })
+      // Sprint Complete-Month-Step (2026-05-29) — advance vers la nouvelle
+      // étape 2 "Compléter le mois" plutôt que directement vers summary.
+      // L'utilisateur peut y rattraper d'éventuelles transactions oubliées
+      // du mois recapé avant que le bilan soit affiché.
+      await advanceMutation.mutateAsync({ fromStep: 'welcome', toStep: 'complete_month' })
     } catch (e) {
       const code = e instanceof Error ? e.message : 'unknown'
       setError(pickErrorCopy(code))

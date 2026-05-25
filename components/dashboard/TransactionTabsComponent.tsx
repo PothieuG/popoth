@@ -11,7 +11,7 @@ import { useBudgets } from '@/hooks/useBudgets'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
 import { logger } from '@/lib/logger'
-import { computePeriodDateRange, type Period } from '@/lib/finance/period'
+import { computePeriodDateRange, type DateRange, type Period } from '@/lib/finance/period'
 import TransactionListItem from './TransactionListItem'
 
 type EditableTransaction = RealExpense | RealIncome
@@ -26,6 +26,23 @@ interface TransactionTabsComponentProps {
    * (Europe/Paris timezone). 'month' = no filter (default behavior).
    */
   period?: Period
+  /**
+   * Sprint Complete-Month-Step (2026-05-29). Explicit ISO date range
+   * override : when provided, takes precedence over `period`. Used by the
+   * recap wizard's "Compléter le mois" step to filter the list to the
+   * recapped month (year + month from the status endpoint). Format identical
+   * to `computePeriodDateRange` output (inclusive YYYY-MM-DD bounds).
+   */
+  dateRange?: DateRange | null
+  /**
+   * Sprint Complete-Month-Step (2026-05-29). Mode lecture seule pour le
+   * récap "Compléter le mois" : pas de kebab dropdown sur les cartes, pas
+   * de long-press toggle, pas d'edit/delete callbacks invoqués. Les props
+   * onEditTransaction/onTransactionDeleted deviennent sans effet. Le rendu
+   * visuel reste celui du Dashboard (avatar + montant + breakdown badges +
+   * description + date) — c'est le "design exact" demandé par le sprint.
+   */
+  readOnly?: boolean
   onEditTransaction?: (transaction: EditableTransaction, type: EditableType) => void
   onTransactionDeleted?: () => void
   className?: string
@@ -59,6 +76,8 @@ const formatAmount = (amount: number): string =>
 export default function TransactionTabsComponent({
   context,
   period,
+  dateRange: dateRangeOverride,
+  readOnly = false,
   onEditTransaction,
   onTransactionDeleted,
   className,
@@ -102,7 +121,13 @@ export default function TransactionTabsComponent({
   const currentRemainingToLive = financialData?.remainingToLive ?? null
 
   // Sprint P1 — filter CSR by period. Range null = no filter applied.
-  const dateRange = useMemo(() => (period ? computePeriodDateRange(period) : null), [period])
+  // Sprint Complete-Month-Step (2026-05-29) — `dateRangeOverride` prop takes
+  // precedence (explicit ISO bounds for the recap-month filter, computed
+  // server-side via recapYear/recapMonth from /status).
+  const dateRange = useMemo(
+    () => dateRangeOverride ?? (period ? computePeriodDateRange(period) : null),
+    [dateRangeOverride, period],
+  )
   const filteredExpensesRaw = useMemo(() => {
     if (!dateRange) return expenses
     return expenses.filter(
@@ -426,6 +451,7 @@ export default function TransactionTabsComponent({
                 context={context}
                 currentRemainingToLive={currentRemainingToLive}
                 budgetSnapshot={budgetSnapshot}
+                readOnly={readOnly}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
                 onDelete={handleDeleteExpense}
                 onToggleApplied={(id, apply) => handleToggleApplied(expense, 'expense', apply)}
@@ -462,6 +488,7 @@ export default function TransactionTabsComponent({
                 context={context}
                 incomeSourceContext={ctx}
                 currentRemainingToLive={currentRemainingToLive}
+                readOnly={readOnly}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'income')}
                 onDelete={handleDeleteIncome}
                 onToggleApplied={(id, apply) => handleToggleApplied(income, 'income', apply)}

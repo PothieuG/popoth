@@ -36,7 +36,7 @@ describe('WelcomeStep', () => {
     expect(screen.getByRole('button', { name: 'Commencer' })).toBeInTheDocument()
   })
 
-  it('on click, calls /start then /advance-step(welcome → summary)', async () => {
+  it('on click, calls /start then /advance-step(welcome → complete_month)', async () => {
     const user = userEvent.setup()
     startMock.mockResolvedValueOnce({})
     advanceMock.mockResolvedValueOnce({})
@@ -48,7 +48,9 @@ describe('WelcomeStep', () => {
       expect(startMock).toHaveBeenCalledTimes(1)
     })
     expect(advanceMock).toHaveBeenCalledTimes(1)
-    expect(advanceMock).toHaveBeenCalledWith({ fromStep: 'welcome', toStep: 'summary' })
+    // Sprint Complete-Month-Step (2026-05-29) — la cible passe de 'summary'
+    // à 'complete_month' (l'étape 2 nouvellement insérée du wizard).
+    expect(advanceMock).toHaveBeenCalledWith({ fromStep: 'welcome', toStep: 'complete_month' })
   })
 
   it('shows user-friendly message when /start returns locked_by_other', async () => {
@@ -94,13 +96,13 @@ describe('WelcomeStep', () => {
     const user = userEvent.setup()
     // Simulate the 'resumed' case where /start succeeds and /advance-step moves the wizard.
     startMock.mockResolvedValueOnce({ recap: { id: 'r1', current_step: 'welcome' } })
-    advanceMock.mockResolvedValueOnce({ recap: { id: 'r1', current_step: 'summary' } })
+    advanceMock.mockResolvedValueOnce({ recap: { id: 'r1', current_step: 'complete_month' } })
 
     render(<WelcomeStep context="profile" />)
     await user.click(screen.getByRole('button', { name: 'Commencer' }))
 
     await waitFor(() => {
-      expect(advanceMock).toHaveBeenCalledWith({ fromStep: 'welcome', toStep: 'summary' })
+      expect(advanceMock).toHaveBeenCalledWith({ fromStep: 'welcome', toStep: 'complete_month' })
     })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })

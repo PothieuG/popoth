@@ -61,6 +61,13 @@ function makeSummary(overrides?: Partial<RecapSummary>): RecapSummary {
   }
 }
 
+// Sprint Complete-Month-Step (2026-05-29) — défauts arbitraires pour
+// `recapYear`/`recapMonth` introduits par le status endpoint. La majorité
+// des tests RecapWizard ne dépendent pas de la valeur exacte (seul
+// CompleteMonthStep les consomme directement, et il n'est pas testé ici).
+const DEFAULT_RECAP_YEAR = 2026
+const DEFAULT_RECAP_MONTH = 5
+
 function mockStatus(
   status: RecapStatusKind,
   summary: RecapSummary | null = null,
@@ -70,8 +77,20 @@ function mockStatus(
   // context="group" while calling mockStatus(...) keep working. The
   // `redirects to /monthly-recap?context=group` test overrides
   // mockResponses.group via mockGroupStatus AFTER calling mockStatus.
-  mockResponses.profile = { status, summary, recap }
-  mockResponses.group = { status, summary, recap }
+  mockResponses.profile = {
+    status,
+    summary,
+    recap,
+    recapYear: DEFAULT_RECAP_YEAR,
+    recapMonth: DEFAULT_RECAP_MONTH,
+  }
+  mockResponses.group = {
+    status,
+    summary,
+    recap,
+    recapYear: DEFAULT_RECAP_YEAR,
+    recapMonth: DEFAULT_RECAP_MONTH,
+  }
 }
 
 function mockGroupStatus(
@@ -79,7 +98,13 @@ function mockGroupStatus(
   summary: RecapSummary | null = null,
   recap: RecapProgress | null = null,
 ) {
-  mockResponses.group = { status, summary, recap }
+  mockResponses.group = {
+    status,
+    summary,
+    recap,
+    recapYear: DEFAULT_RECAP_YEAR,
+    recapMonth: DEFAULT_RECAP_MONTH,
+  }
 }
 
 describe('RecapWizard', () => {
@@ -94,14 +119,14 @@ describe('RecapWizard', () => {
     vi.clearAllMocks()
   })
 
-  it('renders Welcome + Frieze step 1 when no recap exists', () => {
+  it('renders Welcome + Frieze step 1/6 when no recap exists', () => {
     mockStatus({ kind: 'no_recap' })
     render(<RecapWizard context="profile" />)
-    expect(screen.getByText(/Étape 1 sur 5 — Bienvenue/)).toBeInTheDocument()
+    expect(screen.getByText(/Étape 1 sur 6 — Bienvenue/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Bienvenue' })).toBeInTheDocument()
   })
 
-  it('renders Summary placeholder + Frieze step 2 when in_progress at summary', () => {
+  it('renders Summary + Frieze step 3/6 when in_progress at summary (sprint Complete-Month-Step shifted summary from 2 to 3)', () => {
     mockStatus(
       {
         kind: 'in_progress',
@@ -113,7 +138,7 @@ describe('RecapWizard', () => {
       makeSummary(),
     )
     render(<RecapWizard context="profile" />)
-    expect(screen.getByText(/Étape 2 sur 5 — Récap général/)).toBeInTheDocument()
+    expect(screen.getByText(/Étape 3 sur 6 — Récap général/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Récap général' })).toBeInTheDocument()
   })
 
@@ -163,7 +188,7 @@ describe('RecapWizard', () => {
     })
     render(<RecapWizard context="group" />)
     expect(screen.getByText(/Alice est en train de réaliser le récap/)).toBeInTheDocument()
-    expect(screen.queryByText(/Étape \d sur 5/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Étape \d sur 6/)).not.toBeInTheDocument()
   })
 
   it('redirects to /dashboard via router.replace when status is completed (profile)', async () => {

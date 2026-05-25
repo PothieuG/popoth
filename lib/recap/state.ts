@@ -1,12 +1,17 @@
 /**
  * Monthly Recap V3 — state machine (pure, sync).
  *
- * The 6 wizard steps in forward order. `'completed'` is the terminal state.
+ * The 7 wizard steps in forward order. `'completed'` is the terminal state.
  * The `manage_bilan` UI varies based on the period's bilan sign, but the
  * sequence itself is static (no conditional skip at this layer).
+ *
+ * `'complete_month'` (sprint Complete-Month-Step) sits between `'welcome'`
+ * and `'summary'` — the user can add forgotten transactions of the recapped
+ * month before viewing the bilan. Distinct from `'completed'` (terminal).
  */
 export type RecapStep =
   | 'welcome'
+  | 'complete_month'
   | 'summary'
   | 'manage_bilan'
   | 'salary_update'
@@ -15,6 +20,7 @@ export type RecapStep =
 
 export const RECAP_STEP_ORDER = [
   'welcome',
+  'complete_month',
   'summary',
   'manage_bilan',
   'salary_update',
