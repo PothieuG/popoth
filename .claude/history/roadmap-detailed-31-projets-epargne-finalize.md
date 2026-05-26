@@ -108,3 +108,62 @@ Sprint 10 (finalize wiring) + sprint 11 à venir (seeds + push prod) de la featu
 
   ### Hors scope sprint 11 (= aucun à venir)
   - Aucun. La feature Projets-Épargne est livrée bout-en-bout : DB schema + RPCs + handlers API + hooks + UI (planificateur + modals + drawer + cascade recap) + seeds CLI + push prod + PR.
+
+---
+
+- ✅ **Sprint Carryover-Self-Healing** (livré 2026-05-26 sur `feature/projets-epargne`).
+
+  ### Périmètre
+
+  Sprint follow-up du sprint Projets-Épargne 11, déclenché par un bug user-visible : à l'étape `manage_bilan` de `BilanNegativeStep` quand `bilan < -(piggy + savings + sum(monthly_allocation) + sum(estimated_amount))`, le snapshot `computeProportionalBudgetSnapshot` cappait à `totalPool` → shortfall résiduel → `executeSaveBudgetSnapshot` NE faisait PAS avancer le step (`current_step` restait `manage_bilan`) → `BilanNegativeStep` cachait le bouton Continuer (`showContinuer = deficitCovered`). Utilisateur bloqué sans recourse, peu importe combien de fois il re-cliquait "Équilibrer".
+
+  Au-delà du fix immédiat, le sprint corrige une 2e dette structurelle latente : la RPC `finalize_recap_apply_snapshot` faisait `SET carryover_spent_amount = COALESCE(carryover_spent_amount, 0) + v_amount` (additif). Sous l'ancien cap, le carryover ne dépassait jamais `estimated_amount`, donc pas de runaway. Mais en levant le cap (Option 1 = "snapshot non plafonné"), le carryover pourrait franchir `estimated`, créer un `budgetDeficits > 0` perpétuel via `calculateBudgetDeficit(estimated, spent + carryover)`, et chaque mois ajouter un nouveau snapshot par-dessus → trajectoire divergente (230 → 290 → 410 → 590…).
+
+  ### Sprint A — mécanique self-healing (DB + algos)
+  - **Migration `supabase/migrations/20260603000000_finalize_overwrite_carryover.sql`** : `CREATE OR REPLACE FUNCTION finalize_recap_apply_snapshot(uuid, jsonb)`. Signature inchangée (`p_recap_id`, `p_snapshot`). Owner XOR récupéré en interne via `SELECT profile_id, group_id FROM monthly_recaps WHERE id = p_recap_id` (pas de nouveau paramètre — préserve compat call sites). Body en 3 étapes : (1) reset OWNER-scoped à 0 de tous les `estimated_budgets.carryover_spent_amount` pour le profile_id ou group_id du recap (XOR miroir `monthly_recaps_owner_exclusive_check`), (2) loop sur `jsonb_each_text(p_snapshot)` avec `SET = v_amount` (PAS `+=`), (3) retour étendu `{ applied: [...], reset_count: N }`. SECURITY DEFINER + REVOKE PUBLIC + GRANT service_role + `NOTIFY pgrst, 'reload schema'` boilerplate préservé. Idempotent : re-exécution avec mêmes args = même état final.
+
+  - **`lib/recap/calculations.ts`** : `distributeProportional` accepte `options: { capPerPool?: boolean }` (défaut `true`). Quand `capPerPool: false`, les `Math.min(current.pool, ...)` per-budget disparaissent et l'algo distribue proportionnellement même quand `targetAmount > totalPool` → individual shares peuvent dépasser leur pool, total === target, shortfall = 0 par construction. `computeProportionalBudgetSnapshot` passe `false`. Les 2 autres consumers (`computeProportionalSavingsRefloat`, `computeProportionalProjectsRefloat`) gardent le cap (DB CHECK `cumulated_savings >= 0` + sémantique "renoncer 1 mois de mensualité"). Tests dans `calculations.test.ts` mis à jour : "caps a single insufficient budget" → "no longer caps + shortfall=0" + nouveau cas multi-budget no-cap (target=900 sur pools 100+200 → shares 300+600).
+
+  - **`lib/recap/actions-finalize.ts::executeCompleteRecap`** : la RPC `finalize_recap_apply_snapshot` est désormais invoquée TOUJOURS, même quand `budget_snapshot_data` est `{}` ou null. Le reset à 0 doit s'exécuter pour purger les carryovers stale du mois précédent. Drop du guard `if (snapshot && Object.keys(snapshot).length > 0)` qui sautait l'appel. `ApplySnapshotResult` étendu avec `reset_count: number` pour traçabilité.
+
+  - **`lib/recap/actions-negative.ts::executeSaveBudgetSnapshot`** : le step-advance `current_step → salary_update` est inconditionnel (le shortfall est mathématiquement 0 avec capPerPool=false). Tripwire `logger.error('unexpected residual deficit')` si jamais `newDeficit > 0.01` (régression détectable). Comportement défensif : l'advance fire même si le tripwire log.
+
+  ### Sprint B — UX clarity (couplé même PR)
+  - **`components/monthly-recap/RefloatBudgetSnapshotLine.tsx`** : badge inline rouge `⚠ X%` à côté des lignes per-budget quand `consumedAfter > estimatedAmount`. Hint section-level "Certains budgets démarreront le mois prochain au-dessus de 100%. La dette se résorbera d'elle-même les mois suivants tant que tu sous-consommes ces budgets." + hint bleu "Un précédent équilibrage existe et sera remplacé" quand `snapshotData` non vide (recap mid-flight pre-fix).
+
+  - **`hooks/useBudgetProgress.ts` + `components/dashboard/BudgetProgressIndicator.tsx`** : nouveau champ `carryoverSpentAmount` sur `BudgetProgress` (auparavant le champ DB `carryover_spent_amount` était listé "Champ legacy, plus utilisé" — docstring corrigée). Affichage `↩ Reporté : X €` en rouge `text-[11px]` sous le nom du budget quand `carryoverSpentAmount > 0`, avec `title=` natif pour explication au hover. Visible dans `PlanningDrawer` (seul consumer).
+
+  - **`components/monthly-recap/steps/BilanNegativeStep.tsx`** : bloc explicatif amber au-dessus du compteur déficit quand `sum(carryoverSpentAmount) > 0` ("Tu démarres ce mois avec X € de dette reportée. La marge libre de tes budgets ce mois-ci en a absorbé une partie — il reste Y € à régler."). Calcul `budgetTargetDeficit` (= `bilan - piggy - savings - projets`, en passant `snapshotData: null` à `computeDeficitRemaining`) miroir du serveur, passé comme `deficitRemaining` à `RefloatBudgetSnapshotLine` → preview client aligné avec calcul serveur sur re-clic. `snapshotState` revu : `done` requiert MAINTENANT `snapshotTotal > 0 && deficitCovered` (avant : juste `snapshotTotal > 0`) → permet recap mid-flight pre-fix avec snapshot capé de re-cliquer "Équilibrer" pour recompute fresh.
+
+  - **`components/monthly-recap/steps/FinalRecapStep.tsx::ProjectsSummary`** : réécriture texte. Avant (trompeur quand `totalRefunded > 0`) : "💰 N projet(s) ont reçu leur allocation mensuelle ce mois." Après : "💰 X € épargnés sur tes N projets ce mois" + (si refund) "📋 Y € prélevés sur les mensualités pour combler le déficit." Tests `FinalRecapStep.test.tsx` adaptés au nouveau wording.
+
+  ### Tests livrés
+  - **Gated `SUPABASE_RECAP_TESTS=1`** : nouveau fichier `lib/recap/__tests__/actions-finalize-carryover.test.ts` avec 4 cas — (1) trajectory carryover 800 → 600 → 400 → 200 → 0 sur 4 finalize loops (estimated=200, spent=0), (2) verbatim persistence (carryover 230 + snapshot 60 = 60, NOT 290), (3) owner isolation (userA finalize n'altère pas userB budgets), (4) empty snapshot reset (carryover 150 → 0 même avec snapshot `{}`).
+
+  - **Non-gated** : `calculations.test.ts` (2 cas update + 1 nouveau), `actions-finalize.test.ts` (5 tests adaptés pour 3 RPC calls + `reset_count`), `FinalRecapStep.test.tsx` (3 tests adaptés au nouveau wording ProjectsSummary).
+
+  ### Déploiement
+
+  Migration appliquée dev + prod via `node scripts/apply-sql.mjs supabase/migrations/20260603000000_finalize_overwrite_carryover.sql` (Management API, pas besoin de DB password). `pnpm db:check-rpcs` ✓ post-push (25 RPCs, count inchangé). `pnpm db:audit-functions` ✓ (34 functions, count inchangé). `pnpm db:check-drift` ✓.
+
+  ### Invariants pinés (= ❌ "NE PAS réintroduire")
+  - **NE PAS réintroduire `+= v_amount`** dans `finalize_recap_apply_snapshot`. La sémantique OVERWRITE est nécessaire pour empêcher le runaway exponentiel quand snapshot franchit `estimated_amount`. Regression-guardé par `actions-finalize-carryover.test.ts::"verbatim persistence"` gated.
+  - **NE PAS skipper la RPC** dans `executeCompleteRecap` quand snapshot vide. Le reset owner-scoped à 0 doit s'exécuter à chaque finalize, sinon stale carryover du mois précédent persiste silencieusement.
+  - **NE PAS réintroduire `Math.min(current.pool, ...)` cap** dans `distributeProportional` quand `capPerPool: false`. Le cap reste actif (défaut) pour savings/projects refloat (DB CHECK + sémantique).
+  - **NE PAS reset `snapshotState` à `done` quand `deficitCovered=false`** dans `BilanNegativeStep`. La transition `active → done` doit nécessiter à la fois `snapshotTotal > 0` ET `deficitCovered`. Sinon, un user avec snapshot capé pre-fix reste bloqué sans bouton de retry.
+
+  ### Invariants bumpés CLAUDE.md §5.5
+  - **Tests non-gated** : 758 → 759 (+1 cas algo `calculations.test.ts`).
+  - **Tests gated skipped** : 223 → 227 (+4 cas `actions-finalize-carryover.test.ts`).
+  - **EXPECTED_RPCS** : 25 stable (CREATE OR REPLACE, pas de nouvelle RPC).
+  - **Functions DB versionnées** : 34/34 stable.
+  - **Routes API** : 44 stable.
+  - **Lint baseline** : 0/0 préservé.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ ; `pnpm test:run` ✓ (759/227) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓ ; `pnpm db:check-drift` ✓ ; `pnpm db:check-rpcs` ✓ ; `pnpm db:audit-functions` ✓ ; `pnpm db:check-types-fresh` ✓.
+  - **Smoke browser manuel par le user** : recap mid-flight pre-fix débloqué via re-clic "Équilibrer" → snapshot recomputé fresh → step avance → Continuer affiché → flow continue jusqu'à finalize.
+
+  ### Hors scope (suites possibles)
+  - **Sprint UI — BilanBlock decomposition** : afficher dans le BilanBlock summary la décomposition explicite "report mois précédent non absorbé" pour faire le pont conceptuel entre carryover et bilan affiché.
+  - **Sprint Md-Size-Split** : CLAUDE.md + operational-rules.md sont à 39487/39486 chars sur cap 39.5k. Le sprint Carryover-Self-Healing aurait dû documenter ses invariants ❌ dans `operational-rules.md §5`, mais l'absence de place a forcé le report dans cette closeout. Un split (ex : extraire `### Sprint chronologie résumée` vers un nouveau fichier) libérerait l'espace pour les sprints suivants.
