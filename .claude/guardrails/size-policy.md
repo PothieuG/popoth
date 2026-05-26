@@ -201,17 +201,19 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-24 post-sprint-11 V3 + bilan fix)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-26 post-Sprint Projets-Épargne 02 closeout)
 
-**33 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**45 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
-- 1× `CLAUDE.md` (~39.4k, en zone alerte 38-39.5k — split candidate)
-- 21× `.claude/history/roadmap-detailed-01..21-*.md` (14-39k — Part 12 + Part 18 (~39k post-Calculations-V3) en zone alerte ; Part 21 (~14k) créée 2026-05-24 sprint 11 closeout)
-- 2× `.claude/history/sprint-chronology{,-part-2}.md` (~39k + ~4k — Part 1 gelée 2026-05-22, Part 2 créée 2026-05-24)
-- 2× `.claude/history/score-evolution-part-1..2-*.md` (33-34k)
+- 1× `CLAUDE.md` (~39.5k, en zone alerte 38-39.5k — split candidate)
+- 29× `.claude/history/roadmap-detailed-01..29-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Part 29 (~21k) Projets-Épargne sprints 01-02 ; Parts 25-28 récentes ~8-13k)
+- 2× `.claude/history/sprint-chronology{,-part-2}.md` (~39k + ~34k — Part 1 gelée 2026-05-22, Part 2 créée 2026-05-24)
+- 2× `.claude/history/score-evolution-part-1..2-*.md` (33-37k — part-2 en zone alerte)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (~39k — en zone alerte)
-- 6× `.claude/conventions/{zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals}.md` (4-39k)
-- 1× `.claude/guardrails/size-policy.md` (~17k — ce fichier).
+- 1× `.claude/reference/structure-repo.md` (~39.5k — en zone alerte, trim sprint 02 closeout)
+- 7× `.claude/conventions/{applied-balance-toggle,zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals,user-questions}.md` (4-39k — operational-rules.md + operational-rules-ui-modals.md en zone alerte 38-39.5k)
+- 1× `.claude/guardrails/size-policy.md` (~16k — ce fichier).
+
+**Sprint Projets-Épargne 02 closeout** : 4 fichiers édités (CLAUDE.md trim `(sans env vars)` + invariants bumpés ; operational-rules.md §4 EXPECTED_RPCS 16→25 + apply_recap_projects_snapshot + 3 sprint-02 helpers note ; structure-repo.md query-client.ts ligne raccourcie + useProjects.ts + finance/projects.ts ajoutés ; Part 29 +10.7k pour sprint 02 closeout ; plans/02 LIVRÉ banner). Aucun split déclenché.
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.

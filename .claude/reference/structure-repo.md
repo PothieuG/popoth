@@ -66,6 +66,7 @@ hooks/                     # 20 hooks React (post Clean-Slate-Recap + sprint 10 
   useFinancialData.ts      # ✅ Sprint 1.5 — useQuery natif. Sprint 2 — bridge legacy `triggerFinancialRefresh`/`registerFinancialRefreshCallback` supprimé ; les mutations cross-domain invalident `['financial-summary']` + `['progress-data']` + `['budgets']` via [`invalidateFinancialRefreshes(qc)`](lib/query-client.ts) (single source of truth, Sprint 2-followup). Sprint 2-followup — bloc debug `console.log` ~17 lignes dans queryFn supprimé (dump du payload financier à chaque fetch ; data toujours visible via TanStack Query DevTools si besoin)
   useProgressData.ts       # ✅ Sprint 1.5 — useQuery({ queryKey: ['progress-data', context] }) ; le contextRef pattern C ref site est éliminé natif via queryKey. Sprint 2 — bridge effect supprimé (les mutations cross-domain invalident `['progress-data']` directement)
   useBudgets.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation (add/update/delete). Sprint 2 — bridge effect supprimé ; les mutations CRUD invalident `['financial-summary']` + `['progress-data']` + `['budgets']` directement via [`invalidateFinancialRefreshes`](lib/query-client.ts) (Sprint 2-followup — extraction du helper local vers single source of truth)
+  useProjects.ts           # ✅ Sprint Projets-Épargne 02 — useQuery + 3 useMutation miroir useBudgets, delete renvoie {transferredAmount, piggyAmount}.
   useIncomes.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation
   useRealExpenses.ts       # ✅ Sprint 1.5 — useQuery + 3 useMutation (smart-allocation : mutation result peut être null si dépense couverte 100% par piggy/savings)
   useRealIncomes.ts        # ✅ Sprint 1.5 — useQuery + 3 useMutation
@@ -76,7 +77,7 @@ hooks/                     # 20 hooks React (post Clean-Slate-Recap + sprint 10 
   useIncomeProgress.ts     # ✅ Sprint 1.5 — derived state via useMemo direct (pas Query, dépend de useRealIncomes)
 lib/
 lib/
-  query-client.ts          # ✅ Sprint 1.5 — createQueryClient() factory (staleTime 30s, refetchOnWindowFocus false, retry 1) ; consommé par components/providers/QueryProvider.tsx. ✅ Sprint 2 — `invalidateFinancialRefreshes(qc)` helper export (single source of truth, 4 keys initialement) + ✅ Sprint Group-Budget-Auto-Sync (2026-05-19) ajout `['group-contributions']` (5 keys totales pré-Delete-Budget) + ✅ Sprint Fix-Savings-Drawer-Stale-Cache (2026-05-20) ajout `['savings-data']` (5 keys finales : financial-summary / progress-data / budgets / group-contributions / savings-data)
+  query-client.ts          # createQueryClient() factory + `invalidateFinancialRefreshes(qc)` helper (single source of truth, 9 keys post-Sprint Projets-Épargne 02 ajout `['projects']` ; voir le commentaire du module pour l'historique des extensions par sprint).
   supabase-server.ts       # client serveur (service_role) — BYPASS RLS
   supabase-client.ts       # client browser (anon key) — soumis à RLS
   database.types.ts        # types Supabase générés (pnpm db:types) — Sprint DB D6 (inclut désormais les 4 RPC C3 depuis le regen Sprint Cleanup-Legacy / C1, augmentation lib/database.ts supprimée en Sprint Polish-CI / D3)
@@ -127,6 +128,7 @@ lib/
     budget-transfers.ts    # ✅ Sprint Refactor-I5-followup-v2 — transferWithSavingsDebit (composite RPC : INSERT budget_transfers + debit cumulated_savings en une tx Postgres)
     expenses.ts            # ✅ Sprint Atomicity-Expenses — addExpenseWithBreakdown (composite RPC : debit piggy + debit cumulated_savings + INSERT real_expenses en une tx Postgres atomique)
     savings.ts             # ✅ Sprint Atomicity-Savings — transferSavingsBetweenBudgets (debit FROM + credit TO en 1 tx) + transferBudgetToPiggyBank (debit budget + UPSERT piggy_bank via partial unique index inference en 1 tx) + ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) deleteBudgetWithSavingsTransfer (UPSERT piggy + DELETE budget en 1 tx, skip-UPSERT si cumulated_savings=0)
+    projects.ts            # ✅ Sprint Projets-Épargne 02 — 4 helpers wrap RPCs sprint 01 (CRUD + list). Tests gated `SUPABASE_FINANCE_TESTS=1` (4 cas, cf. Part 29).
     # Sprint Refactor-I4 — modules extraits de l'ex-god file lib/financial-calculations.ts
     types.ts               # FinancialData, BudgetSavings interfaces
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)

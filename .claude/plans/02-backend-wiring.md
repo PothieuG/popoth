@@ -1,5 +1,7 @@
 # Sprint 02 — Backend wiring (schemas + helpers + API + hook)
 
+> ✅ **LIVRÉ 2026-05-26** sur branche `feature/projets-epargne`, commit `93cdf61`. Détails closeout → [Part 29](../history/roadmap-detailed-29-projets-epargne.md). 5 modules nouveaux (`lib/schemas/projects.ts`, `lib/finance/projects.ts`, `lib/api/finance/projects.ts`, `app/api/finance/projects/[route.ts,(id)/route.ts]`, `hooks/useProjects.ts`) + 4 tests gated `SUPABASE_FINANCE_TESTS=1` (4/4 pass). `invalidateFinancialRefreshes` étendu 8 → 9 keys. Routes API 41 → 43.
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet.
 
 ## Objectif
@@ -29,7 +31,10 @@ $env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
 import { z } from 'zod'
 import { contextSchema, isoDateSchema, moneyFormSchema, moneySchema, uuidSchema } from './common'
 
-const projectNameSchema = z.string().trim().min(2, 'Le nom du projet est requis (minimum 2 caractères)')
+const projectNameSchema = z
+  .string()
+  .trim()
+  .min(2, 'Le nom du projet est requis (minimum 2 caractères)')
 
 export const createProjectBodySchema = z.object({
   name: projectNameSchema,
@@ -46,10 +51,10 @@ export type UpdateProjectBody = z.infer<typeof updateProjectBodySchema>
 // 1. RAV reste ≥ 0 (newAllocatedTotal ≤ totalEstimatedIncome)
 // 2. monthlyAllocation × monthsUntilDeadline ≥ targetAmount - amountSaved (cohérence)
 export function makeProjectClientSchema(opts: {
-  currentAllocatedTotal: number   // SUM(budgets) + SUM(autres projets) (cf. sprint 03 RAV)
+  currentAllocatedTotal: number // SUM(budgets) + SUM(autres projets) (cf. sprint 03 RAV)
   totalEstimatedIncome: number
-  currentProjectAllocation?: number  // edit case
-  amountSaved?: number               // edit case
+  currentProjectAllocation?: number // edit case
+  amountSaved?: number // edit case
 }) {
   // ... refine RAV + refine cohérence durée/target
 }
@@ -60,17 +65,23 @@ export function makeProjectClientSchema(opts: {
 ```ts
 export async function createSavingsProject(
   filter: ContextFilter,
-  args: { name: string; targetAmount: number; monthlyAllocation: number; deadlineDate: string }
+  args: { name: string; targetAmount: number; monthlyAllocation: number; deadlineDate: string },
 ): Promise<SavingsProjectRow>
 
 export async function updateSavingsProject(
   filter: ContextFilter,
-  args: { id: string; name: string; targetAmount: number; monthlyAllocation: number; deadlineDate: string }
+  args: {
+    id: string
+    name: string
+    targetAmount: number
+    monthlyAllocation: number
+    deadlineDate: string
+  },
 ): Promise<SavingsProjectRow>
 
 export async function deleteSavingsProjectToPiggy(
   filter: ContextFilter,
-  projectId: string
+  projectId: string,
 ): Promise<{ transferredAmount: number; piggyAmount: number }>
 
 export async function listSavingsProjects(filter: ContextFilter): Promise<SavingsProjectRow[]>
@@ -104,6 +115,7 @@ Ajouter `['projects']` à la liste (9 keys au total).
 ### 7. Tests gated — `lib/api/finance/__tests__/projects-rpc.test.ts` (`SUPABASE_FINANCE_TESTS=1`)
 
 4 cas :
+
 - create → list
 - update
 - delete → piggy crédité
