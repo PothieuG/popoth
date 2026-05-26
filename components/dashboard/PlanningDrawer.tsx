@@ -159,7 +159,6 @@ export default function PlanningDrawer({
   const {
     projects,
     loading: projectsLoading,
-    isFetching: projectsFetching,
     error: projectsError,
     addProject,
     updateProject,
@@ -195,7 +194,7 @@ export default function PlanningDrawer({
     budgetsLoading || budgetsFetching || budgetProgressLoading || budgetProgressFetching
   const isIncomesBusy =
     incomesLoading || incomesFetching || incomeProgressLoading || incomeProgressFetching
-  const isProjectsBusy = projectsLoading || projectsFetching
+  const isProjectsBusy = projectsLoading
 
   const renderSkeletonRows = (count = 3) => (
     <div className="space-y-2">

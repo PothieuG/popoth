@@ -38,7 +38,7 @@ function buildProject(overrides: Partial<SavingsProject> = {}): SavingsProject {
 }
 
 describe('EditProjectDialog', () => {
-  it('pré-remplissage — nom + target + mode A par défaut + note "Déjà épargné"', () => {
+  it('pré-remplissage — nom + target + mode B par défaut + note "Déjà épargné"', () => {
     render(
       <EditProjectDialog
         isOpen
@@ -60,8 +60,8 @@ describe('EditProjectDialog', () => {
     expect(screen.getByText(/déjà épargné/i)).toBeInTheDocument()
     expect(screen.getByText(/reste à atteindre/i)).toBeInTheDocument()
 
-    // Mode A par défaut : input durée visible
-    expect(screen.getByLabelText(/durée \(mois\)/i)).toBeInTheDocument()
+    // Mode B par défaut : input mensuel visible, pré-rempli avec monthly_allocation stocké
+    expect(screen.getByLabelText(/montant mensuel/i)).toBeInTheDocument()
   })
 
   it('refine RAV avec delta — augmenter le mensuel dans la marge libérée est OK', async () => {
@@ -146,7 +146,10 @@ describe('EditProjectDialog', () => {
       />,
     )
 
-    // Mode A par défaut. Force durée=30.
+    // Mode B par défaut → passer en mode A pour piloter via durée.
+    await user.click(screen.getByRole('radio', { name: /définir la durée/i }))
+
+    // Force durée=30.
     const durationInput = screen.getByLabelText(/durée \(mois\)/i)
     await user.clear(durationInput)
     await user.type(durationInput, '30')

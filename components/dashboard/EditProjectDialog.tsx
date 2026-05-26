@@ -110,7 +110,7 @@ export default function EditProjectDialog({
     mode: 'onSubmit',
   })
 
-  const [mode, setMode] = useState<Mode>('duration')
+  const [mode, setMode] = useState<Mode>('monthly')
   const [durationInputA, setDurationInputA] = useState<number>(initialDuration)
 
   const formatAmount = (amount: number): string =>

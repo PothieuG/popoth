@@ -105,6 +105,9 @@ export default function ProjectListItem({
             <span className="text-purple-700">{formatAmount(saved)}</span>
             <span className="text-gray-500"> / {formatAmount(target)}</span>
           </p>
+          <p className="text-xs text-gray-500">
+            {formatAmount(Number(project.monthly_allocation))}/mois
+          </p>
         </div>
 
         {/* Menu dropdown */}
