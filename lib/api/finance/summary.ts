@@ -61,7 +61,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
           totalEstimatedBudgets: 0,
           totalRealIncome: 0,
           totalRealExpenses: 0,
-          meta: { readOnlyIncomes: [] },
+          meta: { readOnlyIncomes: [], totalMonthlyProjects: 0, savingsProjects: [] },
         },
         context: 'profile',
         timestamp: Date.now(),

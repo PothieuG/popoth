@@ -31,8 +31,9 @@ import {
 import { EMPTY_FINANCIAL_DATA } from './constants'
 import { asContextFilter, resolveContextIds, type ContextFilter } from './context'
 import { calculateIncomeCompensation } from './income-compensation'
+import { buildSavingsProjectMeta } from './projects-meta'
 import { saveRavToDatabase } from './rav-persistence'
-import type { FinancialData, ReadOnlyIncome } from './types'
+import type { FinancialData, ReadOnlyIncome, SavingsProjectMeta } from './types'
 
 async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData> {
   // resolveContextIds enforces the discriminated-union invariant at runtime
@@ -84,8 +85,22 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         'id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date, cumulated_savings',
       )
       .eq(ownerColumn, ownerId)
+
+    // 3.bis Projets d'épargne — le `monthly_allocation` est traité comme un
+    // budget classique (cf. spec §4 "le montant mensuel s'ajoute à
+    // l'ensemble des budgets dans tous les calculs"). Agrégé directement
+    // dans `totalEstimatedBudgets` pour ne pas dupliquer le terme dans la
+    // formule RAV. Sprint Projets-Épargne 03.
+    const { data: savingsProjects } = await supabaseServer
+      .from('savings_projects')
+      .select('id, name, monthly_allocation, amount_saved, target_amount, deadline_date')
+      .eq(ownerColumn, ownerId)
+    const totalMonthlyProjects =
+      savingsProjects?.reduce((sum, p) => sum + p.monthly_allocation, 0) ?? 0
+
     const totalEstimatedBudgets =
-      estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0
+      (estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0) +
+      totalMonthlyProjects
 
     // 4. Revenus réels. Sprint 15 V3 — exclure les carry-overs : ils sont
     // affichés en lecture sur le dashboard mais ne comptent pas dans le RAV,
@@ -268,6 +283,14 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       groupSalaryTotal = groupContributions.reduce((sum, c) => sum + (c.salary ?? 0), 0)
     }
 
+    // 14. Sprint Projets-Épargne 03 — subset présentationnel des projets
+    // pour l'UI (drawer recap sprint 07, onglet planificateur sprint 04).
+    // `today` non-injecté ici : `new Date()` au moment du fetch, le floor
+    // de `monthsBetween` absorbe la latence sub-mensuelle.
+    const savingsProjectsMeta: SavingsProjectMeta[] = (savingsProjects ?? []).map((row) =>
+      buildSavingsProjectMeta(row),
+    )
+
     return {
       availableBalance,
       remainingToLive,
@@ -276,11 +299,19 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       totalEstimatedBudgets,
       totalRealIncome,
       totalRealExpenses,
-      meta: { readOnlyIncomes, ...(groupSalaryTotal !== undefined && { groupSalaryTotal }) },
+      meta: {
+        readOnlyIncomes,
+        ...(groupSalaryTotal !== undefined && { groupSalaryTotal }),
+        totalMonthlyProjects,
+        savingsProjects: savingsProjectsMeta,
+      },
     }
   } catch (error) {
     logger.error('Erreur lors du calcul des données financières', { ownerColumn, ownerId, error })
-    return { ...EMPTY_FINANCIAL_DATA, meta: { readOnlyIncomes: [] } }
+    return {
+      ...EMPTY_FINANCIAL_DATA,
+      meta: { readOnlyIncomes: [], totalMonthlyProjects: 0, savingsProjects: [] },
+    }
   }
 }
 

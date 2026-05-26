@@ -56,7 +56,13 @@ describe.skipIf(!ENABLED)(
       totalRealIncome: 850,
       totalRealExpenses: 230,
       // Sprint 16 V3 — salaire exposé en virtual row (profile.salary = 1500 > 0).
-      meta: { readOnlyIncomes: [{ kind: 'salary', label: 'Salaire', amount: 1500 }] },
+      // Sprint Projets-Épargne 03 — totalMonthlyProjects=0 + savingsProjects=[]
+      // exposés en permanence (la fixture ne seed pas de projets).
+      meta: {
+        readOnlyIncomes: [{ kind: 'salary', label: 'Salaire', amount: 1500 }],
+        totalMonthlyProjects: 0,
+        savingsProjects: [],
+      },
     }
 
     // Golden math for the group path (single-member group → contribution =
@@ -99,6 +105,8 @@ describe.skipIf(!ENABLED)(
       meta: {
         readOnlyIncomes: [{ kind: 'contribution', label: 'Contribution de Finance', amount: 600 }],
         groupSalaryTotal: 1500,
+        totalMonthlyProjects: 0,
+        savingsProjects: [],
       },
     }
 
@@ -500,11 +508,16 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
       totalEstimatedBudgets: 0,
       totalRealIncome: 0,
       totalRealExpenses: 0,
-      meta: { readOnlyIncomes: [] },
+      meta: { readOnlyIncomes: [], totalMonthlyProjects: 0, savingsProjects: [] },
     }
     const GROUP_EMPTY_SHAPE = {
       ...PROFILE_EMPTY_SHAPE,
-      meta: { readOnlyIncomes: [], groupSalaryTotal: 0 },
+      meta: {
+        readOnlyIncomes: [],
+        groupSalaryTotal: 0,
+        totalMonthlyProjects: 0,
+        savingsProjects: [],
+      },
     }
 
     const profileData = await getProfileFinancialData(randomUUID())
