@@ -1,5 +1,7 @@
 # Sprint 09 — Recap UI : RefloatProjectsLine entre savings et budgets
 
+> ✅ **LIVRÉ 2026-05-26** sur `feature/projets-epargne`. Voir closeout détaillé → [`../history/roadmap-detailed-30-projets-epargne-modals.md`](../history/roadmap-detailed-30-projets-epargne-modals.md) sprint 09.
+>
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la nouvelle étape "Renflouement par les projets" entre savings et budgets (section 5.2).
 
 ## Objectif

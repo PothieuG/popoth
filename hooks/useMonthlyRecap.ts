@@ -372,6 +372,60 @@ export function useRefloatFromSavings(context: RecapContext) {
   })
 }
 
+export interface RefloatFromProjectsResult {
+  newDeficit: number
+  allocation: Record<string, number>
+  perProject: ReadonlyArray<{ projectId: string; amount: number }>
+  shortfall: number
+}
+
+/**
+ * Sprint Projets-Épargne 09 — negative flow action 2.5 (BilanNegativeStep
+ * ligne 3, intermédiaire entre `RefloatSavingsLine` et `RefloatBudgetSnapshotLine`).
+ * POST /api/monthly-recap/refloat-from-projects with no body other than `context`.
+ * Server computes the proportional allocation across each active project's
+ * `monthly_allocation` (pas l'`amount_saved` cumulé — sémantique "renoncer
+ * temporairement à la mensualité du projet") jusqu'à `deficitRemaining`.
+ *
+ * Cache update strategy: `setQueryData` fast path — patch
+ * `recap.projectSnapshotData` in place with the server-computed allocation
+ * so `BilanNegativeStep` re-renders with `computeDeficitRemaining` taking
+ * the new projects refund into account (snapshot pure côté DB, aucune
+ * mutation de `savings_projects` à cette étape — appliquée à la finalize
+ * sprint 10 via `apply_recap_projects_snapshot`). `RecapSummary` n'est pas
+ * impacté (les projets ne touchent ni à la tirelire ni aux savings des
+ * budgets) — pas de patch summary.
+ *
+ * Does NOT advance `current_step` — la route ne le fait jamais.
+ */
+export function useRefloatFromProjects(context: RecapContext) {
+  const qc = useQueryClient()
+  return useMutation<RefloatFromProjectsResult, Error, void>({
+    mutationFn: async () => {
+      const res = await fetch('/api/monthly-recap/refloat-from-projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? 'refloat_projects_failed')
+      }
+      const json = (await res.json()) as { data: RefloatFromProjectsResult }
+      return json.data
+    },
+    onSuccess: (data) => {
+      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
+        if (!old) return old
+        const nextRecap: RecapProgress | null = old.recap
+          ? { ...old.recap, projectSnapshotData: data.allocation }
+          : old.recap
+        return { ...old, recap: nextRecap }
+      })
+    },
+  })
+}
+
 export interface SaveBudgetSnapshotResult {
   newDeficit: number
   snapshot: Record<string, number>

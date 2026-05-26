@@ -23,6 +23,7 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useTransformRemainingSurplusesToSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRefloatFromPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRefloatFromSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRefloatFromProjects: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSaveBudgetSnapshot: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateSalaries: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCompleteRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),

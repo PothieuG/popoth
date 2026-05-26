@@ -10,6 +10,7 @@ import type { RecapContext, RecapSummary } from '@/lib/recap'
 
 import { RefloatBudgetSnapshotLine } from '../RefloatBudgetSnapshotLine'
 import { RefloatPiggyLine } from '../RefloatPiggyLine'
+import { RefloatProjectsLine } from '../RefloatProjectsLine'
 import { RefloatSavingsLine } from '../RefloatSavingsLine'
 
 const ERROR_COPY: Record<string, string> = {
@@ -83,6 +84,7 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
     refloatedFromPiggy: recap.refloatedFromPiggy,
     refloatedFromSavings: recap.refloatedFromSavings,
     snapshotData: recap.snapshotData,
+    projectSnapshotData: recap.projectSnapshotData,
   })
 
   const handleError = (code: string) => {
@@ -134,12 +136,34 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
           : 'active'
 
   const savingsOutOfTheWay = piggyOutOfTheWay && (savingsActuallyUsed || savingsEmpty)
+
+  // Projects line (sprint Projets-Épargne 09) — inserted between savings and
+  // the final budget snapshot. The pool is each project's `monthly_allocation`
+  // (not its `amount_saved`) — sémantique "renoncer à la mensualité du mois".
+  const projects = summary.savingsProjects
+  const projectsEmpty = projects.length === 0 || projects.every((p) => p.monthlyAllocation <= 0)
+  const projectSnapshotData = recap.projectSnapshotData
+  const projectsTotal = projectSnapshotData
+    ? Object.values(projectSnapshotData).reduce((s, v) => s + v, 0)
+    : 0
+  const projectsDone = projectsTotal > 0
+  const projectsState: 'locked' | 'active' | 'done' | 'empty' | 'unneeded' = projectsDone
+    ? 'done'
+    : projectsEmpty
+      ? 'empty'
+      : deficitCovered
+        ? 'unneeded'
+        : !savingsOutOfTheWay
+          ? 'locked'
+          : 'active'
+
+  const projectsOutOfTheWay = savingsOutOfTheWay && (projectsDone || projectsEmpty)
   const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' =
     snapshotTotal > 0
       ? 'done'
       : deficitCovered
         ? 'unneeded'
-        : !savingsOutOfTheWay
+        : !projectsOutOfTheWay
           ? 'locked'
           : 'active'
 
@@ -187,6 +211,16 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
         budgets={summary.budgets}
         deficitRemaining={deficitRemaining}
         refloatedFromSavings={recap.refloatedFromSavings}
+        onError={handleError}
+        onSuccess={handleSuccess}
+      />
+
+      <RefloatProjectsLine
+        context={context}
+        state={projectsState}
+        projects={projects}
+        deficitRemaining={deficitRemaining}
+        projectSnapshotData={projectSnapshotData}
         onError={handleError}
         onSuccess={handleSuccess}
       />

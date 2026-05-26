@@ -154,3 +154,45 @@
   - Sprint 09 : UI cascade `RefloatProjectsLine` dans `BilanNegativeStep` entre savings et budget snapshot ; mutation `useRefloatFromProjects` côté hook ; copy + ARIA + tests RTL.
   - Sprint 10 : Wire `project_snapshot_data` dans `finalize_recap_apply_snapshot` (ou route directe vers `apply_recap_projects_snapshot` sprint 01 RPC) + résumé final `FinalRecapStep` (section "Renflouement via projets : N€ réparti sur M projets").
   - Sprint 11 : Seeds dédiés projets + push prod migrations Projets-Épargne (sprint 01 + 08 — `savings_projects` + `project_snapshot_data` column) + PR finalisation.
+
+---
+
+- ✅ **Sprint 09 — UI cascade RefloatProjectsLine entre savings et budget snapshot** (livré 2026-05-26 sur `feature/projets-epargne`).
+
+  ### Périmètre
+
+  Nouveau composant `RefloatProjectsLine` inséré dans la cascade séquentielle du `BilanNegativeStep` ENTRE `RefloatSavingsLine` et `RefloatBudgetSnapshotLine`. Même UX que les lignes adjacentes : 5 états (`active | locked | done | empty | unneeded`), même couleur violet (économies family), même pattern preview/done/click → mutation → snackbar. La machine à états du `BilanNegativeStep` est étendue d'une 4e ligne entre savings et budget snapshot — `projects.state` calculé en fonction de `savingsOutOfTheWay + projects.length + projects.every(p ⇒ allocation ≤ 0) + deficitCovered + projectsDone`. Aucun nouveau endpoint (mutation `useRefloatFromProjects` câblée à l'endpoint sprint 08 `POST /api/monthly-recap/refloat-from-projects`). `computeDeficitRemaining` reçoit désormais `projectSnapshotData: recap.projectSnapshotData` côté UI (le helper le supportait déjà depuis sprint 08).
+
+  ### Modules livrés (4 modifs + 1 nouveau composant + 1 nouveau test)
+  - [components/monthly-recap/RefloatProjectsLine.tsx](../../components/monthly-recap/RefloatProjectsLine.tsx) (nouveau, +180 LOC) — clone `RefloatSavingsLine.tsx` adapté. Props `{ context, state, projects, deficitRemaining, projectSnapshotData, onError, onSuccess }`. Theme **violet** (cohérent économies family). États : `locked` (waiting copy "Disponible après avoir transféré la tirelire et les économies"), `empty` ("Aucun projet à utiliser"), `unneeded` ("Pas nécessaire — déficit comblé"), `done` (total refloué + remaining mensualité par projet `nouvelle / mensualité`), `active` (per-project preview `mensualité → after`, button "Utiliser X€ depuis les projets"). Filtre `projectsByPool = projects.filter(p ⇒ monthlyAllocation > 0)` côté active pour ne pas afficher les projets à 0€. Click → `useRefloatFromProjects.mutateAsync()` → `onSuccess(totalRefloated)` (snackbar) ou `onError(code)`.
+  - [hooks/useMonthlyRecap.ts](../../hooks/useMonthlyRecap.ts) — nouvelle mutation `useRefloatFromProjects(context)` (+55 LOC). POST `/api/monthly-recap/refloat-from-projects` body `{ context }`. Cache strategy `setQueryData` fast path : patch `recap.projectSnapshotData = data.allocation` (mirror `useSaveBudgetSnapshot`). NE PAS advance step. Exports `RefloatFromProjectsResult` shape `{ newDeficit, allocation, perProject, shortfall }`.
+  - [components/monthly-recap/steps/BilanNegativeStep.tsx](../../components/monthly-recap/steps/BilanNegativeStep.tsx) — import `RefloatProjectsLine`. `computeDeficitRemaining` étendu avec `projectSnapshotData: recap.projectSnapshotData`. State machine étendue : `projectsEmpty = projects.length === 0 || projects.every(p ⇒ allocation ≤ 0)`, `projectsDone = sum(projectSnapshotData) > 0`, `projectsState` (mirror `savingsState` avec branche locked si `!savingsOutOfTheWay`). `projectsOutOfTheWay = savingsOutOfTheWay && (projectsDone || projectsEmpty)`. `snapshotState` reçoit le nouveau gate `!projectsOutOfTheWay ? 'locked'`. `<RefloatProjectsLine>` inséré entre `<RefloatSavingsLine>` et `<RefloatBudgetSnapshotLine>`.
+  - [components/monthly-recap/__tests__/BilanNegativeStep.test.tsx](../../components/monthly-recap/__tests__/BilanNegativeStep.test.tsx) — mock `useRefloatFromProjects` ajouté + 4 nouveaux tests cascade : (a) projets actifs après savings done → button visible + budgets locked, (b) projets actifs après savings empty (skip savings), (c) 0 projet → projects empty → budgets active direct, (d) `projectSnapshotData={p1: 80, p2: 45}` → projects done state + snapshot unneeded + Continuer visible.
+  - [components/monthly-recap/__tests__/RefloatProjectsLine.test.tsx](../../components/monthly-recap/__tests__/RefloatProjectsLine.test.tsx) (nouveau, 8 cas) — mirror `RefloatSavingsLine.test.tsx` : (1) locked copy + pas de button, (2) empty "Aucun projet à utiliser", (3) unneeded "déficit déjà comblé", (4) done breakdown per-project remaining/total, (5) active preview, (6) click → mutateAsync + onSuccess regex, (7) error code forwarded, (8) filter out `monthlyAllocation = 0` du preview.
+  - [components/monthly-recap/__tests__/RecapWizard.test.tsx](../../components/monthly-recap/__tests__/RecapWizard.test.tsx) — ajout de `useRefloatFromProjects` au `vi.mock('@/hooks/useMonthlyRecap')` (sinon `BilanNegativeStep` crash sur l'import).
+
+  ### Décisions de design
+  - **Theme violet identique à `RefloatSavingsLine`** : per CLAUDE.md operational-rules-ui-modals + `SavingsProjectsDetailDrawer` du sprint 07, projets = économies = famille violet. Le user voit deux cards violet successives (savings + projects) avant la card orange budgets — cohérent avec la sémantique "drainer l'épargne d'abord, puis toucher les budgets en dernier".
+  - **Copy locked "transféré la tirelire et les économies"** (PAS "épuisé") : pour ne pas conflit textuel avec la card snapshot locked qui dit "épuisé la tirelire et les économies" (laissée inchangée pour préserver les regressions tests existantes). Le user voit deux locked cards distinguables.
+  - **`projectsEmpty` ordering BEFORE `deficitCovered`** dans la state machine : miroir `savingsState`. Si 0 projet dès le départ, on affiche "Aucun projet à utiliser" plutôt que "Pas nécessaire" — feedback plus précis.
+  - **`projectsState='empty'` greyed sans interférer avec snapshot** : `getAllByText(/Pas nécessaire/)` reste à 2 occurrences (savings + snapshot) dans le test "piggy alone covers" parce que projects empty utilise une copy DIFFÉRENTE ("Aucun projet à utiliser"). Les regressions tests existantes passent verbatim.
+  - **Mutation cache patch `recap.projectSnapshotData = data.allocation`** : mirror `useSaveBudgetSnapshot` (pas de summary refetch). Le `loadRecapSummary` n'a pas besoin d'être re-fetched parce que (a) les `cumulated_savings` n'ont pas bougé (snapshot DEFERRED), (b) le `summary.bilan` ne change pas (recompute depuis ravEffectif/ravEstime, indépendant du `refloated_*` côté DB). Une seule UPDATE côté DB sur `monthly_recaps.project_snapshot_data` JSONB suffit.
+  - **NO smoke browser dans ce closeout** : pas d'outil de driving navigateur disponible côté Claude Code dans ce repo. Les RTL tests couvrent : la cascade gating (4 nouveaux + 4 existants étendus), le click handler (mutation called + onSuccess + onError), le breakdown rendering (active preview + done remaining/total). Validation visuelle manuelle laissée au user (commande `pnpm dev` + scénario seed-recap `bilan-negative-*` + 2 projets actifs).
+
+  ### Invariants bumpés / stables
+  - **Routes API : 44 stable** (mutation câblée sur endpoint sprint 08 existant).
+  - **EXPECTED_RPCS : 25 stable**. Functions DB : 34 stable.
+  - **Lint baseline : 0 errors / 0 warnings** préservé.
+  - **Tests non-gated : 733 → 745** (+8 nouveaux `RefloatProjectsLine.test.tsx` + 4 nouveaux dans `BilanNegativeStep.test.tsx` cascade projets).
+  - **Tests gated `SUPABASE_RECAP_TESTS=1` : 85 stable** (pas de nouveau test gated DB, l'endpoint refloat-from-projects était déjà couvert au sprint 08).
+  - **Build Next.js** : 44 routes, 0 régression.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (745/218) ; `pnpm format:check` ✓.
+  - `pnpm db:check-drift` ✓ contre dev (`SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr`) ; `pnpm db:check-rpcs` ✓ (25) ; `pnpm db:check-types-fresh` ✓ ; `pnpm db:audit-functions` ✓ ; `pnpm db:audit-objects` ✓ ; `pnpm check:md-size` ✓.
+  - `pnpm build` ✓ (44 routes).
+  - **Drift contre prod attendue** (sprint 01 + 08 migrations Projets-Épargne pas encore push prod, prévu sprint 11).
+
+  ### Hors scope sprint 09 (à venir)
+  - Sprint 10 : Wire `project_snapshot_data` dans `finalize_recap_apply_snapshot` (ou route directe vers `apply_recap_projects_snapshot` sprint 01 RPC) + résumé final `FinalRecapStep` (section "Renflouement via projets : N€ réparti sur M projets").
+  - Sprint 11 : Seeds dédiés projets + push prod migrations Projets-Épargne (sprint 01 + 08 — `savings_projects` + `project_snapshot_data` column) + PR finalisation.

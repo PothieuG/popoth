@@ -7,6 +7,7 @@ import type { RecapSummary } from '@/lib/recap'
 
 const refloatPiggyMock = vi.fn()
 const refloatSavingsMock = vi.fn()
+const refloatProjectsMock = vi.fn()
 const saveSnapshotMock = vi.fn()
 const advanceMock = vi.fn()
 const transformMock = vi.fn()
@@ -16,6 +17,7 @@ let advancePending = false
 vi.mock('@/hooks/useMonthlyRecap', () => ({
   useRefloatFromPiggy: () => ({ mutateAsync: refloatPiggyMock, isPending: false }),
   useRefloatFromSavings: () => ({ mutateAsync: refloatSavingsMock, isPending: false }),
+  useRefloatFromProjects: () => ({ mutateAsync: refloatProjectsMock, isPending: false }),
   useSaveBudgetSnapshot: () => ({ mutateAsync: saveSnapshotMock, isPending: false }),
   useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: advancePending }),
   useTransferSurplusesToPiggy: () => ({ mutateAsync: transferMock, isPending: false }),
@@ -80,6 +82,7 @@ function makeRecap(overrides: Partial<RecapProgress> = {}): RecapProgress {
 beforeEach(() => {
   refloatPiggyMock.mockReset()
   refloatSavingsMock.mockReset()
+  refloatProjectsMock.mockReset()
   saveSnapshotMock.mockReset()
   advanceMock.mockReset()
   transformMock.mockReset()
@@ -270,6 +273,161 @@ describe('BilanNegativeStep', () => {
       await waitFor(() => {
         expect(screen.getByRole('alert')).toHaveTextContent(/Tu n'es pas l'initiateur/)
       })
+    })
+  })
+
+  describe('projects cascade (sprint Projets-Épargne 09)', () => {
+    it('inserts projects(active) between savings(done) and budgets(locked)', () => {
+      // bilan=-200, piggy drained 50€, savings drained 25€ → deficitRemaining=125.
+      // Projects active (1 project of 100€/mois) → budgets stay locked.
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            bilan: -200,
+            savingsProjects: [
+              {
+                id: 'p1',
+                name: 'Japon',
+                monthlyAllocation: 100,
+                amountSaved: 300,
+                targetAmount: 7000,
+                deadlineDate: '2029-01-01',
+                monthsRemaining: 36,
+              },
+            ],
+          })}
+          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
+        />,
+      )
+
+      // Piggy + savings done
+      expect(
+        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
+      ).toBeInTheDocument()
+      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
+      // Projects active (button visible mentioning montant)
+      expect(
+        screen.getByRole('button', { name: /Utiliser .+ depuis les projets/ }),
+      ).toBeInTheDocument()
+      // Budgets stay locked
+      expect(
+        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
+      ).toBeInTheDocument()
+    })
+
+    it('inserts projects(active) directly after piggy when savings is empty from the start', () => {
+      // piggy drained 100€, savings=0 from start, deficit not yet covered.
+      // Projects active right after savings(empty) — cascade skips over savings.
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            bilan: -200,
+            savingsProjects: [
+              {
+                id: 'p1',
+                name: 'Voiture',
+                monthlyAllocation: 80,
+                amountSaved: 480,
+                targetAmount: 5000,
+                deadlineDate: '2029-06-01',
+                monthsRemaining: 42,
+              },
+            ],
+          })}
+          recap={makeRecap({ refloatedFromPiggy: 100 })}
+        />,
+      )
+
+      // Savings shows "Pas d'économies" (empty, never had money)
+      expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
+      // Projects active — bouton visible
+      expect(
+        screen.getByRole('button', { name: /Utiliser .+ depuis les projets/ }),
+      ).toBeInTheDocument()
+      // Budgets locked
+      expect(
+        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
+      ).toBeInTheDocument()
+    })
+
+    it('0 project → projects(empty) lets budgets snapshot become active directly', () => {
+      // Same as the existing test "snapshot unlocks when both piggy and savings are empty",
+      // but explicit on the projects branch : savingsProjects=[] → projects(empty)
+      // → projectsOutOfTheWay → snapshot(active).
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            savingsProjects: [],
+          })}
+          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
+        />,
+      )
+
+      // Projects "empty" card visible (no button, grey copy)
+      expect(screen.getByText(/Aucun projet à utiliser/)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /Utiliser .+ depuis les projets/ }),
+      ).not.toBeInTheDocument()
+      // Budgets active right after
+      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
+    })
+
+    it('projects(done) when projectSnapshotData populated + deficit covered → snapshot(unneeded)', () => {
+      // bilan=-200, piggy 50, savings 25, projects 125 → deficit covered.
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            bilan: -200,
+            savingsProjects: [
+              {
+                id: 'p1',
+                name: 'Japon',
+                monthlyAllocation: 100,
+                amountSaved: 300,
+                targetAmount: 7000,
+                deadlineDate: '2029-01-01',
+                monthsRemaining: 36,
+              },
+              {
+                id: 'p2',
+                name: 'Voiture',
+                monthlyAllocation: 50,
+                amountSaved: 480,
+                targetAmount: 5000,
+                deadlineDate: '2029-06-01',
+                monthsRemaining: 42,
+              },
+            ],
+          })}
+          recap={makeRecap({
+            refloatedFromPiggy: 50,
+            refloatedFromSavings: 25,
+            projectSnapshotData: { p1: 80, p2: 45 },
+          })}
+        />,
+      )
+
+      // Projects done state — total + nouvelle mensualité par projet
+      expect(
+        screen.getByText(/de mensualités projets utilisés pour combler le déficit/),
+      ).toBeInTheDocument()
+      // Snapshot is unneeded (deficit covered by piggy + savings + projects)
+      expect(screen.getByText(/Pas nécessaire — le déficit est déjà comblé/)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Équilibrer' })).not.toBeInTheDocument()
+      // Continuer visible
+      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
     })
   })
 
