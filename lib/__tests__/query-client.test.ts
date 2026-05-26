@@ -3,13 +3,13 @@ import { QueryClient } from '@tanstack/react-query'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 describe('invalidateFinancialRefreshes', () => {
-  it('invalidates the 8 cross-domain financial keys in order', () => {
+  it('invalidates the 9 cross-domain financial keys in order', () => {
     const qc = new QueryClient()
     const spy = vi.spyOn(qc, 'invalidateQueries')
 
     invalidateFinancialRefreshes(qc)
 
-    expect(spy).toHaveBeenCalledTimes(8)
+    expect(spy).toHaveBeenCalledTimes(9)
     expect(spy).toHaveBeenNthCalledWith(1, { queryKey: ['financial-summary'] })
     expect(spy).toHaveBeenNthCalledWith(2, { queryKey: ['progress-data'] })
     expect(spy).toHaveBeenNthCalledWith(3, { queryKey: ['budgets'] })
@@ -22,5 +22,8 @@ describe('invalidateFinancialRefreshes', () => {
     // Sprint Salary-Edit-Gating (2026-05-25) : planificateur vierge ⇒ salaire
     // éditable. Toute mutation planner doit refetch la décision serveur.
     expect(spy).toHaveBeenNthCalledWith(8, { queryKey: ['salary-editability'] })
+    // Sprint Projets-Épargne 02 (Backend-Wiring) : la liste des projets doit
+    // refetch quand un budget ou un income change (la marge dispo bouge).
+    expect(spy).toHaveBeenNthCalledWith(9, { queryKey: ['projects'] })
   })
 })

@@ -41,6 +41,13 @@ export function createQueryClient() {
  * vierge. Toute mutation sur les 4 tables planificateur (budgets/incomes
  * estimés ou réels) doit refetch la décision serveur pour relâcher (ou
  * resserrer) le verrou côté UI sans refresh manuel.
+ *
+ * `projects` was added by Sprint Projets-Épargne 02 (Backend-Wiring) — un
+ * project consomme une allocation mensuelle qui rejoindra la formule RAV
+ * au sprint 03. Toute mutation sur budgets/income doit refetch la liste
+ * des projets pour que les UI affichant la marge disponible (sprint 04+)
+ * voient instantanément l'effet d'un nouveau budget sur la capacité à
+ * créer un nouveau projet.
  */
 export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['financial-summary'] })
@@ -51,4 +58,5 @@ export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['real-expenses'] })
   qc.invalidateQueries({ queryKey: ['bank-balance'] })
   qc.invalidateQueries({ queryKey: ['salary-editability'] })
+  qc.invalidateQueries({ queryKey: ['projects'] })
 }
