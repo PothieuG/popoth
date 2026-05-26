@@ -54,7 +54,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                    | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
 | `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings       | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 25` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_expense_applied_to_balance` + `toggle_real_income_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `apply_recap_projects_snapshot` (sprint 01 + sprint 10 wiring). Sprints 02-03 ajoutent `projects.ts` + `projects-meta.ts` (`_loadFinancialData` 3.bis), cf. [Part 29](../history/roadmap-detailed-29-projets-epargne.md).
+`EXPECTED_RPCS = 25` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 

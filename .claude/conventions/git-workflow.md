@@ -89,6 +89,32 @@ pnpm typecheck  # exit 0
 pnpm supabase db push --dry-run → STOP confirmation utilisateur → db push → re-audit Management API → commit
 ```
 
+### 7.5. Drift recovery quand `db push` fail mid-stack
+
+Si `pnpm supabase db push` échoue en plein milieu d'une chaîne de migrations (cas typique : column/table existe déjà sur prod car appliquée hors-tracker via Dashboard SQL editor ou `apply-sql.mjs` sans `migration repair`), 3 patterns de recovery selon le symptôme :
+
+1. **Drift `SQLSTATE 42701` (column already exists) ou `42P07` (relation already exists)** — l'objet existe vraiment sur prod, juste le tracker ne le sait pas :
+   - `pnpm supabase migration repair --status applied <TS>` → marque comme appliquée sans re-runner le SQL
+   - Relancer `pnpm supabase db push --include-all` → reprend après la migration repaired
+
+2. **Collision de timestamp** — deux migrations partagent le même prefix `YYYYMMDDHHMMSS` (cas sprint PÉ 11 : `20260523000000_add_applied_to_balance` et `20260523000000_drop_legacy_recap_tables` partageaient `version=20260523000000`, et `schema_migrations.version` est PK → la 2e migration ne pouvait pas s'enregistrer même après que son SQL avait tourné) :
+   - Renommer le fichier local avec un offset (+1s = `20260523000001`)
+   - `migration repair --status applied <NEW_TS>` si SQL déjà appliqué
+   - Commit le rename + push
+
+3. **Tracker dit `applied` mais SQL jamais runné** — ex sprint PÉ 11 où `20260602000000_add_project_snapshot_to_monthly_recaps` était marquée applied dans `schema_migrations` mais la colonne `project_snapshot_data` n'existait pas sur prod (registration orpheline) :
+   - `migration repair --status reverted <TS>` → un-marque dans le tracker
+   - Re-push pour appliquer le SQL pour de vrai
+   - Détectable via `pnpm db:check-types-fresh` exit 1 après push (types.ts régénérés depuis prod n'ont pas la colonne attendue)
+
+Après **chaque** recovery, toujours :
+
+- Re-export baseline : `node scripts/export-schema.mjs supabase/migrations/20260101000000_remote_schema.sql`
+- Régénérer types : `pnpm db:types`
+- Vérifier : `pnpm db:check-drift` + `pnpm db:check-types-fresh` + `pnpm verify`
+
+**Leçon Sprint Projets-Épargne 11** : 23 migrations cumulées depuis 2026-05-22 ont nécessité 3 repairs (`20260523000000`, `20260524000000`, `20260524000001`) + 1 rename (collision `20260523000000`) + 1 revert+re-apply (`20260602000000`) pour aligner prod et dev. Recommandation : pousser plus souvent vers prod, ne pas attendre la fin d'une grosse feature pour synchroniser. Détails [Part 31](../history/roadmap-detailed-31-projets-epargne-finalize.md) sprint 11.
+
 ## 8. Régénération types après changement de schéma
 
 ```bash
