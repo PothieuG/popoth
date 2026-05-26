@@ -50,7 +50,7 @@ $env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
   ```
 
 - Insérer `<RefloatProjectsLine>` ENTRE `<RefloatSavingsLine>` et `<RefloatBudgetSnapshotLine>` (lignes 183-194)
-- Lire `meta.savingsProjects` depuis `useFinancialData` ou via `useMonthlyRecap`
+- Lire les projets depuis `summary.savingsProjects` (exposé par sprint 07 sur `RecapSummary`, alimenté server-side dans `loadRecapSummary` sans RTT supplémentaire — pas besoin de monter `useFinancialData` dans le wizard)
 
 ### 3. Update `useMonthlyRecap`
 

@@ -66,3 +66,46 @@
 
   ### Hors scope sprint 06 (à venir)
   - Sprints 07-11 : drawer recap, refloat backend/UI, finalize wiring, seeds + push prod + PR.
+
+---
+
+- ✅ **Sprint 07 — Drawer "Projets en cours" sur l'écran initial du wizard recap** (livré 2026-05-26 sur `feature/projets-epargne`).
+
+  ### Périmètre
+
+  Sur l'écran `summary` du wizard Monthly Recap V3, ajout d'un bouton-cellule "📋 N projet(s) en cours" affiché sous "Total économies" quand l'owner a au moins 1 projet, ouvrant un drawer lecture-seule violet qui liste chaque projet (mini cercle de progression + nom + `amount_saved/target` + deadline + N mois restants). 0 fetch supplémentaire : la donnée est portée par `RecapSummary.savingsProjects` (nouveau champ), alimenté depuis `financialData.meta?.savingsProjects` déjà fetché par `_loadFinancialData` (sprint 03). 7 tests RTL drawer + 3 tests SummaryStep + 2 tests pure passthrough sur `computeRecapSummary`. **0 modif backend / DB** — pur passthrough de données déjà disponibles.
+
+  ### Modules livrés (2 nouveaux + 9 modifiés)
+  - [`components/monthly-recap/SavingsProjectsDetailDrawer.tsx`](../../components/monthly-recap/SavingsProjectsDetailDrawer.tsx) (~155 LOC) — Mirror `SavingsDetailDrawer` : header violet plein (icône clipboard-check + DialogTitle "Projets en cours" + sous-titre + `ModalCloseX variant="circle"`), `DRAWER_CONTENT_CLASSES` fullscreen, body scroll. Liste : 1 `<li>` par projet avec mini SVG ring (40px, palette `violet-100`/`violet-600`) + % centré (`aria-label="X% atteint"`), nom + ligne "Échéance : JJ/MM/AAAA · N mois restants" via `formatDeadline` + `formatMonthsRemaining`, montant `saved / target` (text-violet-700 / text-gray-500). Empty state : "Tu n'as aucun projet en cours pour l'instant."
+  - [`components/monthly-recap/__tests__/SavingsProjectsDetailDrawer.test.tsx`](../../components/monthly-recap/__tests__/SavingsProjectsDetailDrawer.test.tsx) (~120 LOC) — 7 cas RTL : rendu 3 projets (nom + % + montant + deadline + plural "N mois restants"), singular "1 mois restant", empty state, `isOpen=false` unmount, close button `aria-label="Fermer"`, ESC close via `expectEscClose`, axe 0 violations.
+  - [`lib/recap/types.ts`](../../lib/recap/types.ts) — Ajout `RecapSummary.savingsProjects: readonly SavingsProjectMeta[]` (toujours présent, `[]` quand aucun projet). Import du type depuis `@/lib/finance/types`. Le commentaire pointe sprint 09 (`RefloatProjectsLine` consommera la même donnée).
+  - [`lib/recap/calculations.ts`](../../lib/recap/calculations.ts) — `computeRecapSummary` accepte `savingsProjects?: readonly SavingsProjectMeta[]` (optional input avec default `[]` au return). Pure passthrough — aucune logique de calcul ajoutée.
+  - [`lib/recap/load-summary.ts`](../../lib/recap/load-summary.ts) — Lit `financialData.meta?.savingsProjects ?? []` et forward à `computeRecapSummary`. Zero round-trip supplémentaire : `getProfileFinancialData`/`getGroupFinancialData` fetch déjà la table `savings_projects` au sprint 03 et expose `SavingsProjectMeta[]` dans `meta`.
+  - [`lib/recap/__tests__/calculations.test.ts`](../../lib/recap/__tests__/calculations.test.ts) — 2 cas nouveaux : default `[]` quand omis ; passthrough verbatim quand fourni (2 projets, deep equality).
+  - [`components/monthly-recap/steps/SummaryStep.tsx`](../../components/monthly-recap/steps/SummaryStep.tsx) — `useState projectsOpen`, calcul `activeProjects` + `hasProjects` + `projectsLabel` (singular/plural). Bouton cellule ajouté sous "Total économies" : `border-l-4 border-l-violet-400`, fond hover violet pâle, icône 📋 + texte + chevron droit `aria-hidden`, masqué entièrement si `hasProjects=false`. Drawer lazy-mounted `{projectsOpen && <SavingsProjectsDetailDrawer ... />}` (pattern Sprint 1.5 standard).
+  - [`components/monthly-recap/__tests__/SummaryStep.test.tsx`](../../components/monthly-recap/__tests__/SummaryStep.test.tsx) — Factory `makeSummary` étendue avec `savingsProjects: []` (default). 3 cas nouveaux : ligne hidden si vide, "1 projet" singular, "N projets" plural + click ouvre le drawer.
+  - **5 factories `makeSummary` étendues** dans les RTL tests recap : `BilanNegativeStep.test.tsx`, `BilanPositiveStep.test.tsx`, `FinalRecapStep.test.tsx`, `RecapWizard.test.tsx`, `SalaryUpdateStep.test.tsx` — ajout du field `savingsProjects: []` pour matcher le nouveau shape (sinon `toEqual` casse).
+
+  ### Décisions de design
+  - **Passthrough via `RecapSummary` plutôt que nouveau hook `useFinancialData()` côté UI** : 0 fetch supplémentaire, single-source-of-truth (le wizard consomme déjà `useMonthlyRecap` qui fetche `/api/monthly-recap/status` qui pipe `loadRecapSummary`). Le sprint 09 (refloat from projects via cascade `BilanNegativeStep`) consommera la même donnée — symétrique au pattern `summary.budgets[]` déjà utilisé par les 2 autres detail drawers. Le plan sprint 07 laissait la décision ouverte ("via `meta` ou nouvelle query") — choix pesé en favor du passthrough.
+  - **Field `savingsProjects` requis (non-optional) sur `RecapSummary`** : `groupSalaryTotal` est conditionnel (spread `...(value !== undefined && {...})`) car sémantiquement absent en perso, mais `savingsProjects` est applicable aux 2 contextes (juste `[]` quand 0 projet). Le coût : 6 factories `makeSummary` à étendre. Bénéfice : pas de `?? []` chez chaque consumer (sprint 09 inclus).
+  - **Bouton cellule plutôt que `<SummaryCard>` avec `onShowDetail`** : la `SummaryCard` impose label + amount + lien optionnel — un projet n'a pas de montant global pertinent (l'aggregate `totalMonthlyProjects` existe mais affiché en plein recap n'apporte rien à l'utilisateur). Le format "📋 N projet(s) en cours" + chevron est plus proche d'un lien de navigation que d'une carte de métrique. Garde l'accent visuel violet `border-l-4 border-l-violet-400` pour rester dans la palette "économies" sans copier la structure de la card.
+  - **Singular/plural via ternaire `length === 1`** : "1 projet en cours" sans `s`, "N projets en cours" sinon. Le `0` est masqué donc pas géré. Le test couvre les 3 cas (0/1/N).
+  - **Mini ring 40px (vs 44px planner)** : le drawer recap est dense (plusieurs lignes empilées), 40px laisse plus de respiration sans casser la lisibilité du % au centre (`text-[10px] font-bold`).
+  - **Lazy-mount drawer mais import statique** : conditional `{projectsOpen && <Drawer />}` évite le mount du Radix Portal au load initial du wizard (~5kB JS sinon). `next/dynamic` aurait été overkill (le drawer est déjà côté client only, et la Suspense boundary requise complexifierait le SummaryStep). Pattern cohérent avec les 2 sibling drawers du même fichier.
+
+  ### Invariants bumpés
+  - **Tests non-gated passants** : 713 → 725 (+12 : 7 SavingsProjectsDetailDrawer RTL + 3 SummaryStep RTL + 2 computeRecapSummary pure passthrough).
+  - **Tests gated skipped** : 211 stables (aucun nouveau gated DB sprint 07).
+  - Lint baseline 0/0 préservée. EXPECTED_RPCS 25 stable. Functions DB 34 stable. Routes API 43 stable. 0 nouvelle migration.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (725/211) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
+  - **Vérif visuelle DevTools non-effectuée côté CLI** : aucun seed-recap scénario embarquant des projets à ce jour. À valider par le user en `pnpm dev` après création manuelle de 2 projets via le planificateur (sprints 04-06) puis démarrage d'un recap.
+  - `pnpm verify` chain : tous les db:* checks ✓ contre `ddehmjucyfgyppfkbddr` (set `$env:SUPABASE_PROJECT_REF`) ; drift contre prod rouge pré-existant (migrations Projets-Épargne non encore pushées prod, expected sprint 11).
+
+  ### Hors scope sprint 07 (à venir)
+  - Sprint 08 : RPC `executeRefloatFromProjects` + endpoint `POST /api/monthly-recap/refloat-from-projects` + mutation `useRefloatFromProjects`. Extension `monthly_recaps.project_snapshot_data jsonb` (miroir `budget_snapshot_data`). Pure helper `computeProportionalProjectsRefloat`.
+  - Sprint 09 : Composant `RefloatProjectsLine` dans la cascade `BilanNegativeStep` entre `RefloatSavingsLine` et `RefloatBudgetSnapshotLine`. Lire `summary.savingsProjects` (livré ce sprint 07).
+  - Sprint 10 : Wire de `project_snapshot_data` dans `finalize_recap_apply_snapshot` (extension de la RPC sprint 08 V3) + résumé final `FinalRecapStep`.
+  - Sprint 11 : Seeds dédiés projets, push prod migrations Projets-Épargne, PR finalisation.
