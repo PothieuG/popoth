@@ -99,7 +99,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
   - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
-- **Monthly Recap V3** : sprints 01-15/17 livrés (spec `prompt-montly-recap/`). Fondations [lib/recap/](lib/recap/), Zod [lib/schemas/recap.ts](lib/schemas/recap.ts), 10 endpoints `app/api/monthly-recap/*` via `withAuthAndProfile`. **Gating `proxy.ts`** : `/dashboard` + `/group-dashboard` redirigent sur `/monthly-recap?context=X` tant que `isRecapBlocking(status)` ; cookie httpOnly 5min `recap-ok-{ctx}-{Y}-{M}` cache `completed`. Seeds CLI [scripts/seed-recap/](scripts/seed-recap/README.md). **UI sprints 10-14** : wizard shell + 5 steps (BilanPositif/Négatif 12/13 interactifs) + 6 surfaces refloat sous `components/monthly-recap/*` ; hook [hooks/useMonthlyRecap.ts](hooks/useMonthlyRecap.ts) (useQuery + 9 mutations) ; [lib/format-currency.ts](lib/format-currency.ts) (2 décimales). ⚠️ Re-entrée wizard = retour EXACT step + sub-state (cf. memory `feedback_recap_exact_reentry`).
+- **Monthly Recap V3** : sprints 01-15/17 livrés (spec `prompt-montly-recap/`). Fondations [lib/recap/](lib/recap/), Zod [lib/schemas/recap.ts](lib/schemas/recap.ts), 11 endpoints `app/api/monthly-recap/*` via `withAuthAndProfile`. **Gating `proxy.ts`** : `/dashboard` + `/group-dashboard` redirigent sur `/monthly-recap?context=X` tant que `isRecapBlocking(status)` ; cookie httpOnly 5min `recap-ok-{ctx}-{Y}-{M}` cache `completed`. Seeds CLI [scripts/seed-recap/](scripts/seed-recap/README.md). **UI sprints 10-14** : wizard shell + 5 steps (BilanPositif/Négatif 12/13 interactifs) + 6 surfaces refloat sous `components/monthly-recap/*` ; hook [hooks/useMonthlyRecap.ts](hooks/useMonthlyRecap.ts) (useQuery + 9 mutations) ; [lib/format-currency.ts](lib/format-currency.ts) (2 décimales). ⚠️ Re-entrée wizard = retour EXACT step + sub-state (cf. memory `feedback_recap_exact_reentry`).
 - **Allocation des dépenses** : local = savings destination d'abord puis budget. **Dépassement** (overflow > 0) : cascade auto — tirelire d'abord, puis économies autres budgets proportionnellement aux dispos (Sprint Auto-Cascade-Piggy 2026-05-25). Reste résiduel = déficit destination. Module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (`calculateBreakdown` legacy + `calculateBreakdownWithAutoCascade` ADD). RPC dispatch `add_expense_with_cross_budget_cascade` si piggy > 0 ou cross non vide.
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
 - **Globals partagés** : **0 occurrence** `declare global` dans le code.
@@ -114,9 +114,9 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **725**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped                    | **211**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
-| Routes API                             | **43**                    | `pnpm build`                                                                                                             |
+| Tests non-gated passants               | **733**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped                    | **218**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
+| Routes API                             | **44**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **34/34**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
@@ -326,7 +326,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100/100. Lint 0/0. Tests 713/211. 43 routes API. 25 RPCs + 34 fn (§5.5). **Monthly Recap V3** sprints 01-17 livrés.
+**État global** : Score ~100/100. Lint 0/0. Tests 733/218. 44 routes API. 25 RPCs + 34 fn (§5.5). **Monthly Recap V3** sprints 01-17 livrés.
 
 **Historique** — 30 parts (134 sprints) :
 
