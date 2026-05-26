@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -760,6 +760,63 @@ export type Database = {
           },
         ]
       }
+      savings_projects: {
+        Row: {
+          amount_saved: number
+          created_at: string
+          deadline_date: string
+          group_id: string | null
+          id: string
+          monthly_allocation: number
+          name: string
+          pending_delay_fraction: number
+          profile_id: string | null
+          target_amount: number
+          updated_at: string
+        }
+        Insert: {
+          amount_saved?: number
+          created_at?: string
+          deadline_date: string
+          group_id?: string | null
+          id?: string
+          monthly_allocation: number
+          name: string
+          pending_delay_fraction?: number
+          profile_id?: string | null
+          target_amount: number
+          updated_at?: string
+        }
+        Update: {
+          amount_saved?: number
+          created_at?: string
+          deadline_date?: string
+          group_id?: string | null
+          id?: string
+          monthly_allocation?: number
+          name?: string
+          pending_delay_fraction?: number
+          profile_id?: string | null
+          target_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_projects_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "savings_projects_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -796,9 +853,24 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_recap_projects_snapshot: {
+        Args: { p_allocations: Json; p_recap_id: string }
+        Returns: Json
+      }
       calculate_group_contributions: {
         Args: { group_id_param: string }
         Returns: undefined
+      }
+      create_savings_project: {
+        Args: {
+          p_deadline: string
+          p_group_id?: string
+          p_monthly: number
+          p_name: string
+          p_profile_id?: string
+          p_target: number
+        }
+        Returns: Json
       }
       delete_budget_with_savings_transfer: {
         Args: {
@@ -814,6 +886,10 @@ export type Database = {
       }
       delete_expense_with_sources_refund: {
         Args: { p_expense_id: string }
+        Returns: Json
+      }
+      delete_savings_project_to_piggy: {
+        Args: { p_group_id?: string; p_id: string; p_profile_id?: string }
         Returns: Json
       }
       finalize_recap_apply_snapshot: {
@@ -924,6 +1000,18 @@ export type Database = {
       update_piggy_bank_amount: {
         Args: { p_delta: number; p_group_id?: string; p_profile_id?: string }
         Returns: number
+      }
+      update_savings_project: {
+        Args: {
+          p_deadline: string
+          p_group_id?: string
+          p_id: string
+          p_monthly: number
+          p_name: string
+          p_profile_id?: string
+          p_target: number
+        }
+        Returns: Json
       }
     }
     Enums: {

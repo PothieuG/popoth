@@ -59,6 +59,12 @@ const EXPECTED_RPCS = [
   // supabase/migrations/20260531030000_create_update_expense_with_sources_reapply_rpc.sql
   'delete_expense_with_sources_refund',
   'update_expense_with_sources_reapply',
+  // Sprint 01 Projets d'épargne — Foundation DB (2026-06-01) —
+  // supabase/migrations/20260601000000_create_savings_projects.sql
+  'create_savings_project',
+  'update_savings_project',
+  'delete_savings_project_to_piggy',
+  'apply_recap_projects_snapshot',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'
