@@ -73,6 +73,11 @@ export interface FinancialData {
   meta?: {
     readOnlyIncomes: ReadOnlyIncome[]
     groupSalaryTotal?: number
+    // Sprint PÉ-12 — somme des RAV perso de chaque membre du groupe :
+    // sum(salary_i − budgets_perso_i − contribution_i). Utilisé comme plafond
+    // de validation pour "Ajouter / Modifier un projet" en contexte groupe.
+    // Distinct de groupSalaryTotal (qui ignore les budgets perso des membres).
+    groupMembersPersonalRavTotal?: number
     totalMonthlyProjects: number
     savingsProjects: SavingsProjectMeta[]
   }

@@ -47,6 +47,15 @@ interface PlanningDrawerProps {
    * = 0 → ajout budget refusé). Vit dans `FinancialData.meta.groupSalaryTotal`.
    */
   groupSalaryTotal?: number
+  /**
+   * Sprint PÉ-12 (groupe uniquement) — somme des RAV perso de chaque membre,
+   * utilisée comme plafond pour "Ajouter / Modifier un projet" en groupe.
+   * Formule : sum(salary_i − budgets_perso_i − contribution_i). Distinct de
+   * `groupSalaryTotal` (les budgets partagés sont déjà absorbés via la
+   * contribution, donc on ne les re-soustrait pas dans currentAllocatedTotal).
+   * Vit dans `FinancialData.meta.groupMembersPersonalRavTotal`.
+   */
+  groupMembersPersonalRavTotal?: number
 }
 
 type TabType = 'budgets' | 'revenus' | 'projets'
@@ -73,6 +82,7 @@ export default function PlanningDrawer({
   context,
   readOnlyIncomes = [],
   groupSalaryTotal,
+  groupMembersPersonalRavTotal,
 }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
@@ -220,6 +230,15 @@ export default function PlanningDrawer({
   const budgetCeiling = isGroupContext
     ? (groupSalaryTotal ?? 0) + totalIncomes
     : totalIncomesWithReadOnly
+  // Sprint PÉ-12 — plafond projets groupe = RAV collectif des membres. En groupe,
+  // les budgets partagés sont déjà déduits via la contribution de chaque membre,
+  // donc `projectAllocatedTotal` n'inclut que les projets (pas les budgets).
+  const projectCeiling = isGroupContext
+    ? (groupMembersPersonalRavTotal ?? 0) + totalIncomes
+    : budgetCeiling
+  const projectAllocatedTotal = isGroupContext
+    ? totalMonthlyAllocations
+    : totalBudgets + totalMonthlyAllocations
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -1093,17 +1112,17 @@ export default function PlanningDrawer({
           currentIncomesTotal={totalIncomesWithReadOnly}
         />
 
-        {/* Add Project Dialog — Sprint Projets-Épargne 05. `currentAllocatedTotal`
-           agrège budgets + projets pour que le refine RAV traite ADD comme un
-           delta net. `totalEstimatedIncome={budgetCeiling}` reprend le même
-           plafond que pour les budgets (perso = totalIncomesWithReadOnly,
-           groupe = totalIncomes + groupSalaryTotal). */}
+        {/* Add Project Dialog — Sprint Projets-Épargne 05. Sprint PÉ-12 : en
+           groupe, `projectCeiling` = RAV collectif des membres (budgets partagés
+           déjà absorbés via contributions), donc `currentAllocatedTotal` n'inclut
+           que les projets existants (pas les budgets). En perso, plafond = revenus
+           + salaire, allocated = budgets + projets (identique à avant). */}
         <AddProjectDialog
           isOpen={isAddProjectOpen}
           onClose={() => setIsAddProjectOpen(false)}
           onSave={handleAddProject}
-          currentAllocatedTotal={totalBudgets + totalMonthlyAllocations}
-          totalEstimatedIncome={budgetCeiling}
+          currentAllocatedTotal={projectAllocatedTotal}
+          totalEstimatedIncome={projectCeiling}
         />
 
         {/* Edit Budget Dialog — conditional render + key on editingBudget.id
@@ -1131,11 +1150,9 @@ export default function PlanningDrawer({
           />
         )}
 
-        {/* Edit Project Dialog — Sprint Projets-Épargne 06. `key={editingProject.id}`
-           remount-cleanly quand on switch de cible (defaultValues lazy re-init).
-           `currentAllocatedTotal` somme budgets + projets (l'allocation du projet
-           édité est soustraite côté schéma via `currentProjectAllocation`).
-           `totalEstimatedIncome={budgetCeiling}` reprend le plafond budgets. */}
+        {/* Edit Project Dialog — Sprint Projets-Épargne 06. Sprint PÉ-12 : même
+           logique que Add — `projectCeiling` + `projectAllocatedTotal` pour que
+           le refine RAV utilise la capacité collective en groupe. */}
         {isEditProjectOpen && editingProject && (
           <EditProjectDialog
             key={editingProject.id}
@@ -1145,8 +1162,8 @@ export default function PlanningDrawer({
             }}
             onSave={handleSaveEditedProject}
             project={editingProject}
-            currentAllocatedTotal={totalBudgets + totalMonthlyAllocations}
-            totalEstimatedIncome={budgetCeiling}
+            currentAllocatedTotal={projectAllocatedTotal}
+            totalEstimatedIncome={projectCeiling}
           />
         )}
 

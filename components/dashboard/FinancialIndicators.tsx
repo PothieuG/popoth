@@ -35,6 +35,12 @@ interface FinancialIndicatorsProps {
    * Source backend `FinancialData.meta.groupSalaryTotal`.
    */
   groupSalaryTotal?: number
+  /**
+   * Sprint PÉ-12 (groupe uniquement) — somme des RAV perso de chaque membre,
+   * forward au drawer Planification comme plafond de validation projets.
+   * Source backend `FinancialData.meta.groupMembersPersonalRavTotal`.
+   */
+  groupMembersPersonalRavTotal?: number
 }
 
 /**
@@ -52,6 +58,7 @@ export default function FinancialIndicators({
   isFetching = false,
   readOnlyIncomes,
   groupSalaryTotal,
+  groupMembersPersonalRavTotal,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -282,6 +289,7 @@ export default function FinancialIndicators({
         context={context}
         readOnlyIncomes={readOnlyIncomes}
         groupSalaryTotal={groupSalaryTotal}
+        groupMembersPersonalRavTotal={groupMembersPersonalRavTotal}
       />
 
       {/* Savings Drawer */}

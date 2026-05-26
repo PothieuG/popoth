@@ -209,13 +209,14 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     type GroupContribRow = {
       contribution_amount: number
       salary: number
-      profiles: { first_name: string } | null
+      profile_id: string
+      profiles: { first_name: string; salary: number | null } | null
     }
     let groupContributions: GroupContribRow[] = []
     if (!isProfile) {
       const { data } = await supabaseServer
         .from('group_contributions')
-        .select('contribution_amount, salary, profiles:profile_id (first_name)')
+        .select('contribution_amount, salary, profile_id, profiles:profile_id (first_name, salary)')
         .eq('group_id', ownerId)
       groupContributions = (data ?? []) as unknown as GroupContribRow[]
     }
@@ -257,6 +258,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // sur les calculs du recap mensuel (load-summary.ts).
     const readOnlyIncomes: ReadOnlyIncome[] = []
     let groupSalaryTotal: number | undefined
+    let groupMembersPersonalRavTotal: number | undefined
     if (isProfile) {
       if (profileSalary > 0) {
         readOnlyIncomes.push({ kind: 'salary', label: 'Salaire', amount: profileSalary })
@@ -279,10 +281,37 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
           amount: row.amount,
         })
       }
-      // Somme des salaires des membres (snapshot via trigger), utilisée comme
-      // plafond de validation pour "Ajouter un budget" en contexte groupe.
-      // Brise le cycle "pas de budget → contribution = 0 → ajout budget bloqué".
-      groupSalaryTotal = groupContributions.reduce((sum, c) => sum + (c.salary ?? 0), 0)
+      // Somme des salaires — plafond validation budgets groupe. Utilise le salary
+      // authoritatif depuis le join profiles (évite la stale snapshot trigger).
+      groupSalaryTotal = groupContributions.reduce(
+        (sum, c) => sum + (c.profiles?.salary ?? c.salary ?? 0),
+        0,
+      )
+      // Capacité collective pour les projets groupe = sum des RAV perso de chaque
+      // membre : salary_i − budgets_perso_i − contribution_i. Floored à 0 par
+      // membre (un membre en déficit perso ne pénalise pas les autres).
+      if (groupContributions.length > 0) {
+        const memberIds = groupContributions.map((c) => c.profile_id)
+        const { data: personalBudgetsData } = await supabaseServer
+          .from('estimated_budgets')
+          .select('profile_id, estimated_amount')
+          .in('profile_id', memberIds)
+          .is('group_id', null)
+        const personalBudgetsByMember = new Map<string, number>()
+        for (const b of personalBudgetsData ?? []) {
+          if (!b.profile_id) continue
+          personalBudgetsByMember.set(
+            b.profile_id,
+            (personalBudgetsByMember.get(b.profile_id) ?? 0) + b.estimated_amount,
+          )
+        }
+        groupMembersPersonalRavTotal = groupContributions.reduce((sum, c) => {
+          const memberSalary = c.profiles?.salary ?? c.salary ?? 0
+          const memberPersonalBudgets = personalBudgetsByMember.get(c.profile_id) ?? 0
+          const contribution = c.contribution_amount ?? 0
+          return sum + Math.max(0, memberSalary - memberPersonalBudgets - contribution)
+        }, 0)
+      }
     }
 
     // 14. Sprint Projets-Épargne 03 — subset présentationnel des projets
@@ -304,6 +333,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       meta: {
         readOnlyIncomes,
         ...(groupSalaryTotal !== undefined && { groupSalaryTotal }),
+        ...(groupMembersPersonalRavTotal !== undefined && { groupMembersPersonalRavTotal }),
         totalMonthlyProjects,
         savingsProjects: savingsProjectsMeta,
       },

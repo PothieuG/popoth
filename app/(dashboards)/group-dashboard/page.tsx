@@ -128,6 +128,7 @@ export default function GroupDashboardPage() {
               isFetching={financialFetching}
               readOnlyIncomes={financialData?.meta?.readOnlyIncomes ?? []}
               groupSalaryTotal={financialData?.meta?.groupSalaryTotal}
+              groupMembersPersonalRavTotal={financialData?.meta?.groupMembersPersonalRavTotal}
             />
           </div>
 
