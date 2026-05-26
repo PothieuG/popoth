@@ -6,11 +6,15 @@
  *  - `executeCompleteRecap` : closes the recap in 4 steps.
  *
  *      1. (fail-soft) Apply the deferred budget snapshot — RPC
- *         `finalize_recap_apply_snapshot(p_recap_id, p_snapshot)` increments
- *         `estimated_budgets.carryover_spent_amount` by the snapshot amount per
- *         budget and stamps `carryover_applied_date = now()`. Snapshot is the
- *         JSONB blob written during sprint 07's `save-budget-snapshot`.
- *         If absent (`{}` or null), the RPC is skipped entirely.
+ *         `finalize_recap_apply_snapshot(p_recap_id, p_snapshot)` is invoked
+ *         ALWAYS (even with empty snapshot) since Sprint Carryover-Self-Healing
+ *         2026-05-26. The RPC now uses OVERWRITE semantics : it first resets
+ *         `carryover_spent_amount = 0` for ALL owner budgets, then for each
+ *         entry in the snapshot SETs `carryover_spent_amount = v_amount` (NOT
+ *         `+= v_amount`). Returns `{ applied, reset_count }`. Calling it with
+ *         an empty snapshot is required to reset stale carryovers from a
+ *         previous month — skipping would leave them as permanent RAV
+ *         penalties (the runaway bug fixed by this sprint).
  *
  *      2. (fail-soft) Apply the projects snapshot — RPC
  *         `apply_recap_projects_snapshot(p_recap_id, p_allocations)` (sprint
@@ -62,6 +66,11 @@ import type { RecapContext } from './check-status'
 
 interface ApplySnapshotResult {
   applied: Array<{ budget_id: string; amount: number }>
+  /** Sprint Carryover-Self-Healing 2026-05-26. Number of owner budgets whose
+   *  `carryover_spent_amount` was reset to 0 at the start of the RPC. ≥ count
+   *  of `applied` (every applied row was also part of the reset). Surfaced for
+   *  observability — no downstream consumer reads it. */
+  reset_count: number
 }
 
 interface ApplyProjectsSnapshotResult {
@@ -116,24 +125,28 @@ const ZERO_TRANSACTIONS: ProcessTransactionsResult = {
 export async function executeCompleteRecap(
   args: ExecuteCompleteRecapArgs,
 ): Promise<CompleteRecapOutcome> {
-  // 1. Apply budget snapshot (skip if empty/null — RPC handles both, but
-  //    checking here avoids a needless round-trip and keeps the typed result
-  //    null).
+  // 1. Apply budget snapshot — ALWAYS invoked, even with an empty snapshot.
+  //    Sprint Carryover-Self-Healing 2026-05-26 : the RPC owner-scope-resets
+  //    every owner budget's carryover_spent_amount to 0 before applying the
+  //    snapshot (OVERWRITE, not `+=`). Calling with `{}` is the legitimate way
+  //    to clear stale carryovers from a previous month when this month has
+  //    no deferred debt.
   let snapshotApplied: ApplySnapshotResult | null = null
-  const snapshot = coerceSnapshot(args.recap.budget_snapshot_data)
-  if (snapshot && Object.keys(snapshot).length > 0) {
-    const { data, error } = await supabaseServer.rpc('finalize_recap_apply_snapshot', {
+  const snapshot = coerceSnapshot(args.recap.budget_snapshot_data) ?? {}
+  const { data: snapData, error: snapError } = await supabaseServer.rpc(
+    'finalize_recap_apply_snapshot',
+    {
       p_recap_id: args.recap.id,
       p_snapshot: snapshot as unknown as Json,
+    },
+  )
+  if (snapError) {
+    logger.error('[recap/finalize] apply_snapshot failed', {
+      recapId: args.recap.id,
+      error: snapError,
     })
-    if (error) {
-      logger.error('[recap/finalize] apply_snapshot failed', {
-        recapId: args.recap.id,
-        error,
-      })
-    } else {
-      snapshotApplied = (data ?? null) as ApplySnapshotResult | null
-    }
+  } else {
+    snapshotApplied = (snapData ?? null) as ApplySnapshotResult | null
   }
 
   // 2. Apply projects snapshot (sprint Projets-Épargne 10). Always invoke

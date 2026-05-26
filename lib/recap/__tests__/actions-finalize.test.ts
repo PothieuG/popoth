@@ -3,7 +3,9 @@
  *
  * Mocks `@/lib/supabase-server` to assert orchestrator decisions:
  *
- *  - Empty/null snapshot → `finalize_recap_apply_snapshot` RPC is NOT called.
+ *  - Empty/null snapshot → `finalize_recap_apply_snapshot` RPC IS called
+ *    (Sprint Carryover-Self-Healing 2026-05-26 — the RPC must run even with
+ *    empty snapshot to reset stale owner carryovers to 0).
  *  - Non-empty snapshot → RPC called with the coerced snapshot.
  *  - Snapshot RPC error → continues to process_transactions + mark completed
  *    (fail-soft), outcome.snapshotApplied=null.
@@ -17,6 +19,10 @@
  *    projects of the owner to credit `amount_saved`).
  *  - Projects RPC error → fail-soft, outcome.projectsApplied=null.
  *  - Non-empty `project_snapshot_data` forwarded as `p_allocations` verbatim.
+ *
+ * Sprint Carryover-Self-Healing 2026-05-26 — extended :
+ *  - `outcome.snapshotApplied` now includes `reset_count` (number of owner
+ *    budgets whose carryover was reset to 0 before snapshot apply).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,10 +72,13 @@ const BUDGET_1 = 'dddd4444-4444-4444-4444-444444444444'
 const BUDGET_2 = 'eeee5555-5555-5555-5555-555555555555'
 
 describe('executeCompleteRecap', () => {
-  it('empty snapshot → skips apply_snapshot RPC, still applies projects + processes + marks completed', async () => {
+  it('empty snapshot → STILL calls apply_snapshot RPC (owner reset), then projects + processes + marks completed', async () => {
+    // Sprint Carryover-Self-Healing 2026-05-26 — the RPC is no longer skipped
+    // for empty snapshot ; it must run to reset owner carryovers to 0.
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 2 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
@@ -83,21 +92,25 @@ describe('executeCompleteRecap', () => {
     })
 
     expect(outcome.completed).toBe(true)
-    expect(outcome.snapshotApplied).toBeNull()
+    expect(outcome.snapshotApplied).toEqual({ applied: [], reset_count: 2 })
     expect(outcome.projectsApplied).toEqual({ updated_count: 0, total_refunded: 0 })
-    expect(m.rpc).toHaveBeenCalledTimes(2)
-    expect(m.rpc).toHaveBeenNthCalledWith(1, 'apply_recap_projects_snapshot', {
+    expect(m.rpc).toHaveBeenCalledTimes(3)
+    expect(m.rpc).toHaveBeenNthCalledWith(1, 'finalize_recap_apply_snapshot', {
+      p_recap_id: RECAP_ID,
+      p_snapshot: {},
+    })
+    expect(m.rpc).toHaveBeenNthCalledWith(2, 'apply_recap_projects_snapshot', {
       p_recap_id: RECAP_ID,
       p_allocations: {},
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(2, 'process_recap_transactions', {
+    expect(m.rpc).toHaveBeenNthCalledWith(3, 'process_recap_transactions', {
       p_recap_id: RECAP_ID,
       p_profile_id: PROFILE_ID,
     })
     expect(m.recapsUpdateEq).toHaveBeenCalledTimes(1)
   })
 
-  it('non-empty budget snapshot → calls apply_snapshot, projects snapshot, then process_transactions', async () => {
+  it('non-empty budget snapshot → calls apply_snapshot (with reset_count), projects snapshot, then process_transactions', async () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
@@ -107,6 +120,7 @@ describe('executeCompleteRecap', () => {
             { budget_id: BUDGET_1, amount: 20 },
             { budget_id: BUDGET_2, amount: 30 },
           ],
+          reset_count: 4,
         },
         error: null,
       })
@@ -128,6 +142,7 @@ describe('executeCompleteRecap', () => {
 
     expect(outcome.completed).toBe(true)
     expect(outcome.snapshotApplied?.applied).toHaveLength(2)
+    expect(outcome.snapshotApplied?.reset_count).toBe(4)
     expect(outcome.transactions.deleted_expenses).toBe(2)
     expect(outcome.transactions.carried_expenses).toBe(3)
     expect(m.rpc).toHaveBeenNthCalledWith(1, 'finalize_recap_apply_snapshot', {
@@ -150,6 +165,7 @@ describe('executeCompleteRecap', () => {
     const PROJ_1 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
     const PROJ_2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
     m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 2, total_refunded: 80 }, error: null })
       .mockResolvedValueOnce({
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
@@ -167,7 +183,7 @@ describe('executeCompleteRecap', () => {
     })
 
     expect(outcome.projectsApplied).toEqual({ updated_count: 2, total_refunded: 80 })
-    expect(m.rpc).toHaveBeenNthCalledWith(1, 'apply_recap_projects_snapshot', {
+    expect(m.rpc).toHaveBeenNthCalledWith(2, 'apply_recap_projects_snapshot', {
       p_recap_id: RECAP_ID,
       p_allocations: { [PROJ_1]: 50, [PROJ_2]: 30 },
     })
@@ -200,6 +216,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'projects boom' } })
       .mockResolvedValueOnce({
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
@@ -221,6 +238,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'tx boom' } })
 
@@ -248,6 +266,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
