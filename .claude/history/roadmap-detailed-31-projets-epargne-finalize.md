@@ -233,6 +233,7 @@ Trois ajouts DB :
 - **Backfill** : `UPDATE groups SET monthly_budget_estimate = (SUM budgets + SUM projects)`. Idempotent via `IS DISTINCT FROM`.
 
 Cascade complète après mutation `savings_projects` (group_id non nul) :
+
 ```
 savings_projects_sync_group_budget
   → recompute_group_monthly_budget_estimate (UPDATE groups)
