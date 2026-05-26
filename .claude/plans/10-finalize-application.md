@@ -1,5 +1,7 @@
 # Sprint 10 — Finalize : application snapshot + shift deadline + accumulation amount_saved
 
+> ✅ **LIVRÉ 2026-05-26** sur branche `feature/projets-epargne`, commit `51bb362`. Détails closeout → [Part 30](../history/roadmap-detailed-30-projets-epargne-modals.md). `executeCompleteRecap` invoque maintenant `apply_recap_projects_snapshot` après le snapshot budgets (toujours, même `project_snapshot_data` vide) + `RecapSummary.projectSnapshot` ajouté (calc pure + UI section FinalRecapStep). `SavingsProjectMeta.pendingDelayFraction` ajouté pour le preview deadline shift. 5 tests gated DB end-to-end + 6 calc cases + 3 RTL cases + 3 mock cases. Push prod différé sprint 11.
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la section 5.3 "Validation du monthly recap" + la règle "Renflouement total → décalage 1 mois ; partiel → recalcul proportionnel".
 
 ## Objectif
