@@ -292,3 +292,5 @@
   - Sprint 05 : modal `AddProjectDialog` / `EditProjectDialog` — 2 modes saisie (total OU mensuel), `makeProjectClientSchema` refines RAV ≥ 0 + cohérence durée/target, `computeDeadlineFromDuration` pré-remplit deadline.
   - Sprint 06 : modal confirmation suppression (message crédit tirelire via `delete_savings_project_to_piggy`).
   - Sprints 07-11 : drawer recap, refloat backend/UI, finalize wiring, seeds + push prod + PR.
+
+> **Suite — sprints 05+ dans [Part 30](roadmap-detailed-30-projets-epargne-modals.md)** (split préemptif 2026-05-26, Part 29 saturée à 37k+ avant sprint 05 closeout).

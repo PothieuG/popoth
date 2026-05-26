@@ -15,6 +15,7 @@ import ProjectListItem from './ProjectListItem'
 
 const AddBudgetDialog = dynamic(() => import('./AddBudgetDialog'), { ssr: false })
 const AddIncomeDialog = dynamic(() => import('./AddIncomeDialog'), { ssr: false })
+const AddProjectDialog = dynamic(() => import('./AddProjectDialog'), { ssr: false })
 const EditBudgetDialog = dynamic(() => import('./EditBudgetDialog'), { ssr: false })
 const EditIncomeDialog = dynamic(() => import('./EditIncomeDialog'), { ssr: false })
 const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
@@ -76,6 +77,7 @@ export default function PlanningDrawer({
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)
+  const [isAddProjectOpen, setIsAddProjectOpen] = useState(false)
 
   // États pour l'édition
   const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false)
@@ -135,14 +137,15 @@ export default function PlanningDrawer({
     totalIncomes,
   } = useIncomes(context)
 
-  // Sprint Projets-Épargne 04 — 3ème onglet "Projets". Lecture seule pour
-  // l'instant (modals create/edit/delete arrivent aux sprints 05-06) ; les
-  // actions Modifier/Supprimer sont câblées à un `logger.info` placeholder.
+  // Sprint Projets-Épargne 04 — 3ème onglet "Projets" (lecture seule).
+  // Sprint Projets-Épargne 05 — modal CREATE branchée (`addProject`) ; les
+  // actions Modifier/Supprimer arrivent au sprint 06.
   const {
     projects,
     loading: projectsLoading,
     isFetching: projectsFetching,
     error: projectsError,
+    addProject,
     refreshProjects,
     totalMonthlyAllocations,
   } = useProjects(context)
@@ -436,16 +439,32 @@ export default function PlanningDrawer({
   }
 
   /**
-   * Sprint Projets-Épargne 04 — stubs Add/Edit/Delete. La modal create/edit
-   * arrive au sprint 05, la confirmation de suppression au sprint 06. Pour
-   * l'instant on log l'intention pour pouvoir vérifier le wiring en dev.
+   * Sprint Projets-Épargne 05 — handler CREATE. Branché à
+   * `AddProjectDialog` (lazy dynamic import) ; sur succès, le hook
+   * `useProjects` se met à jour optimiste via `setQueryData` + invalide
+   * les autres queries financières via `invalidateFinancialRefreshes`.
+   * On appelle aussi `onPlanningChange` pour rafraîchir le dashboard.
    */
-  const handleAddProjectStub = () => {
-    logger.info('[projects] add project requested (modal arrives in sprint 05)')
+  const handleAddProject = async (projectData: {
+    name: string
+    targetAmount: number
+    monthlyAllocation: number
+    deadlineDate: string
+  }): Promise<boolean> => {
+    const success = await addProject(projectData)
+    if (success) {
+      setIsAddProjectOpen(false)
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
+    }
+    return success
   }
 
+  // Sprint Projets-Épargne 04 — stubs Edit/Delete. La modal d'édition + la
+  // confirmation de suppression arrivent au sprint 06.
   const handleEditProjectStub = (project: SavingsProject) => {
-    logger.info('[projects] edit project requested (modal arrives in sprint 05)', {
+    logger.info('[projects] edit project requested (modal arrives in sprint 06)', {
       id: project.id,
       name: project.name,
     })
@@ -894,7 +913,7 @@ export default function PlanningDrawer({
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-900">Projets d&apos;épargne</h3>
                 <button
-                  onClick={handleAddProjectStub}
+                  onClick={() => setIsAddProjectOpen(true)}
                   className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
                 >
                   Ajouter un projet
@@ -942,7 +961,7 @@ export default function PlanningDrawer({
                     Définissez un objectif d&apos;épargne sur une durée donnée
                   </p>
                   <button
-                    onClick={handleAddProjectStub}
+                    onClick={() => setIsAddProjectOpen(true)}
                     className="rounded-lg bg-purple-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
                   >
                     Créer votre premier projet
@@ -1003,6 +1022,19 @@ export default function PlanningDrawer({
           onClose={() => setIsAddIncomeOpen(false)}
           onSave={handleAddIncome}
           currentIncomesTotal={totalIncomesWithReadOnly}
+        />
+
+        {/* Add Project Dialog — Sprint Projets-Épargne 05. `currentAllocatedTotal`
+           agrège budgets + projets pour que le refine RAV traite ADD comme un
+           delta net. `totalEstimatedIncome={budgetCeiling}` reprend le même
+           plafond que pour les budgets (perso = totalIncomesWithReadOnly,
+           groupe = totalIncomes + groupSalaryTotal). */}
+        <AddProjectDialog
+          isOpen={isAddProjectOpen}
+          onClose={() => setIsAddProjectOpen(false)}
+          onSave={handleAddProject}
+          currentAllocatedTotal={totalBudgets + totalMonthlyAllocations}
+          totalEstimatedIncome={budgetCeiling}
         />
 
         {/* Edit Budget Dialog — conditional render + key on editingBudget.id
