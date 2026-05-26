@@ -176,30 +176,89 @@ Commit : `dc25c11` `fix(projects): correct monthly display and edit dialog defau
 
 Correctifs UX sur les projets d'épargne suite aux retours user post-livraison sprint PÉ 11.
 
-  ### Périmètre
-  Trois bugs et un manque UI détectés en session de test :
-  1. L'éditeur de projet affichait un mensuel dérivé (recalculé depuis la deadline courante) au lieu du mensuel stocké en DB — incohérence avec le résumé du drawer qui, lui, affiche le mensuel stocké.
-  2. Les cartes de projet n'affichaient pas le mensuel alloué, rendant le rôle de chaque projet dans le RAV opaque.
-  3. Après mutation (add/update/delete), un flash skeleton réapparaissait brièvement car `isProjectsBusy` incluait `isFetching` (background refetch déclenché par `invalidateFinancialRefreshes`) malgré des données déjà correctes via `setQueryData`.
-  4. 2 tests RTL cassés en cascade après le fix #1.
+### Périmètre
 
-  ### Modules livrés
-  - **`components/dashboard/EditProjectDialog.tsx` (mode par défaut)** : `useState<Mode>('duration')` → `useState<Mode>('monthly')`. En mode B (monthly), le form pre-remplit le champ mensuel depuis `defaultValues.monthlyAllocation = currentProjectAllocation` (valeur stockée DB). En mode A (duration), un `useEffect` recalcule et écrase immédiatement avec `Math.ceil(remaining × 100 / duration) / 100` — c'est intentionnel pour le scénario "redonner une durée, laisser dériver le mensuel", mais ne doit pas être le mode d'entrée car l'utilisateur voit alors un chiffre différent de celui qui impacte son RAV. Mode A reste accessible via le radio "Définir la durée".
+Trois bugs et un manque UI détectés en session de test :
 
-  - **`components/dashboard/ProjectListItem.tsx` (ligne mensuel)** : ajout d'une `<p className="text-xs text-gray-500">` affichant `{formatAmount(Number(project.monthly_allocation))}/mois` sous la ligne `saved / target`. Utilise le même `formatAmount` (0 décimale, fr-FR) déjà présent dans le fichier. Visible sur toutes les cartes, cohérent avec la ligne `totalMonthlyAllocations` du résumé drawer.
+1. L'éditeur de projet affichait un mensuel dérivé (recalculé depuis la deadline courante) au lieu du mensuel stocké en DB — incohérence avec le résumé du drawer qui, lui, affiche le mensuel stocké.
+2. Les cartes de projet n'affichaient pas le mensuel alloué, rendant le rôle de chaque projet dans le RAV opaque.
+3. Après mutation (add/update/delete), un flash skeleton réapparaissait brièvement car `isProjectsBusy` incluait `isFetching` (background refetch déclenché par `invalidateFinancialRefreshes`) malgré des données déjà correctes via `setQueryData`.
+4. 2 tests RTL cassés en cascade après le fix #1.
 
-  - **`components/dashboard/PlanningDrawer.tsx` (skeleton guard)** : `isProjectsBusy = projectsLoading || projectsFetching` → `isProjectsBusy = projectsLoading`. La variable `projectsFetching` (`isFetching` de `useProjects`) est retirée du destructuring (était unused post-fix → eslint `no-unused-vars`). Raisonnement : `invalidateFinancialRefreshes` marque `['projects']` stale → background refetch → `isFetching = true` → skeleton flash, même si `setQueryData` a déjà posé les données correctes. `projectsLoading` ne passe `true` qu'à l'initial load (pas de données en cache) — c'est la seule condition où le skeleton a du sens.
+### Modules livrés
 
-  - **`components/dashboard/__tests__/EditProjectDialog.test.tsx` (2 tests ajustés)** :
-    - "pré-remplissage" : mode B est le nouveau défaut → assertion `getByLabelText(/durée \(mois\)/i)` (visible en mode A seulement) remplacée par `getByLabelText(/montant mensuel/i)` + description mise à jour `mode B par défaut`.
-    - "mensuel dérivé prend en compte amount_saved" : le test pilotait la durée sans avoir switché en mode A → `TestingLibraryElementError` (input hors DOM). Ajout du `await user.click(screen.getByRole('radio', { name: /définir la durée/i }))` en amont du `getByLabelText(/durée \(mois\)/i)`.
+- **`components/dashboard/EditProjectDialog.tsx` (mode par défaut)** : `useState<Mode>('duration')` → `useState<Mode>('monthly')`. En mode B (monthly), le form pre-remplit le champ mensuel depuis `defaultValues.monthlyAllocation = currentProjectAllocation` (valeur stockée DB). En mode A (duration), un `useEffect` recalcule et écrase immédiatement avec `Math.ceil(remaining × 100 / duration) / 100` — c'est intentionnel pour le scénario "redonner une durée, laisser dériver le mensuel", mais ne doit pas être le mode d'entrée car l'utilisateur voit alors un chiffre différent de celui qui impacte son RAV. Mode A reste accessible via le radio "Définir la durée".
 
-  ### Décisions
-  - **Mode B par défaut** : tradeoff — mode A (durée pilote) était adapté à la création (l'utilisateur raisonne souvent en "je veux x € en N mois"), mais la modale EDIT ouvre sur un projet existant où l'utilisateur veut voir et éventuellement ajuster le **montant engagé** (= ce que son RAV déduit). Mode B expose directement cette valeur et évite la confusion "pourquoi je vois 305€ alors que le résumé dit 195€ ?".
-  - **`isFetching` retiré** : le background refetch silencieux est la behaviour correcte de TanStack Query post-mutation avec `setQueryData` optimistic. Bloquer le skeleton dessus était une régression UX — l'utilisateur voyait le skeleton flasher à chaque delete/add/update même quand les données étaient instantanément correctes.
+- **`components/dashboard/ProjectListItem.tsx` (ligne mensuel)** : ajout d'une `<p className="text-xs text-gray-500">` affichant `{formatAmount(Number(project.monthly_allocation))}/mois` sous la ligne `saved / target`. Utilise le même `formatAmount` (0 décimale, fr-FR) déjà présent dans le fichier. Visible sur toutes les cartes, cohérent avec la ligne `totalMonthlyAllocations` du résumé drawer.
 
-  ### Invariants bumpés CLAUDE.md §5.5
-  - Aucun compteur invariant modifié. Tests non-gated : 759 stable. Lint : 0/0 stable.
+- **`components/dashboard/PlanningDrawer.tsx` (skeleton guard)** : `isProjectsBusy = projectsLoading || projectsFetching` → `isProjectsBusy = projectsLoading`. La variable `projectsFetching` (`isFetching` de `useProjects`) est retirée du destructuring (était unused post-fix → eslint `no-unused-vars`). Raisonnement : `invalidateFinancialRefreshes` marque `['projects']` stale → background refetch → `isFetching = true` → skeleton flash, même si `setQueryData` a déjà posé les données correctes. `projectsLoading` ne passe `true` qu'à l'initial load (pas de données en cache) — c'est la seule condition où le skeleton a du sens.
 
-  ### Validation
-  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (759/227) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
+- **`components/dashboard/__tests__/EditProjectDialog.test.tsx` (2 tests ajustés)** :
+  - "pré-remplissage" : mode B est le nouveau défaut → assertion `getByLabelText(/durée \(mois\)/i)` (visible en mode A seulement) remplacée par `getByLabelText(/montant mensuel/i)` + description mise à jour `mode B par défaut`.
+  - "mensuel dérivé prend en compte amount_saved" : le test pilotait la durée sans avoir switché en mode A → `TestingLibraryElementError` (input hors DOM). Ajout du `await user.click(screen.getByRole('radio', { name: /définir la durée/i }))` en amont du `getByLabelText(/durée \(mois\)/i)`.
+
+### Décisions
+
+- **Mode B par défaut** : tradeoff — mode A (durée pilote) était adapté à la création (l'utilisateur raisonne souvent en "je veux x € en N mois"), mais la modale EDIT ouvre sur un projet existant où l'utilisateur veut voir et éventuellement ajuster le **montant engagé** (= ce que son RAV déduit). Mode B expose directement cette valeur et évite la confusion "pourquoi je vois 305€ alors que le résumé dit 195€ ?".
+- **`isFetching` retiré** : le background refetch silencieux est la behaviour correcte de TanStack Query post-mutation avec `setQueryData` optimistic. Bloquer le skeleton dessus était une régression UX — l'utilisateur voyait le skeleton flasher à chaque delete/add/update même quand les données étaient instantanément correctes.
+
+### Invariants bumpés CLAUDE.md §5.5
+
+- Aucun compteur invariant modifié. Tests non-gated : 759 stable. Lint : 0/0 stable.
+
+### Validation
+
+- `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (759/227) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
+
+---
+
+## Sprint PÉ-12 — Sync projets groupe → recalc contributions (2026-06-04)
+
+**Périmètre** : deux bugs post-sprint-PÉ-11 en contexte groupe. (1) La modification d'un projet d'épargne groupe ne déclenchait pas la cascade de recalcul des contributions — `savings_projects.monthly_allocation` était absent de `groups.monthly_budget_estimate`, donc `calculate_group_contributions` ignorait les projets. (2) Correction connexe : `groupMembersPersonalRavTotal` (RAV collectif des membres) forwarded comme plafond pour les projets groupe dans `PlanningDrawer` (déjà câblé depuis PÉ-11, bug purement DB-side).
+
+**Modules touchés** : 1 migration SQL (`recompute_group_monthly_budget_estimate` helper + mise à jour `sync_group_monthly_budget_estimate` + nouveau trigger `savings_projects_sync_group_budget`). Aucun fichier TS modifié (frontend déjà câblé).
+
+### Items
+
+**1. Migration `20260604000000_sync_group_budget_on_project_change.sql`**
+
+Trois ajouts DB :
+
+- **`recompute_group_monthly_budget_estimate(p_group_id uuid)`** — helper `SECURITY DEFINER` qui calcule `SUM(estimated_budgets.estimated_amount) + SUM(savings_projects.monthly_allocation)` via deux sous-requêtes indépendantes (évite le produit cartésien N×M qu'un double `LEFT JOIN` produirait) et met à jour `groups.monthly_budget_estimate` avec garde `IS DISTINCT FROM`.
+
+- **`sync_group_monthly_budget_estimate()` mise à jour** — le trigger existant sur `estimated_budgets` délègue au helper au lieu de calculer `SUM` inline. Comportement identique, formule partagée.
+
+- **`sync_group_budget_on_project_change()` + trigger `savings_projects_sync_group_budget`** — même pattern que `sync_group_monthly_budget_estimate` mais sur `savings_projects` (`AFTER INSERT OR UPDATE OR DELETE FOR EACH ROW`). Early-return si `new_group IS NULL AND old_group IS NULL` (projets perso).
+
+- **Backfill** : `UPDATE groups SET monthly_budget_estimate = (SUM budgets + SUM projects)`. Idempotent via `IS DISTINCT FROM`.
+
+Cascade complète après mutation `savings_projects` (group_id non nul) :
+```
+savings_projects_sync_group_budget
+  → recompute_group_monthly_budget_estimate (UPDATE groups)
+  → groups_budget_contribution_recalc (trigger_group_budget_change)
+  → calculate_group_contributions (UPSERT group_contributions)
+  → group_contributions_sync_real_expense (sync_contribution_real_expense)
+```
+
+**2. Frontend — aucun fichier modifié**
+
+`PlanningDrawer.tsx` et `FinancialIndicators.tsx` étaient déjà câblés sur `groupMembersPersonalRavTotal` depuis PÉ-11. Le bug était purement DB-side.
+
+### Décisions
+
+- **Deux sous-requêtes vs double LEFT JOIN** : un `LEFT JOIN savings_projects USING (group_id)` produirait N×M lignes si un groupe a N budgets et M projets — `SUM` retournerait un total multiplié. Les deux sous-requêtes corrélées dans un seul `SELECT ... INTO` évitent le problème.
+
+- **Helper partagé** : `recompute_group_monthly_budget_estimate` est invoqué par les deux triggers. Single source of truth pour la formule `budgets + projets` — si une future ressource planifiée s'ajoute, un seul endroit à modifier.
+
+- **RAV groupe stable après mutation projet** : après PÉ-12, modifier un projet de X€ augmente `monthly_budget_estimate` de X€ ET augmente `group_contributions` de X€ → les termes `totalEstimatedBudgets` et `totalProfileContributions` bougent ensemble → net RAV groupe = 0. C'est correct (les contributions couvrent les projets). L'impact se ressent sur le RAV **personnel** de chaque membre.
+
+### Invariants bumpés CLAUDE.md §5.5
+
+- **Functions DB versionnées** : 34 → **36** (`recompute_group_monthly_budget_estimate` + `sync_group_budget_on_project_change` ajoutées).
+- Tests non-gated : 759 stable. Lint : 0/0 stable. RPCs : 25 stable.
+
+### Validation
+
+- Migration appliquée sur dev (`ddehmjucyfgyppfkbddr`) via `node scripts/apply-sql.mjs`.
+- `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (759/227) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
