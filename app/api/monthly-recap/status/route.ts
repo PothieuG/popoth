@@ -93,6 +93,11 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
             refloatedFromSavings: Number(recapRow.refloated_from_savings ?? 0),
             snapshotData: coerceSnapshot(recapRow.budget_snapshot_data),
             piggyTransfersData: piggyTransfersData ?? null,
+            // Sprint Projets-Épargne 08 — expose project snapshot so the
+            // cascade UI (sprint 09) can compute deficitRemaining client-side
+            // including the projects stage. `null` quand le wizard est sur
+            // une étape antérieure ou que le user n'a aucun projet.
+            projectSnapshotData: coerceSnapshot(recapRow.project_snapshot_data),
           }
         : null
 

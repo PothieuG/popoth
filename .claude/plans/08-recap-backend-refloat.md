@@ -1,5 +1,7 @@
 # Sprint 08 — Recap backend : refloat from projects (snapshot deferred)
 
+> ✅ **LIVRÉ 2026-05-26** sur `feature/projets-epargne`. Voir closeout détaillé → [`../history/roadmap-detailed-30-projets-epargne-modals.md`](../history/roadmap-detailed-30-projets-epargne-modals.md) sprint 08. Migration `20260602000000_add_project_snapshot_to_monthly_recaps.sql` appliquée sur dev ; prod différée sprint 11.
+>
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la section 5.2 "Cas BILAN < 0 : renflouement du déficit".
 
 ## Objectif

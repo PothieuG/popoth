@@ -11,9 +11,12 @@
  *  - `sumSnapshotValues(snapshot)` : sums the per-budget snapshot amounts
  *     with cents-precise rounding.
  *  - `computeDeficitRemaining(args)` : `|initialBilan| - refloatedFromPiggy
- *     - refloatedFromSavings - sumSnapshotValues(snapshotData)`. Caller is
- *     responsible for treating a non-negative bilan as "no deficit"
- *     (the function still returns a number).
+ *     - refloatedFromSavings - sumSnapshotValues(snapshotData)
+ *     - sumSnapshotValues(projectSnapshotData)`. Sprint Projets-Épargne 08
+ *     (2026-05-26) added the trailing `projectSnapshotData` term — the
+ *     refloat-from-projects step inserted between savings and the final
+ *     budget snapshot. Caller is responsible for treating a non-negative
+ *     bilan as "no deficit" (the function still returns a number).
  *  - `coerceSnapshot(raw)` : narrows the JSONB `budget_snapshot_data` blob
  *     (`Json | null | undefined`) into a strict `Record<string, number>`
  *     (or `null`), dropping any unexpected non-number entries.
@@ -33,6 +36,12 @@ export interface ComputeDeficitArgs {
   refloatedFromPiggy: number
   refloatedFromSavings: number
   snapshotData: Record<string, number> | null | undefined
+  /** Sprint Projets-Épargne 08 (2026-05-26). Optional — defaults to undefined
+   *  (treated as empty). Subtracts the per-project virtual refund recorded
+   *  by /api/monthly-recap/refloat-from-projects from `deficitRemaining`.
+   *  Sprint 09 cascade UI will surface the resulting deficit; sprint 10
+   *  finalize will materialise the snapshot via `apply_recap_projects_snapshot`. */
+  projectSnapshotData?: Record<string, number> | null | undefined
 }
 
 export function computeDeficitRemaining(args: ComputeDeficitArgs): number {
@@ -40,7 +49,8 @@ export function computeDeficitRemaining(args: ComputeDeficitArgs): number {
     Math.abs(args.initialBilan) -
       args.refloatedFromPiggy -
       args.refloatedFromSavings -
-      sumSnapshotValues(args.snapshotData),
+      sumSnapshotValues(args.snapshotData) -
+      sumSnapshotValues(args.projectSnapshotData),
   )
 }
 

@@ -41,6 +41,7 @@ import type { Database, Json } from '@/lib/database.types'
 import type { MonthlyRecapRow } from './active-recap'
 import {
   computeProportionalBudgetSnapshot,
+  computeProportionalProjectsRefloat,
   computeProportionalSavingsRefloat,
 } from './calculations'
 import type { RecapContext } from './check-status'
@@ -112,6 +113,7 @@ export async function executeRefloatFromPiggy(
     refloatedFromPiggy: Number(args.recap.refloated_from_piggy),
     refloatedFromSavings: Number(args.recap.refloated_from_savings),
     snapshotData: coerceSnapshot(args.recap.budget_snapshot_data),
+    projectSnapshotData: coerceSnapshot(args.recap.project_snapshot_data),
   })
   if (deficitRemaining <= 0.01) {
     throw new RecapActionError('no_deficit', 409)
@@ -191,6 +193,7 @@ export async function executeRefloatFromSavings(
     refloatedFromPiggy: Number(args.recap.refloated_from_piggy),
     refloatedFromSavings: Number(args.recap.refloated_from_savings),
     snapshotData: coerceSnapshot(args.recap.budget_snapshot_data),
+    projectSnapshotData: coerceSnapshot(args.recap.project_snapshot_data),
   })
   if (deficitRemaining <= 0.01) {
     throw new RecapActionError('no_deficit', 409)
@@ -307,8 +310,12 @@ export async function executeSaveBudgetSnapshot(
     refloatedFromSavings: Number(args.recap.refloated_from_savings),
     // Re-compute the snapshot from scratch — the existing snapshot (if any)
     // is fully replaced. Excluding it from the target keeps the algorithm
-    // idempotent across re-clicks at unchanged piggy/savings state.
+    // idempotent across re-clicks at unchanged piggy/savings/project state.
     snapshotData: null,
+    // Sprint Projets-Épargne 08 — projects are an UPSTREAM stage, so their
+    // virtual refund stays subtracted from the deficit that this final
+    // budget snapshot needs to absorb.
+    projectSnapshotData: coerceSnapshot(args.recap.project_snapshot_data),
   })
   if (deficitRemaining <= 0.01) {
     throw new RecapActionError('no_deficit', 409)
@@ -366,6 +373,111 @@ export async function executeSaveBudgetSnapshot(
     perBudget: allocation.perBudget,
     shortfall: round2(allocation.shortfall),
     nextStep,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// executeRefloatFromProjects — Sprint Projets-Épargne 08 (2026-05-26).
+//
+// Inserted in the negative cascade between savings refloat and the final
+// budget snapshot. The pool of each savings project is its `monthly_allocation`
+// (the month's mensualité — NOT its accumulated `amount_saved`), translating
+// "renouncing one month's contribution to the project" rather than depleting
+// its capital. The proportional allocation is OVERWRITTEN into
+// `monthly_recaps.project_snapshot_data` — no write to `savings_projects` here;
+// the application is deferred to finalize via `apply_recap_projects_snapshot`
+// (sprint 10).
+//
+// Does NOT advance `current_step` (cascade UI sprint 09 owns transitions).
+// ---------------------------------------------------------------------------
+
+export interface ExecuteRefloatFromProjectsArgs {
+  context: RecapContext
+  profileId: string
+  groupId: string | null
+  recap: MonthlyRecapRow
+}
+
+export interface RefloatFromProjectsOutcome {
+  newDeficit: number
+  allocation: Record<string, number>
+  perProject: ReadonlyArray<{ projectId: string; amount: number }>
+  shortfall: number
+}
+
+export async function executeRefloatFromProjects(
+  args: ExecuteRefloatFromProjectsArgs,
+): Promise<RefloatFromProjectsOutcome> {
+  const summary = await loadRecapSummary({
+    context: args.context,
+    profileId: args.profileId,
+    groupId: args.groupId,
+  })
+  if (summary.bilanSign !== 'negative') {
+    throw new RecapActionError('no_deficit', 409)
+  }
+
+  const deficitRemaining = computeDeficitRemaining({
+    initialBilan: summary.bilan,
+    refloatedFromPiggy: Number(args.recap.refloated_from_piggy),
+    refloatedFromSavings: Number(args.recap.refloated_from_savings),
+    // Budget snapshot is downstream; include it like save-budget-snapshot
+    // mirrors for sibling stages.
+    snapshotData: coerceSnapshot(args.recap.budget_snapshot_data),
+    // Replace the current project snapshot — exclude from the target so
+    // the allocation is idempotent across re-clicks at unchanged upstream
+    // state (piggy / savings).
+    projectSnapshotData: null,
+  })
+  if (deficitRemaining <= 0.01) {
+    throw new RecapActionError('no_deficit', 409)
+  }
+
+  // The pool comes from summary.savingsProjects (injected by loadRecapSummary
+  // from financialData.meta.savingsProjects — no extra RTT).
+  const projects = summary.savingsProjects
+  if (projects.length === 0) {
+    throw new RecapActionError('no_projects_available', 409)
+  }
+
+  const allocation = computeProportionalProjectsRefloat(
+    deficitRemaining,
+    projects.map((p) => ({ projectId: p.id, monthlyAllocation: p.monthlyAllocation })),
+  )
+
+  if (allocation.totalAllocated === 0) {
+    // Every project has monthly_allocation === 0 — semantically equivalent
+    // to "no projects available" from the cascade's point of view.
+    throw new RecapActionError('no_projects_available', 409)
+  }
+
+  const mergedSnapshot: Record<string, number> = {}
+  for (const item of allocation.perBudget) {
+    mergedSnapshot[item.budgetId] = item.amount
+  }
+
+  const snapshotUpdate: Database['public']['Tables']['monthly_recaps']['Update'] = {
+    project_snapshot_data: mergedSnapshot as unknown as Json,
+  }
+  const { error: snapshotError } = await supabaseServer
+    .from('monthly_recaps')
+    .update(snapshotUpdate)
+    .eq('id', args.recap.id)
+  if (snapshotError) {
+    logger.error('[recap/negative] refloat-from-projects: snapshot write failed', {
+      recapId: args.recap.id,
+      error: snapshotError,
+    })
+    throw snapshotError
+  }
+
+  const newDeficit = round2(deficitRemaining - allocation.totalAllocated)
+
+  return {
+    newDeficit,
+    allocation: mergedSnapshot,
+    perProject: allocation.perBudget.map((p) => ({ projectId: p.budgetId, amount: p.amount })),
+    shortfall: round2(allocation.shortfall),
   }
 }
 

@@ -66,4 +66,27 @@ describe('deficit-math re-export surface', () => {
       }),
     ).toBe(25)
   })
+
+  it('computeDeficitRemaining subtracts projectSnapshotData when supplied (sprint 08)', () => {
+    expect(
+      computeDeficitRemaining({
+        initialBilan: -100,
+        refloatedFromPiggy: 10,
+        refloatedFromSavings: 20,
+        snapshotData: { x: 30 },
+        projectSnapshotData: { p1: 25, p2: 10 },
+      }),
+    ).toBe(5)
+  })
+
+  it('computeDeficitRemaining is back-compat when projectSnapshotData is omitted', () => {
+    expect(
+      computeDeficitRemaining({
+        initialBilan: -80,
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+      }),
+    ).toBe(80)
+  })
 })

@@ -72,6 +72,20 @@ export const refloatFromSavingsBodySchema = z.object({
 export type RefloatFromSavingsBody = z.infer<typeof refloatFromSavingsBodySchema>
 
 /**
+ * Body POST /api/monthly-recap/refloat-from-projects — virtual refund of
+ * each savings project's monthly allocation, proportional to its share of
+ * the total pool. The server computes the allocation via
+ * `computeProportionalProjectsRefloat` and OVERWRITES
+ * `monthly_recaps.project_snapshot_data` (deferred — applied to
+ * `savings_projects.amount_saved` + `pending_delay_fraction` at finalize,
+ * sprint 10). Sprint Projets-Épargne 08.
+ */
+export const refloatFromProjectsBodySchema = z.object({
+  context: contextSchema,
+})
+export type RefloatFromProjectsBody = z.infer<typeof refloatFromProjectsBodySchema>
+
+/**
  * Body POST /api/monthly-recap/save-budget-snapshot — record the per-budget
  * proportional drawdown plan. The server computes the allocation via
  * `computeProportionalBudgetSnapshot` (proportional to `estimated_amount`) and

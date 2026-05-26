@@ -3,6 +3,7 @@ export type { ComputeDeficitArgs } from './deficit-math'
 export {
   computeBudgetSurplus,
   computeProportionalBudgetSnapshot,
+  computeProportionalProjectsRefloat,
   computeProportionalSavingsRefloat,
   computeRecapSummary,
 } from './calculations'

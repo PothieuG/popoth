@@ -361,6 +361,7 @@ export type Database = {
           id: string
           piggy_transfers_data: Json
           profile_id: string | null
+          project_snapshot_data: Json
           recap_month: number
           recap_year: number
           refloated_from_piggy: number
@@ -378,6 +379,7 @@ export type Database = {
           id?: string
           piggy_transfers_data?: Json
           profile_id?: string | null
+          project_snapshot_data?: Json
           recap_month: number
           recap_year: number
           refloated_from_piggy?: number
@@ -395,6 +397,7 @@ export type Database = {
           id?: string
           piggy_transfers_data?: Json
           profile_id?: string | null
+          project_snapshot_data?: Json
           recap_month?: number
           recap_year?: number
           refloated_from_piggy?: number

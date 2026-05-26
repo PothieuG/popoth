@@ -113,6 +113,24 @@ export function computeProportionalBudgetSnapshot(
   )
 }
 
+/** Distribue targetAmount proportionnellement à `monthly_allocation` de chaque
+ *  projet d'épargne (sprint Projets-Épargne 08, cascade renflouement étape
+ *  intermédiaire entre savings et budget snapshot). Le pool est la mensualité
+ *  du mois — pas l'`amount_saved` cumulé — sémantique "renoncer temporairement
+ *  à l'épargne mensuelle du projet pour combler le déficit". Le résultat
+ *  conserve le shape `RefloatProportionalAllocation` (`perBudget` = par
+ *  `projectId`) pour réutiliser `distributeProportional` et la sérialisation
+ *  côté action helper. */
+export function computeProportionalProjectsRefloat(
+  targetAmount: number,
+  projects: ReadonlyArray<{ projectId: string; monthlyAllocation: number }>,
+): RefloatProportionalAllocation {
+  return distributeProportional(
+    targetAmount,
+    projects.map((p) => ({ budgetId: p.projectId, pool: p.monthlyAllocation })),
+  )
+}
+
 function distributeProportional(
   targetAmount: number,
   budgets: ReadonlyArray<{ budgetId: string; pool: number }>,

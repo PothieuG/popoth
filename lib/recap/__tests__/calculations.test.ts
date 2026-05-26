@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   computeBudgetSurplus,
   computeProportionalBudgetSnapshot,
+  computeProportionalProjectsRefloat,
   computeProportionalSavingsRefloat,
   computeRecapSummary,
   type RecapSummary,
@@ -555,6 +556,80 @@ describe('computeProportionalBudgetSnapshot', () => {
       { budgetId: 'c', estimatedAmount: 100 },
       { budgetId: 'a', estimatedAmount: 100 },
       { budgetId: 'b', estimatedAmount: 100 },
+    ])
+
+    expect(result.perBudget.map((p) => p.budgetId)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('computeProportionalProjectsRefloat', () => {
+  it('distributes proportionally on monthly_allocation pool (100/50 → target 60)', () => {
+    const result = computeProportionalProjectsRefloat(60, [
+      { projectId: 'p1', monthlyAllocation: 100 },
+      { projectId: 'p2', monthlyAllocation: 50 },
+    ])
+
+    expect(result.perBudget).toEqual([
+      { budgetId: 'p1', amount: 40 },
+      { budgetId: 'p2', amount: 20 },
+    ])
+    expect(result.totalAllocated).toBe(60)
+    expect(result.shortfall).toBe(0)
+  })
+
+  it('caps when total pool < target and reports shortfall', () => {
+    const result = computeProportionalProjectsRefloat(500, [
+      { projectId: 'p1', monthlyAllocation: 100 },
+      { projectId: 'p2', monthlyAllocation: 50 },
+    ])
+
+    expect(result.perBudget).toEqual([
+      { budgetId: 'p1', amount: 100 },
+      { budgetId: 'p2', amount: 50 },
+    ])
+    expect(result.totalAllocated).toBe(150)
+    expect(result.shortfall).toBe(350)
+  })
+
+  it('returns empty perBudget when no projects', () => {
+    const result = computeProportionalProjectsRefloat(60, [])
+
+    expect(result.perBudget).toEqual([])
+    expect(result.totalAllocated).toBe(0)
+    expect(result.shortfall).toBe(60)
+  })
+
+  it('returns empty perBudget when every monthly_allocation is zero', () => {
+    const result = computeProportionalProjectsRefloat(60, [
+      { projectId: 'p1', monthlyAllocation: 0 },
+      { projectId: 'p2', monthlyAllocation: 0 },
+    ])
+
+    expect(result.perBudget).toEqual([])
+    expect(result.totalAllocated).toBe(0)
+    expect(result.shortfall).toBe(60)
+  })
+
+  it('absorbs cents remainder on the last project (3x100 → target=10)', () => {
+    const result = computeProportionalProjectsRefloat(10, [
+      { projectId: 'a', monthlyAllocation: 100 },
+      { projectId: 'b', monthlyAllocation: 100 },
+      { projectId: 'c', monthlyAllocation: 100 },
+    ])
+
+    expect(result.perBudget).toEqual([
+      { budgetId: 'a', amount: 3.33 },
+      { budgetId: 'b', amount: 3.33 },
+      { budgetId: 'c', amount: 3.34 },
+    ])
+    expect(result.totalAllocated).toBe(10)
+  })
+
+  it('sorts perBudget output by projectId regardless of input order', () => {
+    const result = computeProportionalProjectsRefloat(30, [
+      { projectId: 'c', monthlyAllocation: 100 },
+      { projectId: 'a', monthlyAllocation: 100 },
+      { projectId: 'b', monthlyAllocation: 100 },
     ])
 
     expect(result.perBudget.map((p) => p.budgetId)).toEqual(['a', 'b', 'c'])

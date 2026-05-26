@@ -102,10 +102,55 @@
   ### Validation
   - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (725/211) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
   - **Vérif visuelle DevTools non-effectuée côté CLI** : aucun seed-recap scénario embarquant des projets à ce jour. À valider par le user en `pnpm dev` après création manuelle de 2 projets via le planificateur (sprints 04-06) puis démarrage d'un recap.
-  - `pnpm verify` chain : tous les db:* checks ✓ contre `ddehmjucyfgyppfkbddr` (set `$env:SUPABASE_PROJECT_REF`) ; drift contre prod rouge pré-existant (migrations Projets-Épargne non encore pushées prod, expected sprint 11).
+  - `pnpm verify` chain : tous les db:\* checks ✓ contre `ddehmjucyfgyppfkbddr` (set `$env:SUPABASE_PROJECT_REF`) ; drift contre prod rouge pré-existant (migrations Projets-Épargne non encore pushées prod, expected sprint 11).
 
   ### Hors scope sprint 07 (à venir)
   - Sprint 08 : RPC `executeRefloatFromProjects` + endpoint `POST /api/monthly-recap/refloat-from-projects` + mutation `useRefloatFromProjects`. Extension `monthly_recaps.project_snapshot_data jsonb` (miroir `budget_snapshot_data`). Pure helper `computeProportionalProjectsRefloat`.
   - Sprint 09 : Composant `RefloatProjectsLine` dans la cascade `BilanNegativeStep` entre `RefloatSavingsLine` et `RefloatBudgetSnapshotLine`. Lire `summary.savingsProjects` (livré ce sprint 07).
   - Sprint 10 : Wire de `project_snapshot_data` dans `finalize_recap_apply_snapshot` (extension de la RPC sprint 08 V3) + résumé final `FinalRecapStep`.
   - Sprint 11 : Seeds dédiés projets, push prod migrations Projets-Épargne, PR finalisation.
+
+---
+
+- ✅ **Sprint 08 — Backend refloat-from-projects + `project_snapshot_data` JSONB** (livré 2026-05-26 sur `feature/projets-epargne`).
+
+  ### Périmètre
+
+  Nouvel endpoint `POST /api/monthly-recap/refloat-from-projects` qui calcule une allocation proportionnelle des projets actifs (pool = `monthly_allocation`) et OVERWRITE le tracker `monthly_recaps.project_snapshot_data` JSONB. Snapshot deferred : aucune mutation côté `savings_projects` ici — l'application est repoussée à finalize (sprint 10) via `apply_recap_projects_snapshot` (sprint 01). Pure helper `computeProportionalProjectsRefloat` réutilise `distributeProportional` (engine stable cents-precise). `computeDeficitRemaining` étendu d'un terme optionnel `projectSnapshotData` qui soustrait le snapshot projet du déficit restant. Les 3 helpers existants (`executeRefloatFromPiggy`/`Savings`/`SaveBudgetSnapshot`) le passent désormais — soustraction transparente pour le sprint 09 cascade UI. Endpoint status expose `recap.projectSnapshotData` à parité avec `snapshotData`/`piggyTransfersData`.
+
+  ### Modules livrés (1 migration + 5 modifs + 1 nouveau + 1 test gated)
+  - [supabase/migrations/20260602000000_add_project_snapshot_to_monthly_recaps.sql](../../supabase/migrations/20260602000000_add_project_snapshot_to_monthly_recaps.sql) — `ALTER TABLE monthly_recaps ADD COLUMN project_snapshot_data jsonb NOT NULL DEFAULT '{}'::jsonb` + `NOTIFY pgrst, 'reload schema'`. Sibling pattern de `20260530000000_add_piggy_transfers_data_to_monthly_recaps.sql`. Appliqué à dev (`ddehmjucyfgyppfkbddr`), prod différée sprint 11.
+  - [lib/recap/calculations.ts](../../lib/recap/calculations.ts) — `computeProportionalProjectsRefloat(targetAmount, projects)` (pool=`monthly_allocation`, mappe `projectId → budgetId` pour réutiliser `distributeProportional` + `RefloatProportionalAllocation` shape).
+  - [lib/recap/deficit-math.ts](../../lib/recap/deficit-math.ts) — `ComputeDeficitArgs.projectSnapshotData` (optional) + soustraction `sumSnapshotValues(projectSnapshotData)` au déficit restant. Optionnel pour back-compat des call sites legacy + tests.
+  - [lib/recap/actions-negative.ts](../../lib/recap/actions-negative.ts) — `executeRefloatFromProjects(args)` (+118 LOC) mirror `executeSaveBudgetSnapshot` : load summary → check bilan négatif → calc deficitRemaining (snapshotData budget inclus, projectSnapshotData=null car overwrite) → `computeProportionalProjectsRefloat(deficit, summary.savingsProjects.map(p → projectId+monthlyAllocation))` → UPDATE `monthly_recaps.project_snapshot_data`. Throws `RecapActionError('no_projects_available', 409)` quand 0 projet ou totalPool=0. Les 3 helpers existants (`RefloatFromPiggy/Savings`, `SaveBudgetSnapshot`) reçoivent `projectSnapshotData: coerceSnapshot(args.recap.project_snapshot_data)` pour soustraire le snapshot projet du target.
+  - [lib/schemas/recap.ts](../../lib/schemas/recap.ts) — `refloatFromProjectsBodySchema = z.object({ context })`.
+  - [app/api/monthly-recap/refloat-from-projects/route.ts](../../app/api/monthly-recap/refloat-from-projects/route.ts) (nouveau) — mirror `refloat-from-savings/route.ts`. `withAuthAndProfile` + Zod parseBody + getActiveRecap + step gate `summary|manage_bilan` + executeRefloatFromProjects. NE PAS advance `current_step` (sprint 09 cascade UI owns transitions).
+  - [app/api/monthly-recap/status/route.ts](../../app/api/monthly-recap/status/route.ts) + [hooks/useMonthlyRecap.ts](../../hooks/useMonthlyRecap.ts) `RecapProgress.projectSnapshotData: Record<string, number> | null` — parité avec `snapshotData` / `piggyTransfersData`. 3 test fixtures mises à jour (`BilanNegativeStep.test.tsx`, `FinalRecapStep.test.tsx`, `RecapWizard.test.tsx`) — pattern miroir du field `piggyTransfersData`.
+  - [app/api/monthly-recap/refloat-from-projects/**tests**/route.integration.test.ts](../../app/api/monthly-recap/refloat-from-projects/__tests__/route.integration.test.ts) — 7 cas gated `SUPABASE_RECAP_TESTS=1` (happy, partial pool<deficit, no_projects_available, no_deficit déjà couvert, overwrite idempotence, not_initiator group, invalid_step).
+  - +8 unit tests purs (6 `computeProportionalProjectsRefloat` + 2 `computeDeficitRemaining` term projectSnapshotData).
+
+  ### Décisions de design
+  - **Pool = `monthly_allocation` (PAS `amount_saved`)** : sémantique "renoncer temporairement à l'épargne mensuelle d'un projet" du plan §5.2. Le capital `amount_saved` reste sanctuarisé jusqu'à `delete_savings_project_to_piggy`. Cohérent avec la formule où `monthly_allocation` est traitée comme un budget virtuel (sprint 03 — `totalEstimatedBudgets` inclut les allocations projets).
+  - **`projectSnapshotData` optional dans `ComputeDeficitArgs`** : éviter de casser les ~30 call sites + tests legacy qui invoquent `computeDeficitRemaining(...)` sans ce field. Quand omis = `undefined` → `sumSnapshotValues(undefined) = 0` → no-op. Symétrique avec `snapshotData` qui reste `Record<string,number> | null | undefined`.
+  - **`executeRefloatFromProjects` inclut `budget_snapshot_data` dans la cible** (vs `null` pour le budget snapshot helper) : projets sont une étape UPSTREAM du budget snapshot dans le cascade. Quand le user retourne sur l'étape projets après avoir saved le budget snapshot, le projet allocation ne doit pas re-couvrir le déficit déjà adressé par le budget snapshot. `projectSnapshotData=null` est seul exclu (replace), tout le reste reste inclus.
+  - **No advance `current_step`** : pattern miroir `executeRefloatFromSavings`. Le sprint 09 cascade UI gérera les transitions explicites via `useAdvanceStep`.
+  - **Erreur `no_projects_available` (snake_case)** : cohérent avec les autres codes (`no_deficit`, `not_initiator`, `invalid_step`). Le plan utilisait `no-projects-available` (hyphen) — corrigé pour uniformité.
+
+  ### Invariants bumpés / stables
+  - **Routes API : 43 → 44** (`/api/monthly-recap/refloat-from-projects`).
+  - EXPECTED_RPCS 25 stable. Functions DB 34 stable. Lint 0/0 préservée.
+  - **Tests non-gated : 725 → 733** (+8 unit pure-calc / deficit-math).
+  - **Tests gated `SUPABASE_RECAP_TESTS=1` : 78 → 85** (+7 cas integration refloat-from-projects).
+  - **`monthly_recaps` Insert/Row : +1 colonne** `project_snapshot_data: Json` (DEFAULT `'{}'`). 1 nouvelle migration appliquée à dev (prod sprint 11).
+  - **`RecapProgress.projectSnapshotData`** exposé via `/api/monthly-recap/status` — disponible côté client pour le sprint 09 sans plumbing additionnel.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (733/218) ; `pnpm format:check` ✓.
+  - `pnpm db:check-drift` ✓ contre dev ; `pnpm db:check-rpcs` ✓ (25) ; `pnpm db:check-types-fresh` ✓ (matches dev).
+  - `SUPABASE_RECAP_TESTS=1 pnpm test:run app/api/monthly-recap/refloat-from-projects` → 7/7 passing (1.3s).
+  - **Régression connue pré-existante** : 4 tests gated `save-budget-snapshot` étaient déjà rouges AVANT sprint 08 (stash-pop check confirmed). Hors scope ce sprint ; à investiguer séparément.
+
+  ### Hors scope sprint 08 (à venir)
+  - Sprint 09 : UI cascade `RefloatProjectsLine` dans `BilanNegativeStep` entre savings et budget snapshot ; mutation `useRefloatFromProjects` côté hook ; copy + ARIA + tests RTL.
+  - Sprint 10 : Wire `project_snapshot_data` dans `finalize_recap_apply_snapshot` (ou route directe vers `apply_recap_projects_snapshot` sprint 01 RPC) + résumé final `FinalRecapStep` (section "Renflouement via projets : N€ réparti sur M projets").
+  - Sprint 11 : Seeds dédiés projets + push prod migrations Projets-Épargne (sprint 01 + 08 — `savings_projects` + `project_snapshot_data` column) + PR finalisation.

@@ -26,6 +26,14 @@ export interface RecapProgress {
    *  ce tracker — il est exposé ici pour parité avec `snapshotData` et pour
    *  faciliter le cache update de `useTransferSurplusesToPiggy`. */
   piggyTransfersData: Record<string, number> | null
+  /** Sprint Projets-Épargne 08 (2026-05-26). `{ [projectId]: refund_amount }`
+   *  des projets virtuellement renfloués pendant ce recap actif. Sprint 09
+   *  (cascade UI) le consommera : `RefloatProjectsLine` réutilise le pattern
+   *  de `RefloatBudgetSnapshotLine` (totalEquilibre + per-project share). Le
+   *  serveur soustrait déjà ce montant dans `computeDeficitRemaining` lorsqu'il
+   *  recalcule le déficit pour les étapes suivantes — l'expose ici pour parité
+   *  client. `null` quand aucun projet n'a encore été refloué. */
+  projectSnapshotData: Record<string, number> | null
 }
 
 export interface MonthlyRecapStatusResponse {
