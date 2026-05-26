@@ -5,6 +5,8 @@
  * (sprint 07). Pure data shapes only — no functions, no I/O.
  */
 
+import type { SavingsProjectMeta } from '@/lib/finance/types'
+
 export interface BudgetSummary {
   budgetId: string
   budgetName: string
@@ -33,6 +35,13 @@ export interface RecapSummary {
    *  négatif = pire que prévu. Cf. `lib/recap/calculations.ts::computeRecapSummary`. */
   bilan: number
   bilanSign: 'positive' | 'negative' | 'zero'
+  /** Sprint Projets-Épargne 07 (2026-05-26). Subset présentationnel des projets
+   *  d'épargne actifs de l'owner du recap. Alimenté par
+   *  `financialData.meta?.savingsProjects` dans `loadRecapSummary` — aucun
+   *  fetch supplémentaire. Consommé par `SummaryStep` (drawer "Projets en
+   *  cours") et par sprint 09 (`RefloatProjectsLine` dans la cascade
+   *  négative). `[]` quand l'owner n'a aucun projet (toujours présent). */
+  savingsProjects: readonly SavingsProjectMeta[]
 }
 
 export interface RefloatProportionalAllocation {

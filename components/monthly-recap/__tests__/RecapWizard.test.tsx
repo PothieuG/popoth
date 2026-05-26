@@ -57,6 +57,7 @@ function makeSummary(overrides?: Partial<RecapSummary>): RecapSummary {
     budgets: [],
     bilan: 100,
     bilanSign: 'positive',
+    savingsProjects: [],
     ...overrides,
   }
 }

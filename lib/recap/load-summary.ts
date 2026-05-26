@@ -115,6 +115,11 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       carryoverSpentAmount: Number(b.carryover_spent_amount ?? 0),
     })),
     piggyTransfersData,
+    // Sprint Projets-Épargne 07 (2026-05-26) — réutilise la liste déjà
+    // fetchée par `_loadFinancialData` (pas de RTT supplémentaire). Le
+    // subset `SavingsProjectMeta` est construit dans `buildSavingsProjectMeta`
+    // avec `monthsRemaining` dérivé à l'instant T du fetch.
+    savingsProjects: financialData.meta?.savingsProjects ?? [],
   })
 }
 

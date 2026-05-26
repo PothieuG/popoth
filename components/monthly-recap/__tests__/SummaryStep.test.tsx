@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { SavingsProjectMeta } from '@/lib/finance/types'
 import type { RecapSummary } from '@/lib/recap'
 
 const advanceMock = vi.fn()
@@ -44,6 +45,7 @@ function makeSummary(overrides: Partial<RecapSummary> = {}): RecapSummary {
         deficit: 100,
       },
     ],
+    savingsProjects: [],
     ...overrides,
   }
 }
@@ -164,5 +166,63 @@ describe('SummaryStep', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/Impossible de passer à l'étape suivante/)
     })
+  })
+
+  // Sprint Projets-Épargne 07 — "Projets en cours" line + drawer.
+
+  function makeProject(overrides: Partial<SavingsProjectMeta>): SavingsProjectMeta {
+    return {
+      id: 'p1',
+      name: 'Japon',
+      monthlyAllocation: 200,
+      amountSaved: 4084,
+      targetAmount: 7000,
+      deadlineDate: '2027-12-31',
+      monthsRemaining: 19,
+      ...overrides,
+    }
+  }
+
+  it('does NOT render the "Projets en cours" line when savingsProjects is empty', () => {
+    render(<SummaryStep context="profile" summary={makeSummary({ savingsProjects: [] })} />)
+    expect(screen.queryByText(/projet en cours/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/projets en cours/)).not.toBeInTheDocument()
+  })
+
+  it('renders "1 projet en cours" (singular) when summary has exactly 1 project', () => {
+    render(
+      <SummaryStep
+        context="profile"
+        summary={makeSummary({ savingsProjects: [makeProject({})] })}
+      />,
+    )
+    expect(screen.getByRole('button', { name: /1 projet en cours/ })).toBeInTheDocument()
+  })
+
+  it('renders "N projets en cours" (plural) and opens the drawer on click', async () => {
+    const user = userEvent.setup()
+    render(
+      <SummaryStep
+        context="profile"
+        summary={makeSummary({
+          savingsProjects: [
+            makeProject({ id: 'p1', name: 'Japon' }),
+            makeProject({ id: 'p2', name: 'Voiture', amountSaved: 320, targetAmount: 1500 }),
+          ],
+        })}
+      />,
+    )
+
+    const trigger = screen.getByRole('button', { name: /2 projets en cours/ })
+    expect(trigger).toBeInTheDocument()
+
+    // Drawer is not in the DOM before click (lazy-mounted).
+    expect(screen.queryByRole('heading', { name: 'Projets en cours' })).not.toBeInTheDocument()
+
+    await user.click(trigger)
+
+    expect(await screen.findByRole('heading', { name: 'Projets en cours' })).toBeInTheDocument()
+    expect(screen.getByText('Japon')).toBeInTheDocument()
+    expect(screen.getByText('Voiture')).toBeInTheDocument()
   })
 })

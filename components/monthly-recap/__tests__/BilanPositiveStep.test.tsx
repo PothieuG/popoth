@@ -61,6 +61,7 @@ function makeSummary(overrides: Partial<RecapSummary> = {}): RecapSummary {
         deficit: 0,
       },
     ],
+    savingsProjects: [],
     ...overrides,
   }
 }

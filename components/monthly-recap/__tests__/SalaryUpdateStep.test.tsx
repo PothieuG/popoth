@@ -60,6 +60,7 @@ function makeSummary(): RecapSummary {
     bilan: 150,
     bilanSign: 'positive',
     budgets: [],
+    savingsProjects: [],
   }
 }
 

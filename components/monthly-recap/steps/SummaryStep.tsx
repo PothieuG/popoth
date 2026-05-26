@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 
 import { BilanBlock } from '../BilanBlock'
 import { SavingsDetailDrawer } from '../SavingsDetailDrawer'
+import { SavingsProjectsDetailDrawer } from '../SavingsProjectsDetailDrawer'
 import { SurplusDetailDrawer } from '../SurplusDetailDrawer'
 
 const ADVANCE_ERROR_COPY: Record<string, string> = {
@@ -98,6 +99,7 @@ function SummaryCard({
 export function SummaryStep({ context, summary }: SummaryStepProps) {
   const [surplusOpen, setSurplusOpen] = useState(false)
   const [savingsOpen, setSavingsOpen] = useState(false)
+  const [projectsOpen, setProjectsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const advanceMutation = useAdvanceStep(context)
@@ -105,6 +107,10 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
   const surplusBudgets = summary.budgets.filter((b) => b.surplus > 0)
   const savingsBudgets = summary.budgets.filter((b) => b.cumulatedSavings > 0)
   const totalEconomies = summary.totalSavings + summary.piggyAmount
+  const activeProjects = summary.savingsProjects
+  const hasProjects = activeProjects.length > 0
+  const projectsLabel =
+    activeProjects.length === 1 ? '1 projet en cours' : `${activeProjects.length} projets en cours`
 
   const handleNext = async () => {
     setError(null)
@@ -137,6 +143,28 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
           accent="savings"
           onShowDetail={() => setSavingsOpen(true)}
         />
+        {hasProjects && (
+          <button
+            type="button"
+            onClick={() => setProjectsOpen(true)}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-l-4 border-gray-200 border-l-violet-400 bg-white px-4 py-3 text-left shadow-sm transition-colors hover:bg-violet-50/40"
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-violet-800">
+              <span aria-hidden="true">📋</span>
+              {projectsLabel}
+            </span>
+            <span aria-hidden="true" className="text-violet-700">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </span>
+          </button>
+        )}
       </div>
 
       <BilanBlock bilan={summary.bilan} bilanSign={summary.bilanSign} />
@@ -162,6 +190,13 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
         piggyAmount={summary.piggyAmount}
         budgets={savingsBudgets}
       />
+      {projectsOpen && (
+        <SavingsProjectsDetailDrawer
+          isOpen={projectsOpen}
+          onClose={() => setProjectsOpen(false)}
+          projects={activeProjects}
+        />
+      )}
     </div>
   )
 }

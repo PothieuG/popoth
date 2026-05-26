@@ -7,6 +7,8 @@
  * résultats retournés. Déterministe (tri stable + cents precision).
  */
 
+import type { SavingsProjectMeta } from '@/lib/finance/types'
+
 import type { BudgetSummary, RecapSummary, RefloatProportionalAllocation } from './types'
 
 /** surplus = max(0, estimé - dépensé) ; deficit = max(0, dépensé - estimé). */
@@ -46,6 +48,11 @@ export function computeRecapSummary(input: {
    *  exposé dans le `BudgetSummary` reste la valeur brute originale — seul le
    *  surplus/deficit est affecté. */
   piggyTransfersData?: Record<string, number>
+  /** Sprint Projets-Épargne 07 (2026-05-26). Passé verbatim dans le résultat
+   *  pour alimenter le drawer "Projets en cours" du `SummaryStep` et la
+   *  cascade négative `RefloatProjectsLine` (sprint 09). Aucune logique de
+   *  calcul ici — pur passthrough depuis `loadRecapSummary`. Défaut `[]`. */
+  savingsProjects?: readonly SavingsProjectMeta[]
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
     const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
@@ -80,6 +87,7 @@ export function computeRecapSummary(input: {
     budgets: sorted,
     bilan,
     bilanSign,
+    savingsProjects: input.savingsProjects ?? [],
   }
 }
 

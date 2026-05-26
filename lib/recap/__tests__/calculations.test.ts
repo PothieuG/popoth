@@ -282,6 +282,51 @@ describe('computeRecapSummary', () => {
     // overshoot does NOT bleed into deficit — the tracker is a tirelire offset, not a real overspend
     expect(result.budgets[0]?.deficit).toBe(10)
   })
+
+  // Sprint Projets-Épargne 07 (2026-05-26) — savingsProjects passthrough.
+
+  it('defaults savingsProjects to [] when omitted from input', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+    })
+
+    expect(result.savingsProjects).toEqual([])
+  })
+
+  it('forwards savingsProjects verbatim (presentational passthrough)', () => {
+    const projects = [
+      {
+        id: 'p1',
+        name: 'Japon',
+        monthlyAllocation: 200,
+        amountSaved: 4084,
+        targetAmount: 7000,
+        deadlineDate: '2027-12-31',
+        monthsRemaining: 19,
+      },
+      {
+        id: 'p2',
+        name: 'Voiture',
+        monthlyAllocation: 80,
+        amountSaved: 320,
+        targetAmount: 1500,
+        deadlineDate: '2027-06-30',
+        monthsRemaining: 13,
+      },
+    ]
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: projects,
+    })
+
+    expect(result.savingsProjects).toEqual(projects)
+  })
 })
 
 describe('computeProportionalSavingsRefloat', () => {
