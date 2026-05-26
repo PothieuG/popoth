@@ -996,6 +996,10 @@ export type Database = {
         Args: { p_group_id?: string; p_profile_id?: string; p_recap_id: string }
         Returns: Json
       }
+      recompute_group_monthly_budget_estimate: {
+        Args: { p_group_id: string }
+        Returns: undefined
+      }
       start_monthly_recap: {
         Args: {
           p_group_id?: string
