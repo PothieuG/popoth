@@ -1,5 +1,7 @@
 # Sprint 03 — Intégration RAV (projets dans la formule reste-à-vivre)
 
+> ✅ **LIVRÉ 2026-05-26** sur branche `feature/projets-epargne`, commit `39ab19b`. Détails closeout → [Part 29](../history/roadmap-detailed-29-projets-epargne.md). `_loadFinancialData` agrège `sum(monthly_allocation)` dans `totalEstimatedBudgets` (étape 3.bis), `FinancialData.meta` expose `totalMonthlyProjects` + `savingsProjects[]`. Tests : +8 non-gated (`projects-meta.test.ts`) + 4 gated (`financial-data-with-projects.test.ts`).
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet.
 
 ## Objectif
@@ -32,16 +34,14 @@ const { data: savingsProjects } = await supabaseServer
   .from('savings_projects')
   .select('id, name, monthly_allocation, amount_saved, target_amount, deadline_date')
   .eq(ownerColumn, ownerId)
-const totalMonthlyProjects =
-  savingsProjects?.reduce((sum, p) => sum + p.monthly_allocation, 0) ?? 0
+const totalMonthlyProjects = savingsProjects?.reduce((sum, p) => sum + p.monthly_allocation, 0) ?? 0
 ```
 
 Modifier ligne 87-88 :
 
 ```ts
 const totalEstimatedBudgets =
-  (estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0)
-  + totalMonthlyProjects
+  (estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0) + totalMonthlyProjects
 ```
 
 **Décision explicite** : `totalEstimatedBudgets` agrège budgets + projets (le user a confirmé "traité comme un budget classique"). Pas de nouveau terme dans la formule RAV → réutilise `calculateRemainingToLiveProfile/Group` tel quel.

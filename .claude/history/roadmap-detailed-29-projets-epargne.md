@@ -177,3 +177,78 @@
   ### Hors scope sprint 02 (à venir)
   - Sprint 03 : intégration RAV — `monthly_allocation` agrégé dans `totalEstimatedBudgets` côté `_loadFinancialData` (perso + groupe), pas de nouveau terme dans la formule canonique RAV. Réutilise `calculateRemainingToLiveProfile/Group` tel quel.
   - Sprint 04+ : UI (onglet "Projet" + cercle de progression + modals + drawer recap + cascade Bilan négatif), puis wiring `apply_recap_projects_snapshot` au sprint 10, puis push prod + PR au sprint 11.
+
+---
+
+- ✅ **Sprint 03 — Intégration RAV** (livré 2026-05-26, commit `39ab19b` sur branche `feature/projets-epargne`).
+
+  ### Périmètre
+
+  Wirer le `monthly_allocation` des projets dans l'orchestrateur `_loadFinancialData` côté perso ET groupe, de sorte que le RAV diminue de la somme des allocations. Le projet se comporte comme un budget virtuel : `totalEstimatedBudgets = sum(estimated_budgets.estimated_amount) + sum(savings_projects.monthly_allocation)`. **Pas** de nouveau terme dans la formule canonique RAV — la signature et le contenu de `calculateRemainingToLiveProfile/Group` restent intacts (le projet entre par le terme `estimatedBudgets`). Métadonnées présentationnelles exposées via `FinancialData.meta` pour l'UI (sprints 04, 07).
+
+  ### Modules livrés (1 nouveau + 5 modifiés)
+  - [`lib/finance/projects-meta.ts`](../../lib/finance/projects-meta.ts) (88 LOC) — 3 helpers purs (pas d'I/O, pas de logger) :
+    - `monthsBetween(from: Date, to: string): number` — mois calendaires entiers entre date courante locale et ISO `YYYY-MM-DD`. Floor (sémantique miroir `apply_recap_projects_snapshot` : 1 allocation/mois calendaire → fractions tail droppées). Retourne 0 si deadline passée OU `to` invalide.
+    - `buildSavingsProjectMeta(row, today?)` — maps snake_case → `SavingsProjectMeta` camelCase. `today` injectable pour tests, défaut `new Date()`. `monthsRemaining` dérivé via `monthsBetween`.
+    - `computeDeadlineFromDuration(durationMonths, from?)` — ISO `YYYY-MM-DD` de la deadline N mois après `from`. **Clamp end-of-month** : Jan 31 + 1 mois → Feb 28 (pas Mar 3 via overflow JS). Sera consommé par la modal create sprint 05 (déduction deadline à partir d'une durée saisie). UTC throughout pour TZ-stability.
+
+  **Modifs** :
+  - [`lib/finance/types.ts`](../../lib/finance/types.ts) — Ajout `SavingsProjectMeta` interface + extension `FinancialData.meta` : `totalMonthlyProjects: number` + `savingsProjects: SavingsProjectMeta[]` (toujours présents quand `meta` l'est, valeurs par défaut 0/[]). Comment sur `totalEstimatedBudgets` mis à jour pour refléter la sémantique "budgets + projets".
+  - [`lib/finance/financial-data.ts`](../../lib/finance/financial-data.ts) — Étape 3.bis ajoutée (SELECT `savings_projects` sur `owner` + agrégation `monthly_allocation`). `totalEstimatedBudgets` recoit `+ totalMonthlyProjects`. Construction `savingsProjectsMeta[]` via `buildSavingsProjectMeta`. Meta retournée inclut désormais `totalMonthlyProjects` + `savingsProjects` (perso + groupe). Fallback catch idem.
+  - [`lib/finance/constants.ts`](../../lib/finance/constants.ts) — `EMPTY_FINANCIAL_DATA.meta` étendue (`totalMonthlyProjects: 0, savingsProjects: []`).
+  - [`lib/api/finance/summary.ts`](../../lib/api/finance/summary.ts) — Fallback 200 (erreur calc → UI-safe zeros) étendu avec les 2 mêmes clés.
+  - [`lib/finance/__tests__/financial-data.test.ts`](../../lib/finance/__tests__/financial-data.test.ts) — 3 goldens existants (GOLDEN_PROFILE, GOLDEN_GROUP, PROFILE_EMPTY_SHAPE/GROUP_EMPTY_SHAPE case 5) étendus avec `totalMonthlyProjects: 0, savingsProjects: []` pour matcher le nouveau shape (sinon `toEqual` casse).
+
+  ### Tests livrés
+  - [`lib/finance/__tests__/projects-meta.test.ts`](../../lib/finance/__tests__/projects-meta.test.ts) (8 cas non-gated) :
+    - `monthsBetween` × 4 : mois exact (3), fractionnaire (2 floor), passé (0), cross-year (5).
+    - `computeDeadlineFromDuration` × 3 : first-of-month (1→1), end-of-month clamp (Jan 31 + 1 mois → Feb 28), cross-year (Nov 15 + 6 → May 15).
+    - `buildSavingsProjectMeta` × 1 : maps snake → camel + injectable `today`.
+  - [`lib/finance/__tests__/financial-data-with-projects.test.ts`](../../lib/finance/__tests__/financial-data-with-projects.test.ts) (4 cas gated `SUPABASE_FINANCE_TESTS=1`) :
+    1. **profile + 2 projects 100€** : baseline RAV → INSERT 2 projets → `totalEstimatedBudgets` += 200, `remainingToLive` -= 200, `meta.totalMonthlyProjects` = 200, `meta.savingsProjects.length` = 2.
+    2. **group + 1 project 50€** : idem côté groupe (fixture single-member 2000€, trigger contribution).
+    3. **projet supprimé** : INSERT puis DELETE → `totalMonthlyProjects` retombe à 0, `savingsProjects = []`, RAV remonte de la valeur exacte.
+    4. **aucun projet** : invariant `meta.savingsProjects = []` + `totalMonthlyProjects = 0`.
+
+  Pattern miroir `financial-data.test.ts` : dynamic import dans `beforeAll` (skip clean sans env vars), fixtures FK-safe `afterAll` (DELETE `savings_projects` + `group_contributions` + `profiles.update group_id=null` + DELETE groups + deleteUser).
+
+  ### Décisions de design
+  - **`totalEstimatedBudgets` agrège budgets + projets** (vs nouveau terme dans la formule RAV) : décision validée par le plan ("traité comme un budget classique"). Avantages : (a) signature `calculateRemainingToLiveProfile/Group` inchangée → 0 cascade dans les 5 sites consumers (api/finance/summary, recap calc, etc.) ; (b) le refine `makeBudgetClientSchema` du sprint 02 reçoit automatiquement le nouveau total via `useFinancialData().totalEstimatedBudgets` (cf. "Hors scope" du plan) ; (c) sémantique "marge dispo = revenus - tout ce qui est engagé mensuellement" naturelle.
+  - **`meta.totalMonthlyProjects` exposé séparément** (en plus de l'agrégat) : les UI qui veulent **distinguer** budgets et projets (drawer recap sprint 07, onglet planificateur sprint 04) peuvent extraire la part projets sans recalculer côté client. Coût mémoire négligeable, gain de clarté significatif.
+  - **`meta.savingsProjects[]` toujours présent** (vs conditional spread comme `groupSalaryTotal`) : `groupSalaryTotal` est sémantiquement absent en perso (pas applicable), donc spread conditionnel. `savingsProjects` est applicable aux 2 contextes, juste vide quand 0 projet — donc requis quand `meta` l'est, avec `[]` par défaut. Plus prévisible pour les consumers TS (pas besoin de `?? []`).
+  - **`monthsBetween` vs `monthsUntilDeadline` existant** (`lib/schemas/projects.ts`) : 2 signatures coexistent. `monthsUntilDeadline(today: Date, deadline: Date)` consommé par `makeProjectClientSchema` refine 2 (form input, 2 Dates locales). `monthsBetween(from: Date, to: string)` consommé par `buildSavingsProjectMeta` (orchestrateur lit la colonne `date` ISO). Même règle floor, pas de duplication sémantique — c'est juste l'adaptation au format d'input. Refactor partagé hors-scope ici (low value, low risk de drift).
+  - **`computeDeadlineFromDuration` UTC throughout** : helper qui produit un ISO `YYYY-MM-DD` doit être TZ-stable. Lecture `getUTCFullYear/Month/Date`, build `Date.UTC(...)`, `toISOString().split('T')[0]`. Cost : un caller browser CET à 23h passant `new Date()` peut être off-by-1 jour (UTC est déjà le lendemain) — acceptable pour un défaut de modal (l'utilisateur re-pick dans le datepicker).
+  - **Clamp end-of-month vs overflow JS** : `new Date(2026, 1, 31)` wrap à Mar 3. Pour un "deadline 1 mois après le 31 janvier", l'utilisateur attend Feb 28. Le clamp explicite (`Math.min(baseDay, lastDayOfTargetMonth)`) est plus prévisible que de documenter l'overflow.
+
+  ### Bug pré-existant détecté (NON causé par sprint 03)
+
+  Pendant le run gated SUPABASE_FINANCE_TESTS=1, **2 tests existants** de `financial-data.test.ts` échouent : **case 1 (profile golden math)** et **case 6 (saveRavToDatabase persist)**. Diff observé : `totalRealExpenses` 230 → 830 (+600), `remainingToLive` 1970 → 1370 (-600). Vérifié par stash : les MÊMES 2 tests échouent SANS mes changements. Origine : le trigger `sync_contribution_real_expense` (Feature Contribution-au-groupe 2026-05-28) injecte une row `real_expenses` `is_exceptional=true, estimated_budget_id=null, amount=600` sur le profile au moment du link `profiles.group_id = testGroupId` (= contribution snapshot du single-member group). Cette row n'était pas modélisée dans la golden math du test au moment de son écriture (Sprint Refactor-I4 follow-up + Sprint 16 V3) et le test n'a probablement pas été re-roulé depuis l'arrivée du trigger.
+
+  **Décision** : NE PAS fixer dans ce sprint (hors scope strict). Tracker pour un sprint dédié "Fix-Golden-Math-Contribution-Cascade" qui ajustera GOLDEN_PROFILE.remainingToLive de 1970 → 1370 (et exceptionalExpenses 80 → 680, totalRealExpenses 230 → 830) + ajoutera un cas test couvrant la cascade trigger → profile.exceptional. Les tests qui passent (case 2 GOLDEN_GROUP, case 3 no-data, case 4 no-data, case 5 empty UUIDs, sprint 16 readonly, sprint 15 carry-over) NE sont PAS affectés car ils ne lient pas le profile testUserId au group avant le calcul perso, OU bien le groupe est leur cible primaire.
+
+  ### Invariants bumpés
+  - **Tests non-gated passants** : 672 → 680 (+8 cas `projects-meta.test.ts`).
+  - **Tests gated skipped** (sans env vars) : 207 → 211 (+4 cas `financial-data-with-projects.test.ts`).
+  - **Routes API** : 43 inchangé (aucune route ajoutée — pure intégration interne).
+  - **EXPECTED_RPCS** : 25 inchangé.
+  - **Functions DB versionnées** : 34/34 inchangé.
+  - **Lint baseline** : 0/0 préservée.
+
+  ### Validation (toutes contre dev `ddehmjucyfgyppfkbddr`)
+  - `pnpm typecheck` ✓
+  - `pnpm vitest run lib/finance/__tests__/projects-meta.test.ts` ✓ (8/8, 190ms)
+  - `SUPABASE_FINANCE_TESTS=1 pnpm vitest run lib/finance/__tests__/financial-data-with-projects.test.ts` ✓ (4/4, 6.86s)
+  - `pnpm test:run` ✓ (680 passed | 211 skipped)
+  - `pnpm lint:check` ✓ (0/0)
+  - `SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr pnpm verify` ✓ (10/10 gates, typecheck + format:check + test:run + check:md-size + 6 db:\*)
+
+  ### Workflow particularités
+  - **Stash investigation** : pour confirmer que les 2 régressions GOLDEN_PROFILE étaient pré-existantes (et non causées par sprint 03), `git stash push` des fichiers tracked → `SUPABASE_FINANCE_TESTS=1 pnpm vitest run lib/finance/__tests__/financial-data.test.ts` → mêmes 2 échecs → `git stash pop`. Pattern utile à mémoriser pour disambiguer regression de pré-existant.
+  - **Pré-existant non-lié laissé tel quel** : idem sprint 02 — `.claude/history/roadmap-detailed-{24,27}-*.md`, `.claude/plans/{01,02}-*.md` (formatting prettier), `components/monthly-recap/{CompleteMonthStep,...}.{tsx,test.tsx}`, `scripts/seed-recap/random-profile.mjs`, `scripts/start-recap.mjs` (untracked) sont des modifs antérieures. Commit sprint 03 strictement focused sur ses 8 fichiers tracked.
+
+  ### Hors scope sprint 03 (à venir)
+  - Sprint 04 : nouvel onglet "Projet" dans le planificateur, liste avec cercle de progression — consume `useFinancialData().meta.savingsProjects` directement (pas de nouveau fetch).
+  - Sprint 05-06 : modals create/edit/delete — utilisent `computeDeadlineFromDuration` pour pré-remplir le champ deadline à partir d'une durée user.
+  - Sprint 07 : drawer recap — affiche les projets actifs avec progression, alimenté par `meta.savingsProjects`.
+  - Sprint 08-10 : refloat dans Bilan négatif + wiring `apply_recap_projects_snapshot` au sprint 10.
+  - Sprint 11 : seeds + push prod + PR.
