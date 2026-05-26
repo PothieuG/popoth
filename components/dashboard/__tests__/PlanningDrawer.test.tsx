@@ -90,6 +90,44 @@ vi.mock('@/hooks/useIncomeProgress', () => ({
   }),
 }))
 
+// Sprint Projets-Épargne 04 — mock `useProjects` avec état mutable pour
+// pouvoir tester empty state + list state dans le même fichier.
+const projectsState: { list: ReturnType<typeof buildProject>[]; total: number } = {
+  list: [],
+  total: 0,
+}
+
+function buildProject(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    profile_id: 'user-1',
+    group_id: null,
+    name: 'Voyage Japon',
+    target_amount: 7000,
+    monthly_allocation: 195,
+    deadline_date: '2029-05-01',
+    amount_saved: 4084,
+    pending_delay_fraction: 0,
+    created_at: '2026-05-26T10:00:00Z',
+    updated_at: '2026-05-26T10:00:00Z',
+    ...overrides,
+  } as unknown as import('@/hooks/useProjects').SavingsProject
+}
+
+vi.mock('@/hooks/useProjects', () => ({
+  useProjects: () => ({
+    projects: projectsState.list,
+    loading: false,
+    isFetching: false,
+    error: null,
+    addProject: vi.fn(async () => true),
+    updateProject: vi.fn(async () => true),
+    deleteProject: vi.fn(async () => ({ success: true })),
+    refreshProjects: vi.fn(),
+    totalMonthlyAllocations: projectsState.total,
+  }),
+}))
+
 vi.mock('@/hooks/usePeriodParam', () => ({
   usePeriodParam: () => ({ period: undefined, setPeriod: vi.fn() }),
 }))
@@ -250,5 +288,55 @@ describe('PlanningDrawer — virtual read-only rows (Sprint 16 V3)', () => {
 
     const results = await axe(container)
     expect(results.violations).toEqual([])
+  })
+})
+
+// ─── Sprint Projets-Épargne 04 — onglet "Projets" ────────────────────────
+
+function switchToProjetsTab(user: ReturnType<typeof userEvent.setup>) {
+  return user.click(screen.getByRole('button', { name: /^Projets$/ }))
+}
+
+describe('PlanningDrawer — onglet "Projets" (Sprint Projets-Épargne 04)', () => {
+  it('renders empty state when there are no projects', async () => {
+    projectsState.list = []
+    projectsState.total = 0
+    const user = userEvent.setup()
+    render(<PlanningDrawer isOpen onClose={() => {}} />)
+    await switchToProjetsTab(user)
+
+    expect(await screen.findByText(/Aucun projet en cours/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Créer votre premier projet/i })).toBeInTheDocument()
+  })
+
+  it('renders one row per project with the test id "projects-list"', async () => {
+    projectsState.list = [buildProject()]
+    projectsState.total = 195
+    try {
+      const user = userEvent.setup()
+      render(<PlanningDrawer isOpen onClose={() => {}} />)
+      await switchToProjetsTab(user)
+
+      const list = await screen.findByTestId('projects-list')
+      expect(list).toBeInTheDocument()
+      expect(screen.getByText('Voyage Japon')).toBeInTheDocument()
+      // Total mensuel discret affiche la somme des allocations
+      expect(screen.getByText(/195,00\s*€/)).toBeInTheDocument()
+    } finally {
+      projectsState.list = []
+      projectsState.total = 0
+    }
+  })
+
+  it('Esc closes the drawer when the Projets tab is active (focus-trap regression-guard)', async () => {
+    projectsState.list = []
+    projectsState.total = 0
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<PlanningDrawer isOpen onClose={onClose} />)
+    await switchToProjetsTab(user)
+
+    await user.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
   })
 })

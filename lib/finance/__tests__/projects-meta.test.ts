@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildSavingsProjectMeta,
   computeDeadlineFromDuration,
+  formatDeadline,
+  formatMonthsRemaining,
   monthsBetween,
 } from '@/lib/finance/projects-meta'
 
@@ -53,6 +55,35 @@ describe('computeDeadlineFromDuration', () => {
   it('cross-year duration carries over years correctly', () => {
     const from = new Date(Date.UTC(2026, 10, 15)) // 2026-11-15 UTC
     expect(computeDeadlineFromDuration(6, from)).toBe('2027-05-15')
+  })
+})
+
+describe('formatDeadline', () => {
+  it('formats ISO YYYY-MM-DD to fr-FR JJ/MM/AAAA', () => {
+    expect(formatDeadline('2029-05-01')).toBe('01/05/2029')
+  })
+
+  it('zero-pads single-digit day and month', () => {
+    expect(formatDeadline('2026-01-07')).toBe('07/01/2026')
+  })
+
+  it('falls back to the raw string when parse fails', () => {
+    expect(formatDeadline('not-a-date')).toBe('not-a-date')
+  })
+})
+
+describe('formatMonthsRemaining', () => {
+  it('plural for N > 1', () => {
+    expect(formatMonthsRemaining(36)).toBe('36 mois restants')
+  })
+
+  it('singular for N === 1', () => {
+    expect(formatMonthsRemaining(1)).toBe('1 mois restant')
+  })
+
+  it('overdue label for 0 or negative', () => {
+    expect(formatMonthsRemaining(0)).toBe('Échéance dépassée')
+    expect(formatMonthsRemaining(-3)).toBe('Échéance dépassée')
   })
 })
 

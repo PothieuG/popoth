@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
@@ -10,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import DropdownMenu from '../ui/DropdownMenu'
 import BudgetProgressIndicator from './BudgetProgressIndicator'
 import IncomeProgressIndicator from './IncomeProgressIndicator'
+import ProjectListItem from './ProjectListItem'
 
 const AddBudgetDialog = dynamic(() => import('./AddBudgetDialog'), { ssr: false })
 const AddIncomeDialog = dynamic(() => import('./AddIncomeDialog'), { ssr: false })
@@ -20,6 +22,7 @@ import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
 import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
 import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
+import { useProjects, type SavingsProject } from '@/hooks/useProjects'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
 import type { ReadOnlyIncome } from '@/lib/finance'
 
@@ -45,7 +48,7 @@ interface PlanningDrawerProps {
   groupSalaryTotal?: number
 }
 
-type TabType = 'budgets' | 'revenus'
+type TabType = 'budgets' | 'revenus' | 'projets'
 
 /**
  * Drawer de planification financière qui s'ouvre du bas vers le haut.
@@ -132,6 +135,18 @@ export default function PlanningDrawer({
     totalIncomes,
   } = useIncomes(context)
 
+  // Sprint Projets-Épargne 04 — 3ème onglet "Projets". Lecture seule pour
+  // l'instant (modals create/edit/delete arrivent aux sprints 05-06) ; les
+  // actions Modifier/Supprimer sont câblées à un `logger.info` placeholder.
+  const {
+    projects,
+    loading: projectsLoading,
+    isFetching: projectsFetching,
+    error: projectsError,
+    refreshProjects,
+    totalMonthlyAllocations,
+  } = useProjects(context)
+
   // Sprint P1 — lit la période depuis l'URL ?period= pour filtrer les progress
   // bars budget. Hérité automatiquement du dashboard (PeriodSelector).
   const { period } = usePeriodParam()
@@ -159,6 +174,7 @@ export default function PlanningDrawer({
     budgetsLoading || budgetsFetching || budgetProgressLoading || budgetProgressFetching
   const isIncomesBusy =
     incomesLoading || incomesFetching || incomeProgressLoading || incomeProgressFetching
+  const isProjectsBusy = projectsLoading || projectsFetching
 
   const renderSkeletonRows = (count = 3) => (
     <div className="space-y-2">
@@ -192,8 +208,16 @@ export default function PlanningDrawer({
       refreshIncomes()
       refreshBudgetProgress()
       refreshIncomeProgress()
+      refreshProjects()
     }
-  }, [isOpen, refreshBudgets, refreshIncomes, refreshBudgetProgress, refreshIncomeProgress])
+  }, [
+    isOpen,
+    refreshBudgets,
+    refreshIncomes,
+    refreshBudgetProgress,
+    refreshIncomeProgress,
+    refreshProjects,
+  ])
 
   // Auto-dismiss snackbar after 3s (Pattern §8 ✅ feedback transient).
   useEffect(() => {
@@ -411,6 +435,29 @@ export default function PlanningDrawer({
     setIsDeleting(false)
   }
 
+  /**
+   * Sprint Projets-Épargne 04 — stubs Add/Edit/Delete. La modal create/edit
+   * arrive au sprint 05, la confirmation de suppression au sprint 06. Pour
+   * l'instant on log l'intention pour pouvoir vérifier le wiring en dev.
+   */
+  const handleAddProjectStub = () => {
+    logger.info('[projects] add project requested (modal arrives in sprint 05)')
+  }
+
+  const handleEditProjectStub = (project: SavingsProject) => {
+    logger.info('[projects] edit project requested (modal arrives in sprint 05)', {
+      id: project.id,
+      name: project.name,
+    })
+  }
+
+  const handleDeleteProjectStub = (project: SavingsProject) => {
+    logger.info('[projects] delete project requested (confirmation arrives in sprint 06)', {
+      id: project.id,
+      name: project.name,
+    })
+  }
+
   const handleOpenChange = (open: boolean) => {
     if (!open) onClose()
   }
@@ -499,16 +546,39 @@ export default function PlanningDrawer({
                 <span>Revenus</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('projets')}
+              className={cn(
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-all duration-200',
+                activeTab === 'projets'
+                  ? 'bg-white text-purple-700 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900',
+              )}
+            >
+              <div className="flex items-center justify-center space-x-1.5">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                  />
+                </svg>
+                <span>Projets</span>
+              </div>
+            </button>
           </div>
         </div>
 
         {/* Content Area - Scrollable */}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* Error Messages */}
-          {(budgetsError || incomesError) && (
+          {(budgetsError || incomesError || projectsError) && (
             <div className="p-4">
               <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-                <p className="text-sm font-medium text-red-800">{budgetsError || incomesError}</p>
+                <p className="text-sm font-medium text-red-800">
+                  {budgetsError || incomesError || projectsError}
+                </p>
               </div>
             </div>
           )}
@@ -813,6 +883,81 @@ export default function PlanningDrawer({
                       </div>
                     )
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Projets Tab Content — Sprint Projets-Épargne 04 */}
+          {activeTab === 'projets' && (
+            <div className="space-y-3 p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Projets d&apos;épargne</h3>
+                <button
+                  onClick={handleAddProjectStub}
+                  className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+                >
+                  Ajouter un projet
+                </button>
+              </div>
+
+              {/* Total discret */}
+              <div className="rounded-lg border border-purple-100 bg-purple-50/50 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-x-1 text-sm text-purple-700">
+                  <span>Total mensuel:</span>
+                  {isProjectsBusy ? (
+                    <Skeleton className="h-3 w-14" />
+                  ) : (
+                    <span className="font-medium">{formatAmount(totalMonthlyAllocations)}</span>
+                  )}
+                  <span>(alloué chaque mois)</span>
+                </div>
+              </div>
+
+              {/* Projects List or Empty State */}
+              {isProjectsBusy ? (
+                renderSkeletonRows()
+              ) : projects.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-purple-100">
+                    <svg
+                      className="h-8 w-8 text-purple-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                      />
+                    </svg>
+                  </div>
+                  <h4 className="mb-1.5 text-lg font-medium text-gray-900">
+                    Aucun projet en cours
+                  </h4>
+                  <p className="mb-3 text-sm text-gray-600">
+                    Définissez un objectif d&apos;épargne sur une durée donnée
+                  </p>
+                  <button
+                    onClick={handleAddProjectStub}
+                    className="rounded-lg bg-purple-600 px-6 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
+                  >
+                    Créer votre premier projet
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2" data-testid="projects-list">
+                  {projects.map((project) => (
+                    <ProjectListItem
+                      key={project.id}
+                      project={project}
+                      onEdit={handleEditProjectStub}
+                      onDelete={handleDeleteProjectStub}
+                    />
+                  ))}
                 </div>
               )}
             </div>

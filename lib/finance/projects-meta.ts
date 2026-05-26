@@ -86,3 +86,33 @@ export function computeDeadlineFromDuration(
   const result = new Date(Date.UTC(baseYear, targetMonthIndex, clampedDay))
   return result.toISOString().split('T')[0]!
 }
+
+/**
+ * Format ISO `YYYY-MM-DD` → `JJ/MM/AAAA` (fr-FR). Parse explicite UTC pour
+ * éviter le drift de timezone JS (un `new Date('2027-12-31')` est interprété
+ * UTC, mais affiché en local — selon la zone du browser, le 31 décembre
+ * peut s'afficher 30 décembre). On retombe sur la string brute si le parse
+ * échoue (jamais en prod, mais protège les tests qui passeraient un
+ * format inattendu).
+ */
+export function formatDeadline(deadline: string): string {
+  const date = new Date(`${deadline}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return deadline
+  const day = String(date.getUTCDate()).padStart(2, '0')
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const year = date.getUTCFullYear()
+  return `${day}/${month}/${year}`
+}
+
+/**
+ * Phrase courte "N mois restants" / "1 mois restant" / "Échéance dépassée"
+ * pour l'UI ProjectListItem. Le `0 mois restants` est mappé sur "Échéance
+ * dépassée" : sémantiquement la deadline est passée OU dans le mois courant,
+ * donc plus de mensualité prévue (le trigger d'apply_recap_projects_snapshot
+ * ne créditera plus rien).
+ */
+export function formatMonthsRemaining(monthsRemaining: number): string {
+  if (monthsRemaining <= 0) return 'Échéance dépassée'
+  if (monthsRemaining === 1) return '1 mois restant'
+  return `${monthsRemaining} mois restants`
+}
