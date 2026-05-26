@@ -254,10 +254,16 @@ function NegativeSummary({
  * Sprint Projets-Épargne 10 — section "Projets" affichée sous le bloc bilan
  * dans FinalRecapStep, dès que l'owner a au moins 1 projet actif.
  *
- *   - Ligne 1 (toujours) : "💰 N projet(s) ont reçu leur allocation mensuelle
- *     ce mois" — informe que la finalize va créditer `amount_saved`.
- *   - Ligne 2 (si refloat > 0) : "📋 Renflouement projets : -X€" — montant
- *     total prélevé sur les mensualités pour combler le déficit.
+ * Réécrit Sprint Carryover-Self-Healing 2026-05-26 : la ligne "ont reçu leur
+ * allocation mensuelle" était trompeuse quand `totalRefunded > 0` (laissait
+ * croire que les projets avaient touché leur allocation totale alors qu'ils
+ * étaient en réalité partiellement ou totalement prélevés). Nouveau format :
+ *
+ *   - Ligne 1 (toujours) : "💰 X € épargnés sur tes N projet(s) ce mois" —
+ *     montant net effectivement crédité à `amount_saved` au finalize.
+ *     X = `snapshot.totalSaved` (= sum(monthly - refund) sur tous les projets).
+ *   - Ligne 2 (si refloat > 0) : "📋 Y € prélevés pour combler le déficit" —
+ *     Y = `snapshot.totalRefunded`.
  *   - Liste shifted (si non vide) : "{name} : décalage de Z mois" — ne
  *     liste que les projets dont la deadline va effectivement bouger d'au
  *     moins 1 mois (cf. `ProjectSnapshotSummary.shifted`).
@@ -279,18 +285,21 @@ function ProjectsSummary({
         <li className="flex items-baseline gap-2">
           <span aria-hidden="true">💰</span>
           <span>
-            {projectCount === 1 ? '1 projet a reçu' : `${projectCount} projets ont reçu`} leur
-            allocation mensuelle ce mois.
+            <span className="font-semibold text-violet-800 tabular-nums">
+              {formatEuro(snapshot.totalSaved)}
+            </span>{' '}
+            épargnés sur {projectCount === 1 ? 'ton projet' : `tes ${projectCount} projets`} ce
+            mois.
           </span>
         </li>
         {hasRefund && (
           <li className="flex items-baseline gap-2">
             <span aria-hidden="true">📋</span>
             <span>
-              Renflouement projets :{' '}
               <span className="font-semibold text-violet-800 tabular-nums">
                 −{formatEuro(snapshot.totalRefunded)}
-              </span>
+              </span>{' '}
+              prélevés sur les mensualités pour combler le déficit.
             </span>
           </li>
         )}

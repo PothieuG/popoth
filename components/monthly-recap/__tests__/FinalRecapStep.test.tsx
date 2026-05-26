@@ -391,8 +391,8 @@ describe('FinalRecapStep', () => {
         groupName={null}
       />,
     )
-    expect(screen.queryByText(/allocation mensuelle/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Renflouement projets/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/épargnés sur/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/prélevés sur les mensualités/)).not.toBeInTheDocument()
   })
 
   it('projects: N projects, no refund → shows allocation line only', () => {
@@ -430,8 +430,9 @@ describe('FinalRecapStep', () => {
         groupName={null}
       />,
     )
-    expect(screen.getByText(/2 projets ont reçu leur allocation mensuelle/)).toBeInTheDocument()
-    expect(screen.queryByText(/Renflouement projets/)).not.toBeInTheDocument()
+    expect(screen.getByText(/épargnés sur tes 2 projets/)).toBeInTheDocument()
+    expect(screen.getByText(/280,00/)).toBeInTheDocument()
+    expect(screen.queryByText(/prélevés sur les mensualités/)).not.toBeInTheDocument()
   })
 
   it('projects: refund + shift — shows total refunded line + per-project deadline shift list', () => {
@@ -463,8 +464,10 @@ describe('FinalRecapStep', () => {
         groupName={null}
       />,
     )
-    expect(screen.getByText(/1 projet a reçu/)).toBeInTheDocument()
-    expect(screen.getByText(/Renflouement projets/)).toBeInTheDocument()
+    expect(screen.getByText(/épargnés sur ton projet/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/prélevés sur les mensualités pour combler le déficit/),
+    ).toBeInTheDocument()
     expect(screen.getByText(/−100,00/)).toBeInTheDocument()
     // shifted entry
     expect(screen.getByText('Japon')).toBeInTheDocument()

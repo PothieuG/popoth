@@ -54,6 +54,14 @@ export default function BudgetProgressIndicator({
 
   const textColorClass = getBudgetTextColor()
 
+  // Sprint Carryover-Self-Healing UI (2026-05-26) — affiche un badge sous le
+  // nom du budget quand la dette reportée du mois précédent (carryoverSpentAmount)
+  // est strictement positive. Aide le user à comprendre pourquoi spentAmount
+  // est >0 sans qu'il y ait de dépense visible ce mois-ci, et à anticiper que
+  // la dette se résorbera naturellement les mois suivants (mécanisme self-healing
+  // via la marge libre du budget). cf. lib/recap/actions-finalize.ts L8-17.
+  const hasCarryover = progress.carryoverSpentAmount > 0.01
+
   return (
     <div className={cn('flex w-full flex-col', className)}>
       {/* Montant dépensé/total sur toute la largeur */}
@@ -79,6 +87,17 @@ export default function BudgetProgressIndicator({
         {/* Nom du budget et économies - alignés à gauche */}
         <div className="flex flex-1 flex-col justify-center">
           <h5 className="text-left text-sm font-medium text-gray-900">{progress.budgetName}</h5>
+          {hasCarryover && (
+            <div
+              className="text-left text-[11px] leading-tight font-medium text-red-700"
+              title="Dette du mois précédent reportée sur ce budget — s'absorbera naturellement si tu sous-consommes ce mois-ci."
+            >
+              ↩ Reporté :{' '}
+              <span className="font-bold tabular-nums">
+                {formatAmount(progress.carryoverSpentAmount)}
+              </span>
+            </div>
+          )}
           <div className="text-left text-xs font-medium text-purple-600">
             Economies:{' '}
             <span className="font-bold text-purple-800">{formatAmount(progress.savings)}</span>

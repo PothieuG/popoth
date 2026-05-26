@@ -158,14 +158,30 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
           : 'active'
 
   const projectsOutOfTheWay = savingsOutOfTheWay && (projectsDone || projectsEmpty)
-  const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' =
-    snapshotTotal > 0
+
+  // Sprint Carryover-Self-Healing UI (2026-05-26) — la cible du snapshot
+  // ignore l'existing snapshotData (miroir du serveur executeSaveBudgetSnapshot
+  // qui recompute from scratch). Permet à la preview client d'aligner avec
+  // le calcul serveur : re-cliquer "Équilibrer" remplace l'ancien snapshot
+  // par la valeur fraîche couvrant intégralement bilan - piggy - savings -
+  // projects. Cas typique : recap mid-flight pre-fix où l'ancien snapshot
+  // capé n'a pas couvert → state `done` figeait l'UI ; nouveau state
+  // bascule en `active` pour permettre le recompute.
+  const budgetTargetDeficit = computeDeficitRemaining({
+    initialBilan: summary.bilan,
+    refloatedFromPiggy: recap.refloatedFromPiggy,
+    refloatedFromSavings: recap.refloatedFromSavings,
+    snapshotData: null,
+    projectSnapshotData: recap.projectSnapshotData,
+  })
+
+  const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' = deficitCovered
+    ? snapshotTotal > 0
       ? 'done'
-      : deficitCovered
-        ? 'unneeded'
-        : !projectsOutOfTheWay
-          ? 'locked'
-          : 'active'
+      : 'unneeded'
+    : !projectsOutOfTheWay
+      ? 'locked'
+      : 'active'
 
   const showContinuer = deficitCovered
 
@@ -184,11 +200,30 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
     }
   }
 
+  // Sprint Carryover-Self-Healing UI (2026-05-26) — quand au moins un budget
+  // démarre le mois avec une dette reportée (carryoverSpentAmount > 0), on
+  // affiche une explication au-dessus du compteur. Le total des reports inclut
+  // déjà la part absorbée par la "marge libre" du mois courant (cf. formule
+  // bilan_deficit dans lib/finance/financial-data.ts L168-184 — la diff entre
+  // total report et déficit restant = la part déjà résorbée par sous-consommation).
+  const totalCarryoverIn = summary.budgets.reduce((s, b) => s + b.carryoverSpentAmount, 0)
+  const hasCarryoverContext = totalCarryoverIn > 0.01
+
   return (
     <div className="space-y-4">
       <header>
         <h1 className="text-xl font-semibold text-gray-900">Gestion du déficit</h1>
-        <p className="mt-1 text-sm text-gray-600">Montant à renflouer :</p>
+        {hasCarryoverContext && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+            Tu démarres ce mois avec{' '}
+            <span className="font-semibold tabular-nums">{formatEuro(totalCarryoverIn)}</span> de
+            dette reportée du recap précédent. La marge libre de tes budgets ce mois-ci en a absorbé
+            une partie — il reste{' '}
+            <span className="font-semibold tabular-nums">{formatEuro(deficitRemaining)}</span> à
+            régler.
+          </p>
+        )}
+        <p className="mt-2 text-sm text-gray-600">Montant à renflouer :</p>
         <p className="text-3xl font-bold text-red-700 tabular-nums">
           {formatEuro(deficitRemaining)}
         </p>
@@ -229,7 +264,7 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
         context={context}
         state={snapshotState}
         budgets={summary.budgets}
-        deficitRemaining={deficitRemaining}
+        deficitRemaining={budgetTargetDeficit}
         snapshotData={recap.snapshotData}
         onError={handleError}
         onSuccess={handleSuccess}

@@ -14,6 +14,14 @@ export interface BudgetProgress {
   spentAmount: number
   percentage: number
   savings: number
+  /** Sprint Carryover-Self-Healing UI (2026-05-26). Montant `carryover_spent_amount`
+   *  du budget (dette reportée du recap précédent). Quand > 0, le card affiche
+   *  un badge "↩ Reporté du mois précédent : X €" pour expliquer pourquoi
+   *  spentAmount inclut une part déjà consommée. Sémantique self-healing :
+   *  `bilan_deficit = max(0, carryover + spent - estimated)` → la marge libre
+   *  du budget absorbe le carryover, et au prochain finalize il décroît
+   *  jusqu'à 0 (overwrite RPC). */
+  carryoverSpentAmount: number
   colorClass: string
   textColorClass: string
 }
@@ -26,9 +34,13 @@ interface EstimatedBudget {
   name: string
   estimated_amount: number
   monthly_surplus?: number // Champ legacy, plus utilisé
-  carryover_spent_amount?: number // Champ legacy, plus utilisé
-  carryover_applied_date?: string // Champ legacy, plus utilisé
-  spent_this_month?: number // Dépenses réelles du mois
+  /** Sprint Carryover-Self-Healing (2026-05-26) — utilisé : la dette reportée
+   *  du recap précédent. L'API `/api/finance/budgets/estimated` l'inclut dans
+   *  `spent_this_month` (carryover + actualSpent), et le hook l'expose
+   *  séparément sur BudgetProgress pour l'affichage badge. */
+  carryover_spent_amount?: number
+  carryover_applied_date?: string
+  spent_this_month?: number // Dépenses réelles du mois (inclut carryover via API)
   cumulated_savings?: number // Économies cumulées
   last_savings_update?: string // Date de dernière mise à jour des économies
 }
@@ -138,6 +150,7 @@ export function useBudgetProgress(
           spentAmount,
           percentage,
           savings,
+          carryoverSpentAmount: budget.carryover_spent_amount ?? 0,
           colorClass,
           textColorClass,
         }
