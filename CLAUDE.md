@@ -118,7 +118,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Tests non-gated passants               | **759**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **227**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **44**                    | `pnpm build`                                                                                                             |
-| Functions DB versionnées               | **34/34**                 | `pnpm db:audit-functions`                                                                                                |
+| Functions DB versionnées               | **36/36**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
 
 ## 6. Conventions
