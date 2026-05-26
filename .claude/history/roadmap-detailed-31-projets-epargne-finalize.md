@@ -167,3 +167,39 @@ Sprint 10 (finalize wiring) + sprint 11 à venir (seeds + push prod) de la featu
   ### Hors scope (suites possibles)
   - **Sprint UI — BilanBlock decomposition** : afficher dans le BilanBlock summary la décomposition explicite "report mois précédent non absorbé" pour faire le pont conceptuel entre carryover et bilan affiché.
   - **Sprint Md-Size-Split** : CLAUDE.md + operational-rules.md sont à 39487/39486 chars sur cap 39.5k. Le sprint Carryover-Self-Healing aurait dû documenter ses invariants ❌ dans `operational-rules.md §5`, mais l'absence de place a forcé le report dans cette closeout. Un split (ex : extraire `### Sprint chronologie résumée` vers un nouveau fichier) libérerait l'espace pour les sprints suivants.
+
+---
+
+## Sprint Fix-Projects-UX (2026-05-26) — polish UX projets d'épargne
+
+Commit : `dc25c11` `fix(projects): correct monthly display and edit dialog default mode`
+
+Correctifs UX sur les projets d'épargne suite aux retours user post-livraison sprint PÉ 11.
+
+  ### Périmètre
+  Trois bugs et un manque UI détectés en session de test :
+  1. L'éditeur de projet affichait un mensuel dérivé (recalculé depuis la deadline courante) au lieu du mensuel stocké en DB — incohérence avec le résumé du drawer qui, lui, affiche le mensuel stocké.
+  2. Les cartes de projet n'affichaient pas le mensuel alloué, rendant le rôle de chaque projet dans le RAV opaque.
+  3. Après mutation (add/update/delete), un flash skeleton réapparaissait brièvement car `isProjectsBusy` incluait `isFetching` (background refetch déclenché par `invalidateFinancialRefreshes`) malgré des données déjà correctes via `setQueryData`.
+  4. 2 tests RTL cassés en cascade après le fix #1.
+
+  ### Modules livrés
+  - **`components/dashboard/EditProjectDialog.tsx` (mode par défaut)** : `useState<Mode>('duration')` → `useState<Mode>('monthly')`. En mode B (monthly), le form pre-remplit le champ mensuel depuis `defaultValues.monthlyAllocation = currentProjectAllocation` (valeur stockée DB). En mode A (duration), un `useEffect` recalcule et écrase immédiatement avec `Math.ceil(remaining × 100 / duration) / 100` — c'est intentionnel pour le scénario "redonner une durée, laisser dériver le mensuel", mais ne doit pas être le mode d'entrée car l'utilisateur voit alors un chiffre différent de celui qui impacte son RAV. Mode A reste accessible via le radio "Définir la durée".
+
+  - **`components/dashboard/ProjectListItem.tsx` (ligne mensuel)** : ajout d'une `<p className="text-xs text-gray-500">` affichant `{formatAmount(Number(project.monthly_allocation))}/mois` sous la ligne `saved / target`. Utilise le même `formatAmount` (0 décimale, fr-FR) déjà présent dans le fichier. Visible sur toutes les cartes, cohérent avec la ligne `totalMonthlyAllocations` du résumé drawer.
+
+  - **`components/dashboard/PlanningDrawer.tsx` (skeleton guard)** : `isProjectsBusy = projectsLoading || projectsFetching` → `isProjectsBusy = projectsLoading`. La variable `projectsFetching` (`isFetching` de `useProjects`) est retirée du destructuring (était unused post-fix → eslint `no-unused-vars`). Raisonnement : `invalidateFinancialRefreshes` marque `['projects']` stale → background refetch → `isFetching = true` → skeleton flash, même si `setQueryData` a déjà posé les données correctes. `projectsLoading` ne passe `true` qu'à l'initial load (pas de données en cache) — c'est la seule condition où le skeleton a du sens.
+
+  - **`components/dashboard/__tests__/EditProjectDialog.test.tsx` (2 tests ajustés)** :
+    - "pré-remplissage" : mode B est le nouveau défaut → assertion `getByLabelText(/durée \(mois\)/i)` (visible en mode A seulement) remplacée par `getByLabelText(/montant mensuel/i)` + description mise à jour `mode B par défaut`.
+    - "mensuel dérivé prend en compte amount_saved" : le test pilotait la durée sans avoir switché en mode A → `TestingLibraryElementError` (input hors DOM). Ajout du `await user.click(screen.getByRole('radio', { name: /définir la durée/i }))` en amont du `getByLabelText(/durée \(mois\)/i)`.
+
+  ### Décisions
+  - **Mode B par défaut** : tradeoff — mode A (durée pilote) était adapté à la création (l'utilisateur raisonne souvent en "je veux x € en N mois"), mais la modale EDIT ouvre sur un projet existant où l'utilisateur veut voir et éventuellement ajuster le **montant engagé** (= ce que son RAV déduit). Mode B expose directement cette valeur et évite la confusion "pourquoi je vois 305€ alors que le résumé dit 195€ ?".
+  - **`isFetching` retiré** : le background refetch silencieux est la behaviour correcte de TanStack Query post-mutation avec `setQueryData` optimistic. Bloquer le skeleton dessus était une régression UX — l'utilisateur voyait le skeleton flasher à chaque delete/add/update même quand les données étaient instantanément correctes.
+
+  ### Invariants bumpés CLAUDE.md §5.5
+  - Aucun compteur invariant modifié. Tests non-gated : 759 stable. Lint : 0/0 stable.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ (0/0) ; `pnpm test:run` ✓ (759/227) ; `pnpm format:check` ✓ ; `pnpm check:md-size` ✓.
