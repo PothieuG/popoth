@@ -1,6 +1,6 @@
 # Sprint 05 — Modal CREATE projet + calcul mutuel durée↔montant mensuel
 
-> ✅ **LIVRÉ 2026-05-26** — Closeout dans [.claude/history/roadmap-detailed-29-projets-epargne.md](../history/roadmap-detailed-29-projets-epargne.md). Commit `feat(projects): CREATE modal with mutual duration/monthly logic + RAV refine`. Modal `AddProjectDialog` + branchement `PlanningDrawer` onglet Projets + 7 tests RTL (mode A/B happy paths, toggle preserve, refine RAV/duration min, Esc focus trap, axe 0 violations).
+> ✅ **LIVRÉ 2026-05-26** — Closeout dans [.claude/history/roadmap-detailed-30-projets-epargne-modals.md](../history/roadmap-detailed-30-projets-epargne-modals.md). Commit `feat(projects): CREATE modal with mutual duration/monthly logic + RAV refine`. Modal `AddProjectDialog` + branchement `PlanningDrawer` onglet Projets + 7 tests RTL (mode A/B happy paths, toggle preserve, refine RAV/duration min, Esc focus trap, axe 0 violations).
 
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la section 3 "Création d'un projet" avec les deux modes de saisie.
 

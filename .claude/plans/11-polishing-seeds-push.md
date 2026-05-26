@@ -11,7 +11,7 @@ Boucler la feature : 1 nouveau scenario CLI dans `scripts/seed-recap/` pour test
 - [scripts/seed-recap/README.md](../../scripts/seed-recap/README.md) — workflow + helpers
 - [scripts/seed-recap/random-profile.mjs](../../scripts/seed-recap/random-profile.mjs) — pattern scenario CLI
 - [CLAUDE.md §11](../../CLAUDE.md) — roadmap pointeurs + invariants §5.5
-- [.claude/history/roadmap-detailed-28-auto-cascade-piggy.md](../history/roadmap-detailed-28-auto-cascade-piggy.md) — dernière entrée (créer Part 29)
+- [.claude/history/roadmap-detailed-30-projets-epargne-modals.md](../history/roadmap-detailed-30-projets-epargne-modals.md) — dernière entrée (sprints 05-06 livrés Part 30 ; étendre ou créer Part 31 si saturation au sprint 11)
 - [.claude/conventions/git-workflow.md §7-8](../conventions/git-workflow.md) — push gate workflow
 
 ## Pré-requis
@@ -45,11 +45,11 @@ Helper utility : utiliser `seedRecapRow` + bypass INSERT direct dans `monthly_re
 - §11 Roadmap : update Part 29 si split nécessaire, update sprint count
 - §3 Commandes : si nouvelles, sinon rien
 
-### 3. Étendre `.claude/history/roadmap-detailed-29-projets-epargne.md` (créé au sprint 01)
+### 3. Étendre l'historique projets
 
-- ~~Créer~~ ✅ déjà créé au sprint 01 closeout
-- **Append** sprints 02-11 (1 bullet `## ✅ Sprint NN — ...` par sprint, format mirror part-28)
-- Si > 35k chars : splitter en Part 30 au boundary logique (e.g. sprint 06 backend/UI cutoff)
+- ~~Créer Part 29~~ ✅ créé au sprint 01 closeout (sprints 01-04 livrés)
+- ~~Splitter Part 30~~ ✅ créé au sprint 05 closeout (sprints 05-06 livrés)
+- **Append** sprints 07-11 dans Part 30 (1 bullet `## ✅ Sprint NN — ...` par sprint, format mirror part-28). Si > 39.5k au cours de l'append : créer Part 31 au boundary logique le plus proche.
 
 ### 4. Update `.claude/reference/structure-repo.md`
 
