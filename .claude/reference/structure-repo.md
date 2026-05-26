@@ -128,7 +128,7 @@ lib/
     budget-transfers.ts    # ✅ Sprint Refactor-I5-followup-v2 — transferWithSavingsDebit (composite RPC : INSERT budget_transfers + debit cumulated_savings en une tx Postgres)
     expenses.ts            # ✅ Sprint Atomicity-Expenses — addExpenseWithBreakdown (composite RPC : debit piggy + debit cumulated_savings + INSERT real_expenses en une tx Postgres atomique)
     savings.ts             # ✅ Sprint Atomicity-Savings — transferSavingsBetweenBudgets (debit FROM + credit TO en 1 tx) + transferBudgetToPiggyBank (debit budget + UPSERT piggy_bank via partial unique index inference en 1 tx) + ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) deleteBudgetWithSavingsTransfer (UPSERT piggy + DELETE budget en 1 tx, skip-UPSERT si cumulated_savings=0)
-    projects.ts            # ✅ Sprint Projets-Épargne 02 — 4 helpers wrap RPCs sprint 01 (CRUD + list). Tests gated `SUPABASE_FINANCE_TESTS=1` (4 cas, cf. Part 29).
+    projects.ts            # ✅ Sprint Projets-Épargne 02-03 — 4 RPC helpers + projects-meta.ts (3 helpers purs, _loadFinancialData 3.bis). Cf. Part 29.
     # Sprint Refactor-I4 — modules extraits de l'ex-god file lib/financial-calculations.ts
     types.ts               # FinancialData, BudgetSavings interfaces
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)
