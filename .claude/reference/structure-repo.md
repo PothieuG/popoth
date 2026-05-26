@@ -14,14 +14,14 @@
 
 > ⚠️ **Note historique (Sprint Clean-Slate-Recap — 2026-05-23)** : Tout le code V1+V2 du Monthly Recap (routes, libs, components, hooks, schemas, dev tools, tables DB) a été supprimé. V3 en cours d'implémentation, spec sous `prompt-montly-recap/` untracked. Détail dans CLAUDE.md §5.
 
-> ⚠️ **Note historique (chantier 16 + Mission-suppression-audits — 2026-05-16)** : 2 cleanup massifs ont archivé la doc audit. Chantier 16 (2026-05-15) : `docs/audit/` + `prompts/`. Mission-suppression-audits (2026-05-16) : `audit_2/` + `audit_3/` (working set des prompts une fois tous les sprints livrés). Les 2 survivants doc migrés : `docs/db/SCHEMA.md` → [`doc2/db/SCHEMA.md`](./doc2/db/SCHEMA.md) et `docs/api/README.md` → [`doc2/api/README.md`](./doc2/api/README.md). Les références `docs/audit/*.md`, `prompts/*.md`, `audit_2/*.md`, `audit_3/*.md` qui persistent dans cette doc (§4 inventaire + §11 roadmap narrative) sont historiques — recovery via `git show <sha>:<path>` à partir du commit correspondant.
+> ⚠️ **Note historique (chantier 16 + Mission-suppression-audits — 2026-05-16)** : `docs/audit/` + `prompts/` + `audit_2/` + `audit_3/` archivés. Survivants migrés vers `doc2/db/SCHEMA.md` + `doc2/api/README.md`. Refs historiques dans cette doc — recovery via `git show <sha>:<path>`.
 
 ```
 app/                       # App Router (pages + API routes)
   (dashboards)/            # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — Next.js route group (les `()` n'affectent PAS les URLs). `layout.tsx` client component owne header + footer + drawer + add-modal (persistent à la nav soeur), déduit `context` via `usePathname()`. Pages allégées 381+281→143+124 LOC. Détails [@.claude/conventions/operational-rules-ui-modals.md](../conventions/operational-rules-ui-modals.md) (5 règles ❌ navigation).
   api/
     debug/                 # 4 routes seed/reset — BLOQUÉES en prod via blockInProduction(). Post Clean-Slate-Recap : retrigger-recap et recap-v2/ supprimés.
-    finance/               # ✅ Sprint Refactor-Architecture v1+v2 — namespace canonique unifié (12 routes)
+    finance/               # ✅ Sprint Refactor-Architecture v1+v2 — namespace canonique unifié (12 + projects POST/GET/PUT/DELETE PÉ04)
                            #   summary, rav, budgets (POST/PUT/DELETE only), budgets/estimated, incomes,
                            #   income/{real,estimated,progress}, expenses/{real,add-with-logic,preview-breakdown,progress}
                            #   Toutes ré-exportent les handlers depuis lib/api/finance/<route>.ts
@@ -58,7 +58,7 @@ components/                # UI (shadcn/ui sous components/ui/)
   settings/GroupManagementPanel.tsx # ✅ Sprint Rework-Group-Management (2026-05-19) — 3 zones flex-col : header (back+close), content scrollable, footer pinned bottom. Branche `hasGroup` : CTA "Voir les membres" style iOS menu item (gradient bleu-indigo + bulle 40px + chevron) + section "Informations du groupe" en `<dl>` plat + badge "Créateur". Branche `!hasGroup` : 2 sections plates "Créer" + "Rejoindre" sans Card chrome. Footer pinned bottom : Button orange "Quitter le groupe" + encart ambré si `isCreatorBlocked` (creator + members>1 → désactivé + message). `handleLeaveClick` court-circuité si bloqué. Patterns ❌ documentés [@.claude/conventions/operational-rules.md](../conventions/operational-rules.md) §5 Modals & UI.
   groups/GroupMembersWithContributionsModal.tsx # ✅ Sprint Rework-Group-Management (2026-05-19) — hauteur fixe `h-[80vh] max-h-[80vh]` au lieu de `max-h-[90vh]` + content interne `flex-1 overflow-y-auto` (remplit l'espace entre header+footer dans les 80vh). 3 redondances avec parent panel retirées : header "Budget: X €/mois", footer "Résumé du groupe" Card (budget+total), compteur "Total: X €" inline. 1 info privée retirée per-member : "Basé sur un salaire de X €". Conservé per-member : avatar + prénom/nom + date joined + badge créateur + contribution amount + percentage. Destructuring `groupInfo` retiré (plus de consumer). Migration Radix Dialog + `<ModalCloseX variant="ghost" />` préservée (Sprint Zod-Rollout v8/v10).
   monthly-recap/{RecapShell,RecapWizard,RecapProgressFrieze,GroupLockScreen}.tsx + steps/*Step.tsx  # ✅ Sprint 10 V3 — wizard plein-écran. Shell fixed inset-0 gradient bleu-indigo. Wizard routeur kind/step via useMonthlyRecap. Frieze barre + label `role=progressbar`. LockScreen destructure logoutAndRedirect.
-  monthly-recap/{BilanBlock,SurplusDetailDrawer,SavingsDetailDrawer,SurplusSelectionDrawer,SavingsProjectsDetailDrawer}.tsx + steps/BilanPositiveStep  # ✅ Sprints 11-12 V3 + Projets-Épargne 07 — 3 drawers indicatifs RO (orange surplus / violet savings / violet projets sprint 07 via `summary.savingsProjects`) + SurplusSelectionDrawer multi-select violet (sprint 12). BilanPositive : Répartir + Continuer persistents, `old→new(+delta)`.
+  monthly-recap/{BilanBlock,SurplusDetailDrawer,SavingsDetailDrawer,SurplusSelectionDrawer,SavingsProjectsDetailDrawer,RefloatProjectsLine}.tsx + steps/BilanPositiveStep  # ✅ Sprints 11-12 V3 + PÉ 07/09 — 3 drawers indicatifs RO (orange surplus / violet savings / violet projets sprint PÉ 07 via `summary.savingsProjects`) + SurplusSelectionDrawer multi-select violet (sprint 12) + RefloatProjectsLine cascade entre savings et budget snapshot (sprint PÉ 09). BilanPositive : Répartir + Continuer persistents, `old→new(+delta)`.
 contexts/AuthContext.tsx   # ✅ Sprint Hygiène-Code — split en `AuthUserContext` + `AuthActionsContext` ; hooks `useAuthUser()` / `useAuthActions()`. Sprint 2-followup-v5 — l'aggregator `useAuth()` (qui spread les deux contexts) a été supprimé : 0 consumer en prod. Si jamais un consumer en a besoin, recréer ad-hoc.
 hooks/                     # 20 hooks React (post Clean-Slate-Recap + sprint 10 useMonthlyRecap + Sprint Salary-Edit-Gating useSalaryEditability) — ✅ Sprint 1.5 : hooks fetcher migrés sur TanStack Query (useQuery + useMutation)
   useMonthlyRecap.ts       # ✅ Sprints 10-14 V3 — useQuery ['monthly-recap','status',context] (staleTime 30s) + option `{ enabled }` (sprint 14) + 9 mutations (Start/Advance + sprints 12/13/14) + `useAdvanceStep.onError` invalidate sur `stale_step` (race auto-advance). Consommé par RecapWizard.
@@ -114,7 +114,7 @@ lib/
     parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest(error). Validation Zod centralisée pour les handlers
     __tests__/parse-body.test.ts  # ✅ Sprint Refactor-I5 — 6 cas non-gated (happy path, malformed JSON, schema mismatch, etc.)
     with-auth.ts           # ✅ Sprint Refactor-Architecture-v3+v4+v5 — withAuth(handler) + withAuthAndProfile(handler) higher-order helpers utilisés par ~20 modules (12 finance + Volet C : profile/savings/bank-balance/groups). Profile shape étendu en v4 à { id, group_id, first_name, last_name }. Signature étendue avec 2 overloads en v5 : (a) static-route signature sans routeContext, (b) dynamic-route signature avec generic `<TParams>` et routeContext NON-optionnel — élimine le `routeContext!` dans groups/[id]/** sans casser la cohabitation static. Tests gated `SUPABASE_API_TESTS=1` dans [lib/api/__tests__/with-auth.test.ts](lib/api/__tests__/with-auth.test.ts) (12 cas, Sprint v5).
-    finance/               # 12 modules : summary, rav, budgets (POST/PUT/DELETE), budgets-estimated, incomes, income-{real,estimated,progress}, expenses-{real,add-with-logic,preview-breakdown,progress}
+    finance/               # 13 modules : summary, rav, budgets (POST/PUT/DELETE), budgets-estimated, incomes, income-{real,estimated,progress}, expenses-{real,add-with-logic,preview-breakdown,progress}, projects
     __tests__/             # ✅ Sprint Refactor-Architecture-v5
       with-auth.test.ts    # gated SUPABASE_API_TESTS=1 — 12 cas withAuth + withAuthAndProfile (auth, expired payload, overloads, profile shape, isolation)
   constants/               # ✅ Sprint Hygiène-Code — magic numbers extraits
@@ -164,10 +164,10 @@ scripts/                   # Sprint DB outils API Management (sans Docker)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
   list-triggers.sql        # ✅ Sprint Polish T5 — SELECT pg_trigger pour inventaire
-  seed-recap/              # ✅ Sprint 09 Monthly Recap V3 (2026-05-23) — 27 scripts CLI dev-only, 1 = 1 scénario QA
+  seed-recap/              # ✅ Sprint 09 Monthly Recap V3 (2026-05-23) — 28 scripts CLI dev-only, 1 = 1 scénario QA (+1 Sprint PÉ 11)
     _lib.mjs               # client Supabase dev-only (anti-prod guard URL + JWT payload check + env SUPABASE_DEV_SERVICE_ROLE_KEY), 15 helpers : cleanupCurrentMonth, ensureGroupMembership, insert{Profile,Group}{Budgets,Expenses,Incomes,RealIncomes}, setPiggy/Bank/ProfileSalary, seedRecapRow, printPostSeedInstructions, runScenario
     _reset.mjs             # wipe pur sans seed
-    <key>.mjs              # 27 scripts (4 positive / 8 deficit / 3 group / 5 resume-mid-flow / 3 transactions / 4 edge). Hardcoded users A=0679b0f9…/B=bb53b671…/groupe 92dbf6f2…. Cf. README.md pour catalogue + UX attendue.
+    <key>.mjs              # 28 scripts (4 positive / 8 deficit / 3 group / 5 resume-mid-flow / 3 transactions / 4 edge / 1 project-cascade). Hardcoded users A=0679b0f9…/B=bb53b671…/groupe 92dbf6f2…. Cf. README.md pour catalogue + UX attendue.
     README.md              # workflow, env var SUPABASE_DEV_SERVICE_ROLE_KEY, troubleshooting cookies
 supabase/
   config.toml              # CLI config (lié au projet distant)
@@ -187,6 +187,8 @@ supabase/
     20260517000000_create_add_expense_with_breakdown_rpc.sql   # ✅ Sprint Atomicity-Expenses — RPC composite debit piggy + debit cumulated_savings + INSERT real_expenses en une tx
     20260518000000_create_savings_transfer_rpcs.sql            # ✅ Sprint Atomicity-Savings — 2 RPCs composites : transfer_savings_between_budgets (debit FROM + credit TO) + transfer_budget_to_piggy_bank (debit budget + UPSERT piggy_bank avec partial unique index inference)
     20260520120000_create_delete_budget_with_savings_transfer_rpc.sql # ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) — RPC composite delete_budget_with_savings_transfer (SELECT FOR UPDATE cumulated_savings + UPSERT piggy si > 0 via partial unique index + DELETE budget en 1 tx). FK cascades : real_expenses SET NULL, budget_transfers CASCADE
+    20260601000000_create_savings_projects.sql # ✅ Sprint PÉ 01 — table + 4 RPCs CRUD + apply_recap_projects_snapshot + RLS
+    20260602000000_add_project_snapshot_to_monthly_recaps.sql # ✅ Sprint PÉ 08 — ALTER ADD COLUMN project_snapshot_data jsonb
 docs/audit/                # Audit complet 2026-04 — `00-executive-summary.md` + `06-action-plan.md` + `RLS-FINDINGS.md` (closes) + `POST-MORTEM-C3-DRIFT.md` + `07-deep-dive-*.md` (historique livré, refs via git show pour les archivés cf §17 note).
 docs/db/SCHEMA.md          # Sprint DB / D11 + inventaire triggers Sprint Polish T5 — carte tables/RPC/indexes/FK/hot path/triggers.
 prompts/                   # 6 prompts historiques `prompt-00-executive-summary{,-v2..v6}.md` (sprints 0/DB/Refactor/Hardening/Polish/Audit-Triggers, livrés sauf v6).
