@@ -717,15 +717,38 @@ describe('computeProportionalBudgetSnapshot', () => {
     expect(result.totalAllocated).toBe(10)
   })
 
-  it('caps a single insufficient budget and reports shortfall', () => {
+  it('Sprint Carryover-Self-Healing : single insufficient budget no longer caps — share = target, shortfall = 0', () => {
+    // Pre-Sprint Carryover-Self-Healing : target=100, pool=30 → amount=30, shortfall=70.
+    // Post-sprint : capPerPool=false → amount=100 (surcharge le budget à 333%),
+    // shortfall=0. La dette est résorbée mécaniquement sur les mois suivants
+    // par la marge libre du budget. Le UI Sprint B affichera un badge overshoot.
     const result = computeProportionalBudgetSnapshot(100, [{ budgetId: 'a', estimatedAmount: 30 }])
 
-    expect(result.perBudget).toEqual([{ budgetId: 'a', amount: 30 }])
-    expect(result.totalAllocated).toBe(30)
-    expect(result.shortfall).toBe(70)
+    expect(result.perBudget).toEqual([{ budgetId: 'a', amount: 100 }])
+    expect(result.totalAllocated).toBe(100)
+    expect(result.shortfall).toBe(0)
   })
 
-  it('returns empty perBudget when every estimatedAmount is zero', () => {
+  it('Sprint Carryover-Self-Healing : multi-budget with target > totalPool → shares scale up proportionally (no cap)', () => {
+    // target=900, pools 100+200=300 → ratio 3x, shares 300 + 600, total=900,
+    // shortfall=0. Sans le sprint, les shares seraient cappées à 100+200=300
+    // avec shortfall=600 (et le bouton Continuer serait masqué).
+    const result = computeProportionalBudgetSnapshot(900, [
+      { budgetId: 'a', estimatedAmount: 100 },
+      { budgetId: 'b', estimatedAmount: 200 },
+    ])
+
+    expect(result.perBudget).toEqual([
+      { budgetId: 'a', amount: 300 },
+      { budgetId: 'b', amount: 600 },
+    ])
+    expect(result.totalAllocated).toBe(900)
+    expect(result.shortfall).toBe(0)
+  })
+
+  it('returns empty perBudget when every estimatedAmount is zero (no pool to scale from)', () => {
+    // capPerPool=false ne change pas ce cas : sans pool > 0, l'algo n'a
+    // aucune base proportionnelle. Shortfall = target intégral.
     const result = computeProportionalBudgetSnapshot(50, [
       { budgetId: 'a', estimatedAmount: 0 },
       { budgetId: 'b', estimatedAmount: 0 },

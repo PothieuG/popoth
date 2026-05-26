@@ -349,22 +349,35 @@ export async function executeSaveBudgetSnapshot(
     throw snapshotError
   }
 
+  // Sprint Carryover-Self-Healing 2026-05-26 : with capPerPool=false in
+  // computeProportionalBudgetSnapshot, allocation.totalAllocated === deficitRemaining
+  // by construction (shortfall=0). The step advance is therefore unconditional
+  // — the previous `if (newDeficit <= 0.01)` guard is mathematically redundant
+  // and only added complexity. Kept defensive `≤ 0.01` post-check as a
+  // tripwire log : if it ever fails we want to know (a regression in the
+  // algorithm). The advance still fires regardless to avoid blocking the UI.
   const newDeficit = round2(deficitRemaining - allocation.totalAllocated)
+  if (newDeficit > 0.01) {
+    logger.error('[recap/negative] save-budget-snapshot: unexpected residual deficit', {
+      recapId: args.recap.id,
+      deficitRemaining,
+      totalAllocated: allocation.totalAllocated,
+      newDeficit,
+    })
+  }
 
   let nextStep: 'salary_update' | null = null
-  if (newDeficit <= 0.01) {
-    const { error: stepError } = await supabaseServer
-      .from('monthly_recaps')
-      .update({ current_step: 'salary_update' })
-      .eq('id', args.recap.id)
-    if (stepError) {
-      logger.error('[recap/negative] save-budget-snapshot: advance step failed', {
-        recapId: args.recap.id,
-        error: stepError,
-      })
-    } else {
-      nextStep = 'salary_update'
-    }
+  const { error: stepError } = await supabaseServer
+    .from('monthly_recaps')
+    .update({ current_step: 'salary_update' })
+    .eq('id', args.recap.id)
+  if (stepError) {
+    logger.error('[recap/negative] save-budget-snapshot: advance step failed', {
+      recapId: args.recap.id,
+      error: stepError,
+    })
+  } else {
+    nextStep = 'salary_update'
   }
 
   return {

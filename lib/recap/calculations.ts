@@ -165,7 +165,17 @@ export function computeProportionalSavingsRefloat(
   )
 }
 
-/** Distribue targetAmount proportionnellement aux estimatedAmount de chaque budget (Option B). */
+/** Distribue targetAmount proportionnellement aux estimatedAmount de chaque
+ *  budget (Option B). Sprint Carryover-Self-Healing 2026-05-26 — passe
+ *  `capPerPool: false` à `distributeProportional` pour autoriser des parts
+ *  per-budget > pool (estimatedAmount) quand le déficit dépasse
+ *  sum(estimated_amount). Le snapshot devient autoritatif et peut "surcharger"
+ *  un budget au-delà de 100% — la dette est ensuite résorbée mécaniquement
+ *  par la marge libre des mois suivants (cf. operational-rules.md §5
+ *  "carryover overwrite"). Les 2 autres consumers
+ *  (`computeProportionalSavingsRefloat`, `computeProportionalProjectsRefloat`)
+ *  gardent `capPerPool: true` car leur pool est physique (DB CHECK
+ *  cumulated_savings >= 0 + sémantique "renoncer 1 mois de mensualité"). */
 export function computeProportionalBudgetSnapshot(
   targetAmount: number,
   budgets: ReadonlyArray<{ budgetId: string; estimatedAmount: number }>,
@@ -173,6 +183,7 @@ export function computeProportionalBudgetSnapshot(
   return distributeProportional(
     targetAmount,
     budgets.map((b) => ({ budgetId: b.budgetId, pool: b.estimatedAmount })),
+    { capPerPool: false },
   )
 }
 
@@ -197,7 +208,10 @@ export function computeProportionalProjectsRefloat(
 function distributeProportional(
   targetAmount: number,
   budgets: ReadonlyArray<{ budgetId: string; pool: number }>,
+  options: { capPerPool?: boolean } = {},
 ): RefloatProportionalAllocation {
+  const capPerPool = options.capPerPool ?? true
+
   const sorted = budgets
     .filter((b) => b.pool > 0)
     .map((b) => ({ budgetId: b.budgetId, pool: round2(b.pool) }))
@@ -213,7 +227,11 @@ function distributeProportional(
     }
   }
 
-  if (totalPool <= targetAmount) {
+  // When capping is enabled and totalPool ≤ target, drain each pool fully and
+  // report a shortfall. When capping is disabled (budget snapshot mode), we
+  // fall through to the proportional branch — individual shares scale up by
+  // (target / totalPool) ≥ 1 and the total equals target (no shortfall).
+  if (capPerPool && totalPool <= targetAmount) {
     return {
       perBudget: sorted.map((b) => ({ budgetId: b.budgetId, amount: b.pool })),
       totalAllocated: totalPool,
@@ -225,12 +243,14 @@ function distributeProportional(
   for (let i = 0; i < sorted.length - 1; i++) {
     const current = sorted[i]!
     const raw = (targetAmount * current.pool) / totalPool
-    const capped = Math.min(current.pool, round2(raw))
-    shares.push({ budgetId: current.budgetId, amount: capped })
+    const rounded = round2(raw)
+    const amount = capPerPool ? Math.min(current.pool, rounded) : rounded
+    shares.push({ budgetId: current.budgetId, amount })
   }
   const sumSoFar = shares.reduce((s, x) => s + x.amount, 0)
   const last = sorted[sorted.length - 1]!
-  const lastShare = Math.min(last.pool, round2(targetAmount - sumSoFar))
+  const lastRaw = round2(targetAmount - sumSoFar)
+  const lastShare = capPerPool ? Math.min(last.pool, lastRaw) : lastRaw
   shares.push({ budgetId: last.budgetId, amount: lastShare })
 
   const totalAllocated = round2(shares.reduce((s, x) => s + x.amount, 0))
