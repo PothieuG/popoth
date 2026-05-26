@@ -1,5 +1,7 @@
 # Sprint 06 — Modal EDIT + DELETE projet
 
+> ✅ **LIVRÉ 2026-05-26** sur `feature/projets-epargne` — closeout dans [Part 30 sprint 06](../history/roadmap-detailed-30-projets-epargne-modals.md).
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la section "Modification" et "Suppression".
 
 > 🔗 **Sprint 05 livré 2026-05-26** ([Part 30](../history/roadmap-detailed-30-projets-epargne-modals.md)). `AddProjectDialog` est la référence d'implémentation à mirror. `makeProjectClientSchema` supporte déjà `currentProjectAllocation` + `amountSaved` pour le mode EDIT (delta-math, voir [lib/schemas/projects.ts](../../lib/schemas/projects.ts)). `useProjects().updateProject` + `deleteProject` sont déjà exposés depuis sprint 02.

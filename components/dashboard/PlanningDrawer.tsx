@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
-import { logger } from '@/lib/logger'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
@@ -18,6 +17,7 @@ const AddIncomeDialog = dynamic(() => import('./AddIncomeDialog'), { ssr: false 
 const AddProjectDialog = dynamic(() => import('./AddProjectDialog'), { ssr: false })
 const EditBudgetDialog = dynamic(() => import('./EditBudgetDialog'), { ssr: false })
 const EditIncomeDialog = dynamic(() => import('./EditIncomeDialog'), { ssr: false })
+const EditProjectDialog = dynamic(() => import('./EditProjectDialog'), { ssr: false })
 const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
 import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
 import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
@@ -82,15 +82,17 @@ export default function PlanningDrawer({
   // États pour l'édition
   const [isEditBudgetOpen, setIsEditBudgetOpen] = useState(false)
   const [isEditIncomeOpen, setIsEditIncomeOpen] = useState(false)
+  const [isEditProjectOpen, setIsEditProjectOpen] = useState(false)
   const [editingBudget, setEditingBudget] = useState<EstimatedBudget | null>(null)
   const [editingIncome, setEditingIncome] = useState<EstimatedIncome | null>(null)
+  const [editingProject, setEditingProject] = useState<SavingsProject | null>(null)
 
   // États pour la confirmation de suppression
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [deletingItem, setDeletingItem] = useState<{
     id: string
     name: string
-    type: 'budget' | 'income'
+    type: 'budget' | 'income' | 'project'
     cumulatedSavings: number
     /**
      * Estimated amount du budget ou du revenu — sert à afficher l'impact sur
@@ -98,12 +100,24 @@ export default function PlanningDrawer({
      * 2026-05-22 / Delete-Header-And-Income-Concise). 0 si non disponible.
      */
     estimatedAmount: number
+    /**
+     * Sprint Projets-Épargne 06 — `amount_saved` du projet, affiché dans la
+     * modal de confirmation suppression pour annoncer le montant qui sera
+     * reversé dans la tirelire. 0 pour les types `budget` / `income`.
+     */
+    amountSaved: number
   } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Snackbar transient post-suppression (Pattern §8 ✅) — affiché quand
-  // les économies d'un budget supprimé sont transférées vers la tirelire.
-  const [transferSnackbar, setTransferSnackbar] = useState<{ amount: number } | null>(null)
+  // Snackbar transient post-mutation (Pattern §8 ✅). 3 variantes :
+  //  - `piggy-credit` : économies (budget supprimé OU projet supprimé avec
+  //    `amount_saved` > 0) transférées dans la tirelire. Format `<amount>
+  //    transféré dans la tirelire`.
+  //  - `project-deleted` : projet supprimé sans solde (`amount_saved` = 0).
+  //    Pas de transfert à afficher → message court "Projet supprimé".
+  const [transferSnackbar, setTransferSnackbar] = useState<
+    { kind: 'piggy-credit'; amount: number } | { kind: 'project-deleted' } | null
+  >(null)
 
   // États pour la popup d'information des budgets/revenus entamés
   const [isStartedItemInfoOpen, setIsStartedItemInfoOpen] = useState(false)
@@ -138,14 +152,18 @@ export default function PlanningDrawer({
   } = useIncomes(context)
 
   // Sprint Projets-Épargne 04 — 3ème onglet "Projets" (lecture seule).
-  // Sprint Projets-Épargne 05 — modal CREATE branchée (`addProject`) ; les
-  // actions Modifier/Supprimer arrivent au sprint 06.
+  // Sprint Projets-Épargne 05 — modal CREATE branchée (`addProject`).
+  // Sprint Projets-Épargne 06 — modal EDIT + DELETE branchées (`updateProject`,
+  // `deleteProject`). La suppression reverse `amount_saved` dans la tirelire
+  // via la RPC `delete_savings_project_to_piggy`.
   const {
     projects,
     loading: projectsLoading,
     isFetching: projectsFetching,
     error: projectsError,
     addProject,
+    updateProject,
+    deleteProject,
     refreshProjects,
     totalMonthlyAllocations,
   } = useProjects(context)
@@ -223,6 +241,9 @@ export default function PlanningDrawer({
   ])
 
   // Auto-dismiss snackbar after 3s (Pattern §8 ✅ feedback transient).
+  // Dépend du `kind` plutôt que de la référence d'objet pour ne pas reset
+  // le timer à chaque re-render (le `useState` ré-crée la référence quand
+  // on lit `transferSnackbar` ailleurs).
   useEffect(() => {
     if (!transferSnackbar) return
     const timer = setTimeout(() => setTransferSnackbar(null), 3000)
@@ -372,7 +393,7 @@ export default function PlanningDrawer({
   }
 
   /**
-   * Demande de confirmation de suppression
+   * Demande de confirmation de suppression (budget / income / projet).
    */
   const handleRequestDelete = (
     item: { id: string; name: string; cumulated_savings?: number; estimated_amount?: number },
@@ -392,12 +413,32 @@ export default function PlanningDrawer({
       type,
       cumulatedSavings: type === 'budget' ? (item.cumulated_savings ?? 0) : 0,
       estimatedAmount: item.estimated_amount ?? 0,
+      amountSaved: 0,
     })
     setIsDeleteConfirmOpen(true)
   }
 
   /**
-   * Confirmation de la suppression
+   * Sprint Projets-Épargne 06 — demande de confirmation de suppression d'un
+   * projet. Pas de gate `isStarted` (un projet n'a pas de "dépenses en cours"
+   * au sens budgets) ; le solde déjà épargné est reversé dans la tirelire à
+   * la confirmation.
+   */
+  const handleRequestDeleteProject = (project: SavingsProject) => {
+    setDeletingItem({
+      id: project.id,
+      name: project.name,
+      type: 'project',
+      cumulatedSavings: 0,
+      estimatedAmount: 0,
+      amountSaved: Number(project.amount_saved) || 0,
+    })
+    setIsDeleteConfirmOpen(true)
+  }
+
+  /**
+   * Confirmation de la suppression — branche `type` pour appeler le bon
+   * mutator + adapte le snackbar de feedback.
    */
   const handleConfirmDelete = async () => {
     if (!deletingItem) return
@@ -410,25 +451,37 @@ export default function PlanningDrawer({
       const result = await deleteBudget(deletingItem.id)
       success = result.success
       transferredAmount = result.transferredAmount ?? 0
+    } else if (deletingItem.type === 'project') {
+      const result = await deleteProject(deletingItem.id)
+      success = result.success
+      transferredAmount = result.transferredAmount ?? 0
     } else {
       success = await deleteIncome(deletingItem.id)
     }
 
     if (success) {
+      const closedType = deletingItem.type
       setIsDeleteConfirmOpen(false)
       setDeletingItem(null)
 
-      // Snackbar transient si économies transférées (Pattern §8 ✅).
+      // Snackbar transient (Pattern §8 ✅).
+      //  - budget OR project avec `amount_saved` > 0 → message tirelire.
+      //  - project sans solde → message court "Projet supprimé".
+      //  - income (pas de side-effect) → pas de snackbar (la row disparaît).
       if (transferredAmount > 0) {
-        setTransferSnackbar({ amount: transferredAmount })
+        setTransferSnackbar({ kind: 'piggy-credit', amount: transferredAmount })
+      } else if (closedType === 'project') {
+        setTransferSnackbar({ kind: 'project-deleted' })
       }
 
       // Rafraîchir les progressions selon le type
-      if (deletingItem.type === 'budget') {
+      if (closedType === 'budget') {
         await refreshBudgetProgress()
-      } else {
+      } else if (closedType === 'income') {
         await refreshIncomeProgress()
       }
+      // project : le hook useProjects gère sa propre invalidation cache via
+      // `invalidateFinancialRefreshes` — pas de refresh dédié à appeler.
 
       // Rafraîchir les données financières du dashboard
       if (onPlanningChange) {
@@ -461,20 +514,37 @@ export default function PlanningDrawer({
     return success
   }
 
-  // Sprint Projets-Épargne 04 — stubs Edit/Delete. La modal d'édition + la
-  // confirmation de suppression arrivent au sprint 06.
-  const handleEditProjectStub = (project: SavingsProject) => {
-    logger.info('[projects] edit project requested (modal arrives in sprint 06)', {
-      id: project.id,
-      name: project.name,
-    })
+  /**
+   * Sprint Projets-Épargne 06 — handler EDIT. Pas de gate `isStarted` :
+   * un projet existant reste éditable tant qu'il n'est pas verrouillé en
+   * recap (gating recap géré côté wizard, hors planning).
+   */
+  const handleEditProject = (project: SavingsProject) => {
+    setEditingProject(project)
+    setIsEditProjectOpen(true)
   }
 
-  const handleDeleteProjectStub = (project: SavingsProject) => {
-    logger.info('[projects] delete project requested (confirmation arrives in sprint 06)', {
-      id: project.id,
-      name: project.name,
-    })
+  /**
+   * Sprint Projets-Épargne 06 — sauvegarde EDIT. Sur succès, ferme la
+   * modal, drop l'editingProject pour libérer la lazy-mount `key`, et
+   * propage `onPlanningChange` pour rafraîchir le dashboard.
+   */
+  const handleSaveEditedProject = async (projectData: {
+    name: string
+    targetAmount: number
+    monthlyAllocation: number
+    deadlineDate: string
+  }): Promise<boolean> => {
+    if (!editingProject) return false
+    const success = await updateProject(editingProject.id, projectData)
+    if (success) {
+      setIsEditProjectOpen(false)
+      setEditingProject(null)
+      if (onPlanningChange) {
+        await onPlanningChange()
+      }
+    }
+    return success
   }
 
   const handleOpenChange = (open: boolean) => {
@@ -973,8 +1043,8 @@ export default function PlanningDrawer({
                     <ProjectListItem
                       key={project.id}
                       project={project}
-                      onEdit={handleEditProjectStub}
-                      onDelete={handleDeleteProjectStub}
+                      onEdit={handleEditProject}
+                      onDelete={handleRequestDeleteProject}
                     />
                   ))}
                 </div>
@@ -1062,6 +1132,25 @@ export default function PlanningDrawer({
           />
         )}
 
+        {/* Edit Project Dialog — Sprint Projets-Épargne 06. `key={editingProject.id}`
+           remount-cleanly quand on switch de cible (defaultValues lazy re-init).
+           `currentAllocatedTotal` somme budgets + projets (l'allocation du projet
+           édité est soustraite côté schéma via `currentProjectAllocation`).
+           `totalEstimatedIncome={budgetCeiling}` reprend le plafond budgets. */}
+        {isEditProjectOpen && editingProject && (
+          <EditProjectDialog
+            key={editingProject.id}
+            onClose={() => {
+              setIsEditProjectOpen(false)
+              setEditingProject(null)
+            }}
+            onSave={handleSaveEditedProject}
+            project={editingProject}
+            currentAllocatedTotal={totalBudgets + totalMonthlyAllocations}
+            totalEstimatedIncome={budgetCeiling}
+          />
+        )}
+
         {/* Confirmation Dialog */}
         <ConfirmationDialog
           isOpen={isDeleteConfirmOpen}
@@ -1071,7 +1160,13 @@ export default function PlanningDrawer({
           }}
           onConfirm={handleConfirmDelete}
           title="Confirmer la suppression"
-          message={`Êtes-vous sûr de vouloir supprimer "${deletingItem?.name}" ? Cette action est irréversible.`}
+          message={(() => {
+            if (!deletingItem) return ''
+            if (deletingItem.type === 'project') {
+              return `Êtes-vous sûr de vouloir supprimer le projet "${deletingItem.name}" ?`
+            }
+            return `Êtes-vous sûr de vouloir supprimer "${deletingItem.name}" ? Cette action est irréversible.`
+          })()}
           details={(() => {
             if (!deletingItem) return undefined
 
@@ -1109,13 +1204,35 @@ export default function PlanningDrawer({
               )
             }
 
+            // Project with amount_saved > 0 → annonce le transfert tirelire.
+            // (Sprint Projets-Épargne 06.)
+            if (deletingItem.type === 'project' && deletingItem.amountSaved > 0) {
+              return (
+                <div className="space-y-1.5 text-left">
+                  <p className="text-sm font-medium text-gray-700">Après suppression :</p>
+                  <p>
+                    Le montant déjà épargné (
+                    <span className="font-semibold text-purple-600">
+                      {formatAmount(deletingItem.amountSaved)}
+                    </span>
+                    ) sera reversé dans votre tirelire.
+                  </p>
+                </div>
+              )
+            }
+
             return undefined
           })()}
-          confirmText={
-            deletingItem?.type === 'budget' && deletingItem.cumulatedSavings > 0
-              ? 'Supprimer et transférer'
-              : 'Supprimer'
-          }
+          confirmText={(() => {
+            if (!deletingItem) return 'Supprimer'
+            if (deletingItem.type === 'budget' && deletingItem.cumulatedSavings > 0) {
+              return 'Supprimer et transférer'
+            }
+            if (deletingItem.type === 'project' && deletingItem.amountSaved > 0) {
+              return 'Supprimer et transférer'
+            }
+            return 'Supprimer'
+          })()}
           cancelText="Annuler"
           variant="danger"
           loading={isDeleting}
@@ -1141,14 +1258,17 @@ export default function PlanningDrawer({
         />
 
         {/* Snackbar post-suppression — économies transférées dans la tirelire
-           (Pattern §8 ✅ feedback transient). Auto-dismiss via useEffect 3s. */}
+           OU projet sans solde supprimé (Pattern §8 ✅ feedback transient).
+           Auto-dismiss via useEffect 3s. */}
         {transferSnackbar && (
           <div
             role="status"
             aria-live="polite"
             className="animate-in slide-in-from-bottom-4 fixed bottom-4 left-1/2 z-[60] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-lg bg-purple-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg"
           >
-            {formatAmount(transferSnackbar.amount)} transféré dans la tirelire
+            {transferSnackbar.kind === 'project-deleted'
+              ? 'Projet supprimé'
+              : `${formatAmount(transferSnackbar.amount)} transféré dans la tirelire`}
           </div>
         )}
       </DialogContent>
