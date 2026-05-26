@@ -77,12 +77,17 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
       // that were already swept into the piggy bank).
       const recapRow = await getActiveRecap({ context, userId, profile })
       const piggyTransfersData = coerceSnapshot(recapRow?.piggy_transfers_data) ?? undefined
+      // Sprint Projets-Épargne 10 — forward project snapshot to the summary
+      // so `summary.projectSnapshot` reflects the preview that FinalRecapStep
+      // displays (totalSaved / totalRefunded / shifted deadlines).
+      const projectSnapshotData = coerceSnapshot(recapRow?.project_snapshot_data) ?? undefined
 
       const summary = await loadRecapSummary({
         context,
         profileId: userId,
         groupId: profile.group_id,
         piggyTransfersData,
+        projectSnapshotData,
       })
 
       const recap = recapRow
@@ -97,7 +102,7 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
             // cascade UI (sprint 09) can compute deficitRemaining client-side
             // including the projects stage. `null` quand le wizard est sur
             // une étape antérieure ou que le user n'a aucun projet.
-            projectSnapshotData: coerceSnapshot(recapRow.project_snapshot_data),
+            projectSnapshotData: projectSnapshotData ?? null,
           }
         : null
 

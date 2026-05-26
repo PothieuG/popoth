@@ -7,7 +7,7 @@ import { useCompleteRecap, type RecapProgress } from '@/hooks/useMonthlyRecap'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useProfile } from '@/hooks/useProfile'
 import { formatEuro } from '@/lib/format-currency'
-import type { RecapContext, RecapSummary } from '@/lib/recap'
+import type { ProjectSnapshotSummary, RecapContext, RecapSummary } from '@/lib/recap'
 
 const ERROR_COPY: Record<string, string> = {
   invalid_step: "Cette étape n'est plus accessible. Recharge la page.",
@@ -151,6 +151,13 @@ export function FinalRecapStep({
           <PositiveSummary totalSurplus={summary.totalSurplus} />
         )}
 
+        {summary.savingsProjects.length > 0 && summary.projectSnapshot && (
+          <ProjectsSummary
+            projectCount={summary.savingsProjects.length}
+            snapshot={summary.projectSnapshot}
+          />
+        )}
+
         {salaryLine && (
           <p className="mt-4 border-t border-gray-200 pt-3 text-gray-700">
             <span className="font-medium">{salaryLine.label} :</span>{' '}
@@ -240,6 +247,67 @@ function NegativeSummary({
         )}
       </ul>
     </>
+  )
+}
+
+/**
+ * Sprint Projets-Épargne 10 — section "Projets" affichée sous le bloc bilan
+ * dans FinalRecapStep, dès que l'owner a au moins 1 projet actif.
+ *
+ *   - Ligne 1 (toujours) : "💰 N projet(s) ont reçu leur allocation mensuelle
+ *     ce mois" — informe que la finalize va créditer `amount_saved`.
+ *   - Ligne 2 (si refloat > 0) : "📋 Renflouement projets : -X€" — montant
+ *     total prélevé sur les mensualités pour combler le déficit.
+ *   - Liste shifted (si non vide) : "{name} : décalage de Z mois" — ne
+ *     liste que les projets dont la deadline va effectivement bouger d'au
+ *     moins 1 mois (cf. `ProjectSnapshotSummary.shifted`).
+ *
+ * Théme violet (cohérent avec les économies + RefloatProjectsLine).
+ */
+function ProjectsSummary({
+  projectCount,
+  snapshot,
+}: {
+  projectCount: number
+  snapshot: ProjectSnapshotSummary
+}) {
+  const hasRefund = snapshot.totalRefunded > 0.01
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-3 text-gray-800">
+      <p className="font-medium text-violet-900">Projets</p>
+      <ul className="mt-2 space-y-1">
+        <li className="flex items-baseline gap-2">
+          <span aria-hidden="true">💰</span>
+          <span>
+            {projectCount === 1 ? '1 projet a reçu' : `${projectCount} projets ont reçu`} leur
+            allocation mensuelle ce mois.
+          </span>
+        </li>
+        {hasRefund && (
+          <li className="flex items-baseline gap-2">
+            <span aria-hidden="true">📋</span>
+            <span>
+              Renflouement projets :{' '}
+              <span className="font-semibold text-violet-800 tabular-nums">
+                −{formatEuro(snapshot.totalRefunded)}
+              </span>
+            </span>
+          </li>
+        )}
+      </ul>
+      {snapshot.shifted.length > 0 && (
+        <ul className="mt-2 space-y-1 text-xs text-gray-700">
+          {snapshot.shifted.map((s) => (
+            <li key={s.id} className="flex items-baseline justify-between gap-2">
+              <span className="truncate">{s.name}</span>
+              <span className="shrink-0 text-violet-700">
+                → décalage de {s.monthsShift} {s.monthsShift === 1 ? 'mois' : 'mois'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 

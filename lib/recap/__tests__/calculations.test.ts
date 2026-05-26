@@ -307,6 +307,7 @@ describe('computeRecapSummary', () => {
         targetAmount: 7000,
         deadlineDate: '2027-12-31',
         monthsRemaining: 19,
+        pendingDelayFraction: 0,
       },
       {
         id: 'p2',
@@ -316,6 +317,7 @@ describe('computeRecapSummary', () => {
         targetAmount: 1500,
         deadlineDate: '2027-06-30',
         monthsRemaining: 13,
+        pendingDelayFraction: 0,
       },
     ]
     const result = computeRecapSummary({
@@ -327,6 +329,201 @@ describe('computeRecapSummary', () => {
     })
 
     expect(result.savingsProjects).toEqual(projects)
+  })
+
+  // Sprint Projets-Épargne 10 — projectSnapshot preview semantics.
+  // Mirror of `apply_recap_projects_snapshot` PG: amount_saved += monthly -
+  // refund ; deadline shift = FLOOR(pending + refund/monthly).
+
+  it('omits projectSnapshot when there are no savings projects', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+    })
+    expect(result.projectSnapshot).toBeUndefined()
+  })
+
+  it('projectSnapshot with no refunds: totalSaved = sum monthly, totalRefunded=0, shifted=[]', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'Japon',
+          monthlyAllocation: 200,
+          amountSaved: 4084,
+          targetAmount: 7000,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+        {
+          id: 'p2',
+          name: 'Voiture',
+          monthlyAllocation: 80,
+          amountSaved: 320,
+          targetAmount: 1500,
+          deadlineDate: '2027-06-30',
+          monthsRemaining: 13,
+          pendingDelayFraction: 0,
+        },
+      ],
+    })
+    expect(result.projectSnapshot).toEqual({
+      totalSaved: 280, // 200 + 80
+      totalRefunded: 0,
+      shifted: [],
+    })
+  })
+
+  it('projectSnapshot with partial refund 30/100: totalSaved=70, shifted=[] (pending 0.3 < 1)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'Japon',
+          monthlyAllocation: 100,
+          amountSaved: 200,
+          targetAmount: 1000,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+      ],
+      projectSnapshotData: { p1: 30 },
+    })
+    expect(result.projectSnapshot).toEqual({
+      totalSaved: 70, // 100 - 30
+      totalRefunded: 30,
+      shifted: [], // 0 + 0.3 = 0.3 → no shift
+    })
+  })
+
+  it('projectSnapshot with full refund 100/100: shifts +1 month', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'Japon',
+          monthlyAllocation: 100,
+          amountSaved: 200,
+          targetAmount: 1000,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+      ],
+      projectSnapshotData: { p1: 100 },
+    })
+    expect(result.projectSnapshot?.totalSaved).toBe(0)
+    expect(result.projectSnapshot?.totalRefunded).toBe(100)
+    expect(result.projectSnapshot?.shifted).toEqual([{ id: 'p1', name: 'Japon', monthsShift: 1 }])
+  })
+
+  it('projectSnapshot with accumulated fraction: 0.9 + 30/100 = 1.2 → shift +1 (residual 0.2)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'Voyage',
+          monthlyAllocation: 100,
+          amountSaved: 500,
+          targetAmount: 2000,
+          deadlineDate: '2028-01-01',
+          monthsRemaining: 20,
+          pendingDelayFraction: 0.9,
+        },
+      ],
+      projectSnapshotData: { p1: 30 },
+    })
+    expect(result.projectSnapshot?.shifted).toEqual([{ id: 'p1', name: 'Voyage', monthsShift: 1 }])
+  })
+
+  it('projectSnapshot ignores refunds for projects not in the active list (foreign ids)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'Solo',
+          monthlyAllocation: 50,
+          amountSaved: 0,
+          targetAmount: 200,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+      ],
+      projectSnapshotData: { 'foreign-id-not-in-list': 999, p1: 25 },
+    })
+    expect(result.projectSnapshot?.totalRefunded).toBe(25) // foreign ignored
+    expect(result.projectSnapshot?.totalSaved).toBe(25)
+  })
+
+  it('projectSnapshot with multiple projects + mixed refunds — sums correctly', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [],
+      savingsProjects: [
+        {
+          id: 'p1',
+          name: 'A',
+          monthlyAllocation: 200,
+          amountSaved: 0,
+          targetAmount: 1000,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+        {
+          id: 'p2',
+          name: 'B',
+          monthlyAllocation: 50,
+          amountSaved: 0,
+          targetAmount: 500,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0.5,
+        },
+        {
+          id: 'p3',
+          name: 'C',
+          monthlyAllocation: 100,
+          amountSaved: 0,
+          targetAmount: 1000,
+          deadlineDate: '2027-12-31',
+          monthsRemaining: 19,
+          pendingDelayFraction: 0,
+        },
+      ],
+      // p1 no refund (saves 200), p2 full refund (shift+1), p3 partial 50/100 (pending 0+0.5, no shift)
+      projectSnapshotData: { p2: 50, p3: 50 },
+    })
+    expect(result.projectSnapshot?.totalSaved).toBe(250) // 200 + 0 + 50
+    expect(result.projectSnapshot?.totalRefunded).toBe(100)
+    expect(result.projectSnapshot?.shifted).toEqual([{ id: 'p2', name: 'B', monthsShift: 1 }])
   })
 })
 

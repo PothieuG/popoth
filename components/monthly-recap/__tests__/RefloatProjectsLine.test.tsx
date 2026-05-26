@@ -25,6 +25,7 @@ function makeProject(overrides: Partial<SavingsProjectMeta> = {}): SavingsProjec
     targetAmount: 7000,
     deadlineDate: '2029-01-01',
     monthsRemaining: 36,
+    pendingDelayFraction: 0,
     ...overrides,
   }
 }

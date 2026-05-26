@@ -17,6 +17,13 @@ export interface ReadOnlyIncome {
 // `FinancialData.meta.savingsProjects`. Sert à alimenter le drawer recap
 // (sprint 07) + l'onglet "Projet" du planificateur (sprint 04). `monthsRemaining`
 // est dérivé de `deadline_date` au moment du fetch (floor des mois calendaires).
+//
+// Sprint Projets-Épargne 10 — `pendingDelayFraction` ajouté pour permettre à
+// `computeRecapSummary.projectSnapshot` de calculer `monthsShift =
+// FLOOR(pending_delay_fraction + refund / monthly_allocation)` côté UI
+// FinalRecapStep (preview du décalage de deadline qui sera appliqué à la
+// finalize via `apply_recap_projects_snapshot`). Stocké sur la row côté DB,
+// jamais muté hors RPC composite.
 export interface SavingsProjectMeta {
   id: string
   name: string
@@ -25,6 +32,7 @@ export interface SavingsProjectMeta {
   targetAmount: number
   deadlineDate: string
   monthsRemaining: number
+  pendingDelayFraction: number
 }
 
 export interface FinancialData {

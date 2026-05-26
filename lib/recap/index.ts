@@ -14,4 +14,9 @@ export type { LoadRecapSummaryInput } from './load-summary'
 export { isRecapBlocking, isUserLocked } from './lock'
 export { isAdvanceAllowed, nextRequiredStep, RECAP_STEP_ORDER } from './state'
 export type { RecapStep } from './state'
-export type { BudgetSummary, RecapSummary, RefloatProportionalAllocation } from './types'
+export type {
+  BudgetSummary,
+  ProjectSnapshotSummary,
+  RecapSummary,
+  RefloatProportionalAllocation,
+} from './types'

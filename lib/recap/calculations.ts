@@ -9,7 +9,12 @@
 
 import type { SavingsProjectMeta } from '@/lib/finance/types'
 
-import type { BudgetSummary, RecapSummary, RefloatProportionalAllocation } from './types'
+import type {
+  BudgetSummary,
+  ProjectSnapshotSummary,
+  RecapSummary,
+  RefloatProportionalAllocation,
+} from './types'
 
 /** surplus = max(0, estimé - dépensé) ; deficit = max(0, dépensé - estimé). */
 export function computeBudgetSurplus(
@@ -53,6 +58,15 @@ export function computeRecapSummary(input: {
    *  cascade négative `RefloatProjectsLine` (sprint 09). Aucune logique de
    *  calcul ici — pur passthrough depuis `loadRecapSummary`. Défaut `[]`. */
   savingsProjects?: readonly SavingsProjectMeta[]
+  /** Sprint Projets-Épargne 10. `{ [projectId]: refund_amount }` lu depuis
+   *  `monthly_recaps.project_snapshot_data` du recap actif. Combiné aux
+   *  `savingsProjects` pour produire le `projectSnapshot` exposé sur
+   *  `RecapSummary`. Quand `savingsProjects.length === 0` OU absent, le
+   *  champ `projectSnapshot` du résultat est omis (UI masque la section
+   *  Projets du FinalRecapStep). Refunds hors-owner silencieusement ignorés
+   *  (cohérent avec la RPC `apply_recap_projects_snapshot` qui itère sur les
+   *  projets de l'owner uniquement). */
+  projectSnapshotData?: Record<string, number>
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
     const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
@@ -77,6 +91,12 @@ export function computeRecapSummary(input: {
   const bilanSign: RecapSummary['bilanSign'] =
     bilan > 0 ? 'positive' : bilan < 0 ? 'negative' : 'zero'
 
+  const savingsProjects = input.savingsProjects ?? []
+  const projectSnapshot =
+    savingsProjects.length > 0
+      ? computeProjectSnapshotSummary(savingsProjects, input.projectSnapshotData)
+      : undefined
+
   return {
     currentBalance: input.currentBalance,
     ravEstime: input.ravEstime,
@@ -87,7 +107,50 @@ export function computeRecapSummary(input: {
     budgets: sorted,
     bilan,
     bilanSign,
-    savingsProjects: input.savingsProjects ?? [],
+    savingsProjects,
+    ...(projectSnapshot !== undefined && { projectSnapshot }),
+  }
+}
+
+/** Sprint Projets-Épargne 10 — preview de l'effet de `apply_recap_projects_snapshot`
+ *  à la finalize. Pour chaque projet, calcule la part qui sera sauvée
+ *  (`monthly - refund`), la part refloutée (`refund`), et le nombre de mois
+ *  de décalage de deadline (`FLOOR(pending_delay_fraction + refund/monthly)`).
+ *  Sémantique miroir exact de la RPC PG (sinon UI mensongère).
+ *
+ *  Le `shifted` list ne contient QUE les projets dont la deadline va être
+ *  décalée d'au moins 1 mois (`monthsShift >= 1`), pour l'affichage détaillé
+ *  côté FinalRecapStep. Les autres projets contribuent silencieusement à
+ *  `totalSaved` / `totalRefunded`. */
+function computeProjectSnapshotSummary(
+  projects: ReadonlyArray<SavingsProjectMeta>,
+  snapshotData: Record<string, number> | undefined,
+): ProjectSnapshotSummary {
+  const sortedProjects = projects.slice().sort((a, b) => a.id.localeCompare(b.id))
+  let totalSaved = 0
+  let totalRefunded = 0
+  const shifted: Array<{ id: string; name: string; monthsShift: number }> = []
+
+  for (const project of sortedProjects) {
+    const refund = snapshotData?.[project.id] ?? 0
+    const saved = round2(project.monthlyAllocation - refund)
+    totalSaved += saved
+    totalRefunded += refund
+
+    if (project.monthlyAllocation > 0) {
+      const fracAdded = refund / project.monthlyAllocation
+      const newPending = project.pendingDelayFraction + fracAdded
+      const monthsShift = Math.floor(newPending)
+      if (monthsShift >= 1) {
+        shifted.push({ id: project.id, name: project.name, monthsShift })
+      }
+    }
+  }
+
+  return {
+    totalSaved: round2(totalSaved),
+    totalRefunded: round2(totalRefunded),
+    shifted,
   }
 }
 

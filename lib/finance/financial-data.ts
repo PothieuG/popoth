@@ -93,7 +93,9 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // formule RAV. Sprint Projets-Épargne 03.
     const { data: savingsProjects } = await supabaseServer
       .from('savings_projects')
-      .select('id, name, monthly_allocation, amount_saved, target_amount, deadline_date')
+      .select(
+        'id, name, monthly_allocation, amount_saved, target_amount, deadline_date, pending_delay_fraction',
+      )
       .eq(ownerColumn, ownerId)
     const totalMonthlyProjects =
       savingsProjects?.reduce((sum, p) => sum + p.monthly_allocation, 0) ?? 0

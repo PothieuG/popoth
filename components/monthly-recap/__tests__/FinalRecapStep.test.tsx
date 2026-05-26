@@ -376,4 +376,98 @@ describe('FinalRecapStep', () => {
       expect(completeMock).toHaveBeenCalledTimes(1)
     })
   })
+
+  // Sprint Projets-Épargne 10 — Projects section (preview of what
+  // apply_recap_projects_snapshot will do at finalize).
+
+  it('projects: section masked when savingsProjects is empty', () => {
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary({ savingsProjects: [] })}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
+      />,
+    )
+    expect(screen.queryByText(/allocation mensuelle/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Renflouement projets/)).not.toBeInTheDocument()
+  })
+
+  it('projects: N projects, no refund → shows allocation line only', () => {
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary({
+          savingsProjects: [
+            {
+              id: 'p1',
+              name: 'Japon',
+              monthlyAllocation: 200,
+              amountSaved: 4084,
+              targetAmount: 7000,
+              deadlineDate: '2027-12-31',
+              monthsRemaining: 19,
+              pendingDelayFraction: 0,
+            },
+            {
+              id: 'p2',
+              name: 'Voiture',
+              monthlyAllocation: 80,
+              amountSaved: 320,
+              targetAmount: 1500,
+              deadlineDate: '2027-06-30',
+              monthsRemaining: 13,
+              pendingDelayFraction: 0,
+            },
+          ],
+          projectSnapshot: { totalSaved: 280, totalRefunded: 0, shifted: [] },
+        })}
+        recap={makeRecap()}
+        salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
+      />,
+    )
+    expect(screen.getByText(/2 projets ont reçu leur allocation mensuelle/)).toBeInTheDocument()
+    expect(screen.queryByText(/Renflouement projets/)).not.toBeInTheDocument()
+  })
+
+  it('projects: refund + shift — shows total refunded line + per-project deadline shift list', () => {
+    render(
+      <FinalRecapStep
+        context="profile"
+        summary={makeSummary({
+          savingsProjects: [
+            {
+              id: 'p1',
+              name: 'Japon',
+              monthlyAllocation: 100,
+              amountSaved: 200,
+              targetAmount: 1000,
+              deadlineDate: '2027-12-31',
+              monthsRemaining: 19,
+              pendingDelayFraction: 0,
+            },
+          ],
+          projectSnapshot: {
+            totalSaved: 0,
+            totalRefunded: 100,
+            shifted: [{ id: 'p1', name: 'Japon', monthsShift: 1 }],
+          },
+        })}
+        recap={makeRecap({ projectSnapshotData: { p1: 100 } })}
+        salaryUpdated={false}
+        groupRecapPending={false}
+        groupName={null}
+      />,
+    )
+    expect(screen.getByText(/1 projet a reçu/)).toBeInTheDocument()
+    expect(screen.getByText(/Renflouement projets/)).toBeInTheDocument()
+    expect(screen.getByText(/−100,00/)).toBeInTheDocument()
+    // shifted entry
+    expect(screen.getByText('Japon')).toBeInTheDocument()
+    expect(screen.getByText(/décalage de 1 mois/)).toBeInTheDocument()
+  })
 })

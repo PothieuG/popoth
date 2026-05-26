@@ -42,6 +42,30 @@ export interface RecapSummary {
    *  cours") et par sprint 09 (`RefloatProjectsLine` dans la cascade
    *  négative). `[]` quand l'owner n'a aucun projet (toujours présent). */
   savingsProjects: readonly SavingsProjectMeta[]
+  /** Sprint Projets-Épargne 10. Preview de ce que `apply_recap_projects_snapshot`
+   *  fera à la finalize : pour chaque projet actif, `amount_saved +=
+   *  monthly_allocation - refund` ; `deadline_date` décalée si
+   *  `pending_delay_fraction + refund/monthly_allocation ≥ 1`. Calculé pur
+   *  côté serveur à partir de `savingsProjects` + `projectSnapshotData` (lu
+   *  dans `monthly_recaps.project_snapshot_data` pour le recap actif).
+   *  Consommé par `FinalRecapStep` pour afficher la section "Projets". */
+  projectSnapshot?: ProjectSnapshotSummary
+}
+
+/** Sprint Projets-Épargne 10 — résumé synthétique des effets de
+ *  `apply_recap_projects_snapshot` qui sera appliqué à la finalize.
+ *  - `totalSaved` : somme des `(monthly_allocation - refund)` sur TOUS les
+ *    projets actifs de l'owner — c'est le montant total qui sera ajouté aux
+ *    `amount_saved` cumulés ce mois-ci.
+ *  - `totalRefunded` : somme des refunds — c'est le total prélevé sur les
+ *    mensualités pour combler le déficit.
+ *  - `shifted` : sous-ensemble des projets dont la deadline va être décalée
+ *    d'au moins 1 mois (i.e. `pending_delay_fraction + refund/monthly_allocation
+ *    ≥ 1`). Liste vide si aucun shift n'est déclenché. */
+export interface ProjectSnapshotSummary {
+  totalSaved: number
+  totalRefunded: number
+  shifted: ReadonlyArray<{ id: string; name: string; monthsShift: number }>
 }
 
 export interface RefloatProportionalAllocation {

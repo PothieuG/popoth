@@ -46,10 +46,16 @@ export interface LoadRecapSummaryInput {
    *  — this helper stays pure-load (no extra I/O). Pass `undefined` (or
    *  omit) when there is no active recap or when the column is empty. */
   piggyTransfersData?: Record<string, number>
+  /** Sprint Projets-Épargne 10. Forwarded to `computeRecapSummary` so the
+   *  `projectSnapshot` preview reflects refunds already accumulated on the
+   *  active recap. Callers (status route) read it from
+   *  `monthly_recaps.project_snapshot_data`. Omit / `undefined` when there is
+   *  no active recap. */
+  projectSnapshotData?: Record<string, number>
 }
 
 export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<RecapSummary> {
-  const { context, profileId, groupId, piggyTransfersData } = input
+  const { context, profileId, groupId, piggyTransfersData, projectSnapshotData } = input
 
   if (context === 'group' && !groupId) {
     throw new Error('loadRecapSummary: group context requires non-null groupId')
@@ -120,6 +126,11 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     // subset `SavingsProjectMeta` est construit dans `buildSavingsProjectMeta`
     // avec `monthsRemaining` dérivé à l'instant T du fetch.
     savingsProjects: financialData.meta?.savingsProjects ?? [],
+    // Sprint Projets-Épargne 10 — preview de l'effet de la finalize sur les
+    // projets. Active uniquement quand le caller fournit la valeur (status
+    // route lit `monthly_recaps.project_snapshot_data` ; start / autres
+    // callers passent `undefined` car aucun snapshot n'est encore matérialisé).
+    projectSnapshotData,
   })
 }
 

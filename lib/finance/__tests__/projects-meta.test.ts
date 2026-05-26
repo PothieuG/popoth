@@ -98,6 +98,7 @@ describe('buildSavingsProjectMeta', () => {
         amount_saved: 4084,
         target_amount: 7000,
         deadline_date: '2029-05-01',
+        pending_delay_fraction: 0,
       },
       today,
     )
@@ -109,6 +110,23 @@ describe('buildSavingsProjectMeta', () => {
       targetAmount: 7000,
       deadlineDate: '2029-05-01',
       monthsRemaining: 35, // 36 months minus the 25-day partial month
+      pendingDelayFraction: 0,
     })
+  })
+
+  it('forwards pending_delay_fraction verbatim (sprint 10 FinalRecapStep deadline shift preview)', () => {
+    const meta = buildSavingsProjectMeta(
+      {
+        id: 'proj-2',
+        name: 'Voiture',
+        monthly_allocation: 100,
+        amount_saved: 250,
+        target_amount: 1000,
+        deadline_date: '2027-01-01',
+        pending_delay_fraction: 0.75,
+      },
+      new Date(2026, 4, 26),
+    )
+    expect(meta.pendingDelayFraction).toBe(0.75)
   })
 })

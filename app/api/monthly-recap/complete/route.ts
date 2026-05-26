@@ -92,7 +92,11 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     const outcome = await executeCompleteRecap({
       context: body.context,
       profile,
-      recap,
+      recap: {
+        id: recap.id,
+        budget_snapshot_data: recap.budget_snapshot_data,
+        project_snapshot_data: recap.project_snapshot_data,
+      },
     })
 
     return NextResponse.json({ data: outcome })

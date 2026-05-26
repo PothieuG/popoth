@@ -296,6 +296,7 @@ describe('BilanNegativeStep', () => {
                 targetAmount: 7000,
                 deadlineDate: '2029-01-01',
                 monthsRemaining: 36,
+                pendingDelayFraction: 0,
               },
             ],
           })}
@@ -337,6 +338,7 @@ describe('BilanNegativeStep', () => {
                 targetAmount: 5000,
                 deadlineDate: '2029-06-01',
                 monthsRemaining: 42,
+                pendingDelayFraction: 0,
               },
             ],
           })}
@@ -399,6 +401,7 @@ describe('BilanNegativeStep', () => {
                 targetAmount: 7000,
                 deadlineDate: '2029-01-01',
                 monthsRemaining: 36,
+                pendingDelayFraction: 0,
               },
               {
                 id: 'p2',
@@ -408,6 +411,7 @@ describe('BilanNegativeStep', () => {
                 targetAmount: 5000,
                 deadlineDate: '2029-06-01',
                 monthsRemaining: 42,
+                pendingDelayFraction: 0,
               },
             ],
           })}

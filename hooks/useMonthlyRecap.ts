@@ -539,6 +539,10 @@ export interface CompleteRecapResult {
   recapId?: string
   completed?: true
   snapshotApplied?: { applied: ReadonlyArray<{ budget_id: string; amount: number }> } | null
+  /** Sprint Projets-Épargne 10 — server-returned counts from
+   *  `apply_recap_projects_snapshot` (number of projects credited + total
+   *  refloated). `null` when the RPC failed fail-soft. */
+  projectsApplied?: { updated_count: number; total_refunded: number } | null
   transactions?: {
     deleted_expenses: number
     deleted_incomes: number

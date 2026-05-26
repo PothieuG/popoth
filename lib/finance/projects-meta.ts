@@ -49,7 +49,13 @@ export function monthsBetween(from: Date, to: string): number {
 export function buildSavingsProjectMeta(
   row: Pick<
     SavingsProjectRow,
-    'id' | 'name' | 'monthly_allocation' | 'amount_saved' | 'target_amount' | 'deadline_date'
+    | 'id'
+    | 'name'
+    | 'monthly_allocation'
+    | 'amount_saved'
+    | 'target_amount'
+    | 'deadline_date'
+    | 'pending_delay_fraction'
   >,
   today: Date = new Date(),
 ): SavingsProjectMeta {
@@ -61,6 +67,7 @@ export function buildSavingsProjectMeta(
     targetAmount: row.target_amount,
     deadlineDate: row.deadline_date,
     monthsRemaining: monthsBetween(today, row.deadline_date),
+    pendingDelayFraction: row.pending_delay_fraction,
   }
 }
 
