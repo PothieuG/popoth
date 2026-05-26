@@ -1,0 +1,142 @@
+# Multi-environnement — prod + dev (Supabase + Vercel + local)
+
+> Installé 2026-05-27 avec la création de la branche `dev`. Workflow staging avant prod.
+
+## 1. Architecture
+
+| Couche              | Prod                      | Dev                        |
+| ------------------- | ------------------------- | -------------------------- |
+| **Branche git**     | `main`                    | `dev`                      |
+| **Projet Supabase** | `jzmppreybwabaeycvasz`    | `ddehmjucyfgyppfkbddr`     |
+| **Projet Vercel**   | Existant (déjà configuré) | **Nouveau projet à créer** |
+| **Preset local**    | `.env.local.prod`         | `.env.local.dev`           |
+
+Les deux branches partent du même historique. La feature workflow standard :
+
+1. Créer branche feature depuis `dev`
+2. Merger dans `dev` → déploie auto sur Vercel-dev (DB dev)
+3. Tester sur l'URL preview Vercel
+4. Merger `dev` → `main` → déploie auto sur Vercel-prod (DB prod)
+
+## 2. Switch local entre prod et dev
+
+Deux commandes pnpm qui copient le bon preset vers `.env.local` :
+
+```powershell
+pnpm env:dev    # .env.local.dev  -> .env.local
+pnpm env:prod   # .env.local.prod -> .env.local
+```
+
+Puis relancer `pnpm dev` (le serveur Next charge `.env.local` au démarrage uniquement).
+
+### Setup initial (une seule fois)
+
+1. **Sauver le `.env.local` actuel (= prod) comme `.env.local.prod`** :
+   ```powershell
+   Copy-Item .env.local .env.local.prod
+   ```
+2. **Récupérer les clés dev** depuis le dashboard Supabase :
+   [Project Settings → API](https://supabase.com/dashboard/project/ddehmjucyfgyppfkbddr/settings/api)
+3. **Créer `.env.local.dev`** avec les mêmes variables que `.env.local.prod` mais valeurs dev :
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://ddehmjucyfgyppfkbddr.supabase.co
+   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<dev publishable key>
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<dev anon key>
+   SUPABASE_SERVICE_ROLE_KEY=<dev service role key>
+   JWT_SECRET_KEY=<dev jwt secret — peut être identique à prod>
+   LOG_LEVEL=debug
+   NEXT_PUBLIC_SITE_URL=http://localhost:3000
+   ```
+
+4. **Tester le switch** :
+   ```powershell
+   pnpm env:dev
+   pnpm dev
+   ```
+   Le serveur Next doit afficher le projet dev. Le script `switch-env.mjs` détecte et affiche le project ref du fichier copié.
+
+Les deux fichiers preset sont gitignored via le pattern `.env*.local` dans `.gitignore` (ligne 70). **Ne jamais commiter de secret**.
+
+## 3. Setup nouveau projet Vercel pour dev
+
+> À faire une seule fois, côté UI Vercel.
+
+1. **Créer le projet** : [vercel.com/new](https://vercel.com/new) → Import Git Repository → choisir `PothieuG/popoth` (le même repo que le projet prod existant).
+2. **Configurer la production branch** : Project Settings → Git → **Production Branch = `dev`** (au lieu du `main` par défaut). Sans ça, Vercel ne déploie que sur push vers main.
+3. **Renommer le projet** pour le distinguer du prod, e.g. `popoth-dev`.
+4. **Ajouter les variables d'env Production** (Project Settings → Environment Variables, scope = Production) :
+   - `NEXT_PUBLIC_SUPABASE_URL` → `https://ddehmjucyfgyppfkbddr.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → clé dev
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → clé dev anon
+   - `SUPABASE_SERVICE_ROLE_KEY` → clé dev service role
+   - `JWT_SECRET_KEY` → ton secret JWT
+   - `NEXT_PUBLIC_SITE_URL` → l'URL Vercel-dev (e.g. `https://popoth-dev.vercel.app`) après le premier deploy
+5. **Configurer les Redirect URLs Supabase dev** (dashboard Supabase dev → Authentication → URL Configuration) :
+   - Site URL = l'URL Vercel-dev
+   - Redirect URLs = `https://popoth-dev.vercel.app/**` + `http://localhost:3000/**`
+6. **Déclencher le premier déploiement** : push un commit cosmétique sur `dev` ou utiliser "Deploy" dans l'UI Vercel.
+
+## 4. Workflow quotidien recommandé
+
+1. **Branche feature depuis dev** : `git checkout dev && git pull && git checkout -b feature/<name>`
+2. **Code en local avec `.env.local` = dev** (`pnpm env:dev`)
+3. **Push + merge sur dev** → Vercel déploie sur l'URL preview dev
+4. **Tester sur Vercel-dev** (réelle URL, DB dev, mêmes conditions que prod sauf data)
+5. **Merger dev → main** quand validé → Vercel déploie prod
+6. **Re-pull main + dev** pour les synchroniser après release
+
+```powershell
+git checkout main
+git pull
+git checkout dev
+git merge main      # dev = main après chaque release
+git push origin dev
+```
+
+## 5. Scripts DB (sync entre prod/dev)
+
+Les scripts `db:*` (`db:check-drift`, `db:check-rpcs`, etc.) ciblent **prod par défaut** (fallback hardcodé `jzmppreybwabaeycvasz` dans `scripts/check-*.mjs`). Pour pointer vers dev :
+
+```powershell
+$env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
+pnpm db:check-drift
+pnpm db:check-rpcs
+# etc.
+$env:SUPABASE_PROJECT_REF = $null   # reset
+```
+
+`pnpm db:types` est **hardcodé prod** dans `package.json` (pas d'env var lue). Pour régénérer les types depuis dev :
+
+```powershell
+supabase gen types typescript --project-id ddehmjucyfgyppfkbddr --schema public > lib/database.types.ts
+```
+
+⚠️ **Attention** : commiter des types générés depuis dev casserait l'invariant `db:check-types-fresh` (qui compare contre prod). Toujours régénérer depuis prod avant commit final. Le pre-push hook ne le détecte pas — `pnpm db:check-types-fresh` à lancer manuellement.
+
+## 6. Aligner le schéma dev sur prod (première fois)
+
+Si la DB dev `ddehmjucyfgyppfkbddr` n'a jamais reçu les migrations récentes :
+
+```powershell
+$env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
+pnpm db:check-drift
+# Si drift -> appliquer les migrations qui manquent :
+pnpm supabase link --project-ref ddehmjucyfgyppfkbddr
+pnpm supabase db push --dry-run
+# valider -> pnpm supabase db push
+pnpm db:check-drift   # exit 0 attendu
+$env:SUPABASE_PROJECT_REF = $null
+```
+
+Si la DB dev est vide / fresh : copier la baseline prod via `supabase db push --include-all` après link.
+
+## 7. Règle de sécurité (rappel)
+
+Les 4 fichiers `.env.local`, `.env.local.prod`, `.env.local.dev`, et tout autre `.env*.local` sont **gitignored** et contiennent des secrets. Claude **ne doit JAMAIS lire leurs valeurs** (règle absolue CLAUDE.md §10). Pour le user uniquement.
+
+Test de présence binaire autorisé :
+
+```powershell
+if (Test-Path .env.local) { 'OK' } else { 'MISSING' }
+```
