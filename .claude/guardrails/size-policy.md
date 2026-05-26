@@ -98,7 +98,8 @@ CLAUDE.md                                     39k    Index opérationnel + règl
 │   ├─ logs-cleanup.md                                10k   Logger central + Lot 1-6 history + règle d'or triage
 │   ├─ git-workflow.md                                 9k   Husky hooks + commitlint + capture-then-drop + DROP + Dependabot
 │   ├─ operational-rules.md                           36k   Path B closed-by-deletion + god-files + cleanup-attempts CRITIQUES + ❌ rules (Modals & UI + chronologie extraites) — sous le cap 39.5k post-extraction §6 2026-05-22
-│   └─ operational-rules-ui-modals.md                 39k   Règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Sprints Modal/Skeleton/Dropdown/Enrich/Expense/Auto-Use/Recap/Income-Polish 2026-05-21 → 2026-05-22) — trimmée 2026-05-22 (intro condensée) pour passer sous le cap 39.5k
+│   ├─ operational-rules-ui-modals.md                 39k   Règles ❌ Modals & UI (extraite Sprint Drawer-Slide-Fix 2026-05-20 + étendue Sprints Modal/Skeleton/Dropdown/Enrich/Expense/Auto-Use/Recap/Income-Polish 2026-05-21 → 2026-05-22) — trimmée 2026-05-22 (intro condensée) pour passer sous le cap 39.5k
+│   └─ multi-env.md                                    6k   Workflow staging prod/dev (Supabase + Vercel + `.env.local` commenté) — créé 2026-05-27 avec la branche `dev`
 │
 └─ guardrails/
     └─ size-policy.md                                 17k   (ce fichier)
@@ -182,6 +183,7 @@ Pour les fichiers de référence à splitter (mode hors-CLAUDE.md) : compter les
 | `conventions/git-workflow.md`                                    | ~9k           | 39.5k     |
 | `conventions/operational-rules.md`                               | ~35k          | 39.5k     |
 | `conventions/operational-rules-ui-modals.md`                     | ~27k          | 39.5k     |
+| `conventions/multi-env.md`                                       | ~6k           | 39.5k     |
 | `guardrails/size-policy.md`                                      | ~17k          | 39.5k     |
 
 **Plafond dur 39.5k** s'applique uniformément. Cible 35-38k pour les fichiers "denses" (CLAUDE.md, roadmap parts). "Naturel" pour les autres (peuvent rester en-dessous sans gonflage).
@@ -201,9 +203,9 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-26 post-Sprint Projets-Épargne 02 closeout)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-27 post-Sprint Multi-Env)
 
-**45 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**46 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
 - 1× `CLAUDE.md` (~39.5k, en zone alerte 38-39.5k — split candidate)
 - 29× `.claude/history/roadmap-detailed-01..29-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Part 29 (~21k) Projets-Épargne sprints 01-02 ; Parts 25-28 récentes ~8-13k)
@@ -211,9 +213,9 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-37k — part-2 en zone alerte)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
 - 1× `.claude/reference/structure-repo.md` (~39.5k — en zone alerte, trim sprint 02 closeout)
-- 7× `.claude/conventions/{applied-balance-toggle,zod-patterns,typescript,logs-cleanup,git-workflow,operational-rules,operational-rules-ui-modals,user-questions}.md` (4-39k — operational-rules.md + operational-rules-ui-modals.md en zone alerte 38-39.5k)
+- 8× `.claude/conventions/{applied-balance-toggle,zod-patterns,typescript,logs-cleanup,git-workflow,multi-env,operational-rules,operational-rules-ui-modals,user-questions}.md` (4-39k — operational-rules.md + operational-rules-ui-modals.md en zone alerte 38-39.5k)
 - 1× `.claude/guardrails/size-policy.md` (~16k — ce fichier).
 
-**Sprint Projets-Épargne 02 closeout** : 4 fichiers édités (CLAUDE.md trim `(sans env vars)` + invariants bumpés ; operational-rules.md §4 EXPECTED_RPCS 16→25 + apply_recap_projects_snapshot + 3 sprint-02 helpers note ; structure-repo.md query-client.ts ligne raccourcie + useProjects.ts + finance/projects.ts ajoutés ; Part 29 +10.7k pour sprint 02 closeout ; plans/02 LIVRÉ banner). Aucun split déclenché.
+**Sprint Multi-Env (2026-05-27)** : création branche `dev` + workflow staging (2 projets Supabase + 2 projets Vercel). `.claude/conventions/multi-env.md` créé (6k) avec setup local (`.env.local` commenté) + setup Vercel-dev + scripts DB cross-env. CLAUDE.md trims §6 Git (branches main/dev) + §8 (middleware/self-update condensés) + §10 (pointeur multi-env + compression security note). `next-env.d.ts` gitignored + untracked (file regénéré localement par Next dev/build).
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.

@@ -181,8 +181,8 @@ ESLint global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cl
 
 ### Git
 
-- **Default branch GitHub : `cleanup`** (Sprint Hygiene-CI / E3). `main` reste figé.
-- Branches feature depuis `cleanup`
+- **Branches** : `main` = prod, `dev` = staging (chacune avec son Vercel + Supabase, cf. multi-env.md). Default GitHub : `cleanup` (legacy).
+- Branches feature depuis `dev`
 - **Conventional Commits** enforced via `commit-msg` hook (Sprint Commitlint chantier 24) : 11 types allowlist (`feat`, `fix`, `chore`, `docs`, `perf`, `test`, `refactor`, `style`, `revert`, `build`, `ci`). Config relaxée : `subject-case` OFF, `header-max-length 100`, `body-max-line-length` OFF.
 - **Un commit par item** dans les sprints multi-items
 - **Toujours créer un nouveau commit**, jamais `--amend` un commit publié
@@ -261,8 +261,8 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Écrire des docs `.md`** sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, sous-fichiers `.claude/`).
 - **Écrire la phrase littérale `eslint-disable-next-line`** dans un commentaire qui n'est PAS un disable directive (ESLint la parse comme rule "directive.").
 - **Trigger / handler-side cleanup pour FK** avant d'avoir vérifié `ON DELETE SET NULL` / `ON DELETE CASCADE` existant.
-- **Réintroduire `middleware.ts`** — la file convention Next.js est renommée `proxy.ts` au Next 16 (runtime nodejs non-edge non-configurable). Sprint Hygiene-Next-16-Migration 2026-05-20.
-- **`pnpm self-update`** sans target version explicite — bumpe silencieusement le pin `packageManager` à la dernière version (incident 2026-05-20 : pnpm@9.15.5 → pnpm@11.1.3 avec install incomplet `bin/` shims absents → ENOENT). Pattern correct : `pnpm self-update <version>` ou edit `package.json` `packageManager` manuellement + `pnpm install`.
+- **Réintroduire `middleware.ts`** — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20).
+- **`pnpm self-update`** sans target version explicite — bumpe silencieusement le pin `packageManager` (incident 2026-05-20). Pattern : `pnpm self-update <version>` ou edit `package.json` `packageManager` manuellement.
 
 ## 9. Tests
 
@@ -296,6 +296,8 @@ Détails Zod-client (Pattern A-H, useRavValidation, factory refines) → [.claud
 
 ## 10. Variables d'environnement
 
+> 📌 **Multi-env** : `.env.local` contient les blocs prod + dev (l'un commenté). Branche `main` = Vercel-prod + DB prod, `dev` = Vercel-dev + DB dev. Workflow + setup → [@.claude/conventions/multi-env.md](.claude/conventions/multi-env.md).
+
 `.env.local` (gitignored) doit contenir :
 
 ```
@@ -313,7 +315,7 @@ Pour les opérations CLI Supabase :
 ```
 SUPABASE_ACCESS_TOKEN=sbp_...        # https://supabase.com/dashboard/account/tokens
 SUPABASE_DB_PASSWORD=...             # Project Settings > Database > Reset password si oublié
-SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr  # optionnel — override le default prod (jzmppreybwabaeycvasz) pour pointer dev
+SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr  # optionnel — override default prod pour pointer dev
 ```
 
 Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`) ou persistés au niveau User env (`[Environment]::SetEnvironmentVariable(...)`), **jamais** committés dans un fichier.
@@ -322,7 +324,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 >
 > - ❌ **Interdit** : `Write-Output $env:SUPABASE_ACCESS_TOKEN`, `echo $env:SUPABASE_DB_PASSWORD`, `Get-Content .env.local`, ou toute commande qui rend la valeur visible dans le transcript.
 > - ✅ **Autorisé** : test de présence binaire (`if ($env:SUPABASE_ACCESS_TOKEN) { "OK" } else { "MISSING" }`) — ne révèle pas la valeur.
-> - ✅ **Autorisé** : laisser les scripts (`apply-sql.mjs`, `export-schema.mjs`, `check-rpcs.mjs`) lire `process.env.SUPABASE_ACCESS_TOKEN` en interne — la valeur ne transite pas par stdout/stderr.
+> - ✅ **Autorisé** : scripts lisant `process.env.*` en interne (la valeur ne transite pas par stdout/stderr).
 > - **Si une commande échoue avec "TOKEN_MISSING"** : demander à l'utilisateur de le set lui-même via `[Environment]::SetEnvironmentVariable(...)` puis redémarrer Claude Code. **Ne jamais** lui demander de coller le secret dans le chat.
 
 ## 11. Roadmap

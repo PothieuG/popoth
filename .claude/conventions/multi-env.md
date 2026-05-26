@@ -9,9 +9,8 @@
 | **Branche git**     | `main`                    | `dev`                      |
 | **Projet Supabase** | `jzmppreybwabaeycvasz`    | `ddehmjucyfgyppfkbddr`     |
 | **Projet Vercel**   | Existant (déjà configuré) | **Nouveau projet à créer** |
-| **Preset local**    | `.env.local.prod`         | `.env.local.dev`           |
 
-Les deux branches partent du même historique. La feature workflow standard :
+Les deux branches partent du même historique. Le workflow standard :
 
 1. Créer branche feature depuis `dev`
 2. Merger dans `dev` → déploie auto sur Vercel-dev (DB dev)
@@ -20,43 +19,32 @@ Les deux branches partent du même historique. La feature workflow standard :
 
 ## 2. Switch local entre prod et dev
 
-Deux commandes pnpm qui copient le bon preset vers `.env.local` :
+`.env.local` (un seul fichier) contient les **deux jeux de variables**, avec un seul bloc actif et l'autre commenté. Pour switcher : éditer `.env.local`, commenter/décommenter les blocs, redémarrer `pnpm dev` (Next charge `.env.local` au démarrage uniquement).
 
-```powershell
-pnpm env:dev    # .env.local.dev  -> .env.local
-pnpm env:prod   # .env.local.prod -> .env.local
+Pattern recommandé :
+
+```
+# === DEV (actif par défaut) ===
+NEXT_PUBLIC_SUPABASE_URL=https://ddehmjucyfgyppfkbddr.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<dev publishable>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<dev anon>
+SUPABASE_SERVICE_ROLE_KEY=<dev service role>
+
+# === PROD (commenté) ===
+# NEXT_PUBLIC_SUPABASE_URL=https://jzmppreybwabaeycvasz.supabase.co
+# NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<prod publishable>
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=<prod anon>
+# SUPABASE_SERVICE_ROLE_KEY=<prod service role>
+
+# Identiques aux deux environnements :
+JWT_SECRET_KEY=<...>
+LOG_LEVEL=debug
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-Puis relancer `pnpm dev` (le serveur Next charge `.env.local` au démarrage uniquement).
+**Setup initial** : récupérer les clés dev depuis [Project Settings → API du projet dev](https://supabase.com/dashboard/project/ddehmjucyfgyppfkbddr/settings/api) et les ajouter dans `.env.local` (en plus des prod déjà présentes, en commentaire). Par défaut tu travailles sur dev. Quand tu as besoin de pointer vers prod en local (très rare), tu inverses les commentaires.
 
-### Setup initial (une seule fois)
-
-1. **Sauver le `.env.local` actuel (= prod) comme `.env.local.prod`** :
-   ```powershell
-   Copy-Item .env.local .env.local.prod
-   ```
-2. **Récupérer les clés dev** depuis le dashboard Supabase :
-   [Project Settings → API](https://supabase.com/dashboard/project/ddehmjucyfgyppfkbddr/settings/api)
-3. **Créer `.env.local.dev`** avec les mêmes variables que `.env.local.prod` mais valeurs dev :
-
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://ddehmjucyfgyppfkbddr.supabase.co
-   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<dev publishable key>
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=<dev anon key>
-   SUPABASE_SERVICE_ROLE_KEY=<dev service role key>
-   JWT_SECRET_KEY=<dev jwt secret — peut être identique à prod>
-   LOG_LEVEL=debug
-   NEXT_PUBLIC_SITE_URL=http://localhost:3000
-   ```
-
-4. **Tester le switch** :
-   ```powershell
-   pnpm env:dev
-   pnpm dev
-   ```
-   Le serveur Next doit afficher le projet dev. Le script `switch-env.mjs` détecte et affiche le project ref du fichier copié.
-
-Les deux fichiers preset sont gitignored via le pattern `.env*.local` dans `.gitignore` (ligne 70). **Ne jamais commiter de secret**.
+`.env.local` reste gitignored via le pattern `.env*.local` dans `.gitignore`. **Ne jamais commiter de secret**.
 
 ## 3. Setup nouveau projet Vercel pour dev
 
@@ -80,7 +68,7 @@ Les deux fichiers preset sont gitignored via le pattern `.env*.local` dans `.git
 ## 4. Workflow quotidien recommandé
 
 1. **Branche feature depuis dev** : `git checkout dev && git pull && git checkout -b feature/<name>`
-2. **Code en local avec `.env.local` = dev** (`pnpm env:dev`)
+2. **Code en local avec `.env.local` pointant vers dev** (bloc dev actif, bloc prod commenté)
 3. **Push + merge sur dev** → Vercel déploie sur l'URL preview dev
 4. **Tester sur Vercel-dev** (réelle URL, DB dev, mêmes conditions que prod sauf data)
 5. **Merger dev → main** quand validé → Vercel déploie prod
@@ -133,7 +121,7 @@ Si la DB dev est vide / fresh : copier la baseline prod via `supabase db push --
 
 ## 7. Règle de sécurité (rappel)
 
-Les 4 fichiers `.env.local`, `.env.local.prod`, `.env.local.dev`, et tout autre `.env*.local` sont **gitignored** et contiennent des secrets. Claude **ne doit JAMAIS lire leurs valeurs** (règle absolue CLAUDE.md §10). Pour le user uniquement.
+Le fichier `.env.local` (et tout autre `.env*.local`) est **gitignored** et contient des secrets. Claude **ne doit JAMAIS lire ses valeurs** (règle absolue CLAUDE.md §10). Pour le user uniquement — y compris les blocs commentés contenant les clés prod ou dev.
 
 Test de présence binaire autorisé :
 

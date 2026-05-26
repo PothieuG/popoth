@@ -25,8 +25,6 @@
     "db:audit-functions": "node scripts/audit-functions.mjs",
     "db:audit-objects": "node scripts/audit-db-objects.mjs",
     "check:md-size": "node scripts/check-md-size.mjs",
-    "env:dev": "node scripts/switch-env.mjs dev",
-    "env:prod": "node scripts/switch-env.mjs prod",
     "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
     "ci": "pnpm typecheck && pnpm lint:check && pnpm format:check && pnpm test:run && pnpm build",
     "prepare": "husky"
