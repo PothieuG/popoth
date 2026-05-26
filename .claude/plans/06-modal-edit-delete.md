@@ -2,6 +2,8 @@
 
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet — spécifiquement la section "Modification" et "Suppression".
 
+> 🔗 **Sprint 05 livré 2026-05-26** ([Part 30](../history/roadmap-detailed-30-projets-epargne-modals.md)). `AddProjectDialog` est la référence d'implémentation à mirror. `makeProjectClientSchema` supporte déjà `currentProjectAllocation` + `amountSaved` pour le mode EDIT (delta-math, voir [lib/schemas/projects.ts](../../lib/schemas/projects.ts)). `useProjects().updateProject` + `deleteProject` sont déjà exposés depuis sprint 02.
+
 ## Objectif
 
 Permettre à l'utilisateur de modifier un projet existant (pré-rempli) et de le supprimer avec confirmation explicative. Le montant déjà épargné est reversé vers la tirelire à la suppression. Snackbar transient non-bloquant.
@@ -25,12 +27,13 @@ $env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
 
 ### 1. EditProjectDialog — `components/dashboard/EditProjectDialog.tsx`
 
-- Mirror `AddProjectDialog` mais pré-rempli avec `editing.{name, target_amount, monthly_allocation, deadline_date}`.
-- **Important** : le user a explicitement demandé "Le calcul doit tenir compte de l'argent déjà économisé" → le mode A "durée" calcule avec `(target - amount_saved) / monthly` pour la durée restante, et l'erreur min-duration utilise `(target - amount_saved) / margeDispo`.
+- Mirror `AddProjectDialog` (sprint 05) — même toggle 2 modes (durée pilote / mensuel pilote), même `useMemo(derivedDurationFromMonthly)` pour mode B (PAS de `setState` dans useEffect, sinon `react-hooks/set-state-in-effect` bloque le lint), même seed dans `handleToggleDuration` synchrone, même arrondi cents `ceil(target × 100 / duration) / 100`.
+- Pré-rempli avec `editing.{name, target_amount, monthly_allocation, deadline_date}` ; `defaultDuration` initiale dérivée de `monthsBetween(today, editing.deadline_date)`.
+- **Important** : le user a explicitement demandé "Le calcul doit tenir compte de l'argent déjà économisé" → passer `amountSaved={editing.amount_saved}` au factory `makeProjectClientSchema` (refine 2 utilise `target - amountSaved` pour le reste à atteindre). Le mode A "durée" continue à afficher `Tu épargneras X€/mois` avec `X = ceil((target - amountSaved) * 100 / duration) / 100`.
 - Pattern `key={editing.id}` sur le composant + `useState(() => ...editing.foo)` lazy (cf. [operational-rules.md §6](../conventions/operational-rules.md) Sprint 1.5 standard).
 - Parent wraps avec `{isEditProjectOpen && editingProject && <EditProjectDialog ... />}` pour lazy-mount.
-- Refine RAV : `(currentAllocatedTotal - editingProject.monthly_allocation + new.monthly) ≤ totalEstimatedIncome`.
-- `useProjects().updateProject` au submit.
+- Refine RAV via `currentProjectAllocation={editing.monthly_allocation}` au factory (le schéma fait déjà le delta `currentAllocatedTotal - currentProjectAllocation + d.monthlyAllocation`).
+- `useProjects().updateProject` au submit (signature `(projectId, input)` retournant `boolean`).
 
 ### 2. DeleteProjectConfirmDialog — réutiliser `<ConfirmationDialog>`
 
