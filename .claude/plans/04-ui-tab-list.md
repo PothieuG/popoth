@@ -1,5 +1,7 @@
 # Sprint 04 — UI : 3ème onglet "Projets" dans PlanningDrawer + ProjectListItem
 
+> ✅ **LIVRÉ 2026-05-26** sur branche `feature/projets-epargne`, commit `5255fa5`. Détails closeout → [Part 29](../history/roadmap-detailed-29-projets-epargne.md). Tests non-gated 680 → 695 (+15) ; lint baseline 0/0 préservée. Modals create/edit/delete = stubs `logger.info` (modal create/edit sprint 05, confirmation delete sprint 06).
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet.
 
 ## Objectif

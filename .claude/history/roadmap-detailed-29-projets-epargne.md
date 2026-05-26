@@ -252,3 +252,43 @@
   - Sprint 07 : drawer recap — affiche les projets actifs avec progression, alimenté par `meta.savingsProjects`.
   - Sprint 08-10 : refloat dans Bilan négatif + wiring `apply_recap_projects_snapshot` au sprint 10.
   - Sprint 11 : seeds + push prod + PR.
+
+---
+
+- ✅ **Sprint 04 — UI 3ème onglet "Projets" dans PlanningDrawer** (livré 2026-05-26, commit `5255fa5` sur branche `feature/projets-epargne`).
+
+  ### Périmètre
+
+  3ème onglet "Projets" (violet) au `PlanningDrawer` : liste avec cercle de progression SVG, nom, deadline fr-FR, mois restants, `amount_saved / target_amount`. Modifier/Supprimer câblés à `logger.info` stubs (modals sprint 05, confirmation suppression sprint 06). **0 modif backend / RAV / push prod**.
+
+  ### Modules livrés (1 nouveau + 4 modifiés)
+  - [`components/dashboard/ProjectListItem.tsx`](../../components/dashboard/ProjectListItem.tsx) (161 LOC) — cercle SVG 44 px (anneau purple-100 + arc purple-600 clampé 0–100, `% atteint` aria-label). À droite : nom truncate, échéance fr-FR + mois restants, `amount_saved` (purple-700) `/ target_amount` (gray-500) 0 décimales. DropdownMenu Modifier/Supprimer (icônes verbatim mirror Budget row).
+  - [`components/dashboard/PlanningDrawer.tsx`](../../components/dashboard/PlanningDrawer.tsx) — `TabType` étendu `'projets'`, 3ème bouton tab (purple-700, icône sparkles), wire `useProjects(context)` + `refreshProjects` dans `useEffect(isOpen)`, bloc erreur fusionné, tab content (header + total mensuel discret purple-50/50 + empty state + liste `data-testid="projects-list"`), 3 handlers stubs `handle{Add,Edit,Delete}ProjectStub` → `logger.info`.
+  - [`lib/finance/projects-meta.ts`](../../lib/finance/projects-meta.ts) — `formatDeadline(iso)` → `JJ/MM/AAAA` (parse `T00:00:00Z` UTC pour éviter TZ drift, fallback string brute si parse fail) + `formatMonthsRemaining(n)` → "N mois restants" / "1 mois restant" / "Échéance dépassée".
+  - [`components/__tests__/a11y-audit.test.tsx`](../../components/__tests__/a11y-audit.test.tsx) — mock `@tanstack/react-query` étendu avec `useMutation` + `useQueryClient` (PlanningDrawer pull maintenant `useProjects` indirect).
+
+  ### Tests livrés (15 cas non-gated)
+  - [`ProjectListItem.test.tsx`](../../components/dashboard/__tests__/ProjectListItem.test.tsx) (6 cas) : happy render (nom + 58% + deadline `01/05/2029` + montants), Modifier→onEdit, Supprimer→onDelete, over-funded clampé 100% visuel + ratio préservé, "Échéance dépassée" past, 0% guard `target_amount=0`.
+  - [`PlanningDrawer.test.tsx`](../../components/dashboard/__tests__/PlanningDrawer.test.tsx) (3 cas projets) : empty state, list render + total mensuel, Esc focus-trap regression-guard.
+  - [`projects-meta.test.ts`](../../lib/finance/__tests__/projects-meta.test.ts) (6 cas helpers) : `formatDeadline` happy + zero-pad + fallback ; `formatMonthsRemaining` pluriel/singulier/overdue.
+
+  ### Décisions de design
+  - **Stubs `logger.info` (vs `alert()`)** : `no-console` lint refuse `console.log` direct ; `alert()` invasif PWA mobile + casse focus-trap Radix ; `logger.info` gated via `LOG_LEVEL` env donc invisible prod.
+  - **Cercle SVG inline (vs réutilisation `BudgetProgressIndicator`)** : Budget indicator est barre horizontale, pas de pattern circulaire existant → inline 40 LOC, 2 `<circle>` (track + arc) avec `transition-[stroke-dashoffset]`. Réévaluer extraction si 2e usage émerge.
+  - **Violet** : palette "économies/cumulated_savings" — pas vert (revenus) ni orange (budgets). Sémantique "épargne dédiée à un objectif" proche tirelire.
+  - **Montant 0 décimales** (`4 084 €` vs `4 084,00 €`) : miroir `lib/contribution-calculator.ts::formatCurrency` (dashboard/contribution) vs `lib/format-currency.ts::formatEuro` (recap où le centime compte). Précision absolue exposée dans modal sprint 05.
+  - **Pas de `vi.useFakeTimers()`** dans ProjectListItem test : userEvent dépend de timers réels (sinon timeout 5s sur click→pointerdown→pointerup). Assertion "X mois restants" déléguée à `projects-meta.test.ts` (unit).
+  - **`useQueryClient` mock partial** : pattern existant mockait juste `useQuery`. Étendre le mock partial (ajouter exports manquants) plus simple qu'un partial-import `vi.mock(import('@tanstack/react-query'), async (importOriginal) => ...)` qui demanderait un `QueryClientProvider` wrapper.
+
+  ### Invariants bumpés
+  - **Tests non-gated passants** : 680 → 695 (+15 : 6 ProjectListItem + 3 PlanningDrawer projets + 6 projects-meta helpers).
+  - Lint baseline 0/0 préservée. Tests gated, routes API, EXPECTED_RPCS, fn DB versionnées inchangés.
+
+  ### Validation
+  - `pnpm typecheck` ✓ ; `pnpm lint:check` ✓ ; `pnpm test:run` ✓ (695/211 skipped, ~11s) ; `pnpm format:check` ✓ sur les 7 fichiers touchés.
+  - Vérif visuelle DevTools mobile **non effectuée côté CLI** — à valider par le user en `pnpm dev` avant push prod sprint 11.
+
+  ### Hors scope sprint 04 (à venir)
+  - Sprint 05 : modal `AddProjectDialog` / `EditProjectDialog` — 2 modes saisie (total OU mensuel), `makeProjectClientSchema` refines RAV ≥ 0 + cohérence durée/target, `computeDeadlineFromDuration` pré-remplit deadline.
+  - Sprint 06 : modal confirmation suppression (message crédit tirelire via `delete_savings_project_to_piggy`).
+  - Sprints 07-11 : drawer recap, refloat backend/UI, finalize wiring, seeds + push prod + PR.
