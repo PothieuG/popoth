@@ -1,5 +1,7 @@
 # Sprint 11 — Polishing, seeds, verify final, push prod
 
+> ✅ **LIVRÉ 2026-05-26** sur branche `feature/projets-epargne`, commit `15eab56`. Détails closeout → [Part 31](../history/roadmap-detailed-31-projets-epargne-finalize.md) sprint 11. Seed CLI `scripts/seed-recap/project-deficit-refloat.mjs` ajouté (cascade 4 étages, bilan -700€ exact cover). Push prod : 21 migrations appliquées (MRv3 stack + savings_projects + project_snapshot) après 3 drift repairs + 1 rename (`20260523000000_drop_legacy` → `20260523000001` pour résoudre collision timestamp). Baseline re-exportée + `lib/database.types.ts` regen contre prod. `pnpm verify` ✓ contre prod (758 tests / 223 skipped, 25 RPCs, 34 fn, drift OK). Toute la feature Projets-Épargne (sprints 01-11) est désormais en prod.
+
 > ⚠️ **Avant toute chose, relire la spec originale : [`.claude/plans/00-Readme.md`](./00-Readme.md)** pour avoir le contexte produit complet.
 
 ## Objectif

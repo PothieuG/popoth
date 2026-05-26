@@ -17,7 +17,7 @@ Créer la table `savings_projects` + 4 RPCs atomiques CRUD + RLS, en miroir des 
 
 ## Pré-lecture obligatoire
 
-- [supabase/migrations/20260520120000_*.sql](../../supabase/migrations/) — RPC `delete_budget_with_savings_transfer` (pattern à mimer exactement pour `delete_savings_project_to_piggy`)
+- [supabase/migrations/20260520120000\_\*.sql](../../supabase/migrations/) — RPC `delete_budget_with_savings_transfer` (pattern à mimer exactement pour `delete_savings_project_to_piggy`)
 - [supabase/migrations/20260506000000_create_finance_rpcs.sql](../../supabase/migrations/20260506000000_create_finance_rpcs.sql) — conventions RPC (`SECURITY DEFINER`, `REVOKE/GRANT`, `SET search_path`, `NOTIFY pgrst`)
 - [scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs) — le pin `EXPECTED_RPCS = 21` doit passer à 25
 - [.claude/conventions/git-workflow.md §11 RPC conventions](../conventions/git-workflow.md)

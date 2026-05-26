@@ -19,6 +19,25 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: false }),
 }))
 
+vi.mock('@/hooks/useFinancialData', () => ({
+  useFinancialData: () => ({
+    financialData: {
+      availableBalance: 1234.56,
+      remainingToLive: 78.9,
+      totalSavings: 0,
+      totalEstimatedIncome: 0,
+      totalEstimatedBudgets: 0,
+      totalRealIncome: 0,
+      totalRealExpenses: 0,
+    },
+    loading: false,
+    isFetching: false,
+    error: null,
+    context: 'profile',
+    refreshFinancialData: vi.fn(),
+  }),
+}))
+
 vi.mock('@/components/dashboard/AddTransactionModal', () => ({
   default: ({
     isOpen,
@@ -93,15 +112,27 @@ describe('CompleteMonthStep', () => {
     expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
   })
 
-  it('passes readOnly + dateRange of the recapped month to the tabs', () => {
+  it('passes dateRange of the recapped month to the tabs in full-interaction mode (no readOnly)', () => {
     render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
 
     const tabs = screen.getByTestId('transaction-tabs')
-    expect(tabs).toHaveAttribute('data-read-only', 'true')
+    // readOnly retiré : kebab Modifier/Supprimer + long-press Valider activés
+    // sur l'écran 2, exactement comme le Dashboard.
+    expect(tabs).toHaveAttribute('data-read-only', 'false')
     expect(tabs).toHaveAttribute('data-context', 'profile')
     expect(tabs).toHaveAttribute('data-range-start', '2026-05-01')
     // May has 31 days
     expect(tabs).toHaveAttribute('data-range-end', '2026-05-31')
+  })
+
+  it('renders Solde Disponible + Reste à Vivre cards with formatted amounts from useFinancialData', () => {
+    render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
+
+    expect(screen.getByText('Solde Disponible')).toBeInTheDocument()
+    expect(screen.getByText('Reste à Vivre')).toBeInTheDocument()
+    // Intl format fr-FR : "1 234,56 €" / "78,90 €" (NBSP entre nombre et symbole)
+    expect(screen.getByText(/1.?234,56/)).toBeInTheDocument()
+    expect(screen.getByText(/78,90/)).toBeInTheDocument()
   })
 
   it('computes the last day of February correctly (28 days non-leap)', () => {

@@ -171,7 +171,8 @@ runScenario('random-profile', async () => {
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0)
   const totalRealIncomes = realIncomes.reduce((s, ri) => s + ri.amount, 0)
   const surplus = totalEstimated - totalSpent
-  const sign = surplus > 0 ? `positif (~+${surplus}€)` : surplus < 0 ? `négatif (~${surplus}€)` : 'équilibré'
+  const sign =
+    surplus > 0 ? `positif (~+${surplus}€)` : surplus < 0 ? `négatif (~${surplus}€)` : 'équilibré'
 
   printPostSeedInstructions({
     scenarioKey: 'random-profile',
@@ -186,7 +187,10 @@ runScenario('random-profile', async () => {
       'Solde bancaire': bank,
       'Nb budgets': nBudgets,
       Budgets: chosenBudgets
-        .map((b) => `${b.name} ${b.estimated_amount}€${b.cumulated_savings ? ` (+${b.cumulated_savings}€ éco)` : ''}`)
+        .map(
+          (b) =>
+            `${b.name} ${b.estimated_amount}€${b.cumulated_savings ? ` (+${b.cumulated_savings}€ éco)` : ''}`,
+        )
         .join(', '),
       'Total estimé': totalEstimated,
       'Total dépensé': totalSpent,

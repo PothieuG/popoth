@@ -5,9 +5,13 @@ import { useMemo, useState } from 'react'
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useFinancialData } from '@/hooks/useFinancialData'
 import { useAdvanceStep } from '@/hooks/useMonthlyRecap'
 import type { DateRange } from '@/lib/finance/period'
+import { formatEuro } from '@/lib/format-currency'
 import type { RecapContext } from '@/lib/recap'
+import { cn } from '@/lib/utils'
 
 const ADVANCE_ERROR_COPY: Record<string, string> = {
   not_initiator: "Tu n'es pas l'initiateur du récap. Recharge la page.",
@@ -24,37 +28,130 @@ interface CompleteMonthStepProps {
   recapMonth: number
 }
 
-/**
- * Sprint Complete-Month-Step (2026-05-29). Étape 2/6 du wizard récap mensuel.
- *
- * Insérée entre `WelcomeStep` (étape 1) et `SummaryStep` (étape 3). Permet à
- * l'utilisateur d'ajouter des dépenses ou revenus oubliés du mois recapé
- * avant que le bilan général soit affiché — sans cela, le calcul de RAV
- * effectif et de bilan serait basé sur des chiffres incomplets et les
- * ré-équilibrages tirelire/économies de l'étape `manage_bilan` seraient
- * faussés.
- *
- * Layout (mobile-first, ≤ 430 px) :
- *   1. Titre "Compléter le mois" (cohérent avec frieze).
- *   2. Phrase d'explication.
- *   3. Bouton "Ajouter une transaction" → ouvre `AddTransactionModal` avec
- *      `defaultDate` au dernier jour du mois recapé + bornes `dateMin/dateMax`
- *      qui contraignent le date picker natif.
- *   4. `TransactionTabsComponent` en mode `readOnly` (pas de kebab, pas de
- *      long-press, pas de tap) filtré par `recapMonthRange`. Réutilisation
- *      1:1 du composant Dashboard (sprint user explicite : "ne réutiliser
- *      que cette partie").
- *   5. Bouton "Continuer" → advance `complete_month → summary`. Géré 'stale_step'
- *      silencieusement (l'invalidation du cache fait re-router le wizard).
- *
- * Toujours possible de continuer même avec une liste vide (cas nominal :
- * l'utilisateur n'a rien à corriger).
- */
+function amountColor(amount: number): string {
+  if (amount > 0) return 'text-green-600'
+  if (amount < 0) return 'text-red-600'
+  return 'text-gray-500'
+}
+
+function amountBg(amount: number): string {
+  if (amount > 0) return 'bg-green-50/50 border-green-200'
+  if (amount < 0) return 'bg-red-50/50 border-red-200'
+  return 'bg-gray-50/50 border-gray-200'
+}
+
+function amountIconBg(amount: number): string {
+  if (amount > 0) return 'bg-green-600'
+  if (amount < 0) return 'bg-red-600'
+  return 'bg-gray-500'
+}
+
+interface BalanceRavCardsProps {
+  availableBalance: number
+  remainingToLive: number
+  isFetching: boolean
+}
+
+// Mini-version des 2 premières cards de `FinancialIndicators` (Dashboard) —
+// `FinancialIndicators` entier traîne Économies + Planification + drawers
+// non pertinents pour le wizard.
+function BalanceRavCards({ availableBalance, remainingToLive, isFetching }: BalanceRavCardsProps) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <div
+        className={cn(
+          'rounded-xl border p-2 shadow-xs transition-all duration-200',
+          amountBg(availableBalance),
+        )}
+      >
+        <div className="flex flex-col items-center space-y-1 text-center">
+          <div
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+              amountIconBg(availableBalance),
+            )}
+          >
+            <svg
+              className="h-4 w-4 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+              />
+            </svg>
+          </div>
+          <div className="w-full min-w-0">
+            <p className="mb-1 text-xs font-medium text-gray-600">Solde Disponible</p>
+            {isFetching ? (
+              <Skeleton className="mx-auto h-6 w-20" />
+            ) : (
+              <p className={cn('truncate text-lg font-bold', amountColor(availableBalance))}>
+                {formatEuro(availableBalance)}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div
+        className={cn(
+          'rounded-xl border p-2 shadow-xs transition-all duration-200',
+          amountBg(remainingToLive),
+        )}
+      >
+        <div className="flex flex-col items-center space-y-1 text-center">
+          <div
+            className={cn(
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+              amountIconBg(remainingToLive),
+            )}
+          >
+            <svg
+              className="h-4 w-4 text-white"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
+          <div className="w-full min-w-0">
+            <p className="mb-1 text-xs font-medium text-gray-600">Reste à Vivre</p>
+            {isFetching ? (
+              <Skeleton className="mx-auto h-6 w-20" />
+            ) : (
+              <p className={cn('truncate text-lg font-bold', amountColor(remainingToLive))}>
+                {formatEuro(remainingToLive)}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Étape 2/6 — corriger les transactions oubliées avant que SummaryStep ne
+// calcule le bilan : sans ce gate, le RAV effectif et les ré-équilibrages
+// `manage_bilan` seraient faussés.
 export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMonthStepProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const advanceMutation = useAdvanceStep(context)
+  const { financialData, isFetching } = useFinancialData(context)
 
   // Bornes ISO YYYY-MM-DD inclusives du mois recapé. `Date(year, month, 0)` =
   // dernier jour du mois précédent (paramètre `month` 0-indexed) — comme
@@ -110,12 +207,13 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
         Ajouter une transaction
       </Button>
 
-      <TransactionTabsComponent
-        context={context}
-        dateRange={dateRange}
-        readOnly
-        className="min-h-[280px]"
+      <BalanceRavCards
+        availableBalance={financialData?.availableBalance ?? 0}
+        remainingToLive={financialData?.remainingToLive ?? 0}
+        isFetching={isFetching || !financialData}
       />
+
+      <TransactionTabsComponent context={context} dateRange={dateRange} className="min-h-[280px]" />
 
       <Button
         onClick={handleNext}
