@@ -203,12 +203,12 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-27 post-Sprint PWA-Standalone-Polish)
+## 11. Fichiers concernés par cette règle (inventaire 2026-05-27 post-Sprints Carryover-Fixes)
 
 **50 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
 - 1× `CLAUDE.md` (~39k post-trim §3 commandes Sprint PWA-Standalone-Polish — sortie zone alerte vers ~38-39k stable)
-- 33× `.claude/history/roadmap-detailed-01..33-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-33 récentes ~8-23k ; Part 33 (~13k) PWA-Standalone-Polish)
+- 34× `.claude/history/roadmap-detailed-01..34-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-34 récentes ~8-23k ; Part 34 (~17k) carryover-fixes étendue post-PWA)
 - 2× `.claude/history/sprint-chronology{,-part-2}.md` (~39k + ~34k — Part 1 gelée 2026-05-22, Part 2 créée 2026-05-24)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-37k — part-2 en zone alerte)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
@@ -219,5 +219,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **Sprint Multi-Env (2026-05-27)** : création branche `dev` + workflow staging (2 projets Supabase + 2 projets Vercel). `.claude/conventions/multi-env.md` créé (6k) avec setup local (`.env.local` commenté) + setup Vercel-dev + scripts DB cross-env. CLAUDE.md trims §6 Git (branches main/dev) + §8 (middleware/self-update condensés) + §10 (pointeur multi-env + compression security note). `next-env.d.ts` gitignored + untracked (file regénéré localement par Next dev/build).
 
 **Sprint PWA-Standalone-Polish (2026-05-27)** : polish PWA expérience app native immersive (iOS + Android). Part 33 créée (~13k). CLAUDE.md §3 commands trims aggressifs (12 lignes raccourcies) pour absorber l'ajout `pnpm pwa:assets` + l'entrée §11 Part 33 sous le cap 39.5k. §5 trim ligne `Globals: 0 declare global` (redondant avec §5.5 invariants) + compaction `Distinction calculs finance`. Prettier reformatage post-edit a réaligné le tableau sur la nouvelle largeur max (CLAUDE.md 39,492 → 39,070, gain ~420 chars via padding shrink). Aucune autre extension `.claude/` modifiée hormis size-policy (ce fichier) et création Part 33.
+
+**Sprints Carryover-Fixes (2026-05-27)** : 3 commits consécutifs (`90a890f` + `ef44067` + `5b69bb9`) qui corrigent l'omission de `carryover_spent_amount` dans 4 routes API (`expenses-preview-breakdown`, `expenses-add-with-logic`, `expenses-real` PUT, `expenses-progress`) + 1 calcul client (`EditTransactionModal.editBudgetSpentPostReverse`). Part 34 étendue de ~7k à ~17k (3 sections ajoutées : Sprint Fix-Preview-Allocation-Carryover + Follow-up Fix-Progress-Route-Carryover + Follow-up Fix-Edit-Encart-Carryover). CLAUDE.md §5.5 invariant Tests 791→793, §11 État global réécrit pour mentionner "4 sprints de fix livrés", §11 Part 34 label "(3) → (6)". `.claude/conventions/operational-rules.md` §5 RAV formula : nouvelle règle ❌ 1-ligne pointant Part 34 + compaction du bullet `persisted-then-override` (libéré ~120 chars pour rester sous le cap 39.5k).
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
