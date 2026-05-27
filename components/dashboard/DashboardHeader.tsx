@@ -44,7 +44,7 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
   }, [context, profile?.group_id, fetchGroupMembers])
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
+    <nav className="pt-safe sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
       <div className="flex items-center justify-between p-4">
         {context === 'profile' ? (
           <UserInfoNavbar

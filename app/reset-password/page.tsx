@@ -14,7 +14,7 @@ export default function NouveauMotDePassePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50">
           <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600"></div>
         </div>
       }
@@ -148,7 +148,7 @@ function NouveauMotDePasseContent() {
   // Loading state while validating token
   if (validatingToken) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="space-y-2 text-center">
             <h1 className="bg-linear-to-r from-blue-600 to-purple-600 bg-clip-text text-4xl font-bold text-transparent">
@@ -166,7 +166,7 @@ function NouveauMotDePasseContent() {
   // Invalid token state
   if (!isValidToken) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-6">
           {/* Header */}
           <div className="space-y-2 text-center">
@@ -219,7 +219,7 @@ function NouveauMotDePasseContent() {
   // Success state
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-6">
           {/* Header */}
           <div className="space-y-2 text-center">
@@ -276,7 +276,7 @@ function NouveauMotDePasseContent() {
 
   // Main form state
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+    <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">

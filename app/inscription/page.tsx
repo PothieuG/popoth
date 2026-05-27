@@ -100,7 +100,7 @@ export default function InscriptionPage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="space-y-3 text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
@@ -134,7 +134,7 @@ export default function InscriptionPage() {
   const fieldErrors = form.formState.errors
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+    <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">

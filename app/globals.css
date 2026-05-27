@@ -119,6 +119,24 @@
   }
 }
 
+/* PWA safe-area utilities — apply env(safe-area-inset-*) for iPhone notch / home
+   indicator / landscape bezels. Combined with viewport-fit=cover + apple status
+   bar black-translucent (cf. app/layout.tsx), let the app extend edge-to-edge
+   while keeping content out of system reserved zones. On Android / non-notched
+   devices, the env() values resolve to 0 — no-op. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
 @layer base {
   /* Mobile UI density: rem-based Tailwind utilities scale down ~3 % from this root. */
   :root {

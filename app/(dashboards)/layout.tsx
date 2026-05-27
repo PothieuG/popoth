@@ -74,7 +74,7 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
   const hasGroup = !!profile?.group_id
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-blue-50/50">
+    <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
       <DashboardHeader context={context} onOpenMenu={() => setIsMenuOpen(true)} />
 
       <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{children}</main>

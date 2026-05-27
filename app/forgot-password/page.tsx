@@ -83,7 +83,7 @@ export default function MotDePasseOubliePage() {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+      <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
         <div className="w-full max-w-md space-y-6">
           {/* Header */}
           <div className="space-y-2 text-center">
@@ -141,7 +141,7 @@ export default function MotDePasseOubliePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-6">
+    <div className="pt-safe pb-safe flex min-h-screen items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="space-y-2 text-center">

@@ -18,7 +18,7 @@ interface RecapShellProps {
 
 export function RecapShell({ children, headerLabel }: RecapShellProps) {
   return (
-    <div className="fixed inset-0 flex flex-col overflow-y-auto bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="pt-safe pb-safe pl-safe pr-safe fixed inset-0 flex flex-col overflow-y-auto bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="mx-auto w-full max-w-sm flex-1 px-4 py-6">
         {headerLabel && (
           <div className="mb-4 flex justify-center">
