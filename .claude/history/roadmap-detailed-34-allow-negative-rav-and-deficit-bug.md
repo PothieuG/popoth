@@ -218,3 +218,55 @@ Fallback local pour edge case "budget tout neuf sans `spent_this_month`". Pour l
 **Bonus** — commentaire trompeur dans [hooks/useBudgets.ts:18](../../hooks/useBudgets.ts) ("Champ legacy, plus utilisé") corrigé : `carryover_spent_amount` EST utilisé partout (financial-data.ts deficit loop, budgets-estimated.ts spent_this_month, et désormais les 4 routes expenses + 1 modal client).
 
 Tests 793 inchangés. Lint 0/0, typecheck OK.
+
+---
+
+## Sprint Fix-Recap-Surplus-Inconsistency (2026-05-27)
+
+**Contexte** — Bug critique remonté par l'user : récap mensuel d'un groupe, étape "Compléter le mois" (step 2 du wizard), user ajoute volontairement une dépense qui explose son unique budget → display dashboard `11000/1000`, RAV `-9700€`. Il avance à l'étape suivante (`SummaryStep`, step 3) et le champ "Surplus total des budgets" affiche `+1000€` au lieu de `0€` — comme si le budget de 1000€ n'avait rien dépensé. Sémantiquement absurde : un budget overspent ne peut pas avoir de surplus à transformer en économie.
+
+**Cause racine** — Inconsistance unique et bien localisée dans [lib/recap/load-summary.ts](../../lib/recap/load-summary.ts) ligne 95 : l'agrégation `spentThisMonth` par budget filtrait `.not('applied_to_balance_at', 'is', null)` — seules les dépenses "validées via appui long" étaient comptées. Or les RPCs `add_expense_with_breakdown` / `add_expense_with_cross_budget_cascade` (migrations `20260517000000`, `20260519000000`, `20260531010000`) n'écrivent JAMAIS la colonne `applied_to_balance_at` → toute nouvelle dépense est créée `applied_to_balance_at = NULL` → ignorée par `loadRecapSummary`. Résultat : pour le budget cap=1000 avec 11000€ ajoutés non-validés, `spentThisMonth = 0`, `surplus = max(0, 1000 - 0) = 1000€`.
+
+Aucun autre site ne filtrait `applied_to_balance_at` : la RAV ([financial-data.ts:137](../../lib/finance/financial-data.ts)), le widget dashboard ([expenses-progress.ts:60](../../lib/api/finance/expenses-progress.ts), source du display `11000/1000`), la cascade preview/add ([expenses-add-with-logic.ts:173](../../lib/api/finance/expenses-add-with-logic.ts), [expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts)) comptaient toutes les dépenses non-carry-over. Seul `lib/recap/load-summary.ts` filtrait → bug isolé.
+
+**Choix design (user 2026-05-27)** — 3 options proposées via `AskUserQuestion` en business language :
+
+- (A) Aligner le calcul récap sur le reste de l'app (1 ligne retirée + bonus carryover inclus). **Choisi.**
+- (B) Auto-valider les dépenses ajoutées pendant le wizard `CompleteMonthStep` (plus invasif, RPC + modal).
+- (C) Les deux (defense in depth).
+
+L'option A garde la sémantique long-press appui pour le solde bancaire intacte côté flow d'ajout (le wizard ne change pas), mais aligne le calcul interne.
+
+**Fix appliqué (2 changements)** :
+
+1. [lib/recap/load-summary.ts](../../lib/recap/load-summary.ts) ligne 95 — retrait du filtre `.not('applied_to_balance_at', 'is', null)` + maj docstring lignes 9-14 pour documenter le nouveau filtre (seulement `is_carried_over=false` + `expense_date` mois courant). Le filtre `applied_to_balance_at` ne pilote QUE le solde bancaire, pas le RAV ni le surplus — miroir explicite de `_loadFinancialData` ligne 137.
+2. [lib/recap/calculations.ts](../../lib/recap/calculations.ts) ligne 73 — inclusion de `carryoverSpentAmount` dans `effectiveSpent` :
+
+   ```ts
+   const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
+   const carryoverSpent = b.carryoverSpentAmount ?? 0
+   const effectiveSpent = b.spentThisMonth + carryoverSpent + transferredToPiggy
+   ```
+
+   Le `carryoverSpentAmount` était déjà passé par `loadRecapSummary` (ligne 132 actuelle) mais ignoré par `computeRecapSummary`. Sémantique alignée avec `_loadFinancialData` deficit loop : `deficit = MAX(0, spent_current_month + carryover - estimated)`. Le pattern miroir s'applique au surplus (l'inverse mathématique). Sans cette inclusion, un budget avec dette reportée non-soldée affichait à tort un surplus = `estimated` tant que le mois courant n'a pas re-saturé le cap.
+
+**Tests régression-guards** (2 nouveaux cas dans [lib/recap/\_\_tests\_\_/calculations.test.ts](../../lib/recap/__tests__/calculations.test.ts)) :
+
+1. `'includes carryoverSpentAmount in effectiveSpent for surplus/deficit calc'` : cap=1000, carryover=500, spent=200 → effectiveSpent=700, surplus=300 (et non 800 si carryover oublié).
+2. `'overspent budget shows zero surplus + positive deficit (regression: surplus=1000 bug)'` : cap=1000, spent=11000 (le scénario user repro) → surplus=0, deficit=10000, totalSurplus=0.
+
+Tests 793 → 795 non-gated. Tests gated `SUPABASE_RECAP_TESTS=1` non touchés (les seeds existants utilisaient des dépenses applied — devient un no-op après fix). Lint 0/0, typecheck OK.
+
+**Vérification manuelle attendue** (sur dev `ddehmjucyfgyppfkbddr`) :
+
+- `node scripts/seed-recap/_init-recap.mjs --group` → reset row monthly_recaps du mois courant.
+- `/group-dashboard` → wizard `Bienvenue` → `Démarrer` → étape `Compléter le mois`.
+- Ajouter une dépense 11000€ sur le seul budget (cap 1000€) **sans long-press**.
+- `Continuer` → `SummaryStep` doit afficher : RAV effectif ≈ -9700€, **"Surplus total des budgets" = 0€** ✓ (était 1000€ avant fix), bilanSign négatif → étape suivante route vers `BilanNegativeStep`.
+
+**Pattern installé** — Tout calcul d'agrégat "spent this month" dans le récap (`lib/recap/*`) DOIT inclure `carryover_spent_amount` ET ne PAS filtrer `applied_to_balance_at`. Le filtre `applied_to_balance_at` est exclusivement pertinent pour les ops mutant `bank_balances.balance` (toggle apply, finalize delete vs carry). Documenté comme règle ❌ unique dans [.claude/conventions/operational-rules.md](../conventions/operational-rules.md) §5 RAV formula (fusionnée avec la règle carryover existante).
+
+**Hors scope (à signaler si user le demande plus tard)** :
+
+- **Double-comptage potentiel post-finalize** : avec le fix, une dépense non-validée compte dans le bilan-négatif actuel. Si le user passe par la cascade et capture un snapshot déficit, puis valide la dépense le mois suivant (la dépense est carry-over post-finalize via le filet `process_recap_transactions`), elle s'ajoute aux spent du mois suivant — double-impact potentiel sur la budget remaining. Cas pré-existant aujourd'hui (le bilan-négatif déjà couvrait les dépenses applied) mais devient plus accessible. À discuter en sprint suivant si le user en fait l'expérience.
+- **État ouvert "carryover_spent_amount ≥ estimated"** : les 5 pistes listées au sprint précédent (cap auto, refloat bank, repartir à zéro, décompose visuel, decouple formula) restent à arbitrer indépendamment.

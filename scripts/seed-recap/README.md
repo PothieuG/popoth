@@ -91,7 +91,24 @@ Le `_reset` :
 
 Les data des autres mois (sauf les flags carry-over) sont préservées.
 
-## Catalogue des 27 scénarios
+### Init recap (sans toucher aux données)
+
+Pour relancer le wizard sur tes **données réelles** (intactes) :
+
+```powershell
+node scripts/seed-recap/_init-recap.mjs              # profile A (défaut)
+node scripts/seed-recap/_init-recap.mjs --group      # group G uniquement
+node scripts/seed-recap/_init-recap.mjs --both       # profile A + group G
+```
+
+Le `_init-recap` :
+
+- DELETE **uniquement** la row `monthly_recaps` du mois courant
+- **Ne touche pas** : budgets, expenses, incomes, piggy_bank, bank_balances, savings_projects
+
+Le proxy gating détectera "no_recap" → redirect /dashboard vers /monthly-recap → tu cliques "Démarrer" → POST /start recrée la row → wizard se déroule sur tes données réelles.
+
+## Catalogue des scénarios
 
 | Catégorie                   | Key                                          | Contexte | UX attendue                                                                                  |
 | --------------------------- | -------------------------------------------- | -------- | -------------------------------------------------------------------------------------------- |
@@ -106,7 +123,10 @@ Les data des autres mois (sauf les flags carry-over) sont préservées.
 |                             | `deficit-savings-pool-equal-deficit`         | profile  | Déficit -250€, pool savings exactement 250€ → pool vidé à 0                                  |
 | **Déficit cascade full**    | `deficit-cascade-full`                       | profile  | Déficit -500€ : piggy 100€ + savings 100€ + snapshot 300€                                    |
 |                             | `deficit-cascade-savings-empty-budgets-only` | profile  | Déficit -400€, tout sur snapshot (rien d'autre)                                              |
-|                             | `deficit-cascade-extreme`                    | profile  | Déficit -2000€ sur 5 budgets — catastrophe budgétaire                                        |
+|                             | `deficit-cascade-extreme`                    | profile  | Déficit -3500€ sur 5 budgets — overshoot snapshot ~233%/budget (⚠ badges)                    |
+| **Projets d'épargne**       | `project-deficit-refloat`                    | profile  | Déficit -700€, 4 projets actifs (dont 1 quasi-fini 95%) — cascade 4 étages exact cover       |
+|                             | `project-deficit-stops-before`               | profile  | Déficit -150€, 2 projets actifs intacts — cascade s'arrête après savings (`unneeded`)        |
+|                             | `project-deficit-catastrophe`                | profile  | Déficit -4000€, 2 projets drainés à 100% + snapshot overshoot ~470%/budget                   |
 | **Groupe**                  | `group-positive-2-members`                   | group    | Bilan groupe +450€ (A+B salaires 2500/2500)                                                  |
 |                             | `group-deficit-2-members`                    | group    | Déficit -300€, cascade complète, salary update 2 inputs                                      |
 |                             | `group-mixed-salaries`                       | group    | A=3500€/B=1500€, déficit 200€, recalc proportionnel contributions                            |

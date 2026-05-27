@@ -112,6 +112,58 @@ describe('computeRecapSummary', () => {
     expect(result.budgets[0]?.surplus).toBe(0)
   })
 
+  it('includes carryoverSpentAmount in effectiveSpent for surplus/deficit calc', () => {
+    // Sprint Fix-Recap-Surplus-Inconsistency (2026-05-27). Budget cap 1000€,
+    // dette reportée 500€, dépensé 200€ ce mois → effectiveSpent=700,
+    // surplus=300 (et non 800 si carryover oublié). Miroir du deficit loop
+    // dans lib/finance/financial-data.ts ligne 213-216.
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'Courses',
+          estimatedAmount: 1000,
+          spentThisMonth: 200,
+          cumulatedSavings: 0,
+          carryoverSpentAmount: 500,
+        },
+      ],
+    })
+
+    expect(result.budgets[0]?.surplus).toBe(300)
+    expect(result.budgets[0]?.deficit).toBe(0)
+    expect(result.totalSurplus).toBe(300)
+  })
+
+  it('overspent budget shows zero surplus + positive deficit (regression: surplus=1000 bug)', () => {
+    // Sprint Fix-Recap-Surplus-Inconsistency (2026-05-27). Bug repro user :
+    // single budget cap 1000, dépense ajoutée 11000 (non-validée). Pre-fix,
+    // load-summary filtrait `applied_to_balance_at IS NOT NULL` → spent=0 →
+    // surplus=1000. Post-fix, le filtre est retiré + carryover inclus →
+    // surplus=0, deficit=10000, bilan négatif.
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'Courses',
+          estimatedAmount: 1000,
+          spentThisMonth: 11000,
+          cumulatedSavings: 0,
+        },
+      ],
+    })
+
+    expect(result.totalSurplus).toBe(0)
+    expect(result.budgets[0]?.surplus).toBe(0)
+    expect(result.budgets[0]?.deficit).toBe(10000)
+  })
+
   it('returns zero totals when budgets array is empty', () => {
     const result = computeRecapSummary({
       ...baseInput,

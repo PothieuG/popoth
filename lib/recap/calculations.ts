@@ -70,7 +70,13 @@ export function computeRecapSummary(input: {
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
     const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
-    const effectiveSpent = b.spentThisMonth + transferredToPiggy
+    const carryoverSpent = b.carryoverSpentAmount ?? 0
+    // Sprint Fix-Recap-Surplus-Inconsistency (2026-05-27) — miroir de
+    // `_loadFinancialData` deficit loop : `deficit = MAX(0, spent_current_month
+    // + carryover - estimated)`. Sans `carryoverSpent` dans `effectiveSpent`,
+    // un budget avec dette reportée non-soldée afficherait à tort un surplus
+    // = estimated tant que le mois courant n'a pas re-saturé le cap.
+    const effectiveSpent = b.spentThisMonth + carryoverSpent + transferredToPiggy
     const { surplus, deficit } = computeBudgetSurplus(b.estimatedAmount, effectiveSpent)
     return {
       budgetId: b.budgetId,

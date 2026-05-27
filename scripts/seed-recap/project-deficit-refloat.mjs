@@ -1,5 +1,6 @@
 // Scénario "project-deficit-refloat" — cascade complète bilan négatif AVEC
-// renflouement via 2 projets d'épargne actifs.
+// renflouement via 4 projets d'épargne actifs (dont 1 quasi-fini à 95% du
+// target).
 //
 // Objectif : exercer les 4 étages de la cascade du BilanNegativeStep dans
 // l'ordre (piggy → savings → projets → budgets) avec un déficit calibré
@@ -7,27 +8,35 @@
 // doit afficher un bouton "Utiliser X€" cliquable, puis passer en done.
 //
 // Math du déficit (en €) :
-//   salaire             = 1500
-//   estimatedBudgets    = 200 (Courses) + 200 (Japon allocation) + 150 (Voiture allocation) = 550
+//   salaire             = 2500
+//   estimatedBudgets    = 200 (Courses) + 200+150+100+50 (4 projets) = 700
 //   real expenses       = 900 (sur Courses) → budgetDeficit(Courses) = 900-200 = 700
-//   ravEstime           = 1500 - 550 = 950
-//   ravEffectif         = 1500 - 550 - 700 = 250
-//   bilan               = ravEffectif - ravEstime = 250 - 950 = -700
+//   ravEstime           = 2500 - 700 = 1800
+//   ravEffectif         = 2500 - 700 - 700 = 1100
+//   bilan               = ravEffectif - ravEstime = 1100 - 1800 = -700
 //
 // Cascade -700€ :
 //   piggy 100€            →   600 restants
 //   savings 50€ (Courses) →   550 restants
-//   projets 350€ (max)    →   200 restants  (split proportionnel 200/350 Japon + 150/350 Voiture)
-//   budgets snapshot 200€ →     0 restant   (pool = Courses estimated_amount)
+//   projets 500€ (max)    →    50 restants  (split proportionnel sur les 4 projets,
+//                                            chacun capé à son monthly_allocation)
+//   budgets snapshot 50€  →     0 restant   (pool = Courses estimated_amount 200€)
 //
 // État final attendu : déficit = 0 → "Continuer" actif → écran salary → finalize.
 // À la finalize, la RPC `apply_recap_projects_snapshot` (sprint 01 + sprint 10
 // wiring) doit créditer chaque projet du delta `monthly_allocation - refund`
-// puis appliquer le décalage d'échéance fractionnaire ou entier.
+// (= 0 ici, refund = monthly entier) puis appliquer le décalage d'échéance
+// fractionnaire ou entier.
 //
-// Pour les 2 projets seedés :
-//   • Japon  : target 7000€, monthly 200€, saved 1200€, deadline 2027-12-01
-//   • Voiture : target 5000€, monthly 150€, saved  600€, deadline 2027-06-01
+// Les 4 projets seedés (illustrent différents états de progression) :
+//   • Japon          : target 7000€, monthly 200€, saved 1200€ (17%), deadline 2027-12-01
+//   • Voiture        : target 5000€, monthly 150€, saved  600€ (12%), deadline 2027-06-01
+//   • Vacances       : target 5000€, monthly 100€, saved 4750€ (95% — QUASI-FINI), deadline 2026-08-01
+//   • Électroménager : target 1500€, monthly  50€, saved  200€ (13%), deadline 2028-06-01
+//
+// Le projet "Vacances" est volontairement à 95% du target pour exercer l'UX
+// "projet bientôt terminé" et vérifier que l'allocation mensuelle peut être
+// renoncée sans envoyer le projet au-delà de son target.
 //
 // Usage :
 //   node scripts/seed-recap/project-deficit-refloat.mjs
@@ -59,7 +68,7 @@ runScenario('project-deficit-refloat', async () => {
   }
 
   // 2. Setup financier de base — salaire + tirelire + solde bancaire.
-  await setProfileSalary(USER_A_ID, 1500)
+  await setProfileSalary(USER_A_ID, 2500)
   await setPiggy({ profile_id: USER_A_ID }, 100)
   await setBank({ profile_id: USER_A_ID }, 2000)
 
@@ -79,29 +88,48 @@ runScenario('project-deficit-refloat', async () => {
     },
   ])
 
-  // 5. 2 projets actifs — total allocation mensuelle = 350€ (consomme 350€
-  // de la marge théorique sur l'estim budgets via le wiring sprint 03).
-  const { error: japonError } = await supabase.from('savings_projects').insert({
-    profile_id: USER_A_ID,
-    name: 'Voyage Japon',
-    target_amount: 7000,
-    monthly_allocation: 200,
-    amount_saved: 1200,
-    deadline_date: '2027-12-01',
-    pending_delay_fraction: 0,
-  })
-  if (japonError) throw new Error(`INSERT savings_projects Japon: ${japonError.message}`)
+  // 5. 4 projets actifs — total allocation mensuelle = 500€.
+  // Le tableau permet d'itérer sans dupliquer la boucle d'insert.
+  const projects = [
+    {
+      name: 'Voyage Japon',
+      target_amount: 7000,
+      monthly_allocation: 200,
+      amount_saved: 1200,
+      deadline_date: '2027-12-01',
+    },
+    {
+      name: 'Voiture',
+      target_amount: 5000,
+      monthly_allocation: 150,
+      amount_saved: 600,
+      deadline_date: '2027-06-01',
+    },
+    {
+      // Quasi-fini (95%) — illustre l'UX projet en fin de course.
+      name: 'Vacances',
+      target_amount: 5000,
+      monthly_allocation: 100,
+      amount_saved: 4750,
+      deadline_date: '2026-08-01',
+    },
+    {
+      name: 'Électroménager',
+      target_amount: 1500,
+      monthly_allocation: 50,
+      amount_saved: 200,
+      deadline_date: '2028-06-01',
+    },
+  ]
 
-  const { error: voitureError } = await supabase.from('savings_projects').insert({
-    profile_id: USER_A_ID,
-    name: 'Voiture',
-    target_amount: 5000,
-    monthly_allocation: 150,
-    amount_saved: 600,
-    deadline_date: '2027-06-01',
-    pending_delay_fraction: 0,
-  })
-  if (voitureError) throw new Error(`INSERT savings_projects Voiture: ${voitureError.message}`)
+  for (const p of projects) {
+    const { error } = await supabase.from('savings_projects').insert({
+      profile_id: USER_A_ID,
+      pending_delay_fraction: 0,
+      ...p,
+    })
+    if (error) throw new Error(`INSERT savings_projects ${p.name}: ${error.message}`)
+  }
 
   // 6. Pas de seedRecapRow — on laisse l'utilisateur démarrer le wizard
   // depuis l'écran "Bienvenue" pour exercer le full flow (start → complete
@@ -114,14 +142,15 @@ runScenario('project-deficit-refloat', async () => {
     expectedBehavior:
       'Wizard à démarrer depuis l\'écran "Bienvenue". Bilan attendu : -700€. ' +
       "La cascade du BilanNegativeStep doit dérouler les 4 étages dans l'ordre : " +
-      'piggy 100€ → savings Courses 50€ → projets 350€ (Japon 200€ + Voiture 150€ ' +
-      'split proportionnel sur le déficit restant) → budgets snapshot 200€ pool ' +
-      'Courses. À la finalize, vérifier en SQL : (a) savings_projects.amount_saved ' +
-      'incrémenté de (monthly - refund) pour chaque projet, (b) pending_delay_fraction ' +
-      'mis à jour ou deadline_date shifted, (c) monthly_recaps.project_snapshot_data ' +
-      'contient les bonnes valeurs.',
+      'piggy 100€ → savings Courses 50€ → projets 500€ (Japon 200 + Voiture 150 + ' +
+      'Vacances 100 + Élec 50, chacun capé à son monthly) → budgets snapshot 50€ ' +
+      'sur Courses. Le projet Vacances est à 95% (4750/5000) — vérifier l\'UX ' +
+      '"projet quasi-fini". À la finalize : (a) savings_projects.amount_saved ' +
+      'reste inchangé (refund = monthly, delta = 0), (b) pending_delay_fraction ou ' +
+      'deadline_date shifted +1 mois, (c) monthly_recaps.project_snapshot_data ' +
+      'contient les 4 entrées.',
     expectedFigures: {
-      Salaire: 1500,
+      Salaire: 2500,
       'Tirelire avant': 100,
       'Solde bancaire': 2000,
       'Budget Courses estimé': 200,
@@ -130,14 +159,16 @@ runScenario('project-deficit-refloat', async () => {
       'Déficit budget (Courses)': 700,
       'Allocation mensuelle Japon': 200,
       'Allocation mensuelle Voiture': 150,
-      'Économies déjà capitalisées Japon': 1200,
-      'Économies déjà capitalisées Voiture': 600,
-      'Total estimatedBudgets (incl. allocations projets)': 550,
-      'RAV estimé': 950,
-      'RAV effectif': 250,
+      'Allocation mensuelle Vacances (QUASI-FINI 95%)': 100,
+      'Allocation mensuelle Électroménager': 50,
+      'Total allocations projets': 500,
+      'Économies déjà capitalisées (4 projets)': '1200 + 600 + 4750 + 200 = 6750',
+      'Total estimatedBudgets (incl. allocations projets)': 700,
+      'RAV estimé': 1800,
+      'RAV effectif': 1100,
       Bilan: -700,
       'Cascade attendue (piggy → savings → projets → budgets)':
-        '100 → 50 → 350 → 200 = 700 (exact cover)',
+        '100 → 50 → 500 → 50 = 700 (exact cover)',
     },
     cookieHint: true,
   })
