@@ -27,10 +27,11 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
 
     if (!budgets) return []
 
-    // Sprint 15 V3 — exclure les carry-overs (purement visuels, spec §5.2).
-    // Sprint Fix-Deficit-Current-Month-Only (2026-05-27) — filtrer aussi par
-    // mois calendaire courant pour s'aligner avec l'affichage du budget
-    // dashboard et le calcul du déficit dans `financial-data.ts`.
+    // Sprint 15 V3 + Part 35 — exclure toute transaction provenant d'un recap
+    // antérieur (états A & B). Sprint Fix-Deficit-Current-Month-Only
+    // (2026-05-27) — filtrer aussi par mois calendaire courant pour s'aligner
+    // avec l'affichage du budget dashboard et le calcul du déficit dans
+    // `financial-data.ts`.
     const todayDetail = new Date()
     const firstDayCurrentDetail = `${todayDetail.getFullYear()}-${String(todayDetail.getMonth() + 1).padStart(2, '0')}-01`
     const lastDayCurrentDetail = (() => {
@@ -43,7 +44,7 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
         'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
       )
       .eq('profile_id', profileId)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
       .gte('expense_date', firstDayCurrentDetail)
       .lte('expense_date', lastDayCurrentDetail)
       .not('estimated_budget_id', 'is', null)

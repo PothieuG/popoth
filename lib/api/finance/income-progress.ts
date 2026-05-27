@@ -30,7 +30,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .from('real_income_entries')
         .select('amount, estimated_income_id')
         .eq('profile_id', userId)
-        .eq('is_carried_over', false)
+        .is('carried_from_recap_id', null)
         .not('estimated_income_id', 'is', null)
 
       realIncomes = realIncomesData || []
@@ -62,7 +62,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .from('real_income_entries')
         .select('amount, estimated_income_id')
         .eq('group_id', profileData.group_id)
-        .eq('is_carried_over', false)
+        .is('carried_from_recap_id', null)
         .not('estimated_income_id', 'is', null)
 
       realIncomes = realIncomesData || []

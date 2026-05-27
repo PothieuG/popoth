@@ -7,12 +7,17 @@
  * `budgets-estimated.ts` GET (`spent_this_month = carryover + actualSpent`).
  *
  * Le fix porte uniquement sur le filtre date du `spentOnBudget` : sans le
- * filtre, des dépenses des mois passés encore `is_carried_over=false`
- * (recap M-1 non bouclé) gonflaient le déficit hors-mois courant et créaient
- * un déficit fantôme. Avec le filtre, seules les dépenses du mois calendaire
- * courant alimentent `spentOnBudget` ; les dépenses passées seront prises en
- * compte via `carryover_spent_amount` quand l'utilisateur finalisera leur
- * recap.
+ * filtre, des dépenses des mois passés encore non-carry-over (recap M-1 non
+ * bouclé) gonflaient le déficit hors-mois courant et créaient un déficit
+ * fantôme. Avec le filtre, seules les dépenses du mois calendaire courant
+ * alimentent `spentOnBudget` ; les dépenses passées seront prises en compte
+ * via `carryover_spent_amount` quand l'utilisateur finalisera leur recap.
+ *
+ * Part 35 (2026-05-27) : le filtre `is_carried_over=false` a été remplacé par
+ * `.is('carried_from_recap_id', null)` pour exclure aussi les carry-overs
+ * validées (état B). Les fixtures de ce fichier n'ont pas de
+ * `carried_from_recap_id` défini, donc undefined ≡ NULL → toutes les rows
+ * passent le filtre comme avant. Les assertions sont préservées.
  *
  * Sémantique métier confirmée user 2026-05-27 : si un budget est visuellement
  * saturé (spent + carryover ≥ estimated), toute nouvelle dépense doit faire
@@ -99,7 +104,7 @@ function emptyState(): MockState {
 const STATE: { value: MockState } = { value: emptyState() }
 
 interface FilterCriterion {
-  type: 'eq' | 'not' | 'gte' | 'lte' | 'match'
+  type: 'eq' | 'not' | 'is' | 'gte' | 'lte' | 'match'
   key?: string
   value?: unknown
 }
@@ -121,6 +126,13 @@ function makeBuilder(table: keyof MockState) {
         } else if (f.type === 'not') {
           // .not('col', 'is', null) → col IS NOT NULL
           if (r[f.key!] === null || r[f.key!] === undefined) return false
+        } else if (f.type === 'is') {
+          // .is('col', null) → col IS NULL
+          if (f.value === null) {
+            if (r[f.key!] !== null && r[f.key!] !== undefined) return false
+          } else if (r[f.key!] !== f.value) {
+            return false
+          }
         } else if (f.type === 'gte') {
           if ((r[f.key!] as number | string) < (f.value as number | string)) return false
         } else if (f.type === 'lte') {
@@ -144,6 +156,10 @@ function makeBuilder(table: keyof MockState) {
   }
   builder.not = (key: string, _op: string, value: unknown) => {
     filters.push({ type: 'not', key, value })
+    return builder
+  }
+  builder.is = (key: string, value: unknown) => {
+    filters.push({ type: 'is', key, value })
     return builder
   }
   builder.gte = (key: string, value: unknown) => {

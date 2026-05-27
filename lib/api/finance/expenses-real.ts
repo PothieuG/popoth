@@ -400,8 +400,11 @@ export const PUT = withAuth(async (request: NextRequest) => {
           : (oldExpense.amount_from_budget_savings ?? 0)
         const savingsPostReverse = (budgetData.cumulated_savings ?? 0) + destinationOldSavingsClaim
 
-        // Filter by current calendar month + is_carried_over=false : same
-        // rationale as `lib/finance/financial-data.ts` deficit loop (2026-05-27).
+        // Filter by current calendar month + carried_from_recap_id IS NULL :
+        // same rationale as `lib/finance/financial-data.ts` deficit loop
+        // (2026-05-27 + Part 35) — exclure les transactions héritées d'un
+        // recap antérieur (états A & B) pour que la cascade auto ne soit pas
+        // faussée par une carry-over validée qui aurait rempli le pool budget.
         const todayEdit = new Date()
         const firstDayCurrentEdit = `${todayEdit.getFullYear()}-${String(todayEdit.getMonth() + 1).padStart(2, '0')}-01`
         const lastDayCurrentEdit = (() => {
@@ -412,7 +415,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
           .from('real_expenses')
           .select('id, amount_from_budget')
           .eq('estimated_budget_id', budgetId)
-          .eq('is_carried_over', false)
+          .is('carried_from_recap_id', null)
           .gte('expense_date', firstDayCurrentEdit)
           .lte('expense_date', lastDayCurrentEdit)
           .match(contextFilter)

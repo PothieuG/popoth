@@ -40,6 +40,7 @@ vi.mock('@/lib/supabase-server', () => {
   const builder = {
     select: () => builder,
     eq: () => builder,
+    is: () => builder,
     not: () => builder,
     gte: () => builder,
     lt: () => builder,

@@ -57,7 +57,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
           'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
         )
         .eq('profile_id', userId)
-        .eq('is_carried_over', false)
+        .is('carried_from_recap_id', null)
         .not('estimated_budget_id', 'is', null)
       if (dateRange) {
         profileExpensesQuery = profileExpensesQuery
@@ -97,7 +97,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
           'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
         )
         .eq('group_id', profileData.group_id)
-        .eq('is_carried_over', false)
+        .is('carried_from_recap_id', null)
         .not('estimated_budget_id', 'is', null)
       if (dateRange) {
         groupExpensesQuery = groupExpensesQuery

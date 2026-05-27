@@ -39,6 +39,36 @@ function toCreatorProfile(
     updated_at: null,
   }
 }
+
+/**
+ * Part 35 follow-up (2026-05-27) — formate le mois d'origine d'une transaction
+ * reportée à partir de `expense_date` / `entry_date` (jamais modifié, même quand
+ * la transaction est cascadée de mois en mois par `process_recap_transactions`).
+ * Permet à l'utilisateur d'identifier l'âge réel d'une carry-over (e.g.
+ * "Avril 2026" plutôt que "Mois précédent" qui devient trompeur dès 2+ mois
+ * cascadés). Retourne fallback "Mois précédent" si la date est manquante ou
+ * mal formée.
+ */
+function formatTransactionOriginMonth(
+  transaction: Transaction,
+  type: 'expense' | 'income',
+): string {
+  const dateStr =
+    type === 'expense'
+      ? (transaction as RealExpense).expense_date
+      : (transaction as RealIncome).entry_date
+  if (!dateStr) return 'Mois précédent'
+  const parts = dateStr.split('-')
+  const year = Number(parts[0])
+  const month = Number(parts[1])
+  if (!year || !month || month < 1 || month > 12) return 'Mois précédent'
+  const date = new Date(Date.UTC(year, month - 1, 1))
+  const formatted = new Intl.DateTimeFormat('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+}
 import {
   AfterOperationPanel,
   BalanceRow,
@@ -651,14 +681,17 @@ export default function TransactionListItem({
 
             {/* 3-line layout */}
             <div className="min-w-0 flex-1 space-y-0.5">
-              {/* Sprint 15 V3 — badge "Mois précédent" pour les transactions
+              {/* Sprint 15 V3 — badge "Mois <X>" pour les transactions
                   carry-over actuellement non-validées. Gris neutre (cf. décision
                   produit) pour ne pas créer de conflit visuel avec les couleurs
-                  métier (violet=tirelire, orange=budgets, vert=succès, rouge=déficit). */}
+                  métier (violet=tirelire, orange=budgets, vert=succès, rouge=déficit).
+                  Part 35 follow-up — affiche le mois d'origine (expense_date /
+                  entry_date) au lieu du libellé fixe "Mois précédent", pour les
+                  cas où la transaction est cascadée plusieurs mois. */}
               {isCurrentlyCarried && (
                 <div className="flex">
                   <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-700">
-                    Mois précédent
+                    {formatTransactionOriginMonth(transaction, type)}
                   </span>
                 </div>
               )}

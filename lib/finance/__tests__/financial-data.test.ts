@@ -732,11 +732,15 @@ describe.skipIf(!ENABLED)('financial-data — meta.readOnlyIncomes (Sprint 16)',
   }, 30_000)
 })
 
-// Sprint 15 Monthly Recap V3 (2026-05-27) — filter is_carried_over=false.
-// Fixture mixant transactions normales + carry-overs. Le filtre doit exclure
-// les carry-overs des sums totalRealExpenses/totalRealIncome ET du calcul
-// de spent_per_budget (indirect via totalBudgetDeficits → remainingToLive).
-describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', () => {
+// Sprint 15 Monthly Recap V3 (2026-05-27) + Part 35 (2026-05-27) — filter
+// carried_from_recap_id IS NULL. Fixture mixant transactions normales + carry-
+// overs dans les 2 états (A = is_carried_over=true en attente, B =
+// is_carried_over=false validée post long-press). Le filtre doit exclure les
+// DEUX états des sums totalRealExpenses/totalRealIncome ET du calcul de
+// spent_per_budget (indirect via totalBudgetDeficits → remainingToLive).
+// Une carry-over validée ne doit pas re-impacter le RAV du mois courant
+// (elle a déjà été comptée dans le RAV de son mois d'origine).
+describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15 + Part 35)', () => {
   let admin: SupabaseClient<Database>
   let getProfileFinancialData: FinCalcMod['getProfileFinancialData']
 
@@ -795,8 +799,9 @@ describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', ()
     if (recapErr || !recapData) throw recapErr ?? new Error('insert recap failed')
     carryRecapId = recapData.id
 
-    // 3 dépenses normales (sum 150) + 2 carry-overs (sum 80). Filter doit
-    // exclure les carry-overs → totalRealExpenses = 150.
+    // 3 dépenses normales (sum 150) + 2 carry-overs state A (sum 80) + 1
+    // carry-over state B (60). Filter `carried_from_recap_id IS NULL` exclut
+    // state A ET state B → totalRealExpenses = 150 (pas 290).
     await admin.from('real_expenses').insert([
       {
         profile_id: carryUserId,
@@ -825,7 +830,7 @@ describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', ()
       {
         profile_id: carryUserId,
         amount: 45,
-        description: 'carry 1',
+        description: 'carry 1 (state A — en attente)',
         expense_date: '2026-04-20',
         is_exceptional: true,
         is_carried_over: true,
@@ -834,15 +839,26 @@ describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', ()
       {
         profile_id: carryUserId,
         amount: 35,
-        description: 'carry 2',
+        description: 'carry 2 (state A — en attente)',
         expense_date: '2026-04-22',
         is_exceptional: true,
         is_carried_over: true,
         carried_from_recap_id: carryRecapId,
       },
+      {
+        profile_id: carryUserId,
+        amount: 60,
+        description: 'carry 3 (state B — validée post long-press)',
+        expense_date: '2026-04-25',
+        is_exceptional: true,
+        is_carried_over: false,
+        carried_from_recap_id: carryRecapId,
+        applied_to_balance_at: new Date().toISOString(),
+      },
     ])
 
-    // 2 revenus normaux (sum 300) + 1 carry-over (200). Filter exclut → totalRealIncome = 300.
+    // 2 revenus normaux (sum 300) + 1 carry-over state A (200) + 1 carry-over
+    // state B (90). Filter exclut les 2 états → totalRealIncome = 300 (pas 590).
     await admin.from('real_income_entries').insert([
       {
         profile_id: carryUserId,
@@ -863,11 +879,21 @@ describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', ()
       {
         profile_id: carryUserId,
         amount: 200,
-        description: 'income carry 1',
+        description: 'income carry 1 (state A — en attente)',
         entry_date: '2026-04-25',
         is_exceptional: true,
         is_carried_over: true,
         carried_from_recap_id: carryRecapId,
+      },
+      {
+        profile_id: carryUserId,
+        amount: 90,
+        description: 'income carry 2 (state B — validée post long-press)',
+        entry_date: '2026-04-28',
+        is_exceptional: true,
+        is_carried_over: false,
+        carried_from_recap_id: carryRecapId,
+        applied_to_balance_at: new Date().toISOString(),
       },
     ])
   }, 60_000)
@@ -881,24 +907,41 @@ describe.skipIf(!ENABLED)('financial-data — carry-over filter (Sprint 15)', ()
     await admin.auth.admin.deleteUser(carryUserId)
   }, 30_000)
 
-  it('totalRealExpenses excludes carry-over rows (150, not 230)', async () => {
+  it('totalRealExpenses excludes carry-over rows in BOTH states (150, not 290)', async () => {
+    // 3 normales (150) + 2 state A (80) + 1 state B (60) = 290 brut.
+    // Filter exclut state A et state B → 150.
     const data = await getProfileFinancialData(carryUserId)
     expect(data.totalRealExpenses).toBe(150)
   }, 30_000)
 
-  it('totalRealIncome excludes carry-over rows (300, not 500)', async () => {
+  it('totalRealIncome excludes carry-over rows in BOTH states (300, not 590)', async () => {
+    // 2 normaux (300) + 1 state A (200) + 1 state B (90) = 590 brut.
+    // Filter exclut state A et state B → 300.
     const data = await getProfileFinancialData(carryUserId)
     expect(data.totalRealIncome).toBe(300)
   }, 30_000)
 
-  it('remainingToLive uses filtered sums (carry-overs not in RAV)', async () => {
+  it('remainingToLive uses filtered sums (carry-overs not in RAV, both states)', async () => {
     // Profile with no estimated budgets/incomes, no salary → all calcs flow
     // through exceptionalIncomes/Expenses. RAV formula:
     //   RAV = incomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - deficits
     //   RAV = 0 + 300 - 0 - 150 - 0 = 150
-    // Si le filter is_carried_over=false était absent :
-    //   RAV erroné = 0 + 500 - 0 - 230 - 0 = 270 (différence 120 = somme carry-overs nets)
+    // Si le filter carried_from_recap_id IS NULL était remplacé par
+    // is_carried_over=false seul (régression Part 35) :
+    //   RAV erroné = 0 + (300+90) - 0 - (150+60) - 0 = 180 (state B comptée
+    //   alors qu'elle ne devrait pas, double-comptage cross-mois).
     const data = await getProfileFinancialData(carryUserId)
     expect(data.remainingToLive).toBe(150)
+  }, 30_000)
+
+  it('Part 35 regression-guard: state B carry-over (validated post long-press) is excluded from RAV', async () => {
+    // Cas explicite — sans le fix Part 35 (filter `is_carried_over=false` seul),
+    // ce test échouerait : la state B row (60€ expense + 90€ income, applied_
+    // to_balance_at != null, is_carried_over=false, carried_from_recap_id !=
+    // null) serait incluse dans les totaux, faisant baisser le RAV de 30€.
+    const data = await getProfileFinancialData(carryUserId)
+    expect(data.totalRealExpenses).toBe(150) // pas 210
+    expect(data.totalRealIncome).toBe(300) // pas 390
+    expect(data.remainingToLive).toBe(150) // pas 180
   }, 30_000)
 })

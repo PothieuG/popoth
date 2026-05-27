@@ -148,12 +148,15 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       : 0
     const savingsBefore = (budgetData.cumulated_savings || 0) + destinationOldClaim
 
-    // Filter by month + is_carried_over=false. Quand `month`/`year` sont
-    // fournis (wizard récap "Compléter le mois"), on filtre le mois recapé
-    // pour que le `budget_spent_before` reflète l'état DB du mois en cours
-    // de clôture — sinon la preview lit 0€ et affiche un budget faussement
-    // remis à zéro (Sprint Fix-Recap-Preview-Month 2026-05-27). Fallback
-    // `today.month` pour le Dashboard, qui n'affiche que le mois courant.
+    // Filter by month + carried_from_recap_id IS NULL. Quand `month`/`year`
+    // sont fournis (wizard récap "Compléter le mois"), on filtre le mois
+    // recapé pour que le `budget_spent_before` reflète l'état DB du mois en
+    // cours de clôture — sinon la preview lit 0€ et affiche un budget
+    // faussement remis à zéro (Sprint Fix-Recap-Preview-Month 2026-05-27).
+    // Fallback `today.month` pour le Dashboard. Le filtre carry-over (Part 35)
+    // exclut les transactions héritées d'un recap antérieur dans les 2 états
+    // (en attente + validée) — une validation post-recap modifie le solde
+    // mais pas le `budget_spent_before` du mois courant.
     const useExplicitMonth = month != null && year != null
     const refYear = useExplicitMonth ? year : new Date().getFullYear()
     const refMonth0 = useExplicitMonth ? month - 1 : new Date().getMonth()
@@ -166,7 +169,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .from('real_expenses')
       .select('id, amount, amount_from_budget')
       .eq('estimated_budget_id', budgetId)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
       .gte('expense_date', firstDayCurrentPreview)
       .lte('expense_date', lastDayCurrentPreview)
       .match(contextFilter)

@@ -81,7 +81,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
           .from('real_expenses')
           .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
           .eq('estimated_budget_id', budget.id)
-          .eq('is_carried_over', false)
+          .is('carried_from_recap_id', null)
           .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
           .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 
@@ -224,7 +224,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
       .from('real_expenses')
       .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
       .eq('estimated_budget_id', id)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
       .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
       .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
 

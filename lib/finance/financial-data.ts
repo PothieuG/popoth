@@ -109,32 +109,37 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       (estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0) +
       totalMonthlyProjects
 
-    // 4. Revenus réels. Sprint 15 V3 — exclure les carry-overs : ils sont
-    // affichés en lecture sur le dashboard mais ne comptent pas dans le RAV,
-    // le solde, ou tout autre calcul tant que l'utilisateur ne les a pas
-    // validés via long-press (spec §5.2).
+    // 4. Revenus réels. Sprint 15 V3 + Part 35 — exclure toute transaction
+    // provenant d'un recap antérieur (`carried_from_recap_id != null`). Ces
+    // transactions appartiennent au mois d'origine, déjà comptées dans son
+    // RAV ; les inclure dans le RAV du mois courant créerait un double-
+    // comptage cross-mois. Couvre les 2 états : carry-over en attente
+    // (state A, `is_carried_over=true`) ET carry-over validé (state B,
+    // `is_carried_over=false` post long-press). Seul le solde bancaire est
+    // impacté par la validation, pas les calculs current-month.
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
       .select('amount, estimated_income_id')
       .eq(ownerColumn, ownerId)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
     const totalRealIncome = realIncomes?.reduce((sum, x) => sum + x.amount, 0) ?? 0
 
-    // 5. Dépenses réelles (idem §4 — exclure les carry-overs). `expense_date`
-    // est SELECTed pour permettre le filtrage current-calendar-month dans le
-    // deficit loop (§9). Voir bug repro 2026-05-27 : sans ce filtre, des
-    // dépenses passées encore `is_carried_over=false` (recap M-1 non finalisé)
-    // gonflent `spentOnBudget` au-delà de l'estimé courant et créent un
-    // déficit fantôme qui fait chuter le RAV à chaque nouvelle dépense — alors
-    // que l'API d'affichage `budgets-estimated.ts` filtre déjà par mois
-    // calendaire courant (display "0/400" alors que calc voit ≥ 400 hors-mois).
+    // 5. Dépenses réelles (idem §4 — exclure les carry-overs des deux états).
+    // `expense_date` est SELECTed pour permettre le filtrage current-calendar-
+    // month dans le deficit loop (§9). Voir bug repro 2026-05-27 : sans ce
+    // filtre, des dépenses passées encore non-carry-over (recap M-1 non
+    // finalisé) gonflent `spentOnBudget` au-delà de l'estimé courant et
+    // créent un déficit fantôme qui fait chuter le RAV à chaque nouvelle
+    // dépense — alors que l'API d'affichage `budgets-estimated.ts` filtre
+    // déjà par mois calendaire courant (display "0/400" alors que calc voit
+    // ≥ 400 hors-mois).
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select(
         'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, expense_date',
       )
       .eq(ownerColumn, ownerId)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
     const totalRealExpenses = realExpenses?.reduce((sum, x) => sum + x.amount, 0) ?? 0
 
     // 6. Tirelire

@@ -546,7 +546,8 @@ describe('<TransactionListItem> apply-to-balance (long-press toggle)', () => {
 })
 
 // Sprint 15 Monthly Recap V3 (2026-05-27) — UI carry-over.
-// Couvre le rendu du badge "Mois précédent", le routing du long-press et du
+// Couvre le rendu du badge "Mois <X>" (Part 35 follow-up : affiche le mois
+// d'origine au lieu de "Mois précédent" fixe), le routing du long-press et du
 // dropdown vers onToggleCarryApplied (vs onToggleApplied) selon la présence
 // de carried_from_recap_id, et les labels adaptés ("Valider et appliquer au
 // solde" / "Dévalider…" / "Supprimer (renvoyer en tirelire)").
@@ -567,7 +568,8 @@ describe('<TransactionListItem> carry-over (sprint 15)', () => {
     amount: 200,
   })
 
-  it('renders gray "Mois précédent" badge for carried expense', () => {
+  it('renders gray "Mois <X>" badge with origin month for carried expense', () => {
+    // buildExpense default expense_date = '2026-05-21' → badge affiche "Mai 2026".
     render(
       <TransactionListItem
         transaction={carriedExpense}
@@ -578,10 +580,34 @@ describe('<TransactionListItem> carry-over (sprint 15)', () => {
         onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
       />,
     )
-    const badge = screen.getByText('Mois précédent')
+    const badge = screen.getByText('Mai 2026')
     expect(badge).toBeInTheDocument()
     expect(badge.className).toMatch(/bg-gray-100/)
     expect(badge.className).toMatch(/text-gray-700/)
+  })
+
+  it('Part 35: badge reflects expense_date even when carried multiple months', () => {
+    // Carry-over cascadée depuis avril (expense_date='2026-04-15') vue en juin.
+    // Le badge affiche "Avril 2026" pour identifier le mois d'origine, pas le
+    // mois précédent (mai) ni le mois courant.
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          is_carried_over: true,
+          carried_from_recap_id: 'recap-may',
+          applied_to_balance_at: null,
+          expense_date: '2026-04-15',
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+        })}
+        type="expense"
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+        onToggleCarryApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    expect(screen.getByText('Avril 2026')).toBeInTheDocument()
   })
 
   it('uses bg-gray-50 card background when currently carried', () => {

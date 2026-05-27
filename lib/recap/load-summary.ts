@@ -8,10 +8,14 @@
  *   2. Liste des `estimated_budgets` du contexte (id, name, estimated_amount,
  *      cumulated_savings) pour le tableau per-budget du summary.
  *   3. Dépensé par budget ce mois — agrégat `amount_from_budget` filtré sur
- *      `applied_to_balance_at IS NOT NULL`, `is_carried_over = false`, et
- *      `expense_date` dans le mois courant. Sémantique calendaire validée :
- *      une dépense compte dans le mois de sa date, peu importe quand elle
- *      a été appliquée au solde.
+ *      `carried_from_recap_id IS NULL` et `expense_date` dans le mois courant.
+ *      Toutes les transactions pures du mois comptent (validées ou non — la
+ *      validation `applied_to_balance_at` n'impacte que le solde bancaire,
+ *      pas le RAV ni le surplus, miroir de `getProfileFinancialData` deficit
+ *      loop ligne 137). Le filtre carry-over (Part 35) exclut les transactions
+ *      héritées d'un recap antérieur dans les 2 états (en attente + validée).
+ *      Le carryover_spent_amount est passé séparément au computeRecapSummary
+ *      qui l'additionne dans `effectiveSpent`.
  *   4. Tirelire (`piggy_bank.amount`) — `.maybeSingle()` + fallback 0
  *      (règle CLAUDE.md "Tables owner-row hybrides" : un fresh account
  *      n'a pas encore de row).
@@ -92,8 +96,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       .from('real_expenses')
       .select('estimated_budget_id, amount_from_budget')
       .eq(ownerColumn, ownerId)
-      .not('applied_to_balance_at', 'is', null)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
       .gte('expense_date', monthStart)
       .lt('expense_date', nextMonthStart),
     supabaseServer.from('piggy_bank').select('amount').eq(ownerColumn, ownerId).maybeSingle(),

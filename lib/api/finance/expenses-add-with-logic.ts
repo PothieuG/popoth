@@ -155,11 +155,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const savingsBefore = budgetData.cumulated_savings || 0
 
     // Step 3: Get current spent amount for this budget — restricted to the
-    // current calendar month so prior-month expenses still
-    // `is_carried_over=false` (because recap M-1 wasn't finalized) don't
-    // inflate `budgetSpentBefore` and force unnecessary cascade. Mirror du
-    // fix dans `lib/finance/financial-data.ts` deficit loop (2026-05-27).
-    // Only count amount_from_budget (not piggy bank or savings amounts).
+    // current calendar month so prior-month expenses (recap M-1 non
+    // finalisé) don't inflate `budgetSpentBefore` and force unnecessary
+    // cascade. Mirror du fix dans `lib/finance/financial-data.ts` deficit
+    // loop (2026-05-27). Filtre carry-over (Part 35) : exclure les
+    // transactions héritées d'un recap antérieur dans les 2 états — une
+    // validation post-recap modifie le solde mais ne mange pas la cap du
+    // budget courant. Only count amount_from_budget (not piggy bank or
+    // savings amounts).
     const todayLogic = new Date()
     const firstDayCurrentLogic = `${todayLogic.getFullYear()}-${String(todayLogic.getMonth() + 1).padStart(2, '0')}-01`
     const lastDayCurrentLogic = (() => {
@@ -170,7 +173,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .from('real_expenses')
       .select('amount, amount_from_budget')
       .eq('estimated_budget_id', estimated_budget_id)
-      .eq('is_carried_over', false)
+      .is('carried_from_recap_id', null)
       .gte('expense_date', firstDayCurrentLogic)
       .lte('expense_date', lastDayCurrentLogic)
       .match(contextFilter)
