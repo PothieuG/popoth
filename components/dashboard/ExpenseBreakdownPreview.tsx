@@ -24,6 +24,15 @@ interface ExpenseBreakdownPreviewProps {
    * cross-budget cascade) qui voudraient opt-out.
    */
   useSavings?: boolean
+  /**
+   * Sprint Fix-Recap-Preview-Month (2026-05-27) — mois recapé 1-12. Quand
+   * fourni avec `year`, la route filtre les dépenses existantes par ce mois
+   * plutôt que par `today.month`. Utilisé par le wizard récap "Compléter
+   * le mois" pour que `budget_spent_before` reflète l'état du mois clôturé
+   * (sinon la preview lit 0€ et affiche un budget remis à zéro).
+   */
+  month?: number
+  year?: number
 }
 
 interface CrossBudgetDebitPreviewUi {
@@ -73,6 +82,8 @@ export default function ExpenseBreakdownPreview({
   context = 'profile',
   expenseId,
   useSavings = false,
+  month,
+  year,
 }: ExpenseBreakdownPreviewProps) {
   const enabled = amount > 0 && !!budgetId
   const { financialData } = useFinancialData(context)
@@ -82,7 +93,16 @@ export default function ExpenseBreakdownPreview({
     isLoading,
     error,
   } = useQuery<BreakdownData>({
-    queryKey: ['expense-breakdown', amount, budgetId, context, expenseId ?? null, useSavings],
+    queryKey: [
+      'expense-breakdown',
+      amount,
+      budgetId,
+      context,
+      expenseId ?? null,
+      useSavings,
+      month ?? null,
+      year ?? null,
+    ],
     enabled,
     queryFn: async ({ signal }) => {
       const params = new URLSearchParams({
@@ -95,6 +115,10 @@ export default function ExpenseBreakdownPreview({
       }
       if (useSavings) {
         params.set('use_savings', 'true')
+      }
+      if (month != null && year != null) {
+        params.set('month', String(month))
+        params.set('year', String(year))
       }
 
       const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {

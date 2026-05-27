@@ -49,6 +49,16 @@ interface AddTransactionModalProps {
    */
   dateMin?: string
   dateMax?: string
+  /**
+   * Sprint Fix-Recap-Preview-Month (2026-05-27) — mois recapé 1-12 + année.
+   * Quand fourni, l'`ExpenseBreakdownPreview` filtre les dépenses existantes
+   * par ce mois plutôt que par `today.month`. Sinon (Dashboard), fallback
+   * sur le mois courant côté route. Utilisé par le wizard "Compléter le
+   * mois" pour que le récap "Après opération" reflète l'état DB du mois en
+   * cours de clôture.
+   */
+  recapMonth?: number
+  recapYear?: number
 }
 
 type TransactionType = 'expense' | 'income'
@@ -95,6 +105,8 @@ export default function AddTransactionModal({
   defaultDate,
   dateMin,
   dateMax,
+  recapMonth,
+  recapYear,
 }: AddTransactionModalProps) {
   // Sprint Complete-Month-Step (2026-05-29) — pré-calcule la date d'initialisation
   // du form. Si `defaultDate` est fourni (wizard récap), on l'utilise ; sinon
@@ -856,6 +868,8 @@ export default function AddTransactionModal({
                   budgetId={budgetId}
                   context={context}
                   useSavings={useSavings}
+                  month={recapMonth}
+                  year={recapYear}
                 />
               )}
 

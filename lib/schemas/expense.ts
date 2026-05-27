@@ -111,5 +111,11 @@ export const previewBreakdownQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  // Sprint Fix-Recap-Preview-Month (2026-05-27) : permet au wizard récap de
+  // filtrer les dépenses existantes par le mois recapé plutôt que par
+  // `today.month`. Les deux doivent être présents pour activer le filtre ; un
+  // seul des deux retombe sur le fallback today côté route.
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  year: z.coerce.number().int().min(2000).max(3000).optional(),
 })
 export type PreviewBreakdownQuery = z.infer<typeof previewBreakdownQuerySchema>

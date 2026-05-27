@@ -49,6 +49,8 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       budget_id: budgetId,
       context,
       expense_id: expenseId,
+      month,
+      year,
     } = parseQuery(request, previewBreakdownQuerySchema)
 
     const isGroup = context === 'group'
@@ -146,12 +148,18 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       : 0
     const savingsBefore = (budgetData.cumulated_savings || 0) + destinationOldClaim
 
-    // Filter by current calendar month + is_carried_over=false : same
-    // rationale as `lib/finance/financial-data.ts` deficit loop (2026-05-27).
-    const todayPreview = new Date()
-    const firstDayCurrentPreview = `${todayPreview.getFullYear()}-${String(todayPreview.getMonth() + 1).padStart(2, '0')}-01`
+    // Filter by month + is_carried_over=false. Quand `month`/`year` sont
+    // fournis (wizard récap "Compléter le mois"), on filtre le mois recapé
+    // pour que le `budget_spent_before` reflète l'état DB du mois en cours
+    // de clôture — sinon la preview lit 0€ et affiche un budget faussement
+    // remis à zéro (Sprint Fix-Recap-Preview-Month 2026-05-27). Fallback
+    // `today.month` pour le Dashboard, qui n'affiche que le mois courant.
+    const useExplicitMonth = month != null && year != null
+    const refYear = useExplicitMonth ? year : new Date().getFullYear()
+    const refMonth0 = useExplicitMonth ? month - 1 : new Date().getMonth()
+    const firstDayCurrentPreview = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`
     const lastDayCurrentPreview = (() => {
-      const d = new Date(todayPreview.getFullYear(), todayPreview.getMonth() + 1, 0)
+      const d = new Date(refYear, refMonth0 + 1, 0)
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     })()
     const { data: expenses } = await supabaseServer

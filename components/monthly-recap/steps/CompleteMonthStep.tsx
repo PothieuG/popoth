@@ -238,6 +238,8 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
           defaultDate={endDate}
           dateMin={startDate}
           dateMax={endDate}
+          recapMonth={recapMonth}
+          recapYear={recapYear}
           onTransactionAdded={() => setIsAddModalOpen(false)}
         />
       )}

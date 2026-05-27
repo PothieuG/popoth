@@ -1,6 +1,6 @@
 # Part 34 — Allow-Negative-RAV + Bug Déficit Carryover (2026-05-27)
 
-> Session "supprimer garde-fous RAV négatif" qui a dérivé sur une investigation déficit budget. 2 sprints + 1 état non-clos qui nécessitera une re-passe future.
+> Session "supprimer garde-fous RAV négatif" qui a dérivé sur une investigation déficit budget, puis un fix preview du wizard récap. 3 sprints + 1 état non-clos qui nécessitera une re-passe future.
 
 ## Sprint Allow-Negative-RAV (commit `69c951b`, 2026-05-27)
 
@@ -116,3 +116,30 @@ Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 - **Filtre date sur tous les sites qui calculent un agrégat "spent this month"** — sans ce filtre, des dépenses des mois passés non recapés polluent le calcul mensuel. Pattern à généraliser pour tout nouveau site qui sum/reduce des `real_expenses`.
 - **Dropdown du modal d'ajout DOIT matcher l'affichage dashboard** : `budget.spent_this_month` (API) est la source canonique. Si on diverge, l'utilisateur voit 2 chiffres incohérents pour le même budget et perd confiance dans le calcul.
 - **Pour un changement de formule métier critique** : faire un test qui mock TOUTES les conditions (carryover faible/élevé, dépenses présentes/absentes, etc.) AVANT de toucher la formule. Le mock builder `makeBuilder(table)` dans le repro test est réutilisable pour tout test isolé de `_loadFinancialData`.
+
+---
+
+## Sprint Fix-Recap-Preview-Month (2026-05-27)
+
+**Contexte** — Suite à l'investigation du bug carryover (section précédente) qui a aligné le dropdown wizard sur le dashboard, l'utilisateur a constaté que l'encart "Après opération" de l'`AddTransactionModal` à l'étape 2/6 "Compléter le mois" affichait encore un budget faussement remis à zéro (e.g. `100/400` au lieu de `6200/400` quand le carryover était à 6100). La ligne d'impact RAV `-100€` était également absente de la section "Impact de la dépense", alors que la mutation finale ampute bien le RAV à la validation.
+
+**Cause racine** — La route `GET /api/finance/expenses/preview-breakdown` ([lib/api/finance/expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts)) filtre les `real_expenses` par `today.month` (filtre ajouté par le sprint précédent pour la régression prior-month). Mais le wizard récap peut clore un mois passé (ou un mois seedé via `scripts/seed-recap/*.mjs` dont les dates sont calées avant `today`), auquel cas `today.month ≠ recap.month` et la requête retourne 0 dépense → `budgetSpentBefore = 0` → la preview retombe à `0 + fromBudget`. Le client `ExpenseBreakdownPreview` calcule alors `currentOverflow = max(0, 0-cap) = 0` et `newOverflow = max(0, fromBudget-cap) = 0` (si l'ajout reste sous le cap fantôme), masquant la ligne RAV. Le dashboard ne souffre pas du bug car il n'affiche que le mois courant par construction.
+
+**Fix appliqué** — Pattern "optional explicit month override avec fallback today" sur la chaîne `CompleteMonthStep` → `AddTransactionModal` → `ExpenseBreakdownPreview` → route API :
+
+- `previewBreakdownQuerySchema` ([lib/schemas/expense.ts](../../lib/schemas/expense.ts)) accepte 2 nouveaux champs optionnels `month` (1-12) + `year` (2000-3000) via `z.coerce.number().int().min/max`. Pas de `.refine` croisé — un seul des deux est traité comme "absent" côté route.
+- La route ([expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts) lignes 149-160) utilise `month`/`year` quand les deux sont fournis, sinon retombe sur `new Date()` (Dashboard inchangé).
+- `ExpenseBreakdownPreview` ([components/dashboard/ExpenseBreakdownPreview.tsx](../../components/dashboard/ExpenseBreakdownPreview.tsx)) ajoute des props `month`/`year` qu'il forward dans queryKey (sinon cache du mois courant ré-utilisé) + URL params.
+- `AddTransactionModalProps` ajoute `recapMonth`/`recapYear` (symétriques à `dateMin`/`dateMax` Sprint Complete-Month-Step), transmis à la preview budgétée uniquement (la branche income/exceptionnelle utilise `RemainingToLivePreview` qui n'a pas le bug).
+- `CompleteMonthStep.tsx` ([components/monthly-recap/steps/CompleteMonthStep.tsx](../../components/monthly-recap/steps/CompleteMonthStep.tsx)) passe `recapMonth={recapMonth}` + `recapYear={recapYear}` au mount du modal (les valeurs existent déjà dans le scope pour calculer `dateMin`/`dateMax`).
+
+**Tests** — 3 cas ajoutés à `previewBreakdownQuerySchema` ([lib/schemas/__tests__/expense-real.test.ts](../../lib/schemas/__tests__/expense-real.test.ts)) : coerce strings, reject `month=0`/`month=13`, accept `month` seul sans `year` (fallback today côté route). Tests existants `AddTransactionModal.test.tsx` + `CompleteMonthStep.test.tsx` passent inchangés. Total non-gated 788 → 791.
+
+**Vérification manuelle** — Avec `node scripts/seed-recap/deficit-cascade-extreme.mjs` (mai 2026) puis ouverture du wizard étape 2 :
+
+- Budget 6100/400 + ajout 100€ : preview affiche `6200/400` + ligne RAV `-100€` dans la section "Impact de la dépense".
+- Budget 100/400 + ajout 50€ : preview affiche `150/400` sans ligne RAV (overflow=0, confirmant la cohérence avec l'algorithme P4-strict `calculateBreakdownWithAutoCascade` — `budgetRemaining=300`, `amount=50` → `fromBudget=50`, `overflow=0`, savings/piggy intouchés).
+
+**Pattern installé (sécurité future)** — Pour toute route preview filtrant un agrégat "spent this month", prévoir un override `month`/`year` optionnel dès que la route peut être invoquée depuis un contexte non-today (wizard récap, modal d'édition cross-period, futur navigateur historique). La queryKey TanStack côté client DOIT inclure ces params, sinon le cache du mois courant est ré-utilisé à tort. Le fallback `new Date()` reste le comportement "Dashboard" par défaut.
+
+**Hors scope** — `EditTransactionModal` utilise aussi `ExpenseBreakdownPreview` et aurait le même bug en mode wizard. Vérifié : `TransactionTabsComponent` à l'intérieur de `CompleteMonthStep` n'a pas de `onEditTransaction` câblé (seul `/dashboard` et `/group-dashboard` le wirent — cf. `app/(dashboards)/{dashboard,group-dashboard}/page.tsx` qui montent `<EditTransactionModal>` page-scoped). L'édition est donc inaccessible depuis le wizard et le bug n'est pas atteignable. À étendre si l'édition est réactivée dans le wizard plus tard (ajouter `recapMonth`/`recapYear` à `EditTransactionModalProps` + forward à `ExpenseBreakdownPreview` ligne 495).

@@ -51,4 +51,50 @@ describe('previewBreakdownQuerySchema', () => {
     ).toBe(false)
     expect(previewBreakdownQuerySchema.safeParse({ amount: '5' }).success).toBe(false)
   })
+
+  it('coerces month/year strings to numbers when both fournis (wizard récap)', () => {
+    const result = previewBreakdownQuerySchema.safeParse({
+      amount: '100',
+      budget_id: validUuid,
+      month: '5',
+      year: '2026',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.month).toBe(5)
+      expect(result.data.year).toBe(2026)
+    }
+  })
+
+  it('rejects month=13 et month=0 (1-12 bornes)', () => {
+    expect(
+      previewBreakdownQuerySchema.safeParse({
+        amount: '100',
+        budget_id: validUuid,
+        month: '13',
+        year: '2026',
+      }).success,
+    ).toBe(false)
+    expect(
+      previewBreakdownQuerySchema.safeParse({
+        amount: '100',
+        budget_id: validUuid,
+        month: '0',
+        year: '2026',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepte month seul sans year (route applique le fallback today)', () => {
+    const result = previewBreakdownQuerySchema.safeParse({
+      amount: '100',
+      budget_id: validUuid,
+      month: '5',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.month).toBe(5)
+      expect(result.data.year).toBeUndefined()
+    }
+  })
 })
