@@ -14,8 +14,9 @@ import type { BudgetSummary, RecapContext } from '@/lib/recap'
  * - `done`     : snapshot déjà persisté pendant ce recap. Récap + liste des
  *   nouvelles valeurs par budget (consommé / estimé).
  * - `unneeded` : déficit déjà comblé par la tirelire et/ou les économies.
+ * - `empty`    : aucun budget n'existe (rien à équilibrer). Greyed, no button.
  */
-type SnapshotLineState = 'locked' | 'active' | 'done' | 'unneeded'
+type SnapshotLineState = 'locked' | 'active' | 'done' | 'unneeded' | 'empty'
 
 interface RefloatBudgetSnapshotLineProps {
   context: RecapContext
@@ -64,6 +65,15 @@ export function RefloatBudgetSnapshotLine({
       <section className="rounded-2xl border border-gray-200 bg-white p-4">
         <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
         <p className="mt-1 text-xs text-gray-500">Pas nécessaire — le déficit est déjà comblé.</p>
+      </section>
+    )
+  }
+
+  if (state === 'empty') {
+    return (
+      <section className="rounded-2xl border border-gray-200 bg-white p-4">
+        <p className="text-sm font-medium text-gray-700">Équilibrer avec les budgets</p>
+        <p className="mt-1 text-xs text-gray-500">Aucun budget à équilibrer.</p>
       </section>
     )
   }

@@ -1,6 +1,6 @@
 # Part 34 — Allow-Negative-RAV + Bug Déficit Carryover (2026-05-27)
 
-> Session "supprimer garde-fous RAV négatif" qui a dérivé sur une investigation déficit budget, puis un fix preview du wizard récap. 3 sprints + 1 état non-clos qui nécessitera une re-passe future.
+> Session "supprimer garde-fous RAV négatif" qui a dérivé sur une investigation déficit budget, puis un fix preview du wizard récap, puis fermeture du deadlock wizard manage_bilan sans ressources. 8 sprints livrés.
 
 ## Sprint Allow-Negative-RAV (commit `69c951b`, 2026-05-27)
 
@@ -270,3 +270,37 @@ Tests 793 → 795 non-gated. Tests gated `SUPABASE_RECAP_TESTS=1` non touchés (
 
 - **Double-comptage potentiel post-finalize** : avec le fix, une dépense non-validée compte dans le bilan-négatif actuel. Si le user passe par la cascade et capture un snapshot déficit, puis valide la dépense le mois suivant (la dépense est carry-over post-finalize via le filet `process_recap_transactions`), elle s'ajoute aux spent du mois suivant — double-impact potentiel sur la budget remaining. Cas pré-existant aujourd'hui (le bilan-négatif déjà couvrait les dépenses applied) mais devient plus accessible. À discuter en sprint suivant si le user en fait l'expérience.
 - **État ouvert "carryover_spent_amount ≥ estimated"** : les 5 pistes listées au sprint précédent (cap auto, refloat bank, repartir à zéro, décompose visuel, decouple formula) restent à arbitrer indépendamment.
+
+---
+
+## Sprint Fix-Manage-Bilan-Deadlock (2026-05-27)
+
+**Contexte** — Sprint final de Part 34 qui ferme **l'échappatoire wizard** mentionnée en État ouvert du sprint Bug-Déficit-Compounding (« Pas d'échappatoire facile via le wizard `manage_bilan` : piggy = 0, savings = 0 → refloat ne peut pas dégager le carryover »). Question initiale user : « peux tu me confirmer que lors du monthly recap, si à l'étape 4 sur 6, en négatif, si on n'a pas de tirelire, pas d'économie, pas de projet et pas de budget, on n'a pas de bouton continuer qui s'affiche ? » → confirmé puis fixé.
+
+**Cause** — Dans [components/monthly-recap/steps/BilanNegativeStep.tsx](../../components/monthly-recap/steps/BilanNegativeStep.tsx) ligne 186, `showContinuer = deficitCovered` masque le bouton « Continuer » tant que le déficit reste > 0. Les 4 lignes refloat passent toutes en état `empty` (piggy/savings/projects) ou `active` mais disabled (snapshot avec `budgets.length === 0` désactivait son bouton « Équilibrer » ligne 183 de [RefloatBudgetSnapshotLine.tsx](../../components/monthly-recap/RefloatBudgetSnapshotLine.tsx)). L'utilisateur restait mécaniquement bloqué sur l'étape 4 sans voie de sortie visible.
+
+**Vérification serveur** — Aucun gating côté `app/api/monthly-recap/advance-step/route.ts` ni `complete/route.ts` sur `deficitRemaining > 0`. L'endpoint valide seulement la transition forward-only ([state.ts:38-42](../../lib/recap/state.ts)) + race guard `current_step === fromStep`. `finalize_recap_apply_snapshot` est no-op quand `budget_snapshot_data IS NULL`. → Le déficit non-couvert reste mécaniquement persisté en RAV négatif (cohérent avec la décision 2026-05-27 « RAV négatif autorisé partout », sprint Group-RAV-Recap → [Part 32](roadmap-detailed-32-group-rav-recap.md)). **Changement frontend uniquement**.
+
+**Fix** — 4 fichiers, ~50 LOC ajoutées :
+
+1. [BilanNegativeStep.tsx](../../components/monthly-recap/steps/BilanNegativeStep.tsx) — drapeau `budgetsEmpty = summary.budgets.length === 0` + extension du union `snapshotState` avec `'empty'` (cas `!projectsOutOfTheWay ? 'locked' : budgetsEmpty ? 'empty' : 'active'`) + nouveaux drapeaux `allResourcesEmpty = piggyEmpty && savingsEmpty && projectsEmpty && budgetsEmpty` et `showSkipDeficit = !deficitCovered && allResourcesEmpty`. JSX : nouvelle `<section>` sous le bouton « Continuer » classique, avec copie explicative (« Tu n'as aucune ressource… Tu peux continuer — le déficit sera reporté sur ton solde du mois prochain. ») + bouton « Continuer sans renflouer » qui réutilise `handleContinue` existant (advance `manage_bilan → salary_update`).
+
+2. [RefloatBudgetSnapshotLine.tsx](../../components/monthly-recap/RefloatBudgetSnapshotLine.tsx) — ajout de l'état `'empty'` au type `SnapshotLineState` + early return rendant une carte greyée « Aucun budget à équilibrer. ». Évite l'UX dégradée carte orange + liste vide + bouton disabled quand `budgets=[]`.
+
+3. [BilanNegativeStep.test.tsx](../../components/monthly-recap/__tests__/BilanNegativeStep.test.tsx) — nouveau describe block « no resources at all → skip-deficit escape hatch » avec 3 cas : (a) skip visible quand piggy/savings/projects/budgets tous vides, copy explicative + état snapshot 'empty' visibles ; (b) clic sur « Continuer sans renflouer » appelle `advanceMock` avec `{ fromStep: 'manage_bilan', toStep: 'salary_update' }` ; (c) skip ABSENT quand ≥ 1 budget existe (le snapshot reste actionnable via overshoot).
+
+4. [RefloatBudgetSnapshotLine.test.tsx](../../components/monthly-recap/__tests__/RefloatBudgetSnapshotLine.test.tsx) — 1 cas régression-guard pour l'état `'empty'`.
+
+**Sémantique métier** — La voie « Continuer sans renflouer » est strictement réservée au cas « rien à faire matériellement » (aucune ressource existante). Si l'utilisateur a au moins 1 budget mais saturé (carryover ≥ estimated), le bouton « Équilibrer » reste cliquable et provoque un overshoot accepté (avec hint `OvershootHint` du sprint Carryover-Self-Healing UI 2026-05-26). Décision user 2026-05-27 (option « Uniquement tout vide » via `AskUserQuestion`) : ne pas généraliser la voie skip à tout déficit non couvert pour ne pas inciter l'utilisateur à zapper la cascade quand il a des ressources.
+
+**Persistance du déficit résiduel** — Décision user 2026-05-27 (option « Persisté en RAV négatif ») : le `budget_snapshot_data` reste `NULL` après le clic skip, donc `finalize_recap_apply_snapshot` est no-op à la finalisation. Le calcul de RAV au mois suivant inclura naturellement le déficit comme un solde initial négatif (la formule canonique `totalIncomeContribution + exceptionalIncomes - estimatedBudgets - exceptionalExpenses - budgetDeficits` ne dépend pas du snapshot — seul le `carryover_spent_amount` matérialise les retards budget-par-budget). Le déficit est donc « porté » par le RAV global, pas par les budgets individuels.
+
+**Tests** — 796 → 800 non-gated (+4 nouveaux : 3 BilanNegativeStep + 1 RefloatBudgetSnapshotLine). Lint 0/0, typecheck OK, prettier propre sur les 4 fichiers modifiés. `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` OK (UI-only).
+
+**Pattern installé** — Toute machine d'état cascade UI (gating séquentiel avec états `locked`/`active`/`done`/`unneeded`) doit prévoir un **état `empty` distinct** pour les ressources structurellement absentes (vs `unneeded` qui signifie « couverture déjà atteinte en amont »). Sans ça, le rendu `active` + bouton `disabled` créé un piège silencieux où l'utilisateur ne sait pas si le bouton est cassé ou si la ressource manque. Le pattern miroir s'applique à toute future ligne de cascade (e.g. si on ajoutait une 5e source de refloat « bank balance », elle devrait avoir un état `empty` quand le solde est ≤ 0).
+
+**Pattern installé bis (escape hatch)** — Quand un wizard multi-step a une étape qui peut être bloquante par construction (toutes les actions cliquables désactivées), prévoir un bouton d'avance explicite « Continuer sans X » avec copie sémantique qui explique la conséquence (« sera reporté »). Le bouton ne doit apparaître QUE dans le cas non-actionnable (sinon il créerait une voie de fuite trop facile pour l'utilisateur qui n'a pas fait l'effort de la cascade).
+
+**Règle ❌ ajoutée** ([operational-rules.md](../conventions/operational-rules.md) §5 RAV formula) : ne PAS gater l'`advance-step` côté serveur sur `deficitRemaining > 0` — la persistance en RAV négatif est désormais le contrat. Toute future tentative d'ajouter un gate « refuser si déficit > 0 » casserait l'escape hatch et re-créerait le deadlock.
+
+**Hors scope** — Le bug carryover compounding (sprint Bug-Déficit-Budget-Compounding plus haut) reste ouvert avec ses 5 pistes (cap auto / refloat bank / repartir à zéro / décompose visuel / decouple formula). Cette fix d'escape hatch ne réduit PAS la dette accumulée — elle rend juste actionable la voie « tirer un trait, accepter le RAV négatif » pour l'utilisateur piégé en début de session.

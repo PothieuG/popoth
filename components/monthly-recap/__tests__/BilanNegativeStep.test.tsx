@@ -435,6 +435,84 @@ describe('BilanNegativeStep', () => {
     })
   })
 
+  describe('no resources at all → skip-deficit escape hatch', () => {
+    it('shows "Continuer sans renflouer" when piggy=0, savings=0, no projects, no budgets', () => {
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            budgets: [],
+            savingsProjects: [],
+          })}
+          recap={makeRecap()}
+        />,
+      )
+
+      // Skip button present (escape hatch)
+      expect(screen.getByRole('button', { name: 'Continuer sans renflouer' })).toBeInTheDocument()
+      // Classic "Continuer" hidden (deficit not covered)
+      expect(screen.queryByRole('button', { name: 'Continuer' })).not.toBeInTheDocument()
+      // Explanatory copy mentions the deficit amount being carried over
+      expect(screen.getByText(/aucune ressource/)).toBeInTheDocument()
+      expect(screen.getByText(/sera reporté sur ton solde du mois prochain/)).toBeInTheDocument()
+      // Snapshot line shows "empty" copy (no budgets)
+      expect(screen.getByText('Aucun budget à équilibrer.')).toBeInTheDocument()
+    })
+
+    it('clicking "Continuer sans renflouer" advances to salary_update', async () => {
+      const user = userEvent.setup()
+      advanceMock.mockResolvedValueOnce({})
+
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            budgets: [],
+            savingsProjects: [],
+          })}
+          recap={makeRecap()}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Continuer sans renflouer' }))
+
+      await waitFor(() => {
+        expect(advanceMock).toHaveBeenCalledWith({
+          fromStep: 'manage_bilan',
+          toStep: 'salary_update',
+        })
+      })
+    })
+
+    it('does NOT show skip button when at least one budget exists (snapshot still actionable)', () => {
+      render(
+        <BilanNegativeStep
+          context="profile"
+          summary={makeSummary({
+            piggyAmount: 0,
+            totalSavings: 0,
+            savingsProjects: [],
+            // 1 budget remains → snapshot is the user's escape hatch (overshoot accepted)
+          })}
+          recap={makeRecap()}
+        />,
+      )
+
+      // Snapshot button visible (active)
+      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
+      // Skip button NOT present
+      expect(
+        screen.queryByRole('button', { name: 'Continuer sans renflouer' }),
+      ).not.toBeInTheDocument()
+      // Classic Continuer also hidden (deficit still > 0)
+      expect(screen.queryByRole('button', { name: 'Continuer' })).not.toBeInTheDocument()
+    })
+  })
+
   describe('success snackbar', () => {
     it('shows a success snackbar after a successful piggy refloat', async () => {
       const user = userEvent.setup()

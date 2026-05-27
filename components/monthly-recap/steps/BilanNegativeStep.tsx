@@ -62,6 +62,13 @@ interface BilanNegativeStepProps {
  *      si jamais elle est vide d'argent) passent en `unneeded` (greyed,
  *      "Pas nécessaire — déficit comblé") au lieu de `active` ou `locked`.
  *
+ *   6. **Sortie "sans renflouer"** : quand l'utilisateur arrive sur l'écran
+ *      avec aucune ressource (tirelire=0, économies=0, aucun projet, aucun
+ *      budget), aucune ligne n'est cliquable et le déficit ne peut pas être
+ *      comblé. Un bouton dédié "Continuer sans renflouer" apparaît alors
+ *      pour permettre d'avancer — le déficit reste persisté en RAV négatif
+ *      (cf. décision 2026-05-27 "RAV négatif autorisé partout").
+ *
  * Theme couleurs (cf. convention UI Popoth) :
  *   - tirelire = violet
  *   - économies = violet (même famille que la tirelire)
@@ -175,15 +182,20 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
     projectSnapshotData: recap.projectSnapshotData,
   })
 
-  const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' = deficitCovered
+  const budgetsEmpty = summary.budgets.length === 0
+  const snapshotState: 'locked' | 'active' | 'done' | 'unneeded' | 'empty' = deficitCovered
     ? snapshotTotal > 0
       ? 'done'
       : 'unneeded'
     : !projectsOutOfTheWay
       ? 'locked'
-      : 'active'
+      : budgetsEmpty
+        ? 'empty'
+        : 'active'
 
   const showContinuer = deficitCovered
+  const allResourcesEmpty = piggyEmpty && savingsEmpty && projectsEmpty && budgetsEmpty
+  const showSkipDeficit = !deficitCovered && allResourcesEmpty
 
   const handleContinue = async () => {
     setError(null)
@@ -279,6 +291,25 @@ export function BilanNegativeStep({ context, summary, recap }: BilanNegativeStep
         >
           {advanceMutation.isPending ? 'Chargement…' : 'Continuer'}
         </Button>
+      )}
+
+      {showSkipDeficit && (
+        <section className="space-y-2 rounded-2xl border border-gray-200 bg-white p-4">
+          <p className="text-xs leading-relaxed text-gray-700">
+            Tu n&apos;as aucune ressource (tirelire, économies, projets, budgets) pour combler le
+            déficit de{' '}
+            <span className="font-semibold tabular-nums">{formatEuro(deficitRemaining)}</span>. Tu
+            peux continuer — le déficit sera reporté sur ton solde du mois prochain.
+          </p>
+          <Button
+            type="button"
+            className="w-full"
+            onClick={handleContinue}
+            disabled={advanceMutation.isPending}
+          >
+            {advanceMutation.isPending ? 'Chargement…' : 'Continuer sans renflouer'}
+          </Button>
+        </section>
       )}
 
       {error && (

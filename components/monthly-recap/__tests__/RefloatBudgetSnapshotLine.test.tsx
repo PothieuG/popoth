@@ -61,6 +61,25 @@ describe('RefloatBudgetSnapshotLine', () => {
     })
   })
 
+  describe('state=empty', () => {
+    it('renders "Aucun budget à équilibrer" copy + no button when no budget exists', () => {
+      render(
+        <RefloatBudgetSnapshotLine
+          context="profile"
+          state="empty"
+          budgets={[]}
+          deficitRemaining={100}
+          snapshotData={null}
+          onError={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByText('Aucun budget à équilibrer.')).toBeInTheDocument()
+      expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    })
+  })
+
   describe('state=done', () => {
     it('renders total equilibre + per-budget new values in a grey card', () => {
       const budgets = [
