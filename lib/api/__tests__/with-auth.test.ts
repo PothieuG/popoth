@@ -163,7 +163,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
 
     it('expired session payload → 401 Session invalide', async () => {
       // Sign a payload with expiresAt in the past. The JWT itself stays valid
-      // (jose's exp claim comes from setExpirationTime('1h'), independent of
+      // (jose's exp claim comes from setExpirationTime('7d'), independent of
       // payload.expiresAt), but validateSessionToken checks payload.expiresAt
       // directly (lib/session-server.ts:108).
       const past = Math.floor(Date.now() / 1000) - 3600
