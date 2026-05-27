@@ -278,10 +278,7 @@ describe('executeCompleteRecap', () => {
     expect(outcome.completed).toBe(true)
     expect(outcome.salaryIncome).toBeNull()
     expect(m.rpc).toHaveBeenCalledTimes(3)
-    expect(m.rpc).not.toHaveBeenCalledWith(
-      'create_salary_income_for_recap',
-      expect.anything(),
-    )
+    expect(m.rpc).not.toHaveBeenCalledWith('create_salary_income_for_recap', expect.anything())
   })
 
   it('process_transactions RPC error → fail-soft (mark completed, zero counts)', async () => {

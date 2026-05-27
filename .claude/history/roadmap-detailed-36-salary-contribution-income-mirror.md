@@ -30,7 +30,7 @@ solo uniquement (`context === 'profile'`).
 
 - Migration `20260605000000_add_recap_origin_to_real_income_entries.sql` —
   colonne `recap_origin_id UUID NULL REFERENCES monthly_recaps(id) ON DELETE
-  SET NULL` + partial unique index pour idempotence.
+SET NULL` + partial unique index pour idempotence.
 - Migration `20260605000001_create_salary_income_for_recap_rpc.sql` — RPC
   `create_salary_income_for_recap(p_recap_id, p_profile_id)` qui :
   - Skip silencieux si `profile.salary IS NULL OR ≤ 0` (cas étudiant /
@@ -39,7 +39,7 @@ solo uniquement (`context === 'profile'`).
   - `description = 'Salaire'`, `amount = profile.salary`, `is_exceptional = false`
     (pas de double-count avec virtuel `totalIncomeContribution`),
     `applied_to_balance_at = NULL` (non-validé), `created_by_profile_id =
-    p_profile_id`.
+p_profile_id`.
 - `lib/recap/actions-finalize.ts` étendu : appel fail-soft du RPC pour solo
   uniquement. Le mode groupe est no-op (le mécanisme miroir Sprint 16 V3
   étendu prend le relais — cf. §Contribution-Income-Mirror).
@@ -50,7 +50,7 @@ solo uniquement (`context === 'profile'`).
 
 - Migration `20260605000002_create_validate_salary_with_delta_rpc.sql` — RPC
   atomique `validate_salary_with_delta(p_income_id, p_real_amount,
-  p_created_by_profile_id)` qui :
+p_created_by_profile_id)` qui :
   1. SELECT FOR UPDATE + assertions (`recap_origin_id NOT NULL`,
      `applied_to_balance_at IS NULL`, `profile_id NOT NULL`).
   2. Calcul `delta = ROUND(p_real_amount - row.amount, 2)` cents-precise.
@@ -75,7 +75,7 @@ solo uniquement (`context === 'profile'`).
   financial refreshes au succès.
 - `lib/api/finance/income-real.ts` PUT/DELETE — guards 409
   `cannot-edit-recap-salary` / `cannot-delete-recap-salary` si `recap_origin_id
-  != null` (read-only à vie, peu importe l'état de validation).
+!= null` (read-only à vie, peu importe l'état de validation).
 - `lib/api/finance/income-toggle-applied.ts` + `income-toggle-carry-applied.ts`
   — filet défense API direct : 409 `salary-validation-requires-modal` si le
   user appelle ces endpoints sur un salaire non-validé (force le passage par
@@ -103,16 +103,16 @@ le même message d'auto-devalidate (X€ à ajouter/retirer) doit apparaître de
 
 - Migration `20260605000003_add_contribution_id_to_real_income_entries.sql` —
   colonne `contribution_id UUID NULL REFERENCES group_contributions(id) ON
-  DELETE CASCADE` + partial unique index symétrique au sprint 16 V3 expense.
+DELETE CASCADE` + partial unique index symétrique au sprint 16 V3 expense.
 - Migration `20260605000004_create_contribution_real_income_triggers.sql` —
   2 triggers symétriques au sprint 16 V3 :
   - `sync_contribution_real_income` (AFTER INSERT/UPDATE on
     `group_contributions`) v2 avec auto-devalidate. UPSERT la row miroir
     côté groupe (`group_id = NEW.group_id`, `profile_id = NULL`,
     `description = 'Contribution de ' || first_name`, `amount =
-    NEW.contribution_amount`, `is_exceptional = false` ← évite double-count
+NEW.contribution_amount`, `is_exceptional = false` ← évite double-count
     avec `sum(contributions)` virtuel du group RAV, `created_by_profile_id =
-    NEW.profile_id` ← avatar = la personne concernée).
+NEW.profile_id` ← avatar = la personne concernée).
   - `credit_balance_on_contribution_income_delete` (BEFORE DELETE on
     `real_income_entries`) — symétrique mais signe inversé : pour les
     expenses Sprint 16 V3 le BEFORE DELETE CRÉDITE le solde (restitution
@@ -164,8 +164,8 @@ le même message d'auto-devalidate (X€ à ajouter/retirer) doit apparaître de
   (`real_income_entries_created_by_profile_id_fkey`) — pattern Sprint
   Group-Transaction-Creator-Avatar inchangé.
 - Warning UI : le message FR `'vous devez ajouter X€ au groupe avant de
-  valider cette dépense'` est ajusté avec `type === 'expense' ? 'cette
-  dépense' : 'ce revenu'` pour le côté income.
+valider cette dépense'` est ajusté avec `type === 'expense' ? 'cette
+dépense' : 'ce revenu'` pour le côté income.
 
 **Guards 409** :
 

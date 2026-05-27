@@ -70,10 +70,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
         .eq('id', row.contribution_id)
         .maybeSingle()
       if (!contribRow) {
-        return NextResponse.json(
-          { error: 'Contribution introuvable' },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: 'Contribution introuvable' }, { status: 404 })
       }
       try {
         await ensureBankBalanceRow({ profile_id: contribRow.profile_id })

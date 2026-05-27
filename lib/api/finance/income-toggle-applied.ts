@@ -26,9 +26,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     const { data: row, error: fetchError } = await supabaseServer
       .from('real_income_entries')
-      .select(
-        'profile_id, group_id, recap_origin_id, applied_to_balance_at, contribution_id',
-      )
+      .select('profile_id, group_id, recap_origin_id, applied_to_balance_at, contribution_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -55,15 +53,9 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     //   - Ligne salaire déjà validée → 409 read-only à vie (pas de un-apply).
     if (row.recap_origin_id != null) {
       if (row.applied_to_balance_at == null) {
-        return NextResponse.json(
-          { error: 'salary-validation-requires-modal' },
-          { status: 409 },
-        )
+        return NextResponse.json({ error: 'salary-validation-requires-modal' }, { status: 409 })
       }
-      return NextResponse.json(
-        { error: 'cannot-toggle-validated-recap-salary' },
-        { status: 409 },
-      )
+      return NextResponse.json({ error: 'cannot-toggle-validated-recap-salary' }, { status: 409 })
     }
 
     // Sprint Contribution-Income-Mirror (2026-06-05). Si le revenu est un
@@ -76,10 +68,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
         .eq('id', row.contribution_id)
         .maybeSingle()
       if (!contribRow) {
-        return NextResponse.json(
-          { error: 'Contribution introuvable' },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: 'Contribution introuvable' }, { status: 404 })
       }
       try {
         await ensureBankBalanceRow({ profile_id: contribRow.profile_id })

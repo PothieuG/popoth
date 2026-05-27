@@ -12,10 +12,7 @@ import { Label } from '@/components/ui/label'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { logger } from '@/lib/logger'
-import {
-  validateSalaryFormSchema,
-  type ValidateSalaryForm,
-} from '@/lib/schemas/income'
+import { validateSalaryFormSchema, type ValidateSalaryForm } from '@/lib/schemas/income'
 
 import { useValidateSalary, type ValidateSalaryResult } from '@/hooks/useRealIncomes'
 
@@ -147,9 +144,9 @@ export default function SalaryValidationModal({
                 <div className="text-xs leading-tight text-blue-800">
                   <p className="mb-1 font-medium">Vérifie le montant exact reçu.</p>
                   <p>
-                    Si le montant diffère, on créera automatiquement un{' '}
-                    <strong>revenu</strong> ou une <strong>dépense</strong> d’ajustement (« Équilibrage
-                    salaire ») pour la différence.
+                    Si le montant diffère, on créera automatiquement un <strong>revenu</strong> ou
+                    une <strong>dépense</strong> d’ajustement (« Équilibrage salaire ») pour la
+                    différence.
                   </p>
                 </div>
               </div>

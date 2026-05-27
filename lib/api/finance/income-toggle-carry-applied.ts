@@ -45,10 +45,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     // ne doit jamais être appelé sur une ligne salaire (validation via modal
     // uniquement, qui un-flag is_carried_over via le RPC dédié).
     if (row.recap_origin_id != null) {
-      return NextResponse.json(
-        { error: 'salary-validation-requires-modal' },
-        { status: 409 },
-      )
+      return NextResponse.json({ error: 'salary-validation-requires-modal' }, { status: 409 })
     }
 
     const balanceFilter: ContextFilter = ownsAsProfile

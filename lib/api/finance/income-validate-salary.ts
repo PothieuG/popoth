@@ -68,10 +68,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId }) 
       await ensureBankBalanceRow({ profile_id: userId })
     } catch (ensureError) {
       logger.error('[validate-salary] ensureBankBalanceRow failed', ensureError)
-      return NextResponse.json(
-        { error: 'Erreur lors de la préparation du solde' },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: 'Erreur lors de la préparation du solde' }, { status: 500 })
     }
 
     // 3. RPC atomique

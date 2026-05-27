@@ -220,8 +220,7 @@ export default function TransactionListItem({
     type === 'expense'
       ? (transaction as RealExpense).contribution_id != null
       : (transaction as RealIncome).contribution_id != null
-  const contribLastApplied =
-    isContributionRow ? (transaction.last_applied_amount ?? null) : null
+  const contribLastApplied = isContributionRow ? (transaction.last_applied_amount ?? null) : null
   const needsValidation = isContributionRow && !isApplied
   const hasDelta =
     isContributionRow && contribLastApplied != null && contribLastApplied !== transaction.amount
@@ -238,8 +237,7 @@ export default function TransactionListItem({
    *     verrouillée — l'éventuel "Équilibrage salaire" associé reste, lui,
    *     modifiable comme toute transaction classique).
    */
-  const isSalaryRow =
-    type === 'income' && (transaction as RealIncome).recap_origin_id != null
+  const isSalaryRow = type === 'income' && (transaction as RealIncome).recap_origin_id != null
   const isSalaryAwaitingValidation = isSalaryRow && !isApplied
 
   const runToggle = async () => {

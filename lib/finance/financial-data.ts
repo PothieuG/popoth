@@ -119,7 +119,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // impacté par la validation, pas les calculs current-month.
     const { data: realIncomes } = await supabaseServer
       .from('real_income_entries')
-      .select('amount, estimated_income_id')
+      .select('amount, estimated_income_id, is_exceptional')
       .eq(ownerColumn, ownerId)
       .is('carried_from_recap_id', null)
     const totalRealIncome = realIncomes?.reduce((sum, x) => sum + x.amount, 0) ?? 0
@@ -149,13 +149,26 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       .eq(ownerColumn, ownerId)
       .maybeSingle()
 
-    // 7. Exceptionnels (revenus + dépenses)
+    // 7. Exceptionnels (revenus + dépenses).
+    //
+    // Sprint Salary-Auto + Contribution-Income-Mirror (2026-05-28) — le filtre
+    // income passe de `!estimated_income_id` à `is_exceptional` strict. Raison :
+    // les nouvelles lignes auto-créées (salaire avec `recap_origin_id != null`
+    // et miroir contribution avec `contribution_id != null`) ont aussi
+    // `estimated_income_id IS NULL` mais NE doivent PAS impacter le RAV — leur
+    // contrepartie est déjà comptée dans `totalIncomeContribution` virtuel
+    // (perso=salaire, groupe=sum(contributions)). Le seul discriminant fiable
+    // pour "exceptionnel = additionnel au planning" est désormais
+    // `is_exceptional=true`, set par les routes manuelles et par le RPC
+    // `validate_salary_with_delta` pour les ajustements "Équilibrage salaire".
+    // Cf. règle utilisateur : "les revenus qu'on peut valider ne doivent
+    // jamais avoir d'impact sur le RAV".
     const exceptionalExpenses =
       realExpenses
         ?.filter((e) => e.is_exceptional || !e.estimated_budget_id)
         .reduce((sum, e) => sum + e.amount, 0) ?? 0
     const exceptionalIncomes =
-      realIncomes?.filter((i) => !i.estimated_income_id).reduce((sum, i) => sum + i.amount, 0) ?? 0
+      realIncomes?.filter((i) => i.is_exceptional).reduce((sum, i) => sum + i.amount, 0) ?? 0
 
     // 8. Économies cumulées (budgets + tirelire)
     let totalSavings = 0
