@@ -178,6 +178,20 @@ Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 
 **Hors scope (à signaler si user le demande plus tard)** :
 
-- [lib/api/finance/expenses-progress.ts:128](../../lib/api/finance/expenses-progress.ts) — calcul `remainingAmount = estimated − spent` sans carryover. Site d'affichage UI seulement, pas de cascade, pas de risque d'allocation incorrecte. Cohérence display traitable séparément.
 - [lib/expense-allocation.ts::applyAllocation](../../lib/expense-allocation.ts) (branche legacy du PUT edit ligne 472 d'expenses-real.ts) — même bug latent, déclenché uniquement sur changement de budget destination (path rarement utilisé en pratique).
 - **État ouvert (carry-over) dette `carryover_spent_amount ≥ estimated`** : ce fix résout le bug "preview oublie carryover", PAS le bug "carryover compound indéfiniment" du sprint précédent. Les 5 pistes ouvertes (cap auto / refloat bank-balance / repartir à zéro / décompose visuel / re-évaluation decouple) restent à arbitrer.
+
+### Follow-up — Sprint Fix-Progress-Route-Carryover (2026-05-27)
+
+**Bug user remonté immédiatement après le sprint** : (1) l'encart violet "dépassement" dans `AddTransactionModal` ne s'affiche pas en mode ADD malgré une preview budget correcte (1300/1000) ; (2) la modal de confirmation de suppression d'une dépense affiche un preview faux ("Budget 0/1000 et RAV −500" au lieu de "Budget 500/1000 et RAV 0").
+
+**Cause** — La route `/api/finance/expenses/progress` ([lib/api/finance/expenses-progress.ts](../../lib/api/finance/expenses-progress.ts)) — initialement classée "hors scope" car catégorisée affichage UI — était en réalité la **source de données partagée** entre :
+
+1. `AddTransactionModal.tsx` lignes 167-182 qui calcule l'overflow local via `budgetRemainingLocal = budgetProgress.estimatedAmount − budgetProgress.spentAmount`. Sans le carryover dans `spentAmount`, `budgetRemainingLocal` est surestimé, `calculateBreakdown(...)` renvoie `overflow = 0`, et l'encart violet (condition `overflow > 0`) ne s'affiche pas.
+2. `TransactionListItem.buildExpenseDeleteDetails()` lignes 414-421 qui calcule le post-delete via `newSpent = spentAmount − fromBudgetTotal` puis `deficitBefore = max(0, spentAmount − estimated)` puis `ravRecovered = deficitBefore − deficitAfter`. Sans le carryover, tous ces termes divergent du réel.
+
+**Fix** — Même pattern canonique : étendre `.select(...)` avec `carryover_spent_amount` sur les 2 sites de la route (branches profile + group), introduire `carryoverSpent = Number(budget.carryover_spent_amount ?? 0)` et `spentAmount = actualSpent + carryoverSpent`. Le type interne `BudgetForProgress` étendu avec `carryover_spent_amount: number | null`.
+
+**Leçon** — Tout site dérivant `remainingAmount` ou `spentAmount` est consommé en cascade par des composants UI qui peuvent baser des conditions d'affichage (encart, badge, lien) ou des previews delta. Categoriser "display only" pour un agrégat budget est risqué : même un nombre faux d'affichage devient une logique métier fausse dès qu'un autre composant s'en sert. La règle ❌ "ne pas calculer `budgetRemaining` sans `carryover_spent_amount`" couvre désormais 4 routes (preview + add + edit + progress), pas 3.
+
+Tests 793 inchangés (le fix ne modifie pas le comportement quand `carryover_spent_amount = 0`, valeur par défaut DB pour tous les budgets fresh).

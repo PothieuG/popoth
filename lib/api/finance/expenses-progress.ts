@@ -11,6 +11,7 @@ type BudgetForProgress = {
   name: string
   estimated_amount: number
   cumulated_savings: number | null
+  carryover_spent_amount: number | null
 }
 type ExpenseForProgress = {
   amount: number
@@ -44,7 +45,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Récupérer les budgets du profil avec leurs économies
       const { data: budgetsData } = await supabaseServer
         .from('estimated_budgets')
-        .select('id, name, estimated_amount, cumulated_savings')
+        .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
         .eq('profile_id', userId)
 
       budgets = budgetsData || []
@@ -84,7 +85,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       // Récupérer les budgets du groupe avec leurs économies
       const { data: budgetsData } = await supabaseServer
         .from('estimated_budgets')
-        .select('id, name, estimated_amount, cumulated_savings')
+        .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
         .eq('group_id', profileData.group_id)
 
       budgets = budgetsData || []
@@ -115,7 +116,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         (expense) => expense.estimated_budget_id === budget.id,
       )
 
-      const spentAmount = relatedExpenses.reduce((sum, expense) => {
+      const actualSpent = relatedExpenses.reduce((sum, expense) => {
         // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         const amountFromBudget =
           expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
@@ -124,6 +125,14 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
         return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
       }, 0)
+
+      // Inclure le carryover (déficit reporté du recap précédent) — sans ça,
+      // le `spentAmount` diverge du dashboard `budget.spent_this_month` et
+      // casse en cascade l'encart violet "dépassement" dans AddTransactionModal
+      // ainsi que le preview "Après suppression" dans TransactionListItem
+      // (qui se basent tous deux sur ce `spentAmount` via `useProgressData`).
+      const carryoverSpent = Number(budget.carryover_spent_amount ?? 0)
+      const spentAmount = actualSpent + (isNaN(carryoverSpent) ? 0 : carryoverSpent)
 
       const remainingAmount = budget.estimated_amount - spentAmount
       // Utiliser les économies stockées en base (cumulated_savings)
