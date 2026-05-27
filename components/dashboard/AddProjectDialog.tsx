@@ -14,6 +14,12 @@ import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { makeProjectClientSchema } from '@/lib/schemas/projects'
 import { computeDeadlineFromDuration, formatDeadline } from '@/lib/finance/projects-meta'
+import {
+  computeGroupMembersRavPreview,
+  computeProjectedGroupTotal,
+} from '@/lib/finance/group-members-rav-preview'
+import type { GroupMemberRavDetail } from '@/lib/finance'
+import GroupMembersRavRecap from './GroupMembersRavRecap'
 
 interface AddProjectDialogProps {
   isOpen: boolean
@@ -37,6 +43,11 @@ interface AddProjectDialogProps {
    * groupSalaryTotal (sinon un groupe vide ne peut jamais bootstrapper).
    */
   totalEstimatedIncome: number
+  /** Sprint Group-RAV-Recap — voir AddBudgetDialog. */
+  context?: 'profile' | 'group'
+  groupMembersRav?: GroupMemberRavDetail[]
+  currentGroupTotal?: number
+  strictRav?: boolean
 }
 
 type Mode = 'duration' | 'monthly'
@@ -71,10 +82,14 @@ export default function AddProjectDialog({
   onSave,
   currentAllocatedTotal,
   totalEstimatedIncome,
+  context,
+  groupMembersRav,
+  currentGroupTotal,
+  strictRav = true,
 }: AddProjectDialogProps) {
   const schema = useMemo(
-    () => makeProjectClientSchema({ currentAllocatedTotal, totalEstimatedIncome }),
-    [currentAllocatedTotal, totalEstimatedIncome],
+    () => makeProjectClientSchema({ currentAllocatedTotal, totalEstimatedIncome, strictRav }),
+    [currentAllocatedTotal, totalEstimatedIncome, strictRav],
   )
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
@@ -117,6 +132,26 @@ export default function AddProjectDialog({
   const monthlySafe = isNaN(monthlyParsed) ? 0 : monthlyParsed
 
   const margeDispo = totalEstimatedIncome - currentAllocatedTotal
+
+  // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
+  // Le projet ajouté entre dans `groups.monthly_budget_estimate` (trigger
+  // sync_group_budget_on_project_change) qui pilote la répartition des
+  // contributions ; on simule cette répartition pure côté client. `monthlySafe`
+  // suit toujours la valeur courante du champ (mis à jour via form.setValue
+  // en mode 'duration', saisi en mode 'monthly').
+  const isGroupContext = context === 'group'
+  const groupRavRows = useMemo(() => {
+    if (!isGroupContext || !groupMembersRav || groupMembersRav.length === 0) return []
+    const projectedGroupTotal = computeProjectedGroupTotal({
+      currentGroupTotal: currentGroupTotal ?? 0,
+      newItemAmount: monthlySafe,
+    })
+    return computeGroupMembersRavPreview({
+      members: groupMembersRav,
+      currentGroupTotal: currentGroupTotal ?? 0,
+      projectedGroupTotal,
+    })
+  }, [isGroupContext, groupMembersRav, currentGroupTotal, monthlySafe])
 
   // En mode='monthly' la durée est purement dérivée du couple (target, monthly).
   // `null` = couple incomplet, on n'affiche pas et on ne sync pas le deadline.
@@ -463,20 +498,25 @@ export default function AddProjectDialog({
               </p>
             )}
 
-            {/* Marge disponible — toujours visible */}
-            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-              <div className="flex items-baseline justify-between gap-2 text-sm">
-                <span className="font-medium text-gray-700">Marge disponible</span>
-                <span
-                  className={cn('font-bold', margeDispo < 0 ? 'text-red-600' : 'text-gray-900')}
-                >
-                  {formatAmount(margeDispo)} / mois
-                </span>
+            {/* Recap — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
+                En perso : marge globale historique. */}
+            {isGroupContext ? (
+              <GroupMembersRavRecap rows={groupRavRows} showPreview={monthlySafe > 0} />
+            ) : (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="font-medium text-gray-700">Marge disponible</span>
+                  <span
+                    className={cn('font-bold', margeDispo < 0 ? 'text-red-600' : 'text-gray-900')}
+                  >
+                    {formatAmount(margeDispo)} / mois
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Revenus estimés − budgets &amp; projets actuels
+                </p>
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Revenus estimés − budgets &amp; projets actuels
-              </p>
-            </div>
+            )}
           </div>
 
           {/* Footer */}

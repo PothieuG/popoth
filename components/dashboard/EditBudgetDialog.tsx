@@ -11,6 +11,12 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
+import {
+  computeGroupMembersRavPreview,
+  computeProjectedGroupTotal,
+} from '@/lib/finance/group-members-rav-preview'
+import type { GroupMemberRavDetail } from '@/lib/finance'
+import GroupMembersRavRecap from './GroupMembersRavRecap'
 
 interface EstimatedBudget {
   id: string
@@ -25,6 +31,11 @@ interface EditBudgetDialogProps {
   budget: EstimatedBudget | null
   currentBudgetsTotal: number
   totalEstimatedIncome: number
+  /** Sprint Group-RAV-Recap — voir AddBudgetDialog. */
+  context?: 'profile' | 'group'
+  groupMembersRav?: GroupMemberRavDetail[]
+  currentGroupTotal?: number
+  strictRav?: boolean
 }
 
 /**
@@ -51,6 +62,10 @@ export default function EditBudgetDialog({
   budget,
   currentBudgetsTotal,
   totalEstimatedIncome,
+  context,
+  groupMembersRav,
+  currentGroupTotal,
+  strictRav = true,
 }: EditBudgetDialogProps) {
   const currentBudgetAmount = budget?.estimated_amount ?? 0
   const schema = useMemo(
@@ -59,8 +74,9 @@ export default function EditBudgetDialog({
         currentBudgetsTotal,
         totalEstimatedIncome,
         currentBudgetAmount,
+        strictRav,
       }),
-    [currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount],
+    [currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount, strictRav],
   )
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
@@ -106,6 +122,23 @@ export default function EditBudgetDialog({
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
   const otherBudgets = currentBudgetsTotal - currentBudgetAmount
   const newBalance = totalEstimatedIncome - otherBudgets - previewSafe
+
+  // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
+  // En édition : delta = newAmount - currentBudgetAmount.
+  const isGroupContext = context === 'group'
+  const groupRavRows = useMemo(() => {
+    if (!isGroupContext || !groupMembersRav || groupMembersRav.length === 0) return []
+    const projectedGroupTotal = computeProjectedGroupTotal({
+      currentGroupTotal: currentGroupTotal ?? 0,
+      currentItemAmount: currentBudgetAmount,
+      newItemAmount: previewSafe,
+    })
+    return computeGroupMembersRavPreview({
+      members: groupMembersRav,
+      currentGroupTotal: currentGroupTotal ?? 0,
+      projectedGroupTotal,
+    })
+  }, [isGroupContext, groupMembersRav, currentGroupTotal, currentBudgetAmount, previewSafe])
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
@@ -214,50 +247,55 @@ export default function EditBudgetDialog({
               )}
             </div>
 
-            {/* Aperçu financier — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
-            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">Aperçu :</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-gray-700">Revenus estimés</span>
-                    <span className="shrink-0 font-semibold text-gray-900">
-                      {formatAmount(totalEstimatedIncome)}
+            {/* Aperçu — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
+                En perso : panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22. */}
+            {isGroupContext ? (
+              <GroupMembersRavRecap rows={groupRavRows} showPreview={true} />
+            ) : (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Aperçu :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Revenus estimés</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(totalEstimatedIncome)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Autres budgets</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(otherBudgets)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce budget</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewSafe)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
+                    </span>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Reste disponible</span>
+                    <span
+                      className={cn(
+                        'shrink-0 font-bold',
+                        newBalance < 0 ? 'text-red-600' : 'text-gray-900',
+                      )}
+                    >
+                      {formatAmount(newBalance)}
                     </span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-gray-700">Autres budgets</span>
-                    <span className="shrink-0 font-semibold text-gray-900">
-                      {formatAmount(otherBudgets)}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-gray-700">Ce budget</span>
-                    <span className="shrink-0 font-semibold text-gray-900">
-                      {formatAmount(previewSafe)}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="h-px flex-1 bg-blue-200" />
-                  <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    Résultat
-                  </span>
-                  <div className="h-px flex-1 bg-blue-200" />
-                </div>
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="font-medium text-gray-700">Reste disponible</span>
-                  <span
-                    className={cn(
-                      'shrink-0 font-bold',
-                      newBalance < 0 ? 'text-red-600' : 'text-gray-900',
-                    )}
-                  >
-                    {formatAmount(newBalance)}
-                  </span>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Actions */}

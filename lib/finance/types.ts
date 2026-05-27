@@ -12,6 +12,23 @@ export interface ReadOnlyIncome {
   amount: number
 }
 
+// Détail par membre du groupe pour les UI de planification (modals
+// budget/projet groupe). `currentRav` est la valeur **authoritative** issue
+// de `getProfileFinancialData(memberId)` — strictement la même formule que
+// le dashboard perso du membre, donc strictement le même chiffre. Peut
+// être négatif si le membre est déjà en déficit perso (revenus < dépenses
+// + budgets + contribution). `salary` est utilisé par
+// `computeGroupMembersRavPreview` pour calculer la quote-part prorata du
+// delta de contribution. `groupMembersPersonalRavTotal` reste l'agrégat
+// `sum(max(0, currentRav))` (capacité collective utilisée comme plafond
+// validation projets — un membre en déficit ne pénalise pas les autres).
+export interface GroupMemberRavDetail {
+  profileId: string
+  firstName: string
+  salary: number
+  currentRav: number
+}
+
 // Sprint Projets-Épargne 03 — subset présentationnel d'une row
 // `savings_projects`, agrégé côté serveur et exposé au client via
 // `FinancialData.meta.savingsProjects`. Sert à alimenter le drawer recap
@@ -78,6 +95,11 @@ export interface FinancialData {
     // de validation pour "Ajouter / Modifier un projet" en contexte groupe.
     // Distinct de groupSalaryTotal (qui ignore les budgets perso des membres).
     groupMembersPersonalRavTotal?: number
+    // Détail par membre — alimente le recap "RAV actuel → projeté" des
+    // modals AddBudget/EditBudget/AddProject/EditProject en contexte groupe.
+    // Présent uniquement en groupe (undefined en perso). Tri stable par
+    // firstName (cohérent avec readOnlyIncomes).
+    groupMembersRav?: GroupMemberRavDetail[]
     totalMonthlyProjects: number
     savingsProjects: SavingsProjectMeta[]
   }

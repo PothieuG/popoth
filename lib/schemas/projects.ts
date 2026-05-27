@@ -89,45 +89,56 @@ export function makeProjectClientSchema(opts: {
   totalEstimatedIncome: number
   currentProjectAllocation?: number
   amountSaved?: number
+  /**
+   * Sprint Group-RAV-Recap — flag (default true) qui contrôle uniquement le
+   * refine 1 (RAV ≥ 0). Passé à false en contexte groupe pour adopter la
+   * sémantique "warning mais autoriser" (gérée par
+   * `<GroupMembersRavRecap>`). Le refine 2 (cohérence durée/target) reste
+   * inconditionnel — c'est une contrainte arithmétique objective,
+   * orthogonale au contexte.
+   */
+  strictRav?: boolean
 }) {
   const {
     currentAllocatedTotal,
     totalEstimatedIncome,
     currentProjectAllocation = 0,
     amountSaved = 0,
+    strictRav = true,
   } = opts
-  return z
-    .object({
-      name: projectNameSchema,
-      targetAmount: moneyFormSchema,
-      monthlyAllocation: moneyFormSchema,
-      deadlineDate: isoDateSchema,
-    })
-    .refine(
-      (d) => {
-        const newTotal = currentAllocatedTotal - currentProjectAllocation + d.monthlyAllocation
-        return totalEstimatedIncome - newTotal >= 0
-      },
-      {
-        message:
-          'Impossible : le reste à vivre deviendrait négatif. Réduisez le montant mensuel ou ajoutez des revenus.',
-        path: ['monthlyAllocation'],
-      },
-    )
-    .refine(
-      (d) => {
-        const today = new Date()
-        const deadline = new Date(d.deadlineDate)
-        const months = monthsUntilDeadline(today, deadline)
-        const remaining = d.targetAmount - amountSaved
-        if (remaining <= 0) return true
-        if (months <= 0) return false
-        return d.monthlyAllocation * months >= remaining
-      },
-      {
-        message:
-          'Allocation mensuelle insuffisante pour atteindre l’objectif d’ici la date butoir. Augmentez le montant mensuel ou reportez l’échéance.',
-        path: ['monthlyAllocation'],
-      },
-    )
+  const base = z.object({
+    name: projectNameSchema,
+    targetAmount: moneyFormSchema,
+    monthlyAllocation: moneyFormSchema,
+    deadlineDate: isoDateSchema,
+  })
+  const afterRav = strictRav
+    ? base.refine(
+        (d) => {
+          const newTotal = currentAllocatedTotal - currentProjectAllocation + d.monthlyAllocation
+          return totalEstimatedIncome - newTotal >= 0
+        },
+        {
+          message:
+            'Impossible : le reste à vivre deviendrait négatif. Réduisez le montant mensuel ou ajoutez des revenus.',
+          path: ['monthlyAllocation'],
+        },
+      )
+    : base
+  return afterRav.refine(
+    (d) => {
+      const today = new Date()
+      const deadline = new Date(d.deadlineDate)
+      const months = monthsUntilDeadline(today, deadline)
+      const remaining = d.targetAmount - amountSaved
+      if (remaining <= 0) return true
+      if (months <= 0) return false
+      return d.monthlyAllocation * months >= remaining
+    },
+    {
+      message:
+        'Allocation mensuelle insuffisante pour atteindre l’objectif d’ici la date butoir. Augmentez le montant mensuel ou reportez l’échéance.',
+      path: ['monthlyAllocation'],
+    },
+  )
 }

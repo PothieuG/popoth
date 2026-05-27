@@ -25,7 +25,7 @@ import { useBudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProjects, type SavingsProject } from '@/hooks/useProjects'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
-import type { ReadOnlyIncome } from '@/lib/finance'
+import type { GroupMemberRavDetail, ReadOnlyIncome } from '@/lib/finance'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -56,6 +56,13 @@ interface PlanningDrawerProps {
    * Vit dans `FinancialData.meta.groupMembersPersonalRavTotal`.
    */
   groupMembersPersonalRavTotal?: number
+  /**
+   * Sprint Group-RAV-Recap (groupe uniquement) — détail par membre du RAV
+   * courant. Forwardé aux 4 modals (AddBudget/EditBudget/AddProject/
+   * EditProject) qui calculent la projection RAV par membre en live à chaque
+   * keystroke. Vit dans `FinancialData.meta.groupMembersRav`.
+   */
+  groupMembersRav?: GroupMemberRavDetail[]
 }
 
 type TabType = 'budgets' | 'revenus' | 'projets'
@@ -83,6 +90,7 @@ export default function PlanningDrawer({
   readOnlyIncomes = [],
   groupSalaryTotal,
   groupMembersPersonalRavTotal,
+  groupMembersRav,
 }: PlanningDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
@@ -239,6 +247,14 @@ export default function PlanningDrawer({
   const projectAllocatedTotal = isGroupContext
     ? totalMonthlyAllocations
     : totalBudgets + totalMonthlyAllocations
+  // Sprint Group-RAV-Recap — total qui pilote `groups.monthly_budget_estimate`
+  // (trigger sync_group_monthly_budget_estimate + sync_group_budget_on_project_change) :
+  // SUM(estimated_budgets.estimated_amount) + SUM(savings_projects.monthly_allocation)
+  // pour le groupe. Cette valeur est passée aux 4 modals pour qu'ils
+  // calculent leur `projectedGroupTotal` (delta-math) et projettent les RAV
+  // par membre. En perso : undefined (les modals fallback à 0 et ne rendent
+  // pas le recap par-membre).
+  const currentGroupTotal = isGroupContext ? totalBudgets + totalMonthlyAllocations : undefined
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -1095,13 +1111,19 @@ export default function PlanningDrawer({
 
         {/* Add Budget Dialog — Sprint 16 V3 : on passe `budgetCeiling` (en
            groupe = sum salaires des membres ; en perso = totalIncomesWithReadOnly)
-           pour briser le cycle "groupe vide ne peut jamais bootstrapper". */}
+           pour briser le cycle "groupe vide ne peut jamais bootstrapper".
+           Sprint Group-RAV-Recap : en groupe, on passe aussi `groupMembersRav`
+           + `currentGroupTotal` + `strictRav=false` (warning autorisé). */}
         <AddBudgetDialog
           isOpen={isAddBudgetOpen}
           onClose={() => setIsAddBudgetOpen(false)}
           onSave={handleAddBudget}
           currentBudgetsTotal={totalBudgets}
           totalEstimatedIncome={budgetCeiling}
+          context={context}
+          groupMembersRav={groupMembersRav}
+          currentGroupTotal={currentGroupTotal}
+          strictRav={!isGroupContext}
         />
 
         {/* Add Income Dialog */}
@@ -1116,13 +1138,18 @@ export default function PlanningDrawer({
            groupe, `projectCeiling` = RAV collectif des membres (budgets partagés
            déjà absorbés via contributions), donc `currentAllocatedTotal` n'inclut
            que les projets existants (pas les budgets). En perso, plafond = revenus
-           + salaire, allocated = budgets + projets (identique à avant). */}
+           + salaire, allocated = budgets + projets (identique à avant).
+           Sprint Group-RAV-Recap : mêmes props groupe que AddBudgetDialog. */}
         <AddProjectDialog
           isOpen={isAddProjectOpen}
           onClose={() => setIsAddProjectOpen(false)}
           onSave={handleAddProject}
           currentAllocatedTotal={projectAllocatedTotal}
           totalEstimatedIncome={projectCeiling}
+          context={context}
+          groupMembersRav={groupMembersRav}
+          currentGroupTotal={currentGroupTotal}
+          strictRav={!isGroupContext}
         />
 
         {/* Edit Budget Dialog — conditional render + key on editingBudget.id
@@ -1136,6 +1163,10 @@ export default function PlanningDrawer({
             budget={editingBudget}
             currentBudgetsTotal={totalBudgets}
             totalEstimatedIncome={budgetCeiling}
+            context={context}
+            groupMembersRav={groupMembersRav}
+            currentGroupTotal={currentGroupTotal}
+            strictRav={!isGroupContext}
           />
         )}
 
@@ -1152,7 +1183,8 @@ export default function PlanningDrawer({
 
         {/* Edit Project Dialog — Sprint Projets-Épargne 06. Sprint PÉ-12 : même
            logique que Add — `projectCeiling` + `projectAllocatedTotal` pour que
-           le refine RAV utilise la capacité collective en groupe. */}
+           le refine RAV utilise la capacité collective en groupe. Sprint
+           Group-RAV-Recap : mêmes props groupe. */}
         {isEditProjectOpen && editingProject && (
           <EditProjectDialog
             key={editingProject.id}
@@ -1164,6 +1196,10 @@ export default function PlanningDrawer({
             project={editingProject}
             currentAllocatedTotal={projectAllocatedTotal}
             totalEstimatedIncome={projectCeiling}
+            context={context}
+            groupMembersRav={groupMembersRav}
+            currentGroupTotal={currentGroupTotal}
+            strictRav={!isGroupContext}
           />
         )}
 

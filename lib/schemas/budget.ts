@@ -73,27 +73,39 @@ export type UpdateEstimatedBudgetBody = z.infer<typeof updateEstimatedBudgetBody
  * Edit case : currentBudgetAmount = editing.estimated_amount (so the
  *             current value is subtracted from the running total before
  *             adding the new one — net delta is what matters)
+ *
+ * Sprint Group-RAV-Recap : flag `strictRav` (default true) — passe à false
+ * en contexte groupe pour omettre le refine RAV (la validation devient
+ * "warning mais autoriser", gérée visuellement par le composant
+ * `<GroupMembersRavRecap>`). Le contexte perso garde le refine strict
+ * (1 seul utilisateur, pas de notion de répartition entre membres).
  */
 export function makeBudgetClientSchema(opts: {
   currentBudgetsTotal: number
   totalEstimatedIncome: number
   currentBudgetAmount?: number
+  strictRav?: boolean
 }) {
-  const { currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount = 0 } = opts
-  return z
-    .object({
-      name: budgetNameSchema,
-      estimatedAmount: moneyFormSchema,
-    })
-    .refine(
-      (d) => {
-        const newTotal = currentBudgetsTotal - currentBudgetAmount + d.estimatedAmount
-        return totalEstimatedIncome - newTotal >= 0
-      },
-      {
-        message:
-          'Impossible : le reste à vivre (sans économies) deviendrait négatif. Réduisez le montant ou ajoutez des revenus.',
-        path: ['estimatedAmount'],
-      },
-    )
+  const {
+    currentBudgetsTotal,
+    totalEstimatedIncome,
+    currentBudgetAmount = 0,
+    strictRav = true,
+  } = opts
+  const baseSchema = z.object({
+    name: budgetNameSchema,
+    estimatedAmount: moneyFormSchema,
+  })
+  if (!strictRav) return baseSchema
+  return baseSchema.refine(
+    (d) => {
+      const newTotal = currentBudgetsTotal - currentBudgetAmount + d.estimatedAmount
+      return totalEstimatedIncome - newTotal >= 0
+    },
+    {
+      message:
+        'Impossible : le reste à vivre (sans économies) deviendrait négatif. Réduisez le montant ou ajoutez des revenus.',
+      path: ['estimatedAmount'],
+    },
+  )
 }

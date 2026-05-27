@@ -48,4 +48,4 @@ export {
   type CarryOverToggleResult,
   type DeleteCarriedExpenseResult,
 } from './carry-over'
-export type { BudgetSavings, FinancialData, ReadOnlyIncome } from './types'
+export type { BudgetSavings, FinancialData, GroupMemberRavDetail, ReadOnlyIncome } from './types'

@@ -129,6 +129,7 @@ export default function GroupDashboardPage() {
               readOnlyIncomes={financialData?.meta?.readOnlyIncomes ?? []}
               groupSalaryTotal={financialData?.meta?.groupSalaryTotal}
               groupMembersPersonalRavTotal={financialData?.meta?.groupMembersPersonalRavTotal}
+              groupMembersRav={financialData?.meta?.groupMembersRav}
             />
           </div>
 

@@ -33,7 +33,12 @@ import { asContextFilter, resolveContextIds, type ContextFilter } from './contex
 import { calculateIncomeCompensation } from './income-compensation'
 import { buildSavingsProjectMeta } from './projects-meta'
 import { saveRavToDatabase } from './rav-persistence'
-import type { FinancialData, ReadOnlyIncome, SavingsProjectMeta } from './types'
+import type {
+  FinancialData,
+  GroupMemberRavDetail,
+  ReadOnlyIncome,
+  SavingsProjectMeta,
+} from './types'
 
 async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData> {
   // resolveContextIds enforces the discriminated-union invariant at runtime
@@ -259,6 +264,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     const readOnlyIncomes: ReadOnlyIncome[] = []
     let groupSalaryTotal: number | undefined
     let groupMembersPersonalRavTotal: number | undefined
+    let groupMembersRav: GroupMemberRavDetail[] | undefined
     if (isProfile) {
       if (profileSalary > 0) {
         readOnlyIncomes.push({ kind: 'salary', label: 'Salaire', amount: profileSalary })
@@ -287,30 +293,44 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         (sum, c) => sum + (c.profiles?.salary ?? c.salary ?? 0),
         0,
       )
-      // Capacité collective pour les projets groupe = sum des RAV perso de chaque
-      // membre : salary_i − budgets_perso_i − contribution_i. Floored à 0 par
-      // membre (un membre en déficit perso ne pénalise pas les autres).
+      // Sprint Group-RAV-Recap (fix authoritative 2026-05-27) :
+      // pour chaque membre, on calcule son RAV via `getProfileFinancialData`
+      // (strictement la même formule que le dashboard perso du membre :
+      // incomeContribution + exceptionalIncomes − estimatedBudgets −
+      // exceptionalExpenses − budgetDeficits). La formule simplifiée
+      // précédente `salary − budgets_perso − contribution` ignorait la
+      // compensation des revenus estimés, les revenus exceptionnels, les
+      // dépenses exceptionnelles autres que la contribution mirror, et les
+      // déficits budget perso → drift de plusieurs € visible côté UI.
+      // Parallèle via Promise.all pour ne pas linéariser les latences.
+      // Effet de bord : chaque appel met à jour
+      // `bank_balances.current_remaining_to_live` du membre — c'est bénéfique
+      // (les snapshots étaient sinon stale jusqu'à la prochaine visite du
+      // dashboard perso, alors que les cascades trigger groupe les rendaient
+      // obsolètes).
       if (groupContributions.length > 0) {
         const memberIds = groupContributions.map((c) => c.profile_id)
-        const { data: personalBudgetsData } = await supabaseServer
-          .from('estimated_budgets')
-          .select('profile_id, estimated_amount')
-          .in('profile_id', memberIds)
-          .is('group_id', null)
-        const personalBudgetsByMember = new Map<string, number>()
-        for (const b of personalBudgetsData ?? []) {
-          if (!b.profile_id) continue
-          personalBudgetsByMember.set(
-            b.profile_id,
-            (personalBudgetsByMember.get(b.profile_id) ?? 0) + b.estimated_amount,
-          )
-        }
-        groupMembersPersonalRavTotal = groupContributions.reduce((sum, c) => {
-          const memberSalary = c.profiles?.salary ?? c.salary ?? 0
-          const memberPersonalBudgets = personalBudgetsByMember.get(c.profile_id) ?? 0
-          const contribution = c.contribution_amount ?? 0
-          return sum + Math.max(0, memberSalary - memberPersonalBudgets - contribution)
-        }, 0)
+        const memberRavResults = await Promise.all(
+          memberIds.map(async (id) => ({
+            profileId: id,
+            rav: (await getProfileFinancialData(id)).remainingToLive,
+          })),
+        )
+        const memberRavMap = new Map(memberRavResults.map((r) => [r.profileId, r.rav]))
+        groupMembersRav = groupContributions
+          .map((c) => ({
+            profileId: c.profile_id,
+            firstName: c.profiles?.first_name ?? '',
+            salary: c.profiles?.salary ?? c.salary ?? 0,
+            currentRav: memberRavMap.get(c.profile_id) ?? 0,
+          }))
+          .sort((a, b) => a.firstName.localeCompare(b.firstName, 'fr'))
+        // Capacité collective floored par membre (un membre en déficit perso
+        // ne pénalise pas les autres) — sémantique préservée vs Sprint PÉ-12.
+        groupMembersPersonalRavTotal = groupMembersRav.reduce(
+          (sum, m) => sum + Math.max(0, m.currentRav),
+          0,
+        )
       }
     }
 
@@ -334,6 +354,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         readOnlyIncomes,
         ...(groupSalaryTotal !== undefined && { groupSalaryTotal }),
         ...(groupMembersPersonalRavTotal !== undefined && { groupMembersPersonalRavTotal }),
+        ...(groupMembersRav !== undefined && { groupMembersRav }),
         totalMonthlyProjects,
         savingsProjects: savingsProjectsMeta,
       },

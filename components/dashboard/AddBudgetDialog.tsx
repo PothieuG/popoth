@@ -13,6 +13,12 @@ import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
+import {
+  computeGroupMembersRavPreview,
+  computeProjectedGroupTotal,
+} from '@/lib/finance/group-members-rav-preview'
+import type { GroupMemberRavDetail } from '@/lib/finance'
+import GroupMembersRavRecap from './GroupMembersRavRecap'
 
 interface AddBudgetDialogProps {
   isOpen: boolean
@@ -20,6 +26,19 @@ interface AddBudgetDialogProps {
   onSave: (budget: { name: string; estimatedAmount: number }) => void
   currentBudgetsTotal: number
   totalEstimatedIncome: number
+  /**
+   * Sprint Group-RAV-Recap — en contexte groupe, passe :
+   *   - context='group'
+   *   - groupMembersRav (depuis FinancialData.meta)
+   *   - currentGroupTotal = totalBudgets + totalMonthlyAllocations (le total
+   *     qui pilote actuellement la cascade calculate_group_contributions)
+   *   - strictRav=false → omet le refine RAV (warning autorisé)
+   * En perso, ne pas passer ces props (defaults conservent le comportement).
+   */
+  context?: 'profile' | 'group'
+  groupMembersRav?: GroupMemberRavDetail[]
+  currentGroupTotal?: number
+  strictRav?: boolean
 }
 
 /**
@@ -42,10 +61,14 @@ export default function AddBudgetDialog({
   onSave,
   currentBudgetsTotal,
   totalEstimatedIncome,
+  context,
+  groupMembersRav,
+  currentGroupTotal,
+  strictRav = true,
 }: AddBudgetDialogProps) {
   const schema = useMemo(
-    () => makeBudgetClientSchema({ currentBudgetsTotal, totalEstimatedIncome }),
-    [currentBudgetsTotal, totalEstimatedIncome],
+    () => makeBudgetClientSchema({ currentBudgetsTotal, totalEstimatedIncome, strictRav }),
+    [currentBudgetsTotal, totalEstimatedIncome, strictRav],
   )
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
@@ -93,6 +116,24 @@ export default function AddBudgetDialog({
   const resultingBalance = totalEstimatedIncome - newBudgetsTotal
   const willBeNegative = resultingBalance < 0
   const showPreview = previewSafe > 0
+
+  // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
+  // Le budget ajouté entre dans `groups.monthly_budget_estimate` qui pilote
+  // la répartition des contributions ; on simule ici cette répartition pure
+  // côté client pour ne pas attendre la cascade post-submit.
+  const isGroupContext = context === 'group'
+  const groupRavRows = useMemo(() => {
+    if (!isGroupContext || !groupMembersRav || groupMembersRav.length === 0) return []
+    const projectedGroupTotal = computeProjectedGroupTotal({
+      currentGroupTotal: currentGroupTotal ?? 0,
+      newItemAmount: previewSafe,
+    })
+    return computeGroupMembersRavPreview({
+      members: groupMembersRav,
+      currentGroupTotal: currentGroupTotal ?? 0,
+      projectedGroupTotal,
+    })
+  }, [isGroupContext, groupMembersRav, currentGroupTotal, previewSafe])
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
@@ -243,51 +284,57 @@ export default function AddBudgetDialog({
               )}
             </div>
 
-            {/* Calcul en temps réel — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
-            {showPreview && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Calcul de la balance :</p>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Revenus estimés totaux</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(totalEstimatedIncome)}
+            {/* Recap — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
+                En perso : balance globale (panel uniformisé Sprint
+                Recap-Compact-And-Uniform 2026-05-22). */}
+            {isGroupContext ? (
+              <GroupMembersRavRecap rows={groupRavRows} showPreview={showPreview} />
+            ) : (
+              showPreview && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700">Calcul de la balance :</p>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-gray-700">Revenus estimés totaux</span>
+                        <span className="shrink-0 font-semibold text-gray-900">
+                          {formatAmount(totalEstimatedIncome)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-gray-700">Budgets actuels</span>
+                        <span className="shrink-0 font-semibold text-gray-900">
+                          {formatAmount(currentBudgetsTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-gray-700">Ce nouveau budget</span>
+                        <span className="shrink-0 font-semibold text-gray-900">
+                          {formatAmount(previewSafe)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="h-px flex-1 bg-blue-200" />
+                      <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                        Résultat
+                      </span>
+                      <div className="h-px flex-1 bg-blue-200" />
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium text-gray-700">Balance résultante</span>
+                      <span
+                        className={cn(
+                          'shrink-0 font-bold',
+                          willBeNegative ? 'text-red-600' : 'text-gray-900',
+                        )}
+                      >
+                        {formatAmount(resultingBalance)}
                       </span>
                     </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Budgets actuels</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(currentBudgetsTotal)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Ce nouveau budget</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(previewSafe)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-blue-200" />
-                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                      Résultat
-                    </span>
-                    <div className="h-px flex-1 bg-blue-200" />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                    <span className="font-medium text-gray-700">Balance résultante</span>
-                    <span
-                      className={cn(
-                        'shrink-0 font-bold',
-                        willBeNegative ? 'text-red-600' : 'text-gray-900',
-                      )}
-                    >
-                      {formatAmount(resultingBalance)}
-                    </span>
                   </div>
                 </div>
-              </div>
+              )
             )}
           </div>
 

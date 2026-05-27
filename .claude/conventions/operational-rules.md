@@ -183,6 +183,10 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** gater le wizard `POST /api/monthly-recap/update-salaries` par `canEditSalary` — c'est l'autre voie autorisée (sprint 08 V3). Le gating est **exclusif** au PUT `/api/profile` (= Settings).
 - ❌ **NE PAS** filtrer `is_carried_over=false` dans `countRowsForScope` ([lib/finance/planner-emptiness.ts](../../lib/finance/planner-emptiness.ts)) — décision user : carry-overs comptent comme contenu non-vierge.
 
+### Group RAV preview (Sprint Group-RAV-Recap)
+
+Règles ❌ + précédents → [Part 32](../history/roadmap-detailed-32-group-rav-recap.md). Synthèse : (a) `currentRav` par membre = `getProfileFinancialData(memberId).remainingToLive` (Promise.all), JAMAIS la simplifiée ; (b) groupe = `strictRav=false`, sémantique "warning autorisé" via `<GroupMembersRavRecap>` ; (c) utility en delta-math `projected = current − deltaContribution` ; (d) RAV bruts (négatifs OK), seul `groupMembersPersonalRavTotal` clampé.
+
 ### Forbidden absolus
 
 - ❌ **NE PAS** modifier [supabase/migrations/20260506000000_create_finance_rpcs.sql](../../supabase/migrations/20260506000000_create_finance_rpcs.sql). Pour corriger une RPC : `CREATE OR REPLACE` dans une nouvelle migration.
@@ -193,7 +197,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** réintroduire les exports supprimés au Sprint Dead-Code-Purge (cf. §1 ci-dessus).
 - ❌ **NE PAS** réintroduire un fichier `lib/financial-calculations.ts` — le god file (1069 LOC) a été splitté en 8 modules sous [lib/finance/](../../lib/finance/) au Sprint Refactor-I4.
 - ❌ **NE PAS** réintroduire un fichier `middleware.ts` — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Runtime nodejs non-configurable ; pour edge, garder le nom legacy. Migration : `git mv middleware.ts proxy.ts` + rename function + maj log prefixes + maj `eslint.config.mjs` files override.
-- ❌ **NE PAS** lancer `pnpm self-update` sans target version explicite — la commande lit la dernière version pnpm publiée et **bumpe silencieusement le pin `packageManager`** dans `package.json` (incident Sprint Hygiene-Next-16-Migration 2026-05-20 : pin `pnpm@9.15.5` → `pnpm@11.1.3` bump silencieux + install incomplet dans `~/AppData/Local/pnpm/.tools/@pnpm+win-x64/11.1.3/` — `pnpm.exe` posé (98MB) mais shims `bin/pnpm` + `pnpm.CMD` + `pnpm.ps1` **non créés** → ENOENT sur toute commande pnpm subséquente). Le pin actuel est **`pnpm@9.15.5`** (CLAUDE.md §2 stack). Patterns corrects : (a) éditer manuellement `package.json` `packageManager` field puis `pnpm install` (validation) ; (b) `pnpm self-update <version>` avec target explicite (e.g. `pnpm self-update 9.15.6` pour patch bump intentionnel). Le binaire pnpm.exe au top-level de `~/AppData/Local/pnpm/` est un shim qui lit `packageManager` et délègue à `.tools/@pnpm+win-x64/<version>/bin/pnpm` — si le bin est absent (install partielle), ENOENT immédiat.
+- ❌ **NE PAS** lancer `pnpm self-update` sans target version explicite — bumpe silencieusement le pin `packageManager` dans `package.json` (incident 2026-05-20 : `9.15.5 → 11.1.3` + install incomplet `~/AppData/Local/pnpm/.tools/@pnpm+win-x64/<v>/` shims `pnpm.CMD`/`pnpm.ps1` non créés → ENOENT sur toute commande pnpm). Pin actuel **`pnpm@9.15.5`**. Patterns corrects : (a) edit manuel `package.json.packageManager` puis `pnpm install` ; (b) `pnpm self-update <version>` target explicite (e.g. `pnpm self-update 9.15.6` pour patch bump intentionnel).
 - ❌ **NE PAS** réintroduire `app/dev/recap/` ni routes `app/api/debug/recap/*` ni `lib/dev/recap-*.ts` — pivot 2026-05-23 a remplacé par 1 script CLI = 1 scénario sous [scripts/seed-recap/](../../scripts/seed-recap/README.md), bypass via INSERT direct dans `monthly_recaps` (helper `seedRecapRow`). Avant toute nouvelle route admin/dev, vérifier qu'un script CLI ne fait pas déjà le job.
 
 ## 6. Précédents Sprint chronologie résumée
