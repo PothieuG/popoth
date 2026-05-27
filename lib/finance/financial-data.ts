@@ -226,6 +226,14 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       groupContributions = (data ?? []) as unknown as GroupContribRow[]
     }
 
+    // Somme des contributions auto-synchronisées des membres (group only).
+    // Calculée ici pour être à la fois consommée par `calculateRemainingToLiveGroup`
+    // ET exposée sur `meta.totalGroupContributions` (Sprint Fix-Group-Recap-RavEstime
+    // — utilisé par `lib/recap/load-summary.ts` pour symétriser ravEstime).
+    const totalGroupContributions = isProfile
+      ? undefined
+      : groupContributions.reduce((sum, c) => sum + c.contribution_amount, 0)
+
     let remainingToLive: number
     if (isProfile) {
       remainingToLive = await calculateRemainingToLiveProfile(
@@ -236,15 +244,10 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         totalBudgetDeficits,
       )
     } else {
-      const totalProfileContributions = groupContributions.reduce(
-        (sum, c) => sum + c.contribution_amount,
-        0,
-      )
-
       remainingToLive = await calculateRemainingToLiveGroup(
         incomeContribution,
         exceptionalIncomes,
-        totalProfileContributions,
+        totalGroupContributions ?? 0,
         totalEstimatedBudgets,
         exceptionalExpenses,
         totalBudgetDeficits,
@@ -355,6 +358,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         ...(groupSalaryTotal !== undefined && { groupSalaryTotal }),
         ...(groupMembersPersonalRavTotal !== undefined && { groupMembersPersonalRavTotal }),
         ...(groupMembersRav !== undefined && { groupMembersRav }),
+        ...(totalGroupContributions !== undefined && { totalGroupContributions }),
         totalMonthlyProjects,
         savingsProjects: savingsProjectsMeta,
       },

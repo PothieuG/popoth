@@ -18,8 +18,16 @@
  *   5. Solde bancaire (`bank_balances.balance`) — `.maybeSingle()` + 0.
  *
  * RAV mapping (cf. prompt-montly-recap/04-calculations.md ligne 45-46) :
- *   - ravEstime  = totalEstimatedIncome - totalEstimatedBudgets
- *   - ravEffectif = remainingToLive (calc-rtl existant)
+ *   - ravEstime (profile) = totalEstimatedIncome - totalEstimatedBudgets
+ *   - ravEstime (group)   = totalEstimatedIncome + totalGroupContributions - totalEstimatedBudgets
+ *   - ravEffectif         = remainingToLive (calc-rtl existant)
+ *
+ * Le terme `totalGroupContributions` (mirror auto-synchronisé de
+ * `groups.monthly_budget_estimate` via trigger PG) DOIT figurer côté ravEstime
+ * en contexte groupe pour rester symétrique à la formule `ravEffectif`
+ * (cf. `lib/finance/calc-rtl.ts:58-74` qui ajoute le même terme côté effectif).
+ * Sans cette symétrie, le bilan = `ravEffectif − ravEstime` dérive
+ * mécaniquement vers un faux positif dès qu'il y a un budget ou projet groupe.
  *
  * Tous les montants sont passés en cents-precise via `computeRecapSummary`
  * (round2 stable). Ce helper ne fait pas d'écriture (pure read + compose).
@@ -109,7 +117,10 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
 
   return computeRecapSummary({
     currentBalance,
-    ravEstime: financialData.totalEstimatedIncome - financialData.totalEstimatedBudgets,
+    ravEstime:
+      financialData.totalEstimatedIncome +
+      (financialData.meta?.totalGroupContributions ?? 0) -
+      financialData.totalEstimatedBudgets,
     ravEffectif: financialData.remainingToLive,
     piggyAmount,
     budgets: budgets.map((b) => ({

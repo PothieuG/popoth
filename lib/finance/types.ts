@@ -100,6 +100,14 @@ export interface FinancialData {
     // Présent uniquement en groupe (undefined en perso). Tri stable par
     // firstName (cohérent avec readOnlyIncomes).
     groupMembersRav?: GroupMemberRavDetail[]
+    // Sprint Fix-Group-Recap-RavEstime — somme des contributions auto-synchronisées
+    // des membres du groupe (mirror de `groups.monthly_budget_estimate` via trigger).
+    // Présent uniquement en groupe (undefined en perso). Utilisé par
+    // `lib/recap/load-summary.ts` pour symétriser `ravEstime` et `ravEffectif` :
+    // sans ce terme côté `ravEstime`, le bilan groupe = `ravEffectif − ravEstime`
+    // dérive en permanence vers un faux positif (le `+totalGroupContributions`
+    // n'apparaît que dans la formule `ravEffectif` — cf. `calc-rtl.ts:58-74`).
+    totalGroupContributions?: number
     totalMonthlyProjects: number
     savingsProjects: SavingsProjectMeta[]
   }

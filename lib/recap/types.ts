@@ -25,6 +25,14 @@ export interface BudgetSummary {
 
 export interface RecapSummary {
   currentBalance: number
+  /** Reste à vivre estimé.
+   *  - Profile : `totalEstimatedIncome − totalEstimatedBudgets`
+   *  - Group   : `totalEstimatedIncome + totalGroupContributions − totalEstimatedBudgets`
+   *  Le terme groupe DOIT figurer pour rester symétrique à `ravEffectif`
+   *  (cf. `lib/finance/calc-rtl.ts::calculateRemainingToLiveGroup`). Sans cette
+   *  symétrie, le bilan dérive en faux positif dès qu'il y a un budget ou
+   *  projet groupe (les contributions auto-syncées sur
+   *  `groups.monthly_budget_estimate` ne figurent que côté effectif). */
   ravEstime: number
   ravEffectif: number
   totalSurplus: number

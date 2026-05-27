@@ -115,7 +115,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **759**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **786**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **227**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **44**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **36/36**                 | `pnpm db:audit-functions`                                                                                                |
@@ -329,7 +329,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 775/227. 44 routes. 25 RPCs + 36 fn. **MRv3** 01-17 + **PÉ** 01-12 livrés.
+**État global** : Score ~100. Lint 0/0. Tests 786/227. 44 routes. 25 RPCs + 36 fn. **MRv3** 01-17 + **PÉ** 01-12 livrés.
 
 **Historique** — 33 parts (140 sprints) :
 

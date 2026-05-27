@@ -44,7 +44,10 @@ export interface BudgetSummary {
 export interface RecapSummary {
   // Inputs résumés
   currentBalance: number
-  ravEstime: number      // sum(estimatedIncomes) - sum(estimatedBudgets)
+  ravEstime: number      // profile : sum(estimatedIncomes) − sum(estimatedBudgets)
+                         // group   : sum(estimatedIncomes) + totalGroupContributions − sum(estimatedBudgets)
+                         // Le terme group DOIT être inclus pour rester symétrique
+                         // à ravEffectif (cf. lib/finance/calc-rtl.ts::calculateRemainingToLiveGroup).
   ravEffectif: number    // RAV calculé par calc-rtl (existing)
   totalSurplus: number   // sum(budgets.surplus)
   totalSavings: number   // sum(budgets.cumulatedSavings) — par budget, hors piggy
