@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { isoDateSchema, moneyFormSchema, moneySchema, uuidSchema } from './common'
+import {
+  isoDateSchema,
+  moneyFormSchema,
+  moneySchema,
+  nonNegativeMoneySchema,
+  uuidSchema,
+} from './common'
 
 const incomeNameSchema = z
   .string()
@@ -77,6 +83,42 @@ export const updateRealIncomeBodySchema = z
 
 export type CreateRealIncomeBody = z.infer<typeof createRealIncomeBodySchema>
 export type UpdateRealIncomeBody = z.infer<typeof updateRealIncomeBodySchema>
+
+/**
+ * Sprint Salary-Auto-At-Recap-Complete (2026-06-05).
+ * POST /api/finance/income/real/validate-salary body — appelé par la modal
+ * SalaryValidationModal (long-press sur une ligne salaire non-validée).
+ *
+ *   - income_id : id de la ligne salaire (real_income_entries) à valider.
+ *     Le serveur vérifie qu'elle a recap_origin_id IS NOT NULL ET
+ *     applied_to_balance_at IS NULL avant d'appeler le RPC.
+ *   - real_amount : le montant réellement perçu. Si différent de la valeur
+ *     pré-remplie (= la ligne.amount), le delta génère un revenu/dépense
+ *     exceptionnel "Équilibrage salaire" auto-validé. nonNegative pour
+ *     accepter un salaire à 0 (cas du user qui finalement n'a rien touché —
+ *     créerait une dépense exceptionnelle pour le full montant).
+ */
+export const validateSalaryBodySchema = z.object({
+  income_id: uuidSchema,
+  real_amount: nonNegativeMoneySchema,
+})
+export type ValidateSalaryBody = z.infer<typeof validateSalaryBodySchema>
+
+/**
+ * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Variante client-form
+ * pour SalaryValidationModal. `realAmount` coerce string|number→number (le
+ * DecimalFormInput émet du string normalisé). nonNegative comme côté API.
+ */
+export const validateSalaryFormSchema = z.object({
+  realAmount: z.coerce
+    .number()
+    .finite('Montant invalide')
+    .nonnegative('Le montant doit être positif ou nul')
+    .refine((v) => Math.round(v * 100) === v * 100, {
+      message: 'Au maximum 2 décimales',
+    }),
+})
+export type ValidateSalaryForm = z.infer<typeof validateSalaryFormSchema>
 
 /**
  * Estimated income create body. Snake_case because the handler at

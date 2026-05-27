@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -430,51 +430,6 @@ export type Database = {
           },
         ]
       }
-      monthly_recaps_v2: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          group_id: string | null
-          id: string
-          profile_id: string | null
-          recap_month: number
-          recap_year: number
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          profile_id?: string | null
-          recap_month: number
-          recap_year: number
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          profile_id?: string | null
-          recap_month?: number
-          recap_year?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "monthly_recaps_v2_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "monthly_recaps_v2_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       piggy_bank: {
         Row: {
           amount: number
@@ -666,6 +621,7 @@ export type Database = {
           amount: number
           applied_to_balance_at: string | null
           carried_from_recap_id: string | null
+          contribution_id: string | null
           created_at: string | null
           created_by_profile_id: string | null
           description: string
@@ -677,11 +633,13 @@ export type Database = {
           is_exceptional: boolean
           last_applied_amount: number | null
           profile_id: string | null
+          recap_origin_id: string | null
         }
         Insert: {
           amount: number
           applied_to_balance_at?: string | null
           carried_from_recap_id?: string | null
+          contribution_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description: string
@@ -693,11 +651,13 @@ export type Database = {
           is_exceptional?: boolean
           last_applied_amount?: number | null
           profile_id?: string | null
+          recap_origin_id?: string | null
         }
         Update: {
           amount?: number
           applied_to_balance_at?: string | null
           carried_from_recap_id?: string | null
+          contribution_id?: string | null
           created_at?: string | null
           created_by_profile_id?: string | null
           description?: string
@@ -709,6 +669,7 @@ export type Database = {
           is_exceptional?: boolean
           last_applied_amount?: number | null
           profile_id?: string | null
+          recap_origin_id?: string | null
         }
         Relationships: [
           {
@@ -716,6 +677,13 @@ export type Database = {
             columns: ["carried_from_recap_id"]
             isOneToOne: false
             referencedRelation: "monthly_recaps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "real_income_entries_contribution_id_fkey"
+            columns: ["contribution_id"]
+            isOneToOne: false
+            referencedRelation: "group_contributions"
             referencedColumns: ["id"]
           },
           {
@@ -746,52 +714,11 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      recap_snapshots_v2: {
-        Row: {
-          created_at: string
-          group_id: string | null
-          id: string
-          is_active: boolean
-          profile_id: string | null
-          snapshot_data: Json | null
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Insert: {
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          is_active?: boolean
-          profile_id?: string | null
-          snapshot_data?: Json | null
-          snapshot_month: number
-          snapshot_year: number
-        }
-        Update: {
-          created_at?: string
-          group_id?: string | null
-          id?: string
-          is_active?: boolean
-          profile_id?: string | null
-          snapshot_data?: Json | null
-          snapshot_month?: number
-          snapshot_year?: number
-        }
-        Relationships: [
           {
-            foreignKeyName: "recap_snapshots_v2_group_id_fkey"
-            columns: ["group_id"]
+            foreignKeyName: "real_income_entries_recap_origin_id_fkey"
+            columns: ["recap_origin_id"]
             isOneToOne: false
-            referencedRelation: "groups"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recap_snapshots_v2_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
+            referencedRelation: "monthly_recaps"
             referencedColumns: ["id"]
           },
         ]
@@ -957,6 +884,10 @@ export type Database = {
         Args: { group_id_param: string }
         Returns: undefined
       }
+      create_salary_income_for_recap: {
+        Args: { p_profile_id: string; p_recap_id: string }
+        Returns: Json
+      }
       create_savings_project: {
         Args: {
           p_deadline: string
@@ -1016,6 +947,10 @@ export type Database = {
       }
       toggle_carry_over_and_apply_income: {
         Args: { p_income_id: string; p_validate: boolean }
+        Returns: Json
+      }
+      toggle_contribution_pair_applied: {
+        Args: { p_apply: boolean; p_contribution_id: string }
         Returns: Json
       }
       toggle_real_expense_applied_to_balance: {
@@ -1110,6 +1045,14 @@ export type Database = {
           p_name: string
           p_profile_id?: string
           p_target: number
+        }
+        Returns: Json
+      }
+      validate_salary_with_delta: {
+        Args: {
+          p_created_by_profile_id: string
+          p_income_id: string
+          p_real_amount: number
         }
         Returns: Json
       }
