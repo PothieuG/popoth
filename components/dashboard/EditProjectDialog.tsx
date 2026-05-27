@@ -48,7 +48,6 @@ interface EditProjectDialogProps {
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
   currentGroupTotal?: number
-  strictRav?: boolean
 }
 
 type Mode = 'duration' | 'monthly'
@@ -88,22 +87,11 @@ export default function EditProjectDialog({
   context,
   groupMembersRav,
   currentGroupTotal,
-  strictRav = true,
 }: EditProjectDialogProps) {
   const amountSaved = Number(project.amount_saved) || 0
   const currentProjectAllocation = Number(project.monthly_allocation) || 0
 
-  const schema = useMemo(
-    () =>
-      makeProjectClientSchema({
-        currentAllocatedTotal,
-        totalEstimatedIncome,
-        currentProjectAllocation,
-        amountSaved,
-        strictRav,
-      }),
-    [currentAllocatedTotal, totalEstimatedIncome, currentProjectAllocation, amountSaved, strictRav],
-  )
+  const schema = useMemo(() => makeProjectClientSchema({ amountSaved }), [amountSaved])
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
 

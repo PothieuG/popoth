@@ -35,7 +35,6 @@ interface EditBudgetDialogProps {
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
   currentGroupTotal?: number
-  strictRav?: boolean
 }
 
 /**
@@ -45,9 +44,8 @@ interface EditBudgetDialogProps {
  * return-focus + role=dialog + aria-modal. Custom close X preserved via
  * `hideCloseButton={true}` on DialogContent.
  *
- * Uses react-hook-form + zodResolver(makeBudgetClientSchema({
- *   currentBudgetAmount: budget.estimated_amount  // for delta calc
- * })). Schema rebuilt on prop change via useMemo. Edit mode :
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema()). RAV negative
+ * is allowed — only name + amount shape are validated. Edit mode :
  * defaultValues init from `budget` prop ; parent must use
  * `key={budget.id}` to remount on target change.
  *
@@ -65,19 +63,9 @@ export default function EditBudgetDialog({
   context,
   groupMembersRav,
   currentGroupTotal,
-  strictRav = true,
 }: EditBudgetDialogProps) {
   const currentBudgetAmount = budget?.estimated_amount ?? 0
-  const schema = useMemo(
-    () =>
-      makeBudgetClientSchema({
-        currentBudgetsTotal,
-        totalEstimatedIncome,
-        currentBudgetAmount,
-        strictRav,
-      }),
-    [currentBudgetsTotal, totalEstimatedIncome, currentBudgetAmount, strictRav],
-  )
+  const schema = useMemo(() => makeBudgetClientSchema(), [])
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
 

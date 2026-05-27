@@ -47,7 +47,6 @@ interface AddProjectDialogProps {
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
   currentGroupTotal?: number
-  strictRav?: boolean
 }
 
 type Mode = 'duration' | 'monthly'
@@ -85,12 +84,8 @@ export default function AddProjectDialog({
   context,
   groupMembersRav,
   currentGroupTotal,
-  strictRav = true,
 }: AddProjectDialogProps) {
-  const schema = useMemo(
-    () => makeProjectClientSchema({ currentAllocatedTotal, totalEstimatedIncome, strictRav }),
-    [currentAllocatedTotal, totalEstimatedIncome, strictRav],
-  )
+  const schema = useMemo(() => makeProjectClientSchema(), [])
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
 

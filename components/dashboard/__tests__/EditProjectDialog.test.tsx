@@ -98,7 +98,7 @@ describe('EditProjectDialog', () => {
     expect(arg?.targetAmount).toBe(7000)
   })
 
-  it('refine RAV — bloque si le mensuel post-edit crève la marge', async () => {
+  it('allows submit even when post-edit monthly crève la marge (RAV may go negative)', async () => {
     const onSave = makeSaveMock()
     const user = userEvent.setup()
     render(
@@ -107,8 +107,6 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={onSave}
         project={buildProject({ monthly_allocation: 195 })}
-        // Pre-other = 805 (mêmes settings que test précédent). Edit le mensuel
-        // à 1500 → newTotal = 805 + 1500 = 2305 > 2000 → refine 1 fail.
         currentAllocatedTotal={1000}
         totalEstimatedIncome={2000}
       />,
@@ -121,8 +119,9 @@ describe('EditProjectDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /sauvegarder/i }))
 
-    expect(await screen.findByText(/le reste à vivre deviendrait négatif/i)).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('mensuel dérivé prend en compte amount_saved (target − saved, pas target)', async () => {

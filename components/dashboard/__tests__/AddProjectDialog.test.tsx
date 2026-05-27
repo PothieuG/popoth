@@ -116,7 +116,7 @@ describe('AddProjectDialog', () => {
     })
   })
 
-  it('refine RAV — bloque si le mensuel > marge disponible', async () => {
+  it('allows submit even when monthly allocation exceeds remaining margin (RAV may go negative)', async () => {
     const onSave = makeSaveMock()
     const user = userEvent.setup()
     render(
@@ -129,7 +129,7 @@ describe('AddProjectDialog', () => {
       />,
     )
 
-    await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Trop cher')
+    await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Au-dessus marge')
     await user.type(screen.getByPlaceholderText('0.00'), '6000')
 
     // Bascule en mode B et tape un mensuel qui crève la marge (200€ dispo)
@@ -140,36 +140,9 @@ describe('AddProjectDialog', () => {
 
     await user.click(screen.getByRole('button', { name: /créer le projet/i }))
 
-    expect(await screen.findByText(/le reste à vivre deviendrait négatif/i)).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
-  })
-
-  it('refine duration min — durée trop courte → mensuel dérivé > marge → erreur', async () => {
-    const onSave = makeSaveMock()
-    const user = userEvent.setup()
-    render(
-      <AddProjectDialog
-        isOpen
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
-
-    await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Express')
-    // Cible 20000€ avec marge 1500€/mois → durée min = ceil(20000/1500) = 14
-    await user.type(screen.getByPlaceholderText('0.00'), '20000')
-
-    // Mode A par défaut → on force durée=2 (mensuel dérivé = 10000 >> 1500)
-    const durationInput = screen.getByLabelText(/durée \(mois\)/i)
-    await user.clear(durationInput)
-    await user.type(durationInput, '2')
-
-    await user.click(screen.getByRole('button', { name: /créer le projet/i }))
-
-    expect(await screen.findByText(/le reste à vivre deviendrait négatif/i)).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('a11y — Esc keydown ferme la modal (focus trap natif Radix)', async () => {

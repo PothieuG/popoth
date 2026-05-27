@@ -1113,7 +1113,7 @@ export default function PlanningDrawer({
            groupe = sum salaires des membres ; en perso = totalIncomesWithReadOnly)
            pour briser le cycle "groupe vide ne peut jamais bootstrapper".
            Sprint Group-RAV-Recap : en groupe, on passe aussi `groupMembersRav`
-           + `currentGroupTotal` + `strictRav=false` (warning autorisé). */}
+           + `currentGroupTotal` (warning visuel non bloquant). */}
         <AddBudgetDialog
           isOpen={isAddBudgetOpen}
           onClose={() => setIsAddBudgetOpen(false)}
@@ -1123,7 +1123,6 @@ export default function PlanningDrawer({
           context={context}
           groupMembersRav={groupMembersRav}
           currentGroupTotal={currentGroupTotal}
-          strictRav={!isGroupContext}
         />
 
         {/* Add Income Dialog */}
@@ -1149,7 +1148,6 @@ export default function PlanningDrawer({
           context={context}
           groupMembersRav={groupMembersRav}
           currentGroupTotal={currentGroupTotal}
-          strictRav={!isGroupContext}
         />
 
         {/* Edit Budget Dialog — conditional render + key on editingBudget.id
@@ -1166,7 +1164,6 @@ export default function PlanningDrawer({
             context={context}
             groupMembersRav={groupMembersRav}
             currentGroupTotal={currentGroupTotal}
-            strictRav={!isGroupContext}
           />
         )}
 
@@ -1199,7 +1196,6 @@ export default function PlanningDrawer({
             context={context}
             groupMembersRav={groupMembersRav}
             currentGroupTotal={currentGroupTotal}
-            strictRav={!isGroupContext}
           />
         )}
 

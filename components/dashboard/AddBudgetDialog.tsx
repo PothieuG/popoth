@@ -27,18 +27,14 @@ interface AddBudgetDialogProps {
   currentBudgetsTotal: number
   totalEstimatedIncome: number
   /**
-   * Sprint Group-RAV-Recap — en contexte groupe, passe :
-   *   - context='group'
-   *   - groupMembersRav (depuis FinancialData.meta)
-   *   - currentGroupTotal = totalBudgets + totalMonthlyAllocations (le total
-   *     qui pilote actuellement la cascade calculate_group_contributions)
-   *   - strictRav=false → omet le refine RAV (warning autorisé)
-   * En perso, ne pas passer ces props (defaults conservent le comportement).
+   * Sprint Group-RAV-Recap — en contexte groupe, passe `context='group'` +
+   * `groupMembersRav` (depuis FinancialData.meta) + `currentGroupTotal`
+   * (le total qui pilote la cascade calculate_group_contributions). Le
+   * `<GroupMembersRavRecap>` remplace alors le bloc preview perso.
    */
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
   currentGroupTotal?: number
-  strictRav?: boolean
 }
 
 /**
@@ -48,9 +44,9 @@ interface AddBudgetDialogProps {
  * return-focus + role=dialog + aria-modal. Custom close X preserved via
  * `hideCloseButton={true}` on DialogContent.
  *
- * Uses react-hook-form + zodResolver(makeBudgetClientSchema(...)). The
- * factory refine gates the balance check (newTotal <= totalEstimatedIncome)
- * — schema rebuilt on prop change via useMemo (Sprint Zod-Rollout v3).
+ * Uses react-hook-form + zodResolver(makeBudgetClientSchema()). RAV negative
+ * is allowed — only name + amount shape are validated. The preview panel
+ * surfaces the impact (red if RAV would go negative).
  *
  * useWatch for the live preview avoids the form.watch react-compiler
  * incompatibility warning.
@@ -64,12 +60,8 @@ export default function AddBudgetDialog({
   context,
   groupMembersRav,
   currentGroupTotal,
-  strictRav = true,
 }: AddBudgetDialogProps) {
-  const schema = useMemo(
-    () => makeBudgetClientSchema({ currentBudgetsTotal, totalEstimatedIncome, strictRav }),
-    [currentBudgetsTotal, totalEstimatedIncome, strictRav],
-  )
+  const schema = useMemo(() => makeBudgetClientSchema(), [])
   type FormInput = z.input<typeof schema>
   type FormOutput = z.output<typeof schema>
 

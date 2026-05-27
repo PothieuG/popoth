@@ -19,8 +19,6 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
-import { useFinancialData } from '@/hooks/useFinancialData'
-import { useRavValidation } from '@/hooks/useRavValidation'
 import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
@@ -86,10 +84,6 @@ const todayIso = (): string => {
  * Migrated to Radix Dialog (Sprint Zod-Rollout v8) for focus trap + Esc-to-close
  * + return-focus + role=dialog + aria-modal. Custom close X via ModalCloseX (v10).
  *
- * useRavValidation reads the savings toggle + savingsAvailable (Phase A5)
- * to correctly predict RAV impact — savings cascade absorbs overflow,
- * RAV not impacted as much as the pre-P4 cascade-aggressive logic predicted.
- *
  * `isOpen` defaults to `true` to preserve the legacy parent pattern
  * `{isOpen && <Modal />}` (dashboard + group-dashboard pages).
  */
@@ -115,14 +109,13 @@ export default function AddTransactionModal({
   // Sprint 2026-05-21 / Auto-Use-Savings : le toggle UI "Utiliser les économies"
   // a été retiré — savings utilisées par défaut (mode P5 strict). La constante
   // reste pour passer `use_savings: true` à l'API + `useSavingsToggle: true`
-  // aux helpers `calculateBreakdown` / `useRavValidation`.
+  // au helper `calculateBreakdown`.
   const useSavings = true
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress } = useProgressData(context)
-  const { financialData } = useFinancialData(context)
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
@@ -158,17 +151,6 @@ export default function AddTransactionModal({
   // P5 — local savings of selected budget (for cascade absorption preview + RAV calc)
   const selectedBudget = budgets.find((b) => b.id === budgetId)
   const savingsAvailable = selectedBudget?.cumulated_savings ?? 0
-
-  const ravValidation = useRavValidation({
-    transactionType,
-    isExceptional,
-    amount: previewSafe,
-    remainingToLive: financialData?.remainingToLive,
-    budgetId,
-    budgetProgress: expenseProgress[budgetId],
-    savingsAvailable,
-    useSavingsToggle: useSavings,
-  })
 
   // Sprint Auto-Cascade-Piggy (2026-05-25) — l'utilisateur ne sélectionne
   // plus manuellement les budgets sources en cas de dépassement. Le serveur
@@ -298,13 +280,6 @@ export default function AddTransactionModal({
    */
   const onValidSubmit = async (data: AddTransactionFormOutput) => {
     setServerError(null)
-
-    if (ravValidation.blocked) {
-      setServerError(
-        "Impossible d'ajouter cette dépense : votre reste à vivre (sans économies) deviendrait négatif. Réduisez le montant de la dépense.",
-      )
-      return
-    }
 
     try {
       let success = false
@@ -887,20 +862,6 @@ export default function AddTransactionModal({
                 />
               )}
 
-              {/* RAV Negative Warning */}
-              {ravValidation.blocked && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
-                  <p className="text-sm font-medium text-red-700">
-                    Impossible d&apos;ajouter cette dépense : votre reste à vivre (sans économies)
-                    deviendrait négatif (
-                    {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(
-                      ravValidation.newRav,
-                    )}
-                    ). Réduisez le montant de la dépense.
-                  </p>
-                </div>
-              )}
-
               {/* Server-side error */}
               {serverError && (
                 <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
@@ -922,7 +883,7 @@ export default function AddTransactionModal({
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting || ravValidation.blocked}
+                disabled={isSubmitting}
                 className={cn(
                   'flex-1',
                   transactionType === 'expense'

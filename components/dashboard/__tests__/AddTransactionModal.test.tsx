@@ -2,13 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
 
-// 6 hooks mocked — AddTransactionModal has the broadest data surface of any
-// client form. Fixtures kept stable across tests; ravValidation state is
-// mutable via the module-level object to toggle blocked between cases.
+// 5 hooks mocked — AddTransactionModal has the broadest data surface of any
+// client form. Fixtures kept stable across tests.
 
 const addExpense = vi.fn(async () => true)
 const addIncome = vi.fn(async () => true)
-const ravState: { blocked: boolean; newRav: number } = { blocked: false, newRav: 0 }
 
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 const INCOME_UUID = '22222222-2222-4222-8222-222222222222'
@@ -36,9 +34,6 @@ vi.mock('@/hooks/useProgressData', () => ({
 }))
 vi.mock('@/hooks/useFinancialData', () => ({
   useFinancialData: () => ({ financialData: { remainingToLive: 1000 } }),
-}))
-vi.mock('@/hooks/useRavValidation', () => ({
-  useRavValidation: () => ravState,
 }))
 vi.mock('@/components/dashboard/RemainingToLivePreview', () => ({
   default: () => null,
@@ -106,8 +101,6 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
     addIncome.mockClear()
     addExpense.mockResolvedValue(true)
     addIncome.mockResolvedValue(true)
-    ravState.blocked = false
-    ravState.newRav = 0
   })
 
   it('Step 1 renders type selection cards', () => {
@@ -195,7 +188,6 @@ describe('AddTransactionModal — use_savings auto-enabled (Sprint 2026-05-21 / 
   beforeEach(() => {
     addExpense.mockClear()
     addExpense.mockResolvedValue(true)
-    ravState.blocked = false
   })
 
   it('no longer renders a "Utiliser les économies" toggle UI', async () => {
@@ -235,8 +227,6 @@ describe('AddTransactionModal — submit flows', () => {
     addIncome.mockClear()
     addExpense.mockResolvedValue(true)
     addIncome.mockResolvedValue(true)
-    ravState.blocked = false
-    ravState.newRav = 0
   })
 
   it('calls addExpense with correct data on happy budgétée submit', async () => {
@@ -264,20 +254,23 @@ describe('AddTransactionModal — submit flows', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('blocks submit when useRavValidation reports blocked=true (Pattern E)', async () => {
-    ravState.blocked = true
-    ravState.newRav = -200
+  it('allows submit even when expense exceeds remaining-to-live (RAV may go negative)', async () => {
     const user = userEvent.setup()
     render(<AddTransactionModal onClose={vi.fn()} />)
-    await navigateToFieldsExpense(user)
-    await user.selectOptions(screen.getByTestId('fk-dropdown'), BUDGET_UUID)
-    await user.type(screen.getByLabelText(/description/i), 'Trop cher')
+    await navigateToFieldsExpense(user, { exceptional: true })
+    await user.type(screen.getByLabelText(/description/i), 'Achat hors budget')
     const amount = screen.getByLabelText(/montant/i)
     await user.clear(amount)
     await user.type(amount, '2000')
     await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/i }))
-    expect(await screen.findByText(/votre reste à vivre.*négatif/i)).toBeInTheDocument()
-    expect(addExpense).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(addExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: 'Achat hors budget',
+          amount: 2000,
+        }),
+      )
+    })
   })
 
   it('calls addIncome on happy income submit', async () => {

@@ -63,69 +63,29 @@ export function monthsUntilDeadline(today: Date, deadline: Date): number {
 }
 
 /**
- * Client-side factory for AddProjectDialog + EditProjectDialog. Two refines :
+ * Client-side factory for AddProjectDialog + EditProjectDialog. Single refine :
  *
- * 1. **RAV ≥ 0** — `newAllocatedTotal ≤ totalEstimatedIncome` where
- *    `newAllocatedTotal = currentAllocatedTotal − currentProjectAllocation +
- *    d.monthlyAllocation`. Same delta-math idiom as `makeBudgetClientSchema`
- *    (the current row's allocation is subtracted before adding the new one
- *    so edit-in-place doesn't double-count). `currentAllocatedTotal` is the
- *    sum of all existing planner allocations (budgets + other projects).
+ * **Cohérence durée/target** — the project must be reachable :
+ * `monthlyAllocation × monthsUntilDeadline ≥ targetAmount − amountSaved`.
+ * Edit case must pass in `amountSaved` from the row so a partially-saved
+ * project can still validate even when the remaining gap is small.
  *
- * 2. **Cohérence durée/target** — the project must be reachable :
- *    `monthlyAllocation × monthsUntilDeadline ≥ targetAmount − amountSaved`.
- *    Edit case must pass in `amountSaved` from the row so a partially-saved
- *    project can still validate even when the remaining gap is small.
- *
- * Refine 2 also implicitly enforces that `deadlineDate` is in the future
- * (months ≤ 0 ⇒ left-hand side ≤ 0 ⇒ refine fails unless remaining ≤ 0,
- * which only happens when the project is already fully saved).
+ * Also implicitly enforces that `deadlineDate` is in the future (months ≤ 0
+ * ⇒ left-hand side ≤ 0 ⇒ refine fails unless remaining ≤ 0, which only
+ * happens when the project is already fully saved).
  *
  * Memoize the result via `useMemo` on the calling component so the resolver
  * identity stays stable across renders.
  */
-export function makeProjectClientSchema(opts: {
-  currentAllocatedTotal: number
-  totalEstimatedIncome: number
-  currentProjectAllocation?: number
-  amountSaved?: number
-  /**
-   * Sprint Group-RAV-Recap — flag (default true) qui contrôle uniquement le
-   * refine 1 (RAV ≥ 0). Passé à false en contexte groupe pour adopter la
-   * sémantique "warning mais autoriser" (gérée par
-   * `<GroupMembersRavRecap>`). Le refine 2 (cohérence durée/target) reste
-   * inconditionnel — c'est une contrainte arithmétique objective,
-   * orthogonale au contexte.
-   */
-  strictRav?: boolean
-}) {
-  const {
-    currentAllocatedTotal,
-    totalEstimatedIncome,
-    currentProjectAllocation = 0,
-    amountSaved = 0,
-    strictRav = true,
-  } = opts
+export function makeProjectClientSchema(opts?: { amountSaved?: number }) {
+  const { amountSaved = 0 } = opts ?? {}
   const base = z.object({
     name: projectNameSchema,
     targetAmount: moneyFormSchema,
     monthlyAllocation: moneyFormSchema,
     deadlineDate: isoDateSchema,
   })
-  const afterRav = strictRav
-    ? base.refine(
-        (d) => {
-          const newTotal = currentAllocatedTotal - currentProjectAllocation + d.monthlyAllocation
-          return totalEstimatedIncome - newTotal >= 0
-        },
-        {
-          message:
-            'Impossible : le reste à vivre deviendrait négatif. Réduisez le montant mensuel ou ajoutez des revenus.',
-          path: ['monthlyAllocation'],
-        },
-      )
-    : base
-  return afterRav.refine(
+  return base.refine(
     (d) => {
       const today = new Date()
       const deadline = new Date(d.deadlineDate)

@@ -25,10 +25,9 @@ const formatAmount = (amount: number): string =>
  *
  * Pour chaque membre : affiche son RAV actuel → RAV projeté après ajout/
  * édition. Mise en évidence rouge + message d'avertissement si le membre
- * passerait en RAV négatif. La validation reste "warning mais autoriser"
- * (les schémas Zod sont déjà passés en strictRav=false côté groupe), donc
- * le bouton "Ajouter / Sauvegarder" reste actif même si des warnings sont
- * visibles — l'utilisateur prend la décision en connaissance de cause.
+ * passerait en RAV négatif. Le bouton "Ajouter / Sauvegarder" reste
+ * toujours actif — l'utilisateur prend la décision en connaissance de
+ * cause (le RAV négatif est autorisé depuis 2026-05-27).
  *
  * Layout mobile-first (≤ 430px) : flex baseline justify-between, prénom
  * tronqué à gauche, montants shrink-0 à droite. `role="alert"` sur le

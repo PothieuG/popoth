@@ -27,7 +27,7 @@ describe('AddBudgetDialog', () => {
     expect(onSave).not.toHaveBeenCalled()
   })
 
-  it('shows balance refine error when newTotal exceeds totalEstimatedIncome', async () => {
+  it('allows submit even when newTotal exceeds totalEstimatedIncome (RAV may go negative)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
     render(
@@ -40,15 +40,12 @@ describe('AddBudgetDialog', () => {
       />,
     )
     await user.type(screen.getByPlaceholderText(/alimentation/i), 'Voyages')
-    // 1800 + 500 = 2300 > 2000 — refine fails
+    // 1800 + 500 = 2300 > 2000 — would push RAV negative, but allowed since 2026-05-27
     await user.type(screen.getByPlaceholderText('0.00'), '500')
     await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))
-    expect(
-      await screen.findByText(
-        /Impossible : le reste à vivre \(sans économies\) deviendrait négatif/i,
-      ),
-    ).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith({ name: 'Voyages', estimatedAmount: 500 })
+    })
   })
 
   it('calls onSave with valid name + amount on happy submit', async () => {
@@ -71,37 +68,6 @@ describe('AddBudgetDialog', () => {
       expect(onSave).toHaveBeenCalledWith({ name: 'Loisirs', estimatedAmount: 300 })
     })
     expect(onClose).toHaveBeenCalled()
-  })
-
-  it('rebuilds schema when currentBudgetsTotal prop changes (Pattern D)', async () => {
-    const onSave = vi.fn()
-    const user = userEvent.setup()
-    const { rerender } = render(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
-    // First : 500 + 300 = 800 (well under 2000) — would pass refine
-    await user.type(screen.getByPlaceholderText(/alimentation/i), 'Loisirs')
-    await user.type(screen.getByPlaceholderText('0.00'), '300')
-    // Now bump props : 1900 + 300 = 2200 > 2000 — refine fails
-    rerender(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentBudgetsTotal={1900}
-        totalEstimatedIncome={2000}
-      />,
-    )
-    await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))
-    await waitFor(() => {
-      expect(onSave).not.toHaveBeenCalled()
-    })
   })
 
   // Sprint Zod-Rollout v6 / Axe 3 — regression-guards for Axe 1 (a11y

@@ -63,49 +63,13 @@ export type CreateEstimatedBudgetBody = z.infer<typeof createEstimatedBudgetBody
 export type UpdateEstimatedBudgetBody = z.infer<typeof updateEstimatedBudgetBodySchema>
 
 /**
- * Client-side factory for AddBudgetDialog + EditBudgetDialog. The refine
- * gate "newBudgetsTotal <= totalEstimatedIncome" depends on parent props
- * (currentBudgetsTotal, totalEstimatedIncome) so the schema must be built
- * at render time. Memoize the result via useMemo on the calling component
- * to keep the resolver identity stable across renders.
- *
- * Add case  : currentBudgetAmount = 0
- * Edit case : currentBudgetAmount = editing.estimated_amount (so the
- *             current value is subtracted from the running total before
- *             adding the new one — net delta is what matters)
- *
- * Sprint Group-RAV-Recap : flag `strictRav` (default true) — passe à false
- * en contexte groupe pour omettre le refine RAV (la validation devient
- * "warning mais autoriser", gérée visuellement par le composant
- * `<GroupMembersRavRecap>`). Le contexte perso garde le refine strict
- * (1 seul utilisateur, pas de notion de répartition entre membres).
+ * Client-side factory for AddBudgetDialog + EditBudgetDialog. Validates
+ * name + estimatedAmount shape only — RAV negative is allowed (the dialog's
+ * preview panel still surfaces the impact visually).
  */
-export function makeBudgetClientSchema(opts: {
-  currentBudgetsTotal: number
-  totalEstimatedIncome: number
-  currentBudgetAmount?: number
-  strictRav?: boolean
-}) {
-  const {
-    currentBudgetsTotal,
-    totalEstimatedIncome,
-    currentBudgetAmount = 0,
-    strictRav = true,
-  } = opts
-  const baseSchema = z.object({
+export function makeBudgetClientSchema() {
+  return z.object({
     name: budgetNameSchema,
     estimatedAmount: moneyFormSchema,
   })
-  if (!strictRav) return baseSchema
-  return baseSchema.refine(
-    (d) => {
-      const newTotal = currentBudgetsTotal - currentBudgetAmount + d.estimatedAmount
-      return totalEstimatedIncome - newTotal >= 0
-    },
-    {
-      message:
-        'Impossible : le reste à vivre (sans économies) deviendrait négatif. Réduisez le montant ou ajoutez des revenus.',
-      path: ['estimatedAmount'],
-    },
-  )
 }

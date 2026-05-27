@@ -185,7 +185,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ### Group RAV preview (Sprint Group-RAV-Recap)
 
-Règles ❌ + précédents → [Part 32](../history/roadmap-detailed-32-group-rav-recap.md). Synthèse : (a) `currentRav` par membre = `getProfileFinancialData(memberId).remainingToLive` (Promise.all), JAMAIS la simplifiée ; (b) groupe = `strictRav=false`, sémantique "warning autorisé" via `<GroupMembersRavRecap>` ; (c) utility en delta-math `projected = current − deltaContribution` ; (d) RAV bruts (négatifs OK), seul `groupMembersPersonalRavTotal` clampé.
+Règles ❌ + précédents → [Part 32](../history/roadmap-detailed-32-group-rav-recap.md). Synthèse : (a) `currentRav` par membre = `getProfileFinancialData(memberId).remainingToLive` (Promise.all) ; (b) RAV négatif autorisé partout (2026-05-27, `strictRav` retiré) — warning non bloquant via `<GroupMembersRavRecap>` ou panel preview ; (c) delta-math `projected = current − deltaContribution` ; (d) RAV bruts négatifs OK, seul `groupMembersPersonalRavTotal` clampé.
 
 ### Forbidden absolus
 

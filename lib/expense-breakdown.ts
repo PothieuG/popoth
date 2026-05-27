@@ -1,9 +1,9 @@
 /**
  * Pure expense breakdown algorithm — no I/O, no Supabase, no React.
- * Extracted from `lib/expense-allocation.ts` so client-side hooks (e.g.
- * `useRavValidation`) can import it without pulling in the service_role
- * Supabase client (security: bundling supabase-server.ts in the client
- * bundle would leak the service_role key).
+ * Extracted from `lib/expense-allocation.ts` so client-side previews can
+ * import it without pulling in the service_role Supabase client (security:
+ * bundling supabase-server.ts in the client bundle would leak the
+ * service_role key).
  *
  * Two algorithms:
  *   - `calculateBreakdown` (legacy P4-P5 strict, single-budget).

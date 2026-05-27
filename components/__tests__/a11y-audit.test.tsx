@@ -70,11 +70,10 @@ vi.mock('@/lib/supabase-client', () => ({
   },
 }))
 
-// ─── AddTransactionModal mock surface (6 hooks + 3 children) ────────────
+// ─── AddTransactionModal mock surface (5 hooks + 3 children) ────────────
 
 const addExpense = vi.fn(async () => true)
 const addIncome = vi.fn(async () => true)
-const ravState: { blocked: boolean; newRav: number } = { blocked: false, newRav: 0 }
 
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 const INCOME_UUID = '22222222-2222-4222-8222-222222222222'
@@ -126,9 +125,6 @@ vi.mock('@/hooks/useProgressData', () => ({
 }))
 vi.mock('@/hooks/useFinancialData', () => ({
   useFinancialData: () => ({ financialData: { remainingToLive: 1000 } }),
-}))
-vi.mock('@/hooks/useRavValidation', () => ({
-  useRavValidation: () => ravState,
 }))
 vi.mock('@/components/dashboard/RemainingToLivePreview', () => ({
   default: () => null,
@@ -254,8 +250,6 @@ describe('axe-core a11y audit (regression-guard)', () => {
     getSession.mockResolvedValue({ data: { session: { user: { id: 'u1' } } }, error: null })
     updateUser.mockResolvedValue({ error: null })
     signUp.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null })
-    ravState.blocked = false
-    ravState.newRav = 0
   })
 
   it('connexion page has no critical a11y violations', async () => {

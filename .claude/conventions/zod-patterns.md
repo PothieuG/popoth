@@ -128,23 +128,9 @@ const form = useForm<FormInput, undefined, FormOutput>({
 
 Le resolver capture la closure ; useForm reçoit un nouveau resolver à chaque recreation. Trade-off : si les props bougent pendant la saisie, RHF re-run la validation au prochain submit.
 
-### Pattern E — useRavValidation hors schema
+### Pattern E — RETIRÉ (2026-05-27)
 
-[`hooks/useRavValidation.ts`](../../hooks/useRavValidation.ts) calcule un blocage de soumission basé sur des données async (financialData, expenseProgress) qui peuvent refetcher pendant la saisie. **Ne PAS** l'embarquer dans le schema Zod — le hook reste hors-schema, consulté en `onValidSubmit` après le resolver :
-
-```ts
-const ravValidation = useRavValidation({ transactionType, isExceptional, amount: previewSafe, ... })
-
-const onValidSubmit = async (data: AddTransactionFormOutput) => {
-  if (ravValidation.blocked) {
-    setServerError("Impossible d'ajouter cette dépense...")
-    return
-  }
-  // submit
-}
-```
-
-Le button disable continue de refléter l'état courant : `disabled={isSubmitting || ravValidation.blocked}`. Pattern dans [AddTransactionModal](../../components/dashboard/AddTransactionModal.tsx).
+> Pattern initialement installé pour bloquer la soumission via `useRavValidation` lorsqu'une dépense ferait passer le RAV en négatif. **Retiré le 2026-05-27** : le reste à vivre négatif est désormais autorisé sur toutes les surfaces (budgets perso/groupe, projets d'épargne perso/groupe, dépenses budgétées et exceptionnelles). Les previews (`<RemainingToLivePreview>`, `<ExpenseBreakdownPreview>`, `<GroupMembersRavRecap>`) continuent d'afficher l'impact en rouge mais ne bloquent plus le submit. Le hook `useRavValidation` a été supprimé.
 
 ### Pattern F — serverError découplé useState
 
