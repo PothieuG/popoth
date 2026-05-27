@@ -15,11 +15,11 @@ export interface EstimatedBudget {
   created_at: string
   updated_at: string
   monthly_surplus?: number // Champ legacy, plus utilisé
-  carryover_spent_amount?: number // Champ legacy, plus utilisé
-  carryover_applied_date?: string // Champ legacy, plus utilisé
+  carryover_spent_amount?: number // Déficit reporté du recap précédent (inclus dans spent_this_month)
+  carryover_applied_date?: string // Date d'application du carryover par finalize_recap
   cumulated_savings?: number // Économies cumulées
   last_savings_update?: string // Date de dernière mise à jour des économies
-  spent_this_month?: number // Dépenses réelles du mois
+  spent_this_month?: number // carryover_spent_amount + sum(amount_from_budget) du mois courant
 }
 
 interface UseBudgetsReturn {

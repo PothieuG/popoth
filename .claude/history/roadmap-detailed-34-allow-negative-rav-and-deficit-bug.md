@@ -195,3 +195,26 @@ Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 **Leçon** — Tout site dérivant `remainingAmount` ou `spentAmount` est consommé en cascade par des composants UI qui peuvent baser des conditions d'affichage (encart, badge, lien) ou des previews delta. Categoriser "display only" pour un agrégat budget est risqué : même un nombre faux d'affichage devient une logique métier fausse dès qu'un autre composant s'en sert. La règle ❌ "ne pas calculer `budgetRemaining` sans `carryover_spent_amount`" couvre désormais 4 routes (preview + add + edit + progress), pas 3.
 
 Tests 793 inchangés (le fix ne modifie pas le comportement quand `carryover_spent_amount = 0`, valeur par défaut DB pour tous les budgets fresh).
+
+### Follow-up — Sprint Fix-Edit-Encart-Carryover (2026-05-27)
+
+**Bug user remonté** : en mode EDIT, l'encart violet "Dépassement" peut s'afficher à tort quand l'utilisateur baisse le montant d'une dépense sous le cap effectif. Repro : budget cap=1000 + carryover=500 + dépense=600 → budget displayed 1100/1000. User édite la dépense à 400€ → preview attendue 900/1000 (sous cap, pas de dépassement) MAIS l'encart violet affichait "Dépassement de 400€".
+
+**Cause** — [components/dashboard/EditTransactionModal.tsx](../../components/dashboard/EditTransactionModal.tsx) ligne 179-184 calculait `editBudgetSpentPostReverse = calculateRealSpentAmount(budgetId) − editExpense.amount_from_budget` côté client, sans inclure `carryover_spent_amount`. Le `editBudgetRemainingPostReverse` était surestimé (1000 au lieu de 500) côté formule, MAIS selon le contexte (carry-over rows présentes dans `realExpenses`, multiples dépenses sur le budget, etc.), le `calculateRealSpentAmount` pouvait gonfler artificiellement le spent post-reverse jusqu'à dépasser le cap, déclenchant un overflow faux.
+
+**Fix** — Aligner sur la source canonique `editSelectedBudget.spent_this_month` (déjà calculé par la route `/api/finance/budgets/estimated` qui inclut `carryover_spent_amount + actualSpent_currentMonth` filtré sur `is_carried_over=false`). Formule miroir du PUT serveur dans `lib/api/finance/expenses-real.ts` :
+
+```ts
+const editCurrentSpent =
+  editSelectedBudget?.spent_this_month ??
+  calculateRealSpentAmount(editBudgetId) + (editSelectedBudget?.carryover_spent_amount ?? 0)
+const editBudgetSpentPostReverse = editExpense
+  ? editCurrentSpent − (editExpense.amount_from_budget ?? 0)
+  : 0
+```
+
+Fallback local pour edge case "budget tout neuf sans `spent_this_month`". Pour la repro user : `spent_this_month=1100`, `editExpense.amount_from_budget=600`, `editBudgetSpentPostReverse=500`, `editBudgetRemainingPostReverse=500`, previewSafe=400 → `calculateBreakdown(400, 500, ...) → fromBudget=400, overflow=0` → encart violet NON affiché ✓.
+
+**Bonus** — commentaire trompeur dans [hooks/useBudgets.ts:18](../../hooks/useBudgets.ts) ("Champ legacy, plus utilisé") corrigé : `carryover_spent_amount` EST utilisé partout (financial-data.ts deficit loop, budgets-estimated.ts spent_this_month, et désormais les 4 routes expenses + 1 modal client).
+
+Tests 793 inchangés. Lint 0/0, typecheck OK.

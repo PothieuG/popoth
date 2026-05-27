@@ -128,9 +128,8 @@ export default function EditTransactionModal({
   // (2026-05-27) — utilise `budget.spent_this_month` (depuis l'API qui calcule
   // `carryover_spent_amount + actualSpent_currentMonth`) pour matcher l'affichage
   // du dashboard `BudgetProgressIndicator`. Fallback `calculateRealSpentAmount`
-  // pour les edge cases. `calculateRealSpentAmount` reste utilisé plus bas pour
-  // `editBudgetSpentPostReverse` qui pilote l'allocation breakdown (besoin de
-  // la sémantique "spent without carryover" pour le calcul P5).
+  // pour les edge cases. `calculateRealSpentAmount` reste utilisé en fallback
+  // pour `editBudgetSpentPostReverse` quand `spent_this_month` est manquant.
   const budgetOptions: DropdownOption[] = budgets.map((budget) => {
     const spentDisplay = budget.spent_this_month ?? calculateRealSpentAmount(budget.id)
     return {
@@ -170,14 +169,25 @@ export default function EditTransactionModal({
   // pour décider d'afficher l'encart violet. Imprécis pour dépenses pré-sprint
   // (pas de trace cross-budget), mais OK comme indicateur — le détail exact
   // vient de la route preview-breakdown via ExpenseBreakdownPreview.
+  //
+  // Sprint Fix-Edit-Encart-Carryover (2026-05-27) — source = `spent_this_month`
+  // (API `/api/finance/budgets/estimated` qui inclut `carryover_spent_amount` +
+  // filtre carry-overs is_carried_over=false), miroir du PUT serveur. Sans
+  // carryover, un budget saturé via dette reportée affichait l'encart "Dépassement"
+  // à tort dès qu'on baissait le montant sous le cap effectif. Fallback local
+  // (`calculateRealSpentAmount + carryover`) pour l'edge case où l'API ne renvoie
+  // pas encore `spent_this_month` (budget tout neuf, POST récent).
   const editExpense =
     transactionType === 'expense' && !isOriginallyExceptional
       ? (transaction as RealExpense | null)
       : null
   const editBudgetId = watchedBudgetId ? String(watchedBudgetId) : ''
   const editSelectedBudget = budgets.find((b) => b.id === editBudgetId)
+  const editCurrentSpent =
+    editSelectedBudget?.spent_this_month ??
+    calculateRealSpentAmount(editBudgetId) + (editSelectedBudget?.carryover_spent_amount ?? 0)
   const editBudgetSpentPostReverse = editExpense
-    ? calculateRealSpentAmount(editBudgetId) - (editExpense.amount_from_budget ?? 0)
+    ? editCurrentSpent - (editExpense.amount_from_budget ?? 0)
     : 0
   const editBudgetRemainingPostReverse = editSelectedBudget
     ? editSelectedBudget.estimated_amount - editBudgetSpentPostReverse
