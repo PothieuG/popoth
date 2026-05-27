@@ -146,10 +146,21 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       : 0
     const savingsBefore = (budgetData.cumulated_savings || 0) + destinationOldClaim
 
+    // Filter by current calendar month + is_carried_over=false : same
+    // rationale as `lib/finance/financial-data.ts` deficit loop (2026-05-27).
+    const todayPreview = new Date()
+    const firstDayCurrentPreview = `${todayPreview.getFullYear()}-${String(todayPreview.getMonth() + 1).padStart(2, '0')}-01`
+    const lastDayCurrentPreview = (() => {
+      const d = new Date(todayPreview.getFullYear(), todayPreview.getMonth() + 1, 0)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
       .select('id, amount, amount_from_budget')
       .eq('estimated_budget_id', budgetId)
+      .eq('is_carried_over', false)
+      .gte('expense_date', firstDayCurrentPreview)
+      .lte('expense_date', lastDayCurrentPreview)
       .match(contextFilter)
 
     const budgetSpentCurrent =

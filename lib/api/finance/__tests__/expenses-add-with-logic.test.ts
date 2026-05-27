@@ -49,6 +49,8 @@ vi.mock('@/lib/supabase-server', () => {
   chain.eq = vi.fn(() => chain)
   chain.neq = vi.fn(() => chain)
   chain.gt = vi.fn(() => chain)
+  chain.gte = vi.fn(() => chain)
+  chain.lte = vi.fn(() => chain)
   chain.match = vi.fn(() => chain)
   chain.insert = vi.fn(() => chain)
   chain.single = single

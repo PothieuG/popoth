@@ -400,10 +400,21 @@ export const PUT = withAuth(async (request: NextRequest) => {
           : (oldExpense.amount_from_budget_savings ?? 0)
         const savingsPostReverse = (budgetData.cumulated_savings ?? 0) + destinationOldSavingsClaim
 
+        // Filter by current calendar month + is_carried_over=false : same
+        // rationale as `lib/finance/financial-data.ts` deficit loop (2026-05-27).
+        const todayEdit = new Date()
+        const firstDayCurrentEdit = `${todayEdit.getFullYear()}-${String(todayEdit.getMonth() + 1).padStart(2, '0')}-01`
+        const lastDayCurrentEdit = (() => {
+          const d = new Date(todayEdit.getFullYear(), todayEdit.getMonth() + 1, 0)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        })()
         const { data: budgetExpenses } = await supabaseServer
           .from('real_expenses')
           .select('id, amount_from_budget')
           .eq('estimated_budget_id', budgetId)
+          .eq('is_carried_over', false)
+          .gte('expense_date', firstDayCurrentEdit)
+          .lte('expense_date', lastDayCurrentEdit)
           .match(contextFilter)
         const budgetSpentCurrent =
           budgetExpenses?.reduce((sum, e) => sum + (e.amount_from_budget ?? 0), 0) ?? 0

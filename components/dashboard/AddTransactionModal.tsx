@@ -189,13 +189,21 @@ export default function AddTransactionModal({
       .reduce((sum, income) => sum + income.amount, 0)
   }
 
+  // Sprint Fix-Modal-Dropdown-Align-Dashboard (2026-05-27) — utiliser
+  // `budget.spent_this_month` (de l'API `/api/finance/budgets/estimated` qui
+  // calcule `carryover_spent_amount + actualSpent_currentMonth`) pour que le
+  // dropdown affiche le MÊME ratio "spent/estimated" que le `BudgetProgressIndicator`
+  // du dashboard. Avant : `calculateRealSpentAmount` (sum local de `amount_from_budget`
+  // sans carryover) → divergeait du dashboard (6200/200 vs 100/200 pour une
+  // dette reportée importante). Fallback sur le calcul local si `spent_this_month`
+  // n'est pas dans le payload (cas edge : budget tout neuf, POST récent).
   const budgetOptions: DropdownOption[] = budgets.map((budget) => {
-    const realSpentAmount = calculateRealSpentAmount(budget.id)
+    const spentDisplay = budget.spent_this_month ?? calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount,
+      spentAmount: spentDisplay,
       estimatedAmount: budget.estimated_amount,
       economyAmount: budget.cumulated_savings || 0,
     }

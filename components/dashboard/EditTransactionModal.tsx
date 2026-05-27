@@ -124,14 +124,20 @@ export default function EditTransactionModal({
       .reduce((sum, income) => sum + income.amount, 0)
   }
 
-  // Préparer les options pour les dropdowns - TOUJOURS utiliser les calculs en temps réel
+  // Préparer les options pour les dropdowns. Sprint Fix-Modal-Dropdown-Align-Dashboard
+  // (2026-05-27) — utilise `budget.spent_this_month` (depuis l'API qui calcule
+  // `carryover_spent_amount + actualSpent_currentMonth`) pour matcher l'affichage
+  // du dashboard `BudgetProgressIndicator`. Fallback `calculateRealSpentAmount`
+  // pour les edge cases. `calculateRealSpentAmount` reste utilisé plus bas pour
+  // `editBudgetSpentPostReverse` qui pilote l'allocation breakdown (besoin de
+  // la sémantique "spent without carryover" pour le calcul P5).
   const budgetOptions: DropdownOption[] = budgets.map((budget) => {
-    const realSpentAmount = calculateRealSpentAmount(budget.id)
+    const spentDisplay = budget.spent_this_month ?? calculateRealSpentAmount(budget.id)
     return {
       id: budget.id,
       name: budget.name,
       type: 'expense' as const,
-      spentAmount: realSpentAmount,
+      spentAmount: spentDisplay,
       estimatedAmount: budget.estimated_amount,
       economyAmount: budget.cumulated_savings || 0,
     }

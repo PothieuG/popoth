@@ -120,11 +120,18 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       .eq('is_carried_over', false)
     const totalRealIncome = realIncomes?.reduce((sum, x) => sum + x.amount, 0) ?? 0
 
-    // 5. Dépenses réelles (idem §4 — exclure les carry-overs).
+    // 5. Dépenses réelles (idem §4 — exclure les carry-overs). `expense_date`
+    // est SELECTed pour permettre le filtrage current-calendar-month dans le
+    // deficit loop (§9). Voir bug repro 2026-05-27 : sans ce filtre, des
+    // dépenses passées encore `is_carried_over=false` (recap M-1 non finalisé)
+    // gonflent `spentOnBudget` au-delà de l'estimé courant et créent un
+    // déficit fantôme qui fait chuter le RAV à chaque nouvelle dépense — alors
+    // que l'API d'affichage `budgets-estimated.ts` filtre déjà par mois
+    // calendaire courant (display "0/400" alors que calc voit ≥ 400 hors-mois).
     const { data: realExpenses } = await supabaseServer
       .from('real_expenses')
       .select(
-        'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+        'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, expense_date',
       )
       .eq(ownerColumn, ownerId)
       .eq('is_carried_over', false)
@@ -154,13 +161,40 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     }
     totalSavings += piggyBankData?.amount ?? 0
 
-    // 9. Déficits par budget
+    // 9. Déficits par budget — `deficit = MAX(0, spent_current_month + carryover - estimated)`.
+    // La dette reportée d'un recap finalisé `carryover_spent_amount` s'ajoute
+    // au dépensé du mois pour évaluer le franchissement du plafond ; tant que
+    // `spent_current_month + carryover ≤ estimated`, le budget reste à l'équi-
+    // libre (le mois courant absorbe la dette via sa marge libre). Au-dessus,
+    // le delta s'inscrit en déficit qui pèse sur le RAV — symétrie avec
+    // l'affichage `budgets-estimated.ts` GET (qui utilise `spent_this_month =
+    // carryover + actualSpent`). Self-healing au finalize : la marge libre
+    // (estimated - actualSpent) réduit `carryover_spent_amount` (overwrite RPC).
+    //
+    // Filtre `expense_date` borné au mois calendaire courant pour exclure les
+    // dépenses des mois passés encore `is_carried_over=false` (recap M-1 non
+    // bouclé) — sinon `spentOnBudget` accumulerait des dépenses hors-mois et
+    // créerait un déficit fantôme. Ces dépenses seront prises en compte via
+    // `carryover_spent_amount` lorsque l'utilisateur finalisera leur recap.
+    const today = new Date()
+    const firstDayCurrentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+    const lastDayCurrentMonth = (() => {
+      const d = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
+
     let totalBudgetDeficits = 0
     if (estimatedBudgets && realExpenses) {
       for (const budget of estimatedBudgets) {
         const spentOnBudget =
           realExpenses
-            .filter((e) => !e.is_exceptional && e.estimated_budget_id === budget.id)
+            .filter(
+              (e) =>
+                !e.is_exceptional &&
+                e.estimated_budget_id === budget.id &&
+                e.expense_date >= firstDayCurrentMonth &&
+                e.expense_date <= lastDayCurrentMonth,
+            )
             .reduce((sum, e) => {
               const amountFromBudget =
                 e.amount_from_budget !== null && e.amount_from_budget !== undefined
@@ -182,7 +216,7 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         )
         if (deficit > 0) {
           logger.debug(
-            `[Budget Deficit] "${budget.name}": ${budget.estimated_amount}€ budgété, ${spentOnBudget + carryoverSpent}€ dépensé → Déficit: ${deficit}€`,
+            `[Budget Deficit] "${budget.name}": ${budget.estimated_amount}€ budgété, ${spentOnBudget}€ dépensé (mois courant) + ${carryoverSpent}€ dette reportée → Déficit: ${deficit}€`,
           )
         }
         totalBudgetDeficits += deficit

@@ -154,12 +154,25 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     const savingsBefore = budgetData.cumulated_savings || 0
 
-    // Step 3: Get current spent amount for this budget
-    // Only count amount_from_budget (not piggy bank or savings amounts)
+    // Step 3: Get current spent amount for this budget — restricted to the
+    // current calendar month so prior-month expenses still
+    // `is_carried_over=false` (because recap M-1 wasn't finalized) don't
+    // inflate `budgetSpentBefore` and force unnecessary cascade. Mirror du
+    // fix dans `lib/finance/financial-data.ts` deficit loop (2026-05-27).
+    // Only count amount_from_budget (not piggy bank or savings amounts).
+    const todayLogic = new Date()
+    const firstDayCurrentLogic = `${todayLogic.getFullYear()}-${String(todayLogic.getMonth() + 1).padStart(2, '0')}-01`
+    const lastDayCurrentLogic = (() => {
+      const d = new Date(todayLogic.getFullYear(), todayLogic.getMonth() + 1, 0)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
     const { data: expenses } = await supabaseServer
       .from('real_expenses')
       .select('amount, amount_from_budget')
       .eq('estimated_budget_id', estimated_budget_id)
+      .eq('is_carried_over', false)
+      .gte('expense_date', firstDayCurrentLogic)
+      .lte('expense_date', lastDayCurrentLogic)
       .match(contextFilter)
 
     const budgetSpentBefore =
