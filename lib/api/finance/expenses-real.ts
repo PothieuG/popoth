@@ -388,7 +388,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 
         const { data: budgetData } = await supabaseServer
           .from('estimated_budgets')
-          .select('estimated_amount, cumulated_savings')
+          .select('estimated_amount, cumulated_savings, carryover_spent_amount')
           .eq('id', budgetId)
           .single()
         if (!budgetData) {
@@ -418,7 +418,14 @@ export const PUT = withAuth(async (request: NextRequest) => {
           .match(contextFilter)
         const budgetSpentCurrent =
           budgetExpenses?.reduce((sum, e) => sum + (e.amount_from_budget ?? 0), 0) ?? 0
-        const budgetSpentPostReverse = budgetSpentCurrent - (oldExpense.amount_from_budget ?? 0)
+        // Carryover : déficit reporté du recap précédent, indépendant des
+        // dépenses du mois courant — doit être ajouté à `budgetSpentPostReverse`
+        // pour que la cascade auto soit déclenchée correctement quand le
+        // budget est saturé via carryover (cf. fix preview-breakdown +
+        // add-with-logic 2026-05-27).
+        const carryoverSpent = budgetData.carryover_spent_amount ?? 0
+        const budgetSpentPostReverse =
+          budgetSpentCurrent - (oldExpense.amount_from_budget ?? 0) + carryoverSpent
         const budgetRemainingPostReverse = budgetData.estimated_amount - budgetSpentPostReverse
 
         const { data: otherBudgets } = await supabaseServer

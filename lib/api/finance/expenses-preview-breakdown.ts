@@ -132,7 +132,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     const { data: budgetData, error: budgetError } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, cumulated_savings')
+      .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
       .eq('id', budgetId)
       .match(contextFilter)
       .single()
@@ -182,9 +182,18 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
     // En EDIT : on soustrait la contribution budget de l'existing pour
     // simuler l'état post-reverse virtuel. En ADD : pas de soustraction.
-    const budgetSpentBefore = existingExpense
-      ? budgetSpentCurrent - existingExpense.amount_from_budget
-      : budgetSpentCurrent
+    // Le carryover (déficit reporté du recap précédent) est un terme
+    // constant sur le mois courant, indépendant des dépenses du mois — il
+    // doit participer à `budgetSpentBefore` pour que `budgetRemaining` =
+    // marge réellement libre sur le pool. Sans ça, la cascade auto n'est
+    // pas déclenchée quand le carryover sature déjà le cap, et la preview
+    // affiche un budget faussement remis à zéro (cf. dashboard
+    // `budget.spent_this_month` qui inclut le carryover).
+    const carryoverSpent = budgetData.carryover_spent_amount ?? 0
+    const budgetSpentBefore =
+      (existingExpense
+        ? budgetSpentCurrent - existingExpense.amount_from_budget
+        : budgetSpentCurrent) + carryoverSpent
     const budgetRemaining = budgetData.estimated_amount - budgetSpentBefore
 
     // Lire les autres budgets avec savings (post-reverse en EDIT).

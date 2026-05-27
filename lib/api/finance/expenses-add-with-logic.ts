@@ -143,7 +143,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     // Step 2: Get budget info
     const { data: budgetData, error: budgetError } = await supabaseServer
       .from('estimated_budgets')
-      .select('id, name, estimated_amount, cumulated_savings')
+      .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
       .eq('id', estimated_budget_id)
       .match(contextFilter)
       .single()
@@ -175,7 +175,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
       .lte('expense_date', lastDayCurrentLogic)
       .match(contextFilter)
 
-    const budgetSpentBefore =
+    const actualSpentCurrentMonth =
       expenses?.reduce((sum, e) => {
         // Use amount_from_budget if available, otherwise use amount (backward compatibility)
         return (
@@ -185,6 +185,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
             : e.amount)
         )
       }, 0) || 0
+
+    // Inclure le carryover (déficit reporté du recap précédent) dans la
+    // somme dépensée. Sans ça, `budgetRemaining` est surestimé et la cascade
+    // auto (piggy → savings → cross-budgets) n'est pas déclenchée quand
+    // l'overflow réel l'exigerait, laissant la trace `expense_savings_sources`
+    // divergente de la sémantique attendue par le dashboard.
+    const carryoverSpent = budgetData.carryover_spent_amount ?? 0
+    const budgetSpentBefore = actualSpentCurrentMonth + carryoverSpent
 
     // Step 4: Auto-cascade breakdown — serveur autoritatif. Le client peut
     // envoyer `cross_budget_cascade` mais on l'ignore : le serveur recalcule

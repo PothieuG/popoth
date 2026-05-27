@@ -63,17 +63,17 @@ Reste-à-vivre = -8550€. Ajoute une dépense budgétée 100€ sur "Courses" (
 
 ### État final code (4 commits-équivalents bundled, non-shippés)
 
-| Fichier                                            | Changement                                                          |
-| -------------------------------------------------- | ------------------------------------------------------------------- |
-| `lib/finance/financial-data.ts`                    | Filtre date sur `spentOnBudget`, formule canonique conservée        |
-| `lib/api/finance/expenses-add-with-logic.ts`       | Filtre date sur `budgetSpentBefore`                                 |
-| `lib/api/finance/expenses-preview-breakdown.ts`    | Idem                                                                |
-| `lib/api/finance/expenses-real.ts` (PUT)           | Idem                                                                |
-| `lib/finance/budget-savings-detail.ts`             | Filtre date (dead code mais cohérent)                               |
-| `lib/api/finance/__tests__/expenses-add-with-logic.test.ts` | Ajout `.gte/.lte` au mock chain                            |
-| `components/dashboard/AddTransactionModal.tsx`     | Dropdown utilise `budget.spent_this_month` (matches dashboard)      |
-| `components/dashboard/EditTransactionModal.tsx`    | Idem                                                                |
-| `lib/finance/__tests__/financial-data-bug-repro.test.ts` | **NEW** 4 régression tests (fresh / saturated / small-carryover / prior-month) |
+| Fichier                                                     | Changement                                                                     |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `lib/finance/financial-data.ts`                             | Filtre date sur `spentOnBudget`, formule canonique conservée                   |
+| `lib/api/finance/expenses-add-with-logic.ts`                | Filtre date sur `budgetSpentBefore`                                            |
+| `lib/api/finance/expenses-preview-breakdown.ts`             | Idem                                                                           |
+| `lib/api/finance/expenses-real.ts` (PUT)                    | Idem                                                                           |
+| `lib/finance/budget-savings-detail.ts`                      | Filtre date (dead code mais cohérent)                                          |
+| `lib/api/finance/__tests__/expenses-add-with-logic.test.ts` | Ajout `.gte/.lte` au mock chain                                                |
+| `components/dashboard/AddTransactionModal.tsx`              | Dropdown utilise `budget.spent_this_month` (matches dashboard)                 |
+| `components/dashboard/EditTransactionModal.tsx`             | Idem                                                                           |
+| `lib/finance/__tests__/financial-data-bug-repro.test.ts`    | **NEW** 4 régression tests (fresh / saturated / small-carryover / prior-month) |
 
 Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 
@@ -133,7 +133,7 @@ Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 - `AddTransactionModalProps` ajoute `recapMonth`/`recapYear` (symétriques à `dateMin`/`dateMax` Sprint Complete-Month-Step), transmis à la preview budgétée uniquement (la branche income/exceptionnelle utilise `RemainingToLivePreview` qui n'a pas le bug).
 - `CompleteMonthStep.tsx` ([components/monthly-recap/steps/CompleteMonthStep.tsx](../../components/monthly-recap/steps/CompleteMonthStep.tsx)) passe `recapMonth={recapMonth}` + `recapYear={recapYear}` au mount du modal (les valeurs existent déjà dans le scope pour calculer `dateMin`/`dateMax`).
 
-**Tests** — 3 cas ajoutés à `previewBreakdownQuerySchema` ([lib/schemas/__tests__/expense-real.test.ts](../../lib/schemas/__tests__/expense-real.test.ts)) : coerce strings, reject `month=0`/`month=13`, accept `month` seul sans `year` (fallback today côté route). Tests existants `AddTransactionModal.test.tsx` + `CompleteMonthStep.test.tsx` passent inchangés. Total non-gated 788 → 791.
+**Tests** — 3 cas ajoutés à `previewBreakdownQuerySchema` ([lib/schemas/**tests**/expense-real.test.ts](../../lib/schemas/__tests__/expense-real.test.ts)) : coerce strings, reject `month=0`/`month=13`, accept `month` seul sans `year` (fallback today côté route). Tests existants `AddTransactionModal.test.tsx` + `CompleteMonthStep.test.tsx` passent inchangés. Total non-gated 788 → 791.
 
 **Vérification manuelle** — Avec `node scripts/seed-recap/deficit-cascade-extreme.mjs` (mai 2026) puis ouverture du wizard étape 2 :
 
@@ -143,3 +143,41 @@ Tests 786 → 788 non-gated. Lint 0/0, typecheck OK.
 **Pattern installé (sécurité future)** — Pour toute route preview filtrant un agrégat "spent this month", prévoir un override `month`/`year` optionnel dès que la route peut être invoquée depuis un contexte non-today (wizard récap, modal d'édition cross-period, futur navigateur historique). La queryKey TanStack côté client DOIT inclure ces params, sinon le cache du mois courant est ré-utilisé à tort. Le fallback `new Date()` reste le comportement "Dashboard" par défaut.
 
 **Hors scope** — `EditTransactionModal` utilise aussi `ExpenseBreakdownPreview` et aurait le même bug en mode wizard. Vérifié : `TransactionTabsComponent` à l'intérieur de `CompleteMonthStep` n'a pas de `onEditTransaction` câblé (seul `/dashboard` et `/group-dashboard` le wirent — cf. `app/(dashboards)/{dashboard,group-dashboard}/page.tsx` qui montent `<EditTransactionModal>` page-scoped). L'édition est donc inaccessible depuis le wizard et le bug n'est pas atteignable. À étendre si l'édition est réactivée dans le wizard plus tard (ajouter `recapMonth`/`recapYear` à `EditTransactionModalProps` + forward à `ExpenseBreakdownPreview` ligne 495).
+
+---
+
+## Sprint Fix-Preview-Allocation-Carryover (2026-05-27)
+
+**Contexte** — Bug détecté après les 3 sprints précédents. Scénario user : budget cap=1000 avec `carryover_spent_amount=500` (renflouage post-recap) → dashboard affiche correctement `500/1000`. User ajoute 800€ via `AddTransactionModal` sur le dashboard :
+
+- **Attendu** : preview `1300/1000` + ligne Impact RAV `−300€` (overflow 800 − marge libre 500 = 300, absorbé en déficit destination si pas de piggy/savings dispo).
+- **Observé (bug)** : preview `800/1000` + ligne Impact "Budget Courses `−800€`" + pas de ligne RAV. Le carryover était totalement ignoré par la route preview et la route POST add.
+
+**Cause racine** — 3 routes API qui calculent `budgetRemaining = estimated_amount − sum(real_expenses du mois)` oubliaient `carryover_spent_amount` (alors que `lib/finance/financial-data.ts:206-216` deficit loop et `lib/finance/budget-savings-detail.ts:66-76` l'incluent correctement) :
+
+1. [lib/api/finance/expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts) ligne 188 — `budgetSpentBefore` recalculé sans carryover → UI faussement remise à zéro (encart `ExpenseBreakdownPreview`).
+2. [lib/api/finance/expenses-add-with-logic.ts](../../lib/api/finance/expenses-add-with-logic.ts) ligne 193 — impact silencieux mais réel : `budgetRemaining` surestimé, donc la cascade auto-piggy/savings/cross-budget n'était PAS déclenchée alors qu'elle devrait l'être quand l'overflow réel l'exigeait. Le RAV final restait correct (deficit loop inclut déjà le carryover), MAIS la trace `expense_savings_sources` divergeait de l'état métier attendu — la piggy/savings n'étaient pas débitées alors qu'elles auraient dû l'être.
+3. [lib/api/finance/expenses-real.ts](../../lib/api/finance/expenses-real.ts) ligne 422 — même bug latent sur la branche PUT edit `reverse-then-reapply`.
+
+**Fix** — Pattern canonique reproduit. Sur chacune des 3 routes : étendre `.select(...)` avec `carryover_spent_amount`, ajouter `const carryoverSpent = budgetData.carryover_spent_amount ?? 0`, inclure dans `budgetSpentBefore` (mode ADD comme EDIT — le carryover est constant sur le mois courant, indépendant du reverse virtuel d'une dépense existante).
+
+**Tests régression** — 2 nouveaux cas dans [expenses-add-with-logic.test.ts](../../lib/api/finance/__tests__/expenses-add-with-logic.test.ts) :
+
+1. `carryover saturates budget` : cap=1000, carryover=500, piggy=0, savings=0, no cross → overflow=300 absorbé en `fromBudget=800` (déficit destination). `addExpenseWithBreakdown` choisi. Pin l'invariant `budget_spent_before=500`, `budget_spent_after=1300`.
+2. `carryover saturates budget with piggy` : même setup + piggy=200 → cascade auto débite piggy 200€ + budget 600€ (les 100€ restants = déficit destination). `addExpenseWithCrossBudgetCascade` choisi. Pin l'invariant `amountFromPiggyBank=200, amountFromBudget=600`.
+
+**Tests 791 → 793 non-gated**. Lint 0/0, typecheck OK, Prettier OK.
+
+**Comportement post-fix** (scénario user, sans piggy ni savings) :
+
+- Preview affiche `Courses 1300€ / 1000€` au lieu de `800€ / 1000€`.
+- Ligne Impact « Budget Courses **−500€** » (delta de pool usage = `min(1300, 1000) − min(500, 1000) = 500`) + ligne Impact « RAV **−300€** » (overflow réel, ce qui ampute le reste-à-vivre).
+- Validation → cascade auto-débitée si piggy/savings/cross dispos, sinon déficit destination. RAV effectivement baissé de 300€ post-mutation.
+
+**Pattern installé** — Tout nouveau site qui calcule un agrégat "dépensé sur ce budget ce mois" et l'utilise pour dériver `budgetRemaining` (notamment pour piloter une cascade d'allocation) DOIT inclure `carryover_spent_amount`. Documenté dans [.claude/conventions/operational-rules.md](../conventions/operational-rules.md) §5 "RAV formula" sous forme de règle ❌ explicite.
+
+**Hors scope (à signaler si user le demande plus tard)** :
+
+- [lib/api/finance/expenses-progress.ts:128](../../lib/api/finance/expenses-progress.ts) — calcul `remainingAmount = estimated − spent` sans carryover. Site d'affichage UI seulement, pas de cascade, pas de risque d'allocation incorrecte. Cohérence display traitable séparément.
+- [lib/expense-allocation.ts::applyAllocation](../../lib/expense-allocation.ts) (branche legacy du PUT edit ligne 472 d'expenses-real.ts) — même bug latent, déclenché uniquement sur changement de budget destination (path rarement utilisé en pratique).
+- **État ouvert (carry-over) dette `carryover_spent_amount ≥ estimated`** : ce fix résout le bug "preview oublie carryover", PAS le bug "carryover compound indéfiniment" du sprint précédent. Les 5 pistes ouvertes (cap auto / refloat bank-balance / repartir à zéro / décompose visuel / re-évaluation decouple) restent à arbitrer.

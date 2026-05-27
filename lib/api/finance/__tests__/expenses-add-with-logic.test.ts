@@ -430,6 +430,122 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     expect(errorMessages.filter((m) => /atomique/.test(m))).toHaveLength(1)
   })
 
+  it('carryover saturates budget: cap=1000, carryover=500, no piggy/savings → fromBudget absorbs overflow', async () => {
+    // Repro bug 2026-05-27 : un budget cap=1000 avec carryover_spent_amount=500
+    // (renflouage post-recap) affiche 500/1000 sur le dashboard. Sans le fix,
+    // la route calcule budgetRemaining=1000 et alloue 800 → 0 overflow, piggy
+    // intouchée. Avec le fix : budgetRemaining=500 → overflow=300, absorbé en
+    // déficit destination (fromBudget=800 final).
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 0 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Courses',
+        estimated_amount: 1000,
+        cumulated_savings: 0,
+        carryover_spent_amount: 500,
+      },
+      error: null,
+    })
+    // 0 real_expenses ce mois-ci
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    // pas d'autres budgets avec savings
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-carry' })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: 'rx-carry',
+        amount: 800,
+        description: 'Big shop',
+        estimated_budget: { name: 'Courses' },
+      },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    const response = await POST(
+      buildRequest({
+        amount: 800,
+        description: 'Big shop',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+      }),
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.breakdown).toMatchObject({
+      from_piggy_bank: 0,
+      from_budget_savings: 0,
+      from_budget: 800,
+      budget_spent_before: 500,
+      budget_spent_after: 1300,
+    })
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledTimes(1)
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
+  })
+
+  it('carryover saturates budget with piggy available: cascade auto-debits piggy for overflow', async () => {
+    // Suite du repro : si l'user a une tirelire à 200€, l'overflow de 300€
+    // doit être absorbé d'abord par la piggy (200€) puis le reste (100€) en
+    // déficit destination. addExpenseWithCrossBudgetCascade choisi car
+    // amountFromPiggyBank > 0.
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 200 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Courses',
+        estimated_amount: 1000,
+        cumulated_savings: 0,
+        carryover_spent_amount: 500,
+      },
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({ data: [], error: null })
+    expensesMod.addExpenseWithCrossBudgetCascade.mockResolvedValueOnce({
+      expense_id: 'rx-carry-piggy',
+      cross_budget_total: 0,
+      consolidated_savings: 0,
+    })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: {
+        id: 'rx-carry-piggy',
+        amount: 800,
+        description: 'Big shop',
+        estimated_budget: { name: 'Courses' },
+      },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    const response = await POST(
+      buildRequest({
+        amount: 800,
+        description: 'Big shop',
+        estimated_budget_id: '11111111-1111-4111-8111-111111111111',
+        is_for_group: false,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amount: 800,
+        amountFromPiggyBank: 200,
+        amountFromLocalSavings: 0,
+        amountFromBudget: 600,
+        crossBudgetDebits: [],
+      }),
+    )
+    expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
+  })
+
   it('exceptional path (no estimated_budget_id): single INSERT, no cascade RPC', async () => {
     const { supabase, expensesMod } = await importMocks()
 
