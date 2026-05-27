@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import ProfileSettingsCard from '@/components/profile/ProfileSettingsCard'
 import EditableBalanceLine from '@/components/dashboard/EditableBalanceLine'
 import GroupManagementPanel from '@/components/settings/GroupManagementPanel'
+import { useDialogBackButton } from '@/hooks/useDialogBackButton'
 
 interface SettingsDrawerProps {
   isOpen: boolean
@@ -30,6 +31,10 @@ export default function SettingsDrawer({
   onLogout,
 }: SettingsDrawerProps) {
   const [view, setView] = useState<DrawerView>('main')
+
+  // Non-Radix drawer → branche le geste retour mobile manuellement (le wrapper
+  // <Dialog> ne nous concerne pas ici). Voir [hooks/useDialogBackButton.ts].
+  useDialogBackButton(isOpen, onClose)
 
   // Lazy-mount <GroupManagementPanel> : monte à la 1re ouverture pour éviter
   // le fetch /api/groups spéculatif au mount du dashboard, jamais consommé

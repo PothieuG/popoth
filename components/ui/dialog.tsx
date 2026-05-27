@@ -4,8 +4,22 @@ import * as React from 'react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { cn } from '@/lib/utils'
 import { Cross2Icon } from '@radix-ui/react-icons'
+import { useDialogBackButton } from '@/hooks/useDialogBackButton'
 
-const Dialog = DialogPrimitive.Root
+// Wrapper sur DialogPrimitive.Root branchant le geste retour mobile :
+// le swipe iOS / bouton Android ferme la modale courante au lieu de
+// quitter la page. Voir [hooks/useDialogBackButton.ts] pour le pattern
+// stack + sentinel history. Le hook est no-op si le dialog est uncontrolled
+// (open prop absent) — toutes les surfaces Popoth utilisent le pattern
+// controlled.
+const Dialog = ({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Root>) => {
+  useDialogBackButton(open === true, () => onOpenChange?.(false))
+  return <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} {...props} />
+}
 
 const DialogTrigger = DialogPrimitive.Trigger
 
