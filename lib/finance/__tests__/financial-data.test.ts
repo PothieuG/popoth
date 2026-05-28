@@ -66,44 +66,49 @@ describe.skipIf(!ENABLED)(
     }
 
     // Golden math for the group path (single-member group → contribution =
-    // 100% of monthly_budget_estimate via the calculate_group_contributions
-    // trigger: contribution_amount = (user_salary / total_member_salaries) *
-    // monthly_budget_estimate).
+    // 100% of contribution_base via the calculate_group_contributions trigger).
     //
     // Sprint Group-Budget-Auto-Sync (2026-05-19) — le trigger
     // `estimated_budgets_sync_group_budget` réécrit `groups.monthly_budget_estimate`
     // à `SUM(estimated_budgets.estimated_amount)` à chaque INSERT/UPDATE/DELETE
     // d'un budget. La valeur initialement seedée (GROUP_MONTHLY_BUDGET=750) est
-    // immédiatement overridée à 600 par l'INSERT du budget600 ci-dessous, donc :
-    //   contribution = (1500/1500) * 600 = 600
+    // immédiatement overridée à 600 par l'INSERT du budget600 ci-dessous.
+    //
+    // Sprint Group-Income-Cascade (2026-05-28) — le trigger symétrique
+    // `estimated_incomes_sync_group_income` mirror `monthly_income_estimate`
+    // à SUM(estimated_incomes) = 1000 dès l'INSERT du groupEstimatedIncome.
+    // calculate_group_contributions calcule désormais :
+    //   contribution_base = MAX(0, 600 − 1000) = 0  (cas surplus)
+    //   contribution      = (1500/1500) × 0 = 0     (personne ne paye)
+    // Le surplus 400 (1000 − 600) reste en RAV groupe positif (cagnotte).
     //
     // - estimated_incomes: 1000 → totalEstimatedIncome = 1000 (no salary for group)
     // - real_incomes: 1000 linked → totalRealIncome = 1000
-    // - estimated_budgets: 600 → totalEstimatedBudgets = 600 (et auto-sync monthly_budget_estimate=600)
+    // - estimated_budgets: 600 → totalEstimatedBudgets = 600 (auto-sync mbe=600)
     // - real_expenses: 400 linked → totalRealExpenses = 400
     // - bank_balance = 1200 → availableBalance = 1200 (pure bank semantic)
     // - piggy_bank = 100 → totalSavings = 100
-    // - incomeCompensation = 1000 → incomeContribution = 1000 (no salary)
+    // - incomeCompensation = 1000 (real == est) → incomeContribution = 1000 (no salary)
     // - exceptionalIncomes = 0; exceptionalExpenses = 0
-    // - totalProfileContributions = 600 (post-trigger)
-    // - remainingToLive = 1000 + 0 + 600 - 600 - 0 - 0 = 1000
+    // - totalGroupContributions = 0 (Sprint Group-Income-Cascade : surplus)
+    // - remainingToLive = 1000 + 0 + 0 - 600 - 0 - 0 = 400
     const GROUP_MONTHLY_BUDGET = 750
-    const GROUP_EXPECTED_CONTRIBUTION = 600
+    const GROUP_EXPECTED_CONTRIBUTION = 0
     const GOLDEN_GROUP = {
       availableBalance: 1200,
-      remainingToLive: 1000,
+      remainingToLive: 400,
       totalSavings: 100,
       totalEstimatedIncome: 1000,
       totalEstimatedBudgets: 600,
       totalRealIncome: 1000,
       totalRealExpenses: 400,
-      // Sprint 16 V3 — une ligne read-only par membre du groupe avec
-      // contribution > 0. Single-member group (first_name = "Finance") →
-      // 1 ligne `Contribution de Finance` au montant post-trigger (600).
-      // groupSalaryTotal = somme(salaires snapshot dans group_contributions) =
-      // 1500 (Finance.salary à la dernière exécution du trigger).
+      // Sprint 16 V3 — une ligne read-only par membre avec contribution > 0.
+      // Sprint Group-Income-Cascade : contribution = 0 (surplus) →
+      // ligne filtrée (`groupContributions.filter(c => c.contribution_amount > 0)` dans
+      // financial-data.ts:332) → readOnlyIncomes vide.
+      // groupSalaryTotal = somme(salaires snapshot) = 1500 inchangé.
       meta: {
-        readOnlyIncomes: [{ kind: 'contribution', label: 'Contribution de Finance', amount: 600 }],
+        readOnlyIncomes: [],
         groupSalaryTotal: 1500,
         totalMonthlyProjects: 0,
         savingsProjects: [],
@@ -375,7 +380,28 @@ describe.skipIf(!ENABLED)(
       expect(contribution?.contribution_amount).toBe(GROUP_EXPECTED_CONTRIBUTION)
 
       const data = await getGroupFinancialData(testGroupId)
-      expect(data).toEqual(GOLDEN_GROUP)
+      // Sprint Group-Income-Cascade : enrichit GOLDEN_GROUP avec les fields
+      // dynamiques (testUserId-dependent) hydratés par Sprint Group-RAV-Recap
+      // et Sprint Fix-Group-Recap-RavEstime — précédemment absents de
+      // GOLDEN_GROUP, le test passait silencieusement parce que ces fields
+      // étaient ajoutés tard et le harness gated rarement re-run.
+      const GOLDEN_GROUP_WITH_DYNAMIC = {
+        ...GOLDEN_GROUP,
+        meta: {
+          ...GOLDEN_GROUP.meta,
+          totalGroupContributions: 0,
+          groupMembersRav: [
+            {
+              profileId: testUserId,
+              firstName: 'Finance',
+              salary: 1500,
+              currentRav: 1970,
+            },
+          ],
+          groupMembersPersonalRavTotal: 1970,
+        },
+      }
+      expect(data).toEqual(GOLDEN_GROUP_WITH_DYNAMIC)
     }, 30_000)
 
     it('case 6 — saveRavToDatabase persists remainingToLive matching the returned value', async () => {
@@ -515,6 +541,10 @@ describe.skipIf(!ENABLED)('financial-data orchestrator — edge cases', () => {
       meta: {
         readOnlyIncomes: [],
         groupSalaryTotal: 0,
+        // Sprint Fix-Group-Recap-RavEstime (2026-05-27) — totalGroupContributions
+        // est toujours exposé en groupe (même 0). Sprint Group-Income-Cascade
+        // 2026-05-28 : explicite dans l'empty shape.
+        totalGroupContributions: 0,
         totalMonthlyProjects: 0,
         savingsProjects: [],
       },

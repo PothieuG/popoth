@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
@@ -9,6 +10,12 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
+import {
+  computeGroupMembersContributionsPreview,
+  computeProjectedGroupIncomeTotal,
+} from '@/lib/finance/group-members-contributions-preview'
+import type { GroupMemberRavDetail } from '@/lib/finance'
+import GroupMembersContributionsRecap from './GroupMembersContributionsRecap'
 
 interface EstimatedIncome {
   id: string
@@ -22,6 +29,16 @@ interface EditIncomeDialogProps {
   onSave: (incomeData: { name: string; estimatedAmount: number }) => Promise<boolean>
   income: EstimatedIncome | null
   currentIncomesTotal: number
+  /**
+   * Sprint Group-Income-Cascade — props miroir AddIncomeDialog en contexte
+   * groupe. `currentGroupIncomeTotal` inclut déjà `income.estimated_amount` ;
+   * la delta-math soustrait `income.estimated_amount` avant d'ajouter le
+   * nouveau `previewSafe` pour la projection.
+   */
+  context?: 'profile' | 'group'
+  groupMembersRav?: GroupMemberRavDetail[]
+  currentGroupBudgetTotal?: number
+  currentGroupIncomeTotal?: number
 }
 
 type UpdateIncomeFormInput = z.input<typeof updateIncomeFormSchema>
@@ -48,6 +65,10 @@ export default function EditIncomeDialog({
   onSave,
   income,
   currentIncomesTotal,
+  context,
+  groupMembersRav,
+  currentGroupBudgetTotal,
+  currentGroupIncomeTotal,
 }: EditIncomeDialogProps) {
   const form = useForm<UpdateIncomeFormInput, undefined, UpdateIncomeForm>({
     resolver: zodResolver(updateIncomeFormSchema),
@@ -88,6 +109,44 @@ export default function EditIncomeDialog({
   const previewAmount =
     typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+
+  // Sprint Group-Income-Cascade — projection en mode édition : on soustrait
+  // le montant actuel du revenu (`income.estimated_amount`) avant d'ajouter
+  // le nouveau (`previewSafe`) pour éviter le double-comptage dans
+  // `currentGroupIncomeTotal` qui l'inclut déjà.
+  const isGroupContext = context === 'group'
+  const groupContribRows = useMemo(() => {
+    if (!isGroupContext || !groupMembersRav || groupMembersRav.length === 0 || !income) return []
+    const projectedGroupIncomeTotal = computeProjectedGroupIncomeTotal({
+      currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+      currentItemAmount: income.estimated_amount,
+      newItemAmount: previewSafe,
+    })
+    return computeGroupMembersContributionsPreview({
+      members: groupMembersRav,
+      currentGroupBudgetTotal: currentGroupBudgetTotal ?? 0,
+      currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+      projectedGroupIncomeTotal,
+    })
+  }, [
+    isGroupContext,
+    groupMembersRav,
+    currentGroupBudgetTotal,
+    currentGroupIncomeTotal,
+    income,
+    previewSafe,
+  ])
+  const projectedGroupSurplus =
+    isGroupContext && income
+      ? Math.max(
+          0,
+          computeProjectedGroupIncomeTotal({
+            currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+            currentItemAmount: income.estimated_amount,
+            newItemAmount: previewSafe,
+          }) - (currentGroupBudgetTotal ?? 0),
+        )
+      : 0
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
@@ -196,39 +255,48 @@ export default function EditIncomeDialog({
               )}
             </div>
 
-            {/* Aperçu financier — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
-            <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-              <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-700">Aperçu :</p>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-gray-700">Autres revenus</span>
-                    <span className="shrink-0 font-semibold text-gray-900">
-                      {formatAmount(currentIncomesTotal - income.estimated_amount)}
+            {/* Recap — en groupe : contributions projetées par membre. En perso :
+                aperçu financier classique. Sprint Group-Income-Cascade. */}
+            {isGroupContext ? (
+              <GroupMembersContributionsRecap
+                rows={groupContribRows}
+                showPreview
+                projectedGroupSurplus={projectedGroupSurplus}
+              />
+            ) : (
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Aperçu :</p>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Autres revenus</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(currentIncomesTotal - income.estimated_amount)}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-gray-700">Ce revenu</span>
+                      <span className="shrink-0 font-semibold text-gray-900">
+                        {formatAmount(previewSafe)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="h-px flex-1 bg-blue-200" />
+                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                      Résultat
+                    </span>
+                    <div className="h-px flex-1 bg-blue-200" />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-sm">
+                    <span className="font-medium text-gray-700">Total des revenus</span>
+                    <span className="shrink-0 font-bold text-gray-900">
+                      {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
                     </span>
                   </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-gray-700">Ce revenu</span>
-                    <span className="shrink-0 font-semibold text-gray-900">
-                      {formatAmount(previewSafe)}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="h-px flex-1 bg-blue-200" />
-                  <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                    Résultat
-                  </span>
-                  <div className="h-px flex-1 bg-blue-200" />
-                </div>
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="font-medium text-gray-700">Total des revenus</span>
-                  <span className="shrink-0 font-bold text-gray-900">
-                    {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
-                  </span>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Actions */}

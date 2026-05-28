@@ -255,6 +255,12 @@ export default function PlanningDrawer({
   // par membre. En perso : undefined (les modals fallback à 0 et ne rendent
   // pas le recap par-membre).
   const currentGroupTotal = isGroupContext ? totalBudgets + totalMonthlyAllocations : undefined
+  // Sprint Group-Income-Cascade — total qui pilote `groups.monthly_income_estimate`
+  // (trigger sync_group_monthly_income_estimate) : SUM(estimated_incomes.estimated_amount)
+  // pour le groupe. Passé aux modals Add/EditIncomeDialog pour projeter les
+  // contributions par membre via la formule `contribution_base = max(0, B − R)`.
+  // En perso : undefined (le panel preview groupe ne s'affiche pas).
+  const currentGroupIncomeTotal = isGroupContext ? totalIncomes : undefined
 
   // Refresh des données quand le drawer s'ouvre
   useEffect(() => {
@@ -1125,12 +1131,20 @@ export default function PlanningDrawer({
           currentGroupTotal={currentGroupTotal}
         />
 
-        {/* Add Income Dialog */}
+        {/* Add Income Dialog — Sprint Group-Income-Cascade : en groupe, on
+            passe `currentGroupBudgetTotal` (= currentGroupTotal qui pilote
+            monthly_budget_estimate) + `currentGroupIncomeTotal` pour projeter
+            les contributions par membre via le panel
+            <GroupMembersContributionsRecap>. */}
         <AddIncomeDialog
           isOpen={isAddIncomeOpen}
           onClose={() => setIsAddIncomeOpen(false)}
           onSave={handleAddIncome}
           currentIncomesTotal={totalIncomesWithReadOnly}
+          context={context}
+          groupMembersRav={groupMembersRav}
+          currentGroupBudgetTotal={currentGroupTotal}
+          currentGroupIncomeTotal={currentGroupIncomeTotal}
         />
 
         {/* Add Project Dialog — Sprint Projets-Épargne 05. Sprint PÉ-12 : en
@@ -1167,7 +1181,9 @@ export default function PlanningDrawer({
           />
         )}
 
-        {/* Edit Income Dialog — same pattern as Edit Budget */}
+        {/* Edit Income Dialog — same pattern as Edit Budget + Sprint
+            Group-Income-Cascade props groupe (delta-math soustrait
+            editingIncome.estimated_amount avant de recalculer). */}
         {isEditIncomeOpen && editingIncome && (
           <EditIncomeDialog
             key={editingIncome.id}
@@ -1175,6 +1191,10 @@ export default function PlanningDrawer({
             onSave={handleSaveEditedIncome}
             income={editingIncome}
             currentIncomesTotal={totalIncomesWithReadOnly}
+            context={context}
+            groupMembersRav={groupMembersRav}
+            currentGroupBudgetTotal={currentGroupTotal}
+            currentGroupIncomeTotal={currentGroupIncomeTotal}
           />
         )}
 

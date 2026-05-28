@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
@@ -12,12 +13,29 @@ import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
+import {
+  computeGroupMembersContributionsPreview,
+  computeProjectedGroupIncomeTotal,
+} from '@/lib/finance/group-members-contributions-preview'
+import type { GroupMemberRavDetail } from '@/lib/finance'
+import GroupMembersContributionsRecap from './GroupMembersContributionsRecap'
 
 interface AddIncomeDialogProps {
   isOpen: boolean
   onClose: () => void
   onSave: (income: { name: string; estimatedAmount: number }) => void
   currentIncomesTotal: number
+  /**
+   * Sprint Group-Income-Cascade — en contexte groupe, passe `context='group'`
+   * + `groupMembersRav` (depuis FinancialData.meta) + `currentGroupBudgetTotal`
+   * (SUM des budgets + projets groupe, qui pilote `monthly_budget_estimate`)
+   * + `currentGroupIncomeTotal` (SUM des revenus estimés groupe). Le
+   * `<GroupMembersContributionsRecap>` remplace alors le panel preview perso.
+   */
+  context?: 'profile' | 'group'
+  groupMembersRav?: GroupMemberRavDetail[]
+  currentGroupBudgetTotal?: number
+  currentGroupIncomeTotal?: number
 }
 
 // z.coerce.number() schemas have a distinct input/output — see EditBalanceModal.
@@ -38,6 +56,10 @@ export default function AddIncomeDialog({
   onClose,
   onSave,
   currentIncomesTotal,
+  context,
+  groupMembersRav,
+  currentGroupBudgetTotal,
+  currentGroupIncomeTotal,
 }: AddIncomeDialogProps) {
   const form = useForm<CreateIncomeFormInput, undefined, CreateIncomeForm>({
     resolver: zodResolver(createIncomeFormSchema),
@@ -77,7 +99,42 @@ export default function AddIncomeDialog({
   const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
   const previewAmount =
     typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
-  const showPreview = !isNaN(previewAmount) && previewAmount > 0
+  const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  const showPreview = previewSafe > 0
+
+  // Sprint Group-Income-Cascade — projection des contributions par membre.
+  // Calcule en pur côté client le nouveau `contribution_base = max(0,
+  // budgets_groupe − revenus_groupe_projetés)` et la répartition prorata des
+  // salaires, exactement comme la RPC `calculate_group_contributions`.
+  const isGroupContext = context === 'group'
+  const groupContribRows = useMemo(() => {
+    if (!isGroupContext || !groupMembersRav || groupMembersRav.length === 0) return []
+    const projectedGroupIncomeTotal = computeProjectedGroupIncomeTotal({
+      currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+      newItemAmount: previewSafe,
+    })
+    return computeGroupMembersContributionsPreview({
+      members: groupMembersRav,
+      currentGroupBudgetTotal: currentGroupBudgetTotal ?? 0,
+      currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+      projectedGroupIncomeTotal,
+    })
+  }, [
+    isGroupContext,
+    groupMembersRav,
+    currentGroupBudgetTotal,
+    currentGroupIncomeTotal,
+    previewSafe,
+  ])
+  const projectedGroupSurplus = isGroupContext
+    ? Math.max(
+        0,
+        computeProjectedGroupIncomeTotal({
+          currentGroupIncomeTotal: currentGroupIncomeTotal ?? 0,
+          newItemAmount: previewSafe,
+        }) - (currentGroupBudgetTotal ?? 0),
+      )
+    : 0
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
@@ -228,40 +285,50 @@ export default function AddIncomeDialog({
               )}
             </div>
 
-            {/* Aperçu du total — panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22 */}
-            {showPreview && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Calcul des revenus totaux :</p>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Revenus actuels</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(currentIncomesTotal)}
+            {/* Recap — en groupe : contributions projetées par membre (Sprint
+                Group-Income-Cascade). En perso : balance globale (panel
+                uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22). */}
+            {isGroupContext ? (
+              <GroupMembersContributionsRecap
+                rows={groupContribRows}
+                showPreview={showPreview}
+                projectedGroupSurplus={projectedGroupSurplus}
+              />
+            ) : (
+              showPreview && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-700">Calcul des revenus totaux :</p>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-gray-700">Revenus actuels</span>
+                        <span className="shrink-0 font-semibold text-gray-900">
+                          {formatAmount(currentIncomesTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-gray-700">Ce nouveau revenu</span>
+                        <span className="shrink-0 font-semibold text-gray-900">
+                          {formatAmount(previewSafe)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1">
+                      <div className="h-px flex-1 bg-blue-200" />
+                      <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                        Résultat
+                      </span>
+                      <div className="h-px flex-1 bg-blue-200" />
+                    </div>
+                    <div className="flex items-baseline justify-between gap-2 text-sm">
+                      <span className="font-medium text-gray-700">Total des revenus</span>
+                      <span className="shrink-0 font-bold text-gray-900">
+                        {formatAmount(currentIncomesTotal + previewSafe)}
                       </span>
                     </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Ce nouveau revenu</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(previewAmount)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-blue-200" />
-                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                      Résultat
-                    </span>
-                    <div className="h-px flex-1 bg-blue-200" />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                    <span className="font-medium text-gray-700">Total des revenus</span>
-                    <span className="shrink-0 font-bold text-gray-900">
-                      {formatAmount(currentIncomesTotal + previewAmount)}
-                    </span>
                   </div>
                 </div>
-              </div>
+              )
             )}
           </div>
 
