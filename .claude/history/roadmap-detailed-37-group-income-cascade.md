@@ -46,12 +46,12 @@ RAV_group = incomeContribution + exceptionalIncomes + totalGroupContributions
           − estimatedBudgets − exceptionalExpenses − budgetDeficits
 ```
 
-| Cas | Résultat | Demande user |
-|---|---|---|
+| Cas                 | Résultat                                        | Demande user                                          |
+| ------------------- | ----------------------------------------------- | ----------------------------------------------------- |
 | Ajout R (sans real) | RAV = R + max(0,B−R) − B = 0 si R≤B, R−B si R>B | ✓ pas d'impact RAV à la création, surplus en cagnotte |
-| Real X = R | identique au cas précédent | ✓ no-op cohérent |
-| Real X < R | RAV = X + max(0,B−R) − B = X−R<0 | ✓ moins de revenu → RAV↘ |
-| Real X > R | RAV = X + max(0,B−R) − B = X−R>0 | ✓ plus de revenu → RAV↗ |
+| Real X = R          | identique au cas précédent                      | ✓ no-op cohérent                                      |
+| Real X < R          | RAV = X + max(0,B−R) − B = X−R<0                | ✓ moins de revenu → RAV↘                              |
+| Real X > R          | RAV = X + max(0,B−R) − B = X−R>0                | ✓ plus de revenu → RAV↗                               |
 
 ## Migrations DB (4 migrations, ordre OBLIGATOIRE)
 
@@ -156,14 +156,14 @@ Tous les fichiers backend sont déjà ContextFilter-aware :
 
 ## Tests
 
-**+12 unit non-gated** ([lib/finance/__tests__/group-members-contributions-preview.test.ts](../../lib/finance/__tests__/group-members-contributions-preview.test.ts))
+**+12 unit non-gated** ([lib/finance/**tests**/group-members-contributions-preview.test.ts](../../lib/finance/__tests__/group-members-contributions-preview.test.ts))
 — miroir des tests `group-members-rav-preview.test.ts`. 3 cas
 `computeProjectedGroupIncomeTotal` (add/edit/edit-down) + 9 cas
 `computeGroupMembersContributionsPreview` (happy prorata, surplus clamp, split-égal,
 édition vers le bas, delta nul, budget vide, membres vides, mélange salaires
 zéro+non-zéro).
 
-**+6 gated cascade** ([lib/finance/__tests__/group-income-cascade.test.ts](../../lib/finance/__tests__/group-income-cascade.test.ts),
+**+6 gated cascade** ([lib/finance/**tests**/group-income-cascade.test.ts](../../lib/finance/__tests__/group-income-cascade.test.ts),
 `SUPABASE_FINANCE_TESTS=1`) — valide la cascade end-to-end DB sur un fixture
 2 membres (Alice 3000€, Bob 2000€) + budget groupe 1000€ :
 
@@ -177,7 +177,7 @@ zéro+non-zéro).
 6. **M5 delete R** — `monthly_income_estimate ← 0`, contributions remontent à
    600/400.
 
-**Mises à jour test existant** : [lib/finance/__tests__/financial-data.test.ts](../../lib/finance/__tests__/financial-data.test.ts)
+**Mises à jour test existant** : [lib/finance/**tests**/financial-data.test.ts](../../lib/finance/__tests__/financial-data.test.ts)
 cases 2 (group golden) et 5 (fail-soft empty) — GOLDEN_GROUP enrichi avec
 `totalGroupContributions: 0` + `groupMembersRav` + `groupMembersPersonalRavTotal`
 (fields ajoutés par Sprints Group-RAV-Recap 2026-05-27 + Fix-Group-Recap-RavEstime
@@ -213,8 +213,8 @@ follow-up dédié.
   `dde4ce9`), aucun warning sur mes nouveaux fichiers.
 - `pnpm test:run` 812 passants (+12 non-gated, baseline 800).
 - `pnpm test:run` avec `SUPABASE_FINANCE_TESTS=1` : 853 passants (+6 gated mine
-  + 35 autres gated) + 1 fail pré-existant (financial-data-with-projects case 2,
-  cf. ci-dessus).
+  - 35 autres gated) + 1 fail pré-existant (financial-data-with-projects case 2,
+    cf. ci-dessus).
 - `pnpm db:audit-functions` exit 0 sur dev : 43 fonctions versionnées (était 41,
   +2 nouvelles `sync_group_monthly_income_estimate` + `trigger_group_income_change`).
 
