@@ -10,6 +10,7 @@ import { useLongPress } from '@/hooks/useLongPress'
 import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import UserAvatar from '@/components/ui/UserAvatar'
+import SalaryValidationModal from '@/components/dashboard/SalaryValidationModal'
 
 const LONG_PRESS_DELAY_MS = 800
 
@@ -172,6 +173,7 @@ export default function TransactionListItem({
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPressing, setIsPressing] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
+  const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false)
   const progressBarRef = useRef<HTMLSpanElement | null>(null)
 
   /**
@@ -208,18 +210,46 @@ export default function TransactionListItem({
    *   - driftDelta : `amount - last_applied_amount` (positif = la
    *     contribution a augmenté donc ajouter au pot ; négatif = retirer).
    */
+  /**
+   * Sprint Contribution-Income-Mirror (2026-06-05) — la détection couvre
+   * maintenant les 2 sides : expense user perso (sprint 16 V3 original) ET
+   * revenu miroir côté groupe (nouveau). Les 2 sides ont `contribution_id`
+   * non-null et partagent la même UX : warning + kebab masqué + read-only.
+   */
   const isContributionRow =
-    type === 'expense' && (transaction as RealExpense).contribution_id != null
-  const contribLastApplied =
-    type === 'expense' ? ((transaction as RealExpense).last_applied_amount ?? null) : null
+    type === 'expense'
+      ? (transaction as RealExpense).contribution_id != null
+      : (transaction as RealIncome).contribution_id != null
+  const contribLastApplied = isContributionRow ? (transaction.last_applied_amount ?? null) : null
   const needsValidation = isContributionRow && !isApplied
   const hasDelta =
     isContributionRow && contribLastApplied != null && contribLastApplied !== transaction.amount
   const driftDelta =
     hasDelta && contribLastApplied != null ? transaction.amount - contribLastApplied : 0
 
+  /**
+   * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Row salaire auto-créée
+   * à la finalisation du recap (mode solo). Read-only à vie :
+   *   - Kebab masqué (jamais d'édition/suppression manuelle).
+   *   - Long-press sur état non-validé → ouvre SalaryValidationModal (au lieu
+   *     du toggle direct) pour permettre l'ajustement +/- d'un delta réel.
+   *   - Long-press sur état validé → no-op (la row est définitivement
+   *     verrouillée — l'éventuel "Équilibrage salaire" associé reste, lui,
+   *     modifiable comme toute transaction classique).
+   */
+  const isSalaryRow = type === 'income' && (transaction as RealIncome).recap_origin_id != null
+  const isSalaryAwaitingValidation = isSalaryRow && !isApplied
+
   const runToggle = async () => {
     if (isToggling) return
+    // Salaire auto-créé : si déjà validé, long-press inopérant (lock à vie).
+    // Si non-validé, ouvrir la modal au lieu de toggle direct — l'utilisateur
+    // doit confirmer le montant exact via SalaryValidationModal.
+    if (isSalaryRow) {
+      if (isApplied) return // lock définitif
+      setIsSalaryModalOpen(true)
+      return
+    }
     setIsToggling(true)
     try {
       if (hasCarryOverContext) {
@@ -753,7 +783,7 @@ export default function TransactionListItem({
 
               Sprint Complete-Month-Step (2026-05-29) — kebab également masqué
               en mode readOnly (étape "Compléter le mois" du wizard récap). */}
-          {!isContributionRow && !readOnly && (
+          {!isContributionRow && !isSalaryRow && !readOnly && (
             <div
               className="ml-1.5 flex min-h-full shrink-0 items-center"
               onPointerDown={(e) => e.stopPropagation()}
@@ -810,7 +840,7 @@ export default function TransactionListItem({
                   <span className="font-semibold">
                     {driftDelta > 0 ? 'ajouter' : 'retirer'} {formatAmount(Math.abs(driftDelta))}
                   </span>{' '}
-                  au groupe avant de valider cette dépense.
+                  au groupe avant de valider {type === 'expense' ? 'cette dépense' : 'ce revenu'}.
                 </p>
               ) : (
                 <p>La valeur de la contribution doit être validée.</p>
@@ -832,6 +862,20 @@ export default function TransactionListItem({
         loading={isDeleting}
         variant="danger"
       />
+
+      {/* Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Modal de
+          vérification du salaire — déclenchée par long-press sur une ligne
+          recap_origin_id != null && applied_to_balance_at == null. Lazy-mount
+          via key + state controlled (Sprint Modal-Uniformize). */}
+      {isSalaryAwaitingValidation && (
+        <SalaryValidationModal
+          key={transaction.id}
+          isOpen={isSalaryModalOpen}
+          incomeId={transaction.id}
+          defaultAmount={transaction.amount}
+          onClose={() => setIsSalaryModalOpen(false)}
+        />
+      )}
     </>
   )
 }

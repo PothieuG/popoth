@@ -65,6 +65,13 @@ const EXPECTED_RPCS = [
   'update_savings_project',
   'delete_savings_project_to_piggy',
   'apply_recap_projects_snapshot',
+  // Sprint Salary-Auto-At-Recap-Complete + Contribution-Income-Mirror (2026-06-05)
+  // supabase/migrations/20260605000001_create_salary_income_for_recap_rpc.sql
+  // supabase/migrations/20260605000002_create_validate_salary_with_delta_rpc.sql
+  // supabase/migrations/20260605000005_create_toggle_contribution_pair_applied_rpc.sql
+  'create_salary_income_for_recap',
+  'validate_salary_with_delta',
+  'toggle_contribution_pair_applied',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

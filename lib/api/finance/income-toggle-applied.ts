@@ -6,6 +6,7 @@ import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleAppliedBodySchema } from '@/lib/schemas/applied-balance'
 import {
   AppliedToggleNoOpError,
+  toggleContributionPairApplied,
   toggleRealIncomeAppliedToBalance,
 } from '@/lib/finance/applied-balance'
 import { ensureBankBalanceRow } from '@/lib/finance/bank-balance'
@@ -25,7 +26,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     const { data: row, error: fetchError } = await supabaseServer
       .from('real_income_entries')
-      .select('profile_id, group_id')
+      .select('profile_id, group_id, recap_origin_id, applied_to_balance_at, contribution_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -42,6 +43,64 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Revenu non autorisé' }, { status: 403 })
+    }
+
+    // Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Filet défense contre
+    // un appel API direct (court-circuit de la modal côté client) :
+    //   - Ligne salaire (recap_origin_id != null) non-validée → 409 forçant
+    //     l'utilisateur à passer par la modal SalaryValidationModal qui
+    //     route vers `/validate-salary` (logique delta + Équilibrage).
+    //   - Ligne salaire déjà validée → 409 read-only à vie (pas de un-apply).
+    if (row.recap_origin_id != null) {
+      if (row.applied_to_balance_at == null) {
+        return NextResponse.json({ error: 'salary-validation-requires-modal' }, { status: 409 })
+      }
+      return NextResponse.json({ error: 'cannot-toggle-validated-recap-salary' }, { status: 409 })
+    }
+
+    // Sprint Contribution-Income-Mirror (2026-06-05). Si le revenu est un
+    // miroir contribution (contribution_id != null), router vers la RPC
+    // orchestratrice qui toggle la paire (expense user + income groupe).
+    if (row.contribution_id != null) {
+      const { data: contribRow } = await supabaseServer
+        .from('group_contributions')
+        .select('profile_id, group_id')
+        .eq('id', row.contribution_id)
+        .maybeSingle()
+      if (!contribRow) {
+        return NextResponse.json({ error: 'Contribution introuvable' }, { status: 404 })
+      }
+      try {
+        await ensureBankBalanceRow({ profile_id: contribRow.profile_id })
+        await ensureBankBalanceRow({ group_id: contribRow.group_id })
+      } catch (ensureError) {
+        logger.error('[toggle-applied/income] ensureBankBalanceRow (pair) failed', ensureError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la préparation du solde' },
+          { status: 500 },
+        )
+      }
+      try {
+        const pairResult = await toggleContributionPairApplied(row.contribution_id, apply)
+        // Compat shape : pour la perspective long-press côté groupe (income),
+        // on renvoie le balance côté INCOME (group).
+        return NextResponse.json({
+          data: {
+            balance: pairResult.incomeBalance ?? 0,
+            appliedToBalanceAt: pairResult.applied ? new Date().toISOString() : null,
+            pair: pairResult,
+          },
+        })
+      } catch (rpcError) {
+        if (rpcError instanceof AppliedToggleNoOpError) {
+          return NextResponse.json({ error: 'already-in-target-state' }, { status: 409 })
+        }
+        logger.error('[toggle-applied/income] pair RPC error', rpcError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la mise à jour du solde' },
+          { status: 500 },
+        )
+      }
     }
 
     // Ensure bank_balances row exists for this owner before invoking the

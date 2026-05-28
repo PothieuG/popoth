@@ -5,6 +5,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
+/**
+ * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Réponse du RPC
+ * `validate_salary_with_delta` (cf. lib/api/finance/income-validate-salary.ts).
+ *   - delta : montant signé. 0 = aucun exceptionnel créé. >0 = revenu
+ *     exceptionnel "Équilibrage salaire" créé + appliqué. <0 = dépense
+ *     exceptionnelle créée + appliquée.
+ *   - balance : valeur du solde après toute la validation atomique.
+ */
+export interface ValidateSalaryResult {
+  delta: number
+  exceptional_kind: 'income' | 'expense' | null
+  exceptional_id: string | null
+  balance: number
+}
+
+export interface ValidateSalaryRequest {
+  incomeId: string
+  realAmount: number
+}
+
 export interface RealIncome {
   id: string
   profile_id?: string
@@ -33,12 +53,30 @@ export interface RealIncome {
    */
   carried_from_recap_id?: string | null
   /**
+   * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Non-null = ligne
+   * salaire auto-créée à la finalisation du recap (mode solo). Signal
+   * pour l'UI :
+   *   - long-press → SalaryValidationModal (et non toggle direct).
+   *   - kebab masqué (read-only à vie, garde 409 côté serveur).
+   *   - jamais éditable/supprimable.
+   */
+  recap_origin_id?: string | null
+  /**
    * Feature "Contribution au groupe" (2026-05-28) — pattern symétrique de
    * `RealExpense.last_applied_amount` : la RPC toggle écrit ce snapshot
    * pour cohérence. Côté revenus, aucun trigger n'auto-update le montant,
    * donc le drift est toujours = 0 (pas d'UI dédiée).
    */
   last_applied_amount?: number | null
+  /**
+   * Sprint Contribution-Income-Mirror (2026-06-05). Non-null = revenu miroir
+   * côté GROUPE pour une `group_contributions` row. Signal pour l'UI :
+   *   - kebab masqué (read-only à vie, cycle trigger-piloté).
+   *   - warning UI affiché tant que non-validé.
+   *   - long-press déclenche la RPC orchestratrice qui toggle aussi la
+   *     `real_expenses` paire (côté user perso) atomiquement.
+   */
+  contribution_id?: string | null
   estimated_income?: {
     name: string
   }
@@ -392,4 +430,38 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     },
     refreshIncomes,
   }
+}
+
+/**
+ * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Mutation dédiée pour
+ * `POST /api/finance/income/real/validate-salary`. Appelée par
+ * `SalaryValidationModal` au clic sur "Confirmer" — invalide les keys
+ * financières au succès (le revenu salaire et l'éventuel exceptionnel
+ * apparaissent immédiatement validés côté dashboard + bank balance update).
+ */
+export function useValidateSalary() {
+  const queryClient = useQueryClient()
+
+  return useMutation<ValidateSalaryResult, Error, ValidateSalaryRequest>({
+    mutationFn: async ({ incomeId, realAmount }) => {
+      const response = await fetch('/api/finance/income/real/validate-salary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ income_id: incomeId, real_amount: realAmount }),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const json = await response.json()
+      return json.data as ValidateSalaryResult
+    },
+    onSuccess: () => {
+      invalidateFinancialRefreshes(queryClient)
+    },
+    onError: (err) => {
+      logger.error('[useValidateSalary] failed', err)
+    },
+  })
 }

@@ -22,7 +22,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     const { data: row, error: fetchError } = await supabaseServer
       .from('real_income_entries')
-      .select('profile_id, group_id')
+      .select('profile_id, group_id, recap_origin_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -39,6 +39,13 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Revenu non autorisé' }, { status: 403 })
+    }
+
+    // Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Le carry-over toggle
+    // ne doit jamais être appelé sur une ligne salaire (validation via modal
+    // uniquement, qui un-flag is_carried_over via le RPC dédié).
+    if (row.recap_origin_id != null) {
+      return NextResponse.json({ error: 'salary-validation-requires-modal' }, { status: 409 })
     }
 
     const balanceFilter: ContextFilter = ownsAsProfile

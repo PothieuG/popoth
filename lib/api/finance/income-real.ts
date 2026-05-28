@@ -258,15 +258,27 @@ export const PUT = withAuth(async (request: NextRequest) => {
     const body = await parseBody(request, updateRealIncomeBodySchema)
     const { id, amount, description, entry_date, estimated_income_id } = body
 
-    // Sprint 15 V3 (2026-05-27) — interdire la modification d'un revenu
-    // reporté du mois précédent (miroir guard expenses-real.ts).
-    const { data: carriedCheck } = await supabaseServer
+    // Sprint 15 V3 (2026-05-27) + Sprint Salary-Auto-At-Recap-Complete
+    // + Sprint Contribution-Income-Mirror (2026-06-05) — interdire :
+    //   - modification d'un revenu reporté du mois précédent (carry-over) ;
+    //   - modification d'un revenu salaire auto-créé à la finalisation du
+    //     recap (recap_origin_id != null) — read-only à vie ;
+    //   - modification d'un revenu miroir contribution (contribution_id != null)
+    //     — cycle 100% trigger-piloté (symétrique au guard existant côté
+    //     expense Sprint 16 V3).
+    const { data: protectedCheck } = await supabaseServer
       .from('real_income_entries')
-      .select('is_carried_over')
+      .select('is_carried_over, recap_origin_id, contribution_id')
       .eq('id', id)
       .maybeSingle()
-    if (carriedCheck?.is_carried_over) {
+    if (protectedCheck?.is_carried_over) {
       return NextResponse.json({ error: 'cannot-edit-carried-transaction' }, { status: 409 })
+    }
+    if (protectedCheck?.recap_origin_id) {
+      return NextResponse.json({ error: 'cannot-edit-recap-salary' }, { status: 409 })
+    }
+    if (protectedCheck?.contribution_id) {
+      return NextResponse.json({ error: 'cannot-edit-contribution-row' }, { status: 409 })
     }
 
     const updates: RealIncomeUpdate = {}
@@ -337,7 +349,9 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     // Récupérer d'abord les informations du revenu avant suppression pour savoir s'il était exceptionnel ou associé
     const { data: incomeToDelete } = await supabaseServer
       .from('real_income_entries')
-      .select('profile_id, group_id, is_exceptional, estimated_income_id, applied_to_balance_at')
+      .select(
+        'profile_id, group_id, is_exceptional, estimated_income_id, applied_to_balance_at, recap_origin_id, contribution_id',
+      )
       .eq('id', id)
       .single()
 
@@ -346,6 +360,23 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     // expenses-real.ts DELETE.
     if (incomeToDelete?.applied_to_balance_at) {
       return NextResponse.json({ error: 'cannot-delete-applied-transaction' }, { status: 409 })
+    }
+
+    // Sprint Salary-Auto-At-Recap-Complete (2026-06-05) — bloquer la
+    // suppression d'un revenu salaire auto-créé à la finalisation du recap
+    // (read-only à vie). Le guard s'applique aussi quand applied_to_balance_at
+    // IS NULL (l'user ne doit pas pouvoir contourner le flow modal en
+    // supprimant une ligne salaire non-validée — il doit la valider ou la
+    // laisser cascader carry-over au recap suivant).
+    if (incomeToDelete?.recap_origin_id) {
+      return NextResponse.json({ error: 'cannot-delete-recap-salary' }, { status: 409 })
+    }
+
+    // Sprint Contribution-Income-Mirror (2026-06-05) — bloquer la suppression
+    // d'un revenu miroir contribution (cycle 100% trigger-piloté ; symétrique
+    // au guard `cannot-delete-contribution-row` côté expense).
+    if (incomeToDelete?.contribution_id) {
+      return NextResponse.json({ error: 'cannot-delete-contribution-row' }, { status: 409 })
     }
 
     // Delete the real income entry

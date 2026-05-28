@@ -85,6 +85,16 @@ interface ProcessTransactionsResult {
   carried_incomes: number
 }
 
+/** Sprint Salary-Auto-At-Recap-Complete 2026-06-05. Result of
+ *  `create_salary_income_for_recap`. `created=true` quand une nouvelle ligne
+ *  salaire a été INSERT ; `created=false` quand skip (no_salary | already_exists). */
+interface CreateSalaryIncomeResult {
+  created: boolean
+  reason?: 'no_salary' | 'already_exists'
+  income_id?: string
+  amount?: number
+}
+
 export interface ExecuteCompleteRecapArgs {
   context: RecapContext
   profile: { id: string; group_id: string | null }
@@ -113,6 +123,10 @@ export interface CompleteRecapOutcome {
    *  projets — la valeur null vient uniquement du fail-soft). */
   projectsApplied: ApplyProjectsSnapshotResult | null
   transactions: ProcessTransactionsResult
+  /** Sprint Salary-Auto-At-Recap-Complete 2026-06-05. `null` en mode groupe
+   *  (no-op — la mécanique trigger Sprint 16 V3 étendu prend le relais).
+   *  En mode solo : résultat de l'INSERT idempotent du salaire. */
+  salaryIncome: CreateSalaryIncomeResult | null
 }
 
 const ZERO_TRANSACTIONS: ProcessTransactionsResult = {
@@ -205,6 +219,39 @@ export async function executeCompleteRecap(
     transactions = (txData ?? ZERO_TRANSACTIONS) as ProcessTransactionsResult
   }
 
+  // 3.5 Create salary income (solo only) — Sprint Salary-Auto-At-Recap-Complete
+  //     2026-06-05. INSERT idempotent (partial unique index sur recap_origin_id)
+  //     d'une ligne real_income_entries non-validée avec amount=profile.salary,
+  //     description='Salaire', recap_origin_id=p_recap_id. Skip si salary=0.
+  //     Le user validera via long-press → SalaryValidationModal (UX déléguée).
+  //
+  //     En groupe : no-op. Les revenus miroir côté groupe sont créés via le
+  //     trigger sync_contribution_real_income (Sprint Contribution-Income-Mirror
+  //     2026-06-05) dès qu'une `group_contributions` row existe — pas attaché
+  //     à la finalisation du recap.
+  //
+  //     Fail-soft : si le RPC erreure, on log + continue (la finalisation
+  //     n'est pas bloquée par cette étape ; l'user peut re-créer le salaire
+  //     manuellement en attendant).
+  let salaryIncome: CreateSalaryIncomeResult | null = null
+  if (args.context === 'profile') {
+    const { data: salaryData, error: salaryError } = await supabaseServer.rpc(
+      'create_salary_income_for_recap',
+      {
+        p_recap_id: args.recap.id,
+        p_profile_id: args.profile.id,
+      },
+    )
+    if (salaryError) {
+      logger.error('[recap/finalize] create_salary_income failed', {
+        recapId: args.recap.id,
+        error: salaryError,
+      })
+    } else {
+      salaryIncome = (salaryData ?? null) as CreateSalaryIncomeResult | null
+    }
+  }
+
   // 4. Mark recap completed (NOT fail-soft — see file header).
   const completedAt = new Date().toISOString()
   const completionUpdate: Database['public']['Tables']['monthly_recaps']['Update'] = {
@@ -229,6 +276,7 @@ export async function executeCompleteRecap(
     snapshotApplied,
     projectsApplied,
     transactions,
+    salaryIncome,
   }
 }
 

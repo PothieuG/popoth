@@ -48,6 +48,13 @@ export function createQueryClient() {
  * des projets pour que les UI affichant la marge disponible (sprint 04+)
  * voient instantanément l'effet d'un nouveau budget sur la capacité à
  * créer un nouveau projet.
+ *
+ * `real-incomes` was added by Sprint Contribution-Income-Mirror + Salary-Auto
+ * (2026-06-05) — le revenu miroir contribution côté groupe + le revenu salaire
+ * auto-créé à la finalisation du recap. Toute mutation sur budgets groupe
+ * (cascade trigger sync_contribution_real_income) ET la validation du salaire
+ * via la modal doivent invalider la liste des revenus pour refresh la vue
+ * dashboard sans refresh manuel.
  */
 export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['financial-summary'] })
@@ -56,6 +63,7 @@ export function invalidateFinancialRefreshes(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ['group-contributions'] })
   qc.invalidateQueries({ queryKey: ['savings-data'] })
   qc.invalidateQueries({ queryKey: ['real-expenses'] })
+  qc.invalidateQueries({ queryKey: ['real-incomes'] })
   qc.invalidateQueries({ queryKey: ['bank-balance'] })
   qc.invalidateQueries({ queryKey: ['salary-editability'] })
   qc.invalidateQueries({ queryKey: ['projects'] })

@@ -6,6 +6,7 @@ import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleAppliedBodySchema } from '@/lib/schemas/applied-balance'
 import {
   AppliedToggleNoOpError,
+  toggleContributionPairApplied,
   toggleRealExpenseAppliedToBalance,
 } from '@/lib/finance/applied-balance'
 import { ensureBankBalanceRow } from '@/lib/finance/bank-balance'
@@ -34,7 +35,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     // via SECURITY DEFINER, so this is the only authorization gate.
     const { data: row, error: fetchError } = await supabaseServer
       .from('real_expenses')
-      .select('profile_id, group_id')
+      .select('profile_id, group_id, contribution_id')
       .eq('id', id)
       .maybeSingle()
 
@@ -54,6 +55,55 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
       row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Dépense non autorisée' }, { status: 403 })
+    }
+
+    // Sprint Contribution-Income-Mirror (2026-06-05). Si la dépense est une
+    // contribution virtuelle (contribution_id != null), router vers la RPC
+    // orchestratrice qui toggle la paire (expense user + income groupe miroir)
+    // ATOMIQUEMENT. Sinon, comportement standard single-side.
+    if (row.contribution_id != null) {
+      // Pre-ensure des 2 bank_balances (user + groupe). On lit le group_id
+      // depuis la row contribution_id (l'income mirror est côté group).
+      const { data: contribRow } = await supabaseServer
+        .from('group_contributions')
+        .select('profile_id, group_id')
+        .eq('id', row.contribution_id)
+        .maybeSingle()
+      if (!contribRow) {
+        return NextResponse.json({ error: 'Contribution introuvable' }, { status: 404 })
+      }
+      try {
+        await ensureBankBalanceRow({ profile_id: contribRow.profile_id })
+        await ensureBankBalanceRow({ group_id: contribRow.group_id })
+      } catch (ensureError) {
+        logger.error('[toggle-applied/expense] ensureBankBalanceRow (pair) failed', ensureError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la préparation du solde' },
+          { status: 500 },
+        )
+      }
+      try {
+        const pairResult = await toggleContributionPairApplied(row.contribution_id, apply)
+        // Compat shape avec les consumers existants (UI optimistic update) :
+        // on renvoie le balance côté EXPENSE (profile) qui correspond à la
+        // perspective du long-press côté user perso.
+        return NextResponse.json({
+          data: {
+            balance: pairResult.expenseBalance ?? 0,
+            appliedToBalanceAt: pairResult.applied ? new Date().toISOString() : null,
+            pair: pairResult,
+          },
+        })
+      } catch (rpcError) {
+        if (rpcError instanceof AppliedToggleNoOpError) {
+          return NextResponse.json({ error: 'already-in-target-state' }, { status: 409 })
+        }
+        logger.error('[toggle-applied/expense] pair RPC error', rpcError)
+        return NextResponse.json(
+          { error: 'Erreur lors de la mise à jour du solde' },
+          { status: 500 },
+        )
+      }
     }
 
     // Ensure bank_balances row exists for this owner before invoking the

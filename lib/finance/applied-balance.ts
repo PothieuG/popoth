@@ -86,3 +86,67 @@ export async function toggleRealIncomeAppliedToBalance(
   }
   return parseRpcResult(data)
 }
+
+/**
+ * Sprint Contribution-Income-Mirror (2026-06-05). Result of the orchestrator
+ * RPC `toggle_contribution_pair_applied`. Both sides (expense user perso +
+ * income group mirror) toggle atomically. Balance values are exposed for both
+ * contexts when their side changed (null otherwise).
+ */
+export interface ToggleContributionPairResult {
+  expenseId: string
+  incomeId: string
+  expenseChanged: boolean
+  incomeChanged: boolean
+  expenseBalance: number | null
+  incomeBalance: number | null
+  applied: boolean
+}
+
+function parsePairRpcResult(data: unknown): ToggleContributionPairResult {
+  if (typeof data !== 'object' || data === null) {
+    throw new Error('toggle_contribution_pair_applied returned non-object payload')
+  }
+  const obj = data as {
+    expense_id?: unknown
+    income_id?: unknown
+    expense_changed?: unknown
+    income_changed?: unknown
+    expense_balance?: unknown
+    income_balance?: unknown
+    applied?: unknown
+  }
+  if (typeof obj.expense_id !== 'string' || typeof obj.income_id !== 'string') {
+    throw new Error('toggle_contribution_pair_applied payload missing string ids')
+  }
+  if (typeof obj.expense_changed !== 'boolean' || typeof obj.income_changed !== 'boolean') {
+    throw new Error('toggle_contribution_pair_applied payload missing boolean changed flags')
+  }
+  if (typeof obj.applied !== 'boolean') {
+    throw new Error('toggle_contribution_pair_applied payload missing applied flag')
+  }
+  return {
+    expenseId: obj.expense_id,
+    incomeId: obj.income_id,
+    expenseChanged: obj.expense_changed,
+    incomeChanged: obj.income_changed,
+    expenseBalance: typeof obj.expense_balance === 'number' ? obj.expense_balance : null,
+    incomeBalance: typeof obj.income_balance === 'number' ? obj.income_balance : null,
+    applied: obj.applied,
+  }
+}
+
+export async function toggleContributionPairApplied(
+  contributionId: string,
+  apply: boolean,
+): Promise<ToggleContributionPairResult> {
+  const { data, error } = await supabaseServer.rpc('toggle_contribution_pair_applied', {
+    p_contribution_id: contributionId,
+    p_apply: apply,
+  })
+  if (error) {
+    if (isNoOpPgError(error)) throw new AppliedToggleNoOpError(error.message)
+    throw error
+  }
+  return parsePairRpcResult(data)
+}

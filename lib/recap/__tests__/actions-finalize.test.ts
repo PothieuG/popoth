@@ -23,6 +23,14 @@
  * Sprint Carryover-Self-Healing 2026-05-26 — extended :
  *  - `outcome.snapshotApplied` now includes `reset_count` (number of owner
  *    budgets whose carryover was reset to 0 before snapshot apply).
+ *
+ * Sprint Salary-Auto-At-Recap-Complete 2026-06-05 — extended :
+ *  - `create_salary_income_for_recap` RPC is called between process_transactions
+ *    and UPDATE completed_at, BUT ONLY in solo mode (context==='profile').
+ *    In group mode, the mirror income mechanism (trigger Sprint 16 V3 extended)
+ *    takes over — no salary RPC call.
+ *  - `outcome.salaryIncome` exposes the result (created/skip/already_exists)
+ *    in solo mode, `null` in group mode.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,9 +80,12 @@ const BUDGET_1 = 'dddd4444-4444-4444-4444-444444444444'
 const BUDGET_2 = 'eeee5555-5555-5555-5555-555555555555'
 
 describe('executeCompleteRecap', () => {
-  it('empty snapshot → STILL calls apply_snapshot RPC (owner reset), then projects + processes + marks completed', async () => {
+  it('empty snapshot → STILL calls apply_snapshot RPC (owner reset), then projects + processes + salary + marks completed', async () => {
     // Sprint Carryover-Self-Healing 2026-05-26 — the RPC is no longer skipped
     // for empty snapshot ; it must run to reset owner carryovers to 0.
+    // Sprint Salary-Auto-At-Recap-Complete 2026-06-05 — in solo mode, a 4th
+    // RPC (`create_salary_income_for_recap`) is called between
+    // process_transactions and the completed_at UPDATE.
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
@@ -84,6 +95,7 @@ describe('executeCompleteRecap', () => {
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { created: false, reason: 'no_salary' }, error: null })
 
     const outcome = await executeCompleteRecap({
       context: 'profile',
@@ -94,7 +106,8 @@ describe('executeCompleteRecap', () => {
     expect(outcome.completed).toBe(true)
     expect(outcome.snapshotApplied).toEqual({ applied: [], reset_count: 2 })
     expect(outcome.projectsApplied).toEqual({ updated_count: 0, total_refunded: 0 })
-    expect(m.rpc).toHaveBeenCalledTimes(3)
+    expect(outcome.salaryIncome).toEqual({ created: false, reason: 'no_salary' })
+    expect(m.rpc).toHaveBeenCalledTimes(4)
     expect(m.rpc).toHaveBeenNthCalledWith(1, 'finalize_recap_apply_snapshot', {
       p_recap_id: RECAP_ID,
       p_snapshot: {},
@@ -107,10 +120,14 @@ describe('executeCompleteRecap', () => {
       p_recap_id: RECAP_ID,
       p_profile_id: PROFILE_ID,
     })
+    expect(m.rpc).toHaveBeenNthCalledWith(4, 'create_salary_income_for_recap', {
+      p_recap_id: RECAP_ID,
+      p_profile_id: PROFILE_ID,
+    })
     expect(m.recapsUpdateEq).toHaveBeenCalledTimes(1)
   })
 
-  it('non-empty budget snapshot → calls apply_snapshot (with reset_count), projects snapshot, then process_transactions', async () => {
+  it('non-empty budget snapshot → calls apply_snapshot (with reset_count), projects snapshot, then process_transactions, then salary', async () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
@@ -127,6 +144,10 @@ describe('executeCompleteRecap', () => {
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
         data: { deleted_expenses: 2, deleted_incomes: 1, carried_expenses: 3, carried_incomes: 0 },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { created: true, income_id: 'salary-uuid', amount: 2000 },
         error: null,
       })
 
@@ -171,6 +192,7 @@ describe('executeCompleteRecap', () => {
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { created: false, reason: 'no_salary' }, error: null })
 
     const outcome = await executeCompleteRecap({
       context: 'profile',
@@ -189,7 +211,7 @@ describe('executeCompleteRecap', () => {
     })
   })
 
-  it('apply_snapshot RPC error → fail-soft (continue to projects + process + mark completed)', async () => {
+  it('apply_snapshot RPC error → fail-soft (continue to projects + process + salary + mark completed)', async () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
@@ -199,6 +221,7 @@ describe('executeCompleteRecap', () => {
         data: { deleted_expenses: 1, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { created: false, reason: 'no_salary' }, error: null })
 
     const outcome = await executeCompleteRecap({
       context: 'profile',
@@ -212,7 +235,7 @@ describe('executeCompleteRecap', () => {
     expect(m.recapsUpdateEq).toHaveBeenCalledTimes(1)
   })
 
-  it('apply_recap_projects_snapshot RPC error → fail-soft (continue to process + mark completed, projectsApplied=null)', async () => {
+  it('apply_recap_projects_snapshot RPC error → fail-soft (continue to process + salary + mark completed, projectsApplied=null)', async () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
@@ -222,6 +245,7 @@ describe('executeCompleteRecap', () => {
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { created: false, reason: 'no_salary' }, error: null })
 
     const outcome = await executeCompleteRecap({
       context: 'profile',
@@ -232,6 +256,29 @@ describe('executeCompleteRecap', () => {
     expect(outcome.completed).toBe(true)
     expect(outcome.projectsApplied).toBeNull()
     expect(m.recapsUpdateEq).toHaveBeenCalledTimes(1)
+  })
+
+  it('group context → DOES NOT call create_salary_income_for_recap (mirror trigger Sprint 16 V3 extended takes over)', async () => {
+    const { executeCompleteRecap } = await import('../actions-finalize')
+    const m = await getMocks()
+    m.rpc
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
+      .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
+      .mockResolvedValueOnce({
+        data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
+        error: null,
+      })
+
+    const outcome = await executeCompleteRecap({
+      context: 'group',
+      profile: { id: PROFILE_ID, group_id: GROUP_ID },
+      recap: { id: RECAP_ID, budget_snapshot_data: {}, project_snapshot_data: {} },
+    })
+
+    expect(outcome.completed).toBe(true)
+    expect(outcome.salaryIncome).toBeNull()
+    expect(m.rpc).toHaveBeenCalledTimes(3)
+    expect(m.rpc).not.toHaveBeenCalledWith('create_salary_income_for_recap', expect.anything())
   })
 
   it('process_transactions RPC error → fail-soft (mark completed, zero counts)', async () => {
@@ -272,6 +319,7 @@ describe('executeCompleteRecap', () => {
         data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { created: false, reason: 'no_salary' }, error: null })
     m.recapsUpdateEq.mockResolvedValueOnce({ error: { message: 'completion boom' } })
 
     await expect(
