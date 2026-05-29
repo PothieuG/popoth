@@ -41,14 +41,14 @@ l'opération en cours (même raisonnement que [group-members-rav-preview.ts](../
   via `groupMembersRav`).
 - **Groupe** : `meta.groupMembersRav[].currentRav` par membre (déjà threadé Part 32).
 
-| Modal (perso) | RAV projeté |
-| ------------- | ----------- |
-| AddBudget | `currentRav − previewSafe` |
-| EditBudget | `currentRav − (previewSafe − budget.estimated_amount)` |
-| AddIncome | `currentRav + previewSafe` |
-| EditIncome | `currentRav + (previewSafe − income.estimated_amount)` |
-| AddProject | `currentRav − monthlySafe` |
-| EditProject | `currentRav − (monthlySafe − project.monthly_allocation)` |
+| Modal (perso) | RAV projeté                                               |
+| ------------- | --------------------------------------------------------- |
+| AddBudget     | `currentRav − previewSafe`                                |
+| EditBudget    | `currentRav − (previewSafe − budget.estimated_amount)`    |
+| AddIncome     | `currentRav + previewSafe`                                |
+| EditIncome    | `currentRav + (previewSafe − income.estimated_amount)`    |
+| AddProject    | `currentRav − monthlySafe`                                |
+| EditProject   | `currentRav − (monthlySafe − project.monthly_allocation)` |
 
 Exactitude : les budgets/projets « entamés » sont gatés à l'édition (`isBudgetStarted` →
 info dialog) donc le delta est exact ; un revenu estimé fraîchement ajouté n'a pas de réel
