@@ -127,8 +127,7 @@ runScenario('project-deficit-catastrophe', async () => {
       'RAV estimé': 1450,
       'RAV effectif': -2550,
       Bilan: -4000,
-      'Cascade exacte':
-        '150 + 200 + 350 + 3300 = 4000 ✓',
+      'Cascade exacte': '150 + 200 + 350 + 3300 = 4000 ✓',
       'Overshoot snapshot par budget':
         'Courses 1414/300 (471%), Loisirs 943/200 (472%), Transport 943/200 (472%)',
     },

@@ -144,7 +144,7 @@ runScenario('project-deficit-refloat', async () => {
       "La cascade du BilanNegativeStep doit dérouler les 4 étages dans l'ordre : " +
       'piggy 100€ → savings Courses 50€ → projets 500€ (Japon 200 + Voiture 150 + ' +
       'Vacances 100 + Élec 50, chacun capé à son monthly) → budgets snapshot 50€ ' +
-      'sur Courses. Le projet Vacances est à 95% (4750/5000) — vérifier l\'UX ' +
+      "sur Courses. Le projet Vacances est à 95% (4750/5000) — vérifier l'UX " +
       '"projet quasi-fini". À la finalize : (a) savings_projects.amount_saved ' +
       'reste inchangé (refund = monthly, delta = 0), (b) pending_delay_fraction ou ' +
       'deadline_date shifted +1 mois, (c) monthly_recaps.project_snapshot_data ' +

@@ -94,6 +94,9 @@
     "*.{json,md,yml,yaml,css}": [
       "prettier --write"
     ],
+    "*.{mjs,cjs,js}": [
+      "prettier --write"
+    ],
     "CLAUDE.md": [
       "node scripts/check-md-size.mjs"
     ],

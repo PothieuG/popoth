@@ -109,7 +109,7 @@ runScenario('project-deficit-stops-before', async () => {
       "= 150€ → déficit 0. Les lignes 'Projets' (Japon + Voiture visibles avec " +
       "leurs allocations) et 'Équilibrer avec les budgets' apparaissent en " +
       'gris ("Pas nécessaire — déficit déjà comblé"). Bouton "Continuer" actif. ' +
-      "À la finalize : (a) savings_projects.amount_saved des 2 projets reste " +
+      'À la finalize : (a) savings_projects.amount_saved des 2 projets reste ' +
       'inchangé (1200 et 600), (b) project_snapshot_data est null ou {} dans ' +
       'monthly_recaps, (c) pending_delay_fraction inchangé.',
     expectedFigures: {
@@ -126,8 +126,7 @@ runScenario('project-deficit-stops-before', async () => {
       'RAV estimé': 1950,
       'RAV effectif': 1800,
       Bilan: -150,
-      'Cascade attendue':
-        'piggy 100 → savings 50 → projets UNNEEDED → snapshot UNNEEDED',
+      'Cascade attendue': 'piggy 100 → savings 50 → projets UNNEEDED → snapshot UNNEEDED',
     },
     cookieHint: true,
   })
