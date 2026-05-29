@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { contextSchema, isoDateSchema, moneySchema, uuidSchema } from './common'
+import {
+  contextSchema,
+  isoDateSchema,
+  moneySchema,
+  nonNegativeMoneySchema,
+  uuidSchema,
+} from './common'
 
 const descriptionSchema = z.string().trim().min(1, 'La description est requise')
 
@@ -72,9 +78,16 @@ export type UpdateRealExpenseBody = z.infer<typeof updateRealExpenseBodySchema>
  *   multi-budget debit + INSERT in one Postgres tx.
  *
  * Dispatch rules (route-internal, not schema-enforced):
- * - No `estimated_budget_id` → exceptional direct INSERT (no breakdown)
+ * - No `estimated_budget_id` + `amount_from_piggy_bank > 0` → exceptional financée
+ *   par tirelire via RPC `add_exceptional_expense_with_piggy` (Sprint Exceptional-
+ *   Expense-Piggy-Funding). Sinon (sans piggy) → INSERT exceptionnel direct.
  * - With `estimated_budget_id`, no cross_budget → `add_expense_with_breakdown`
  * - With `estimated_budget_id` + cross_budget → `add_expense_with_cross_budget_cascade`
+ *
+ * `amount_from_piggy_bank` (Sprint Exceptional-Expense-Piggy-Funding) : montant
+ * prélevé dans la tirelire pour financer une dépense EXCEPTIONNELLE (hors budget).
+ * Optionnel, default 0. Ignoré pour les dépenses budgétées (la cascade auto
+ * pilote la tirelire elle-même).
  */
 export const addExpenseWithLogicBodySchema = z.object({
   amount: moneySchema,
@@ -84,6 +97,7 @@ export const addExpenseWithLogicBodySchema = z.object({
   is_for_group: z.boolean().optional(),
   use_savings: z.boolean().optional().default(false),
   cross_budget_cascade: z.array(crossBudgetCascadeEntrySchema).optional(),
+  amount_from_piggy_bank: nonNegativeMoneySchema.optional(),
 })
 export type AddExpenseWithLogicBody = z.infer<typeof addExpenseWithLogicBodySchema>
 

@@ -75,6 +75,11 @@ export interface CreateRealExpenseRequest {
   use_savings?: boolean
   /** Sprint P4-P5-P6 / P4 Phase 2 — see addExpenseWithLogicBodySchema. */
   cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
+  /**
+   * Sprint Exceptional-Expense-Piggy-Funding — montant prélevé dans la tirelire
+   * pour financer une dépense exceptionnelle (hors budget). Default 0 / absent.
+   */
+  amount_from_piggy_bank?: number
 }
 
 export interface UpdateRealExpenseRequest {

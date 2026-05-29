@@ -39,6 +39,15 @@ interface RemainingToLivePreviewProps {
    * Default 0 (mode ADD — pas d'existing à reverser).
    */
   existingAmount?: number
+
+  /**
+   * Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — part de la dépense
+   * exceptionnelle financée par la tirelire. Seule la part « propre argent »
+   * (amount − fromPiggyBank) pèse sur le RAV ; la part tirelire baisse les
+   * économies (tirelire), pas le RAV. Default 0. N'a de sens que pour
+   * type='expense' && isExceptional.
+   */
+  fromPiggyBank?: number
 }
 
 /**
@@ -56,6 +65,7 @@ export default function RemainingToLivePreview({
   selectedId,
   context = 'profile',
   existingAmount = 0,
+  fromPiggyBank = 0,
 }: RemainingToLivePreviewProps) {
   const { financialData, loading, isFetching } = useFinancialData(context)
   const { expenseProgress, incomeProgress } = useProgressData(context)
@@ -74,7 +84,11 @@ export default function RemainingToLivePreview({
     // mode (existingAmount > 0), l'impact courant est déjà reflété dans le
     // RAV → on calcule le delta net : (amount - existingAmount).
     if (isExceptional) {
-      const netAmount = amount - existingAmount
+      // Sprint Exceptional-Expense-Piggy-Funding — pour une dépense, seule la
+      // part propre argent (amount − fromPiggyBank) pèse sur le RAV ; la part
+      // tirelire baisse les économies. fromPiggyBank=0 pour les revenus.
+      const ravRelevant = type === 'expense' ? amount - fromPiggyBank : amount
+      const netAmount = ravRelevant - existingAmount
       const impact = type === 'expense' ? -netAmount : netAmount
       return {
         newRemainingToLive: currentRemainingToLive + impact,
@@ -168,9 +182,16 @@ export default function RemainingToLivePreview({
     return null
   }
 
+  // Sprint Exceptional-Expense-Piggy-Funding — quand une dépense exceptionnelle
+  // est financée par la tirelire, on affiche aussi son impact + le solde après.
+  const showPiggyImpact = isExceptional && type === 'expense' && fromPiggyBank > 0
+  const piggyAfter = (financialData.piggyBank ?? 0) - fromPiggyBank
+
   // Caption explicative selon le cas
   const captionText = isExceptional
-    ? `${type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel — impact direct sur le reste à vivre.`
+    ? showPiggyImpact
+      ? 'Dépense exceptionnelle — financée en partie par la tirelire. Seule la part restante pèse sur le reste à vivre.'
+      : `${type === 'expense' ? 'Dépense' : 'Revenu'} exceptionnel — impact direct sur le reste à vivre.`
     : change !== 0
       ? type === 'expense'
         ? 'Dépassement de budget.'
@@ -186,10 +207,13 @@ export default function RemainingToLivePreview({
       <div className="space-y-3">
         <p className="text-sm font-medium text-gray-700">Impact sur le reste à vivre :</p>
 
-        {/* Impact section — affiché seulement si delta != 0 */}
-        {change !== 0 && (
+        {/* Impact section — affiché si delta RAV != 0 OU débit tirelire */}
+        {(change !== 0 || showPiggyImpact) && (
           <div className="space-y-1">
-            <ImpactRow label={<EntityLabel type="rav" />} amount={change} />
+            {showPiggyImpact && (
+              <ImpactRow label={<EntityLabel type="piggy" />} amount={-fromPiggyBank} />
+            )}
+            {change !== 0 && <ImpactRow label={<EntityLabel type="rav" />} amount={change} />}
           </div>
         )}
 
@@ -202,8 +226,11 @@ export default function RemainingToLivePreview({
           <div className="h-px flex-1 bg-blue-200" />
         </div>
 
-        {/* Recap section — RAV après opération en noir */}
+        {/* Recap section — tirelire (si débit) + RAV après opération en noir */}
         <div className="space-y-1">
+          {showPiggyImpact && (
+            <BalanceRow label={<EntityLabel type="piggy" />} amount={piggyAfter} />
+          )}
           <BalanceRow label={<EntityLabel type="rav" />} amount={newRemainingToLive} />
         </div>
 

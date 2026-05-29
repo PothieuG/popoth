@@ -115,6 +115,43 @@ export async function addExpenseWithCrossBudgetCascade(
 }
 
 /**
+ * Composite atomic helper pour CRÉER une dépense exceptionnelle financée en
+ * partie (ou totalement) par la tirelire (Sprint Exceptional-Expense-Piggy-
+ * Funding). Le débit tirelire + l'INSERT real_expenses (is_exceptional=true,
+ * estimated_budget_id=NULL) + la trace `expense_savings_sources` ('piggy')
+ * vivent dans une seule tx via la RPC `add_exceptional_expense_with_piggy`.
+ *
+ * Sur overdraft (tirelire insuffisante) la RPC sous-jacente raise et toute la
+ * tx roll back — aucun état partiel. La suppression recrédite la tirelire via
+ * `deleteExpenseWithSourcesRefund` (trace 'piggy').
+ *
+ * Convention C3 mirror : import direct du submodule (pas exposé dans le barrel).
+ */
+export async function addExceptionalExpenseWithPiggy(
+  filter: ContextFilter,
+  args: {
+    amount: number
+    description: string
+    expenseDate: string
+    amountFromPiggyBank: number
+    createdByProfileId: string
+  },
+): Promise<{ expense_id: string }> {
+  const { profile_id, group_id } = resolveContextIds(filter)
+  const { data, error } = await supabaseServer.rpc('add_exceptional_expense_with_piggy', {
+    p_amount: args.amount,
+    p_description: args.description,
+    p_expense_date: args.expenseDate,
+    p_amount_from_piggy_bank: args.amountFromPiggyBank,
+    p_profile_id: profile_id,
+    p_group_id: group_id,
+    p_created_by_profile_id: args.createdByProfileId,
+  })
+  if (error) throw error
+  return data as { expense_id: string }
+}
+
+/**
  * Composite atomic helper pour SUPPRIMER une dépense avec refund précis
  * vers chaque source d'origine via la trace `expense_savings_sources`.
  * Sprint Auto-Cascade-Piggy / Traceability (2026-05-26).

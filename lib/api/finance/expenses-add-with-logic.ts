@@ -3,7 +3,11 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
-import { addExpenseWithBreakdown, addExpenseWithCrossBudgetCascade } from '@/lib/finance/expenses'
+import {
+  addExceptionalExpenseWithPiggy,
+  addExpenseWithBreakdown,
+  addExpenseWithCrossBudgetCascade,
+} from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
 import { withAuth } from '@/lib/api/with-auth'
@@ -23,6 +27,8 @@ export interface AddExpenseWithLogicRequest {
   use_savings?: boolean
   /** Sprint P4-P5-P6 / P4 Phase 2 — see `addExpenseWithLogicBodySchema`. */
   cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
+  /** Sprint Exceptional-Expense-Piggy-Funding — part tirelire (dépense exceptionnelle). */
+  amount_from_piggy_bank?: number
 }
 
 export interface ExpenseBreakdown {
@@ -59,6 +65,10 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
     const { amount, description, expense_date, estimated_budget_id, use_savings } = body
     const is_for_group = body.is_for_group ?? false
+    // Sprint Exceptional-Expense-Piggy-Funding — montant tirelire (dépense
+    // exceptionnelle uniquement ; ignoré côté budgétée où la cascade auto
+    // pilote la tirelire). Clamp ≤ amount au cas où le client enverrait plus.
+    const amountFromPiggyBank = Math.min(body.amount_from_piggy_bank ?? 0, amount)
 
     // Determine profile_id or group_id
     let profile_id: string | undefined = undefined
@@ -84,13 +94,77 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
     const contextFilter = is_for_group ? { group_id } : { profile_id }
 
-    // If exceptional (no budget), just create the expense directly
+    // If exceptional (no budget), create the expense directly.
     if (!estimated_budget_id) {
       const todayIsoExceptional = new Date().toISOString().split('T')[0] as string
+      const expenseDateResolved = expense_date || todayIsoExceptional
+
+      // Sprint Exceptional-Expense-Piggy-Funding — financée par tirelire :
+      // débit piggy + INSERT + trace en 1 tx via la RPC composite. Le RAV ne
+      // porte que la part « propre argent » (amount - piggy) grâce au calcul
+      // dans financial-data.ts. Sur overdraft la RPC raise → tx roll back.
+      if (amountFromPiggyBank > 0) {
+        let expenseId: string
+        try {
+          const result = await addExceptionalExpenseWithPiggy(
+            contextFilter as unknown as FinanceContextFilter,
+            {
+              amount,
+              description,
+              expenseDate: expenseDateResolved,
+              amountFromPiggyBank,
+              createdByProfileId: userId,
+            },
+          )
+          expenseId = result.expense_id
+        } catch (rpcError) {
+          logger.error('Erreur création dépense exceptionnelle (tirelire):', rpcError)
+          return NextResponse.json(
+            { error: 'Erreur lors de la création de la dépense' },
+            { status: 500 },
+          )
+        }
+
+        // Re-fetch la ligne + relations pour préserver la shape de réponse
+        // (la RPC ne retourne que expense_id). Mirror de la branche budgétée.
+        const { data: expenseData, error: fetchError } = await supabaseServer
+          .from('real_expenses')
+          .select(
+            `
+            *,
+            estimated_budget:estimated_budgets(name),
+            created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+          `,
+          )
+          .eq('id', expenseId)
+          .single()
+
+        if (fetchError || !expenseData) {
+          logger.error('Erreur récupération dépense exceptionnelle créée:', fetchError)
+          return NextResponse.json(
+            { error: 'Erreur lors de la récupération de la dépense créée' },
+            { status: 500 },
+          )
+        }
+
+        await saveRemainingToLiveSnapshot({
+          profileId: profile_id,
+          groupId: group_id,
+          reason: 'exceptional_expense_created',
+        })
+
+        return NextResponse.json({
+          real_expense: expenseData,
+          breakdown: null,
+          message: 'Dépense exceptionnelle créée avec succès',
+        })
+      }
+
+      // Sans tirelire : INSERT direct (comportement historique inchangé).
       const insertData: RealExpenseInsert = {
         amount,
         description,
-        expense_date: expense_date || todayIsoExceptional,
+        expense_date: expenseDateResolved,
         is_exceptional: true,
         created_by_profile_id: userId,
         ...contextFilter,

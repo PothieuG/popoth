@@ -79,4 +79,51 @@ describe('addExpenseWithLogicBodySchema', () => {
     expect(result.success).toBe(true)
     if (result.success) expect(result.data.cross_budget_cascade).toBeUndefined()
   })
+
+  // Sprint Exceptional-Expense-Piggy-Funding
+  it('accepts amount_from_piggy_bank on an exceptional body', () => {
+    const result = addExpenseWithLogicBodySchema.safeParse({
+      amount: 300,
+      description: 'Vacances',
+      amount_from_piggy_bank: 200,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.amount_from_piggy_bank).toBe(200)
+  })
+
+  it('accepts amount_from_piggy_bank = 0 (toggle off)', () => {
+    const result = addExpenseWithLogicBodySchema.safeParse({
+      amount: 80,
+      description: 'Coffee',
+      amount_from_piggy_bank: 0,
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('amount_from_piggy_bank is optional (absent → undefined)', () => {
+    const result = addExpenseWithLogicBodySchema.safeParse({
+      amount: 80,
+      description: 'Coffee',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) expect(result.data.amount_from_piggy_bank).toBeUndefined()
+  })
+
+  it('rejects negative amount_from_piggy_bank', () => {
+    const result = addExpenseWithLogicBodySchema.safeParse({
+      amount: 80,
+      description: 'Coffee',
+      amount_from_piggy_bank: -5,
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects amount_from_piggy_bank with > 2 decimals', () => {
+    const result = addExpenseWithLogicBodySchema.safeParse({
+      amount: 80,
+      description: 'Coffee',
+      amount_from_piggy_bank: 12.345,
+    })
+    expect(result.success).toBe(false)
+  })
 })

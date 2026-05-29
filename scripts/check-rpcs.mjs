@@ -72,6 +72,9 @@ const EXPECTED_RPCS = [
   'create_salary_income_for_recap',
   'validate_salary_with_delta',
   'toggle_contribution_pair_applied',
+  // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) —
+  // supabase/migrations/20260608000000_create_add_exceptional_expense_with_piggy_rpc.sql
+  'add_exceptional_expense_with_piggy',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

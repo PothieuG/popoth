@@ -848,6 +848,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_exceptional_expense_with_piggy: {
+        Args: {
+          p_amount: number
+          p_amount_from_piggy_bank: number
+          p_created_by_profile_id?: string
+          p_description: string
+          p_expense_date: string
+          p_group_id?: string
+          p_profile_id?: string
+        }
+        Returns: Json
+      }
       add_expense_with_breakdown: {
         Args: {
           p_amount: number

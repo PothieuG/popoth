@@ -451,6 +451,7 @@ export default function TransactionTabsComponent({
                 context={context}
                 currentRemainingToLive={currentRemainingToLive}
                 budgetSnapshot={budgetSnapshot}
+                piggyBankAmount={financialData?.piggyBank ?? null}
                 readOnly={readOnly}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'expense')}
                 onDelete={handleDeleteExpense}

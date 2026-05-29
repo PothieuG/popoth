@@ -311,7 +311,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
     // cet état dérivé.
     const { data: protectedCheck } = await supabaseServer
       .from('real_expenses')
-      .select('is_carried_over, contribution_id')
+      .select('is_carried_over, contribution_id, is_exceptional, amount_from_piggy_bank')
       .eq('id', id)
       .maybeSingle()
     if (protectedCheck?.is_carried_over) {
@@ -319,6 +319,14 @@ export const PUT = withAuth(async (request: NextRequest) => {
     }
     if (protectedCheck?.contribution_id) {
       return NextResponse.json({ error: 'cannot-edit-contribution-row' }, { status: 409 })
+    }
+    // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — une dépense
+    // exceptionnelle financée par tirelire est verrouillée en modification
+    // (décision produit). Pour la changer, l'utilisateur la supprime (la
+    // tirelire est recréditée auto) puis la recrée. L'UI masque déjà
+    // "Modifier" ; ce guard est la défense en profondeur côté API.
+    if (protectedCheck?.is_exceptional && (protectedCheck.amount_from_piggy_bank ?? 0) > 0) {
+      return NextResponse.json({ error: 'cannot-edit-piggy-funded-exceptional' }, { status: 409 })
     }
 
     const updates: RealExpenseUpdate = {}
@@ -588,9 +596,18 @@ export const DELETE = withAuth(async (request: NextRequest) => {
     // Sprint Auto-Cascade-Piggy / Traceability (2026-05-26) — pour les
     // dépenses budgetées, on utilise la RPC composite atomique qui refund
     // chaque source d'origine via la trace `expense_savings_sources` puis
-    // DELETE en 1 tx. Pour les dépenses exceptionnelles (pas de breakdown),
-    // DELETE direct conserve le comportement actuel.
-    if (expenseToDelete && expenseToDelete.estimated_budget_id && !expenseToDelete.is_exceptional) {
+    // DELETE en 1 tx.
+    //
+    // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — on route aussi
+    // les dépenses EXCEPTIONNELLES financées par tirelire vers cette RPC :
+    // elle recrédite la tirelire (trace 'piggy' ou fallback legacy
+    // amount_from_piggy_bank, non gardé par budget). Une exceptionnelle SANS
+    // tirelire tombe sur le DELETE direct (comportement historique inchangé).
+    const hasPiggyRefund = (expenseToDelete?.amount_from_piggy_bank ?? 0) > 0
+    if (
+      expenseToDelete &&
+      ((expenseToDelete.estimated_budget_id && !expenseToDelete.is_exceptional) || hasPiggyRefund)
+    ) {
       try {
         await deleteExpenseWithSourcesRefund(id)
       } catch (err) {

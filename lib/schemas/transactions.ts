@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { isoDateSchema, moneyFormSchema, uuidSchema } from './common'
+import { isoDateSchema, moneyFormSchema, nonNegativeMoneyFormSchema, uuidSchema } from './common'
 
 const transactionDescriptionSchema = z.string().trim().min(1, 'La description est requise')
 
@@ -30,6 +30,13 @@ const expenseBranch = z
     expense_date: isoDateSchema,
     is_exceptional: z.boolean(),
     estimated_budget_id: uuidSchema.nullable(),
+    /**
+     * Sprint Exceptional-Expense-Piggy-Funding — montant prélevé dans la
+     * tirelire pour financer une dépense exceptionnelle. 0 (ou absent) =
+     * pas de tirelire. Plafonné à `min(solde tirelire, amount)` côté UI ;
+     * le refine ci-dessous garantit ≤ amount.
+     */
+    amount_from_piggy_bank: nonNegativeMoneyFormSchema.optional(),
   })
   .refine(
     (d) => (d.is_exceptional ? d.estimated_budget_id === null : d.estimated_budget_id !== null),
@@ -38,6 +45,10 @@ const expenseBranch = z
       path: ['estimated_budget_id'],
     },
   )
+  .refine((d) => (d.amount_from_piggy_bank ?? 0) <= d.amount, {
+    message: 'La part tirelire ne peut pas dépasser le montant',
+    path: ['amount_from_piggy_bank'],
+  })
 
 const incomeBranch = z
   .object({

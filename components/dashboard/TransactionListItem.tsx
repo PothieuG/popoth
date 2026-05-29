@@ -195,6 +195,19 @@ export default function TransactionListItem({
   const isCurrentlyCarried = transaction.is_carried_over === true
 
   /**
+   * Sprint Exceptional-Expense-Piggy-Funding (2026-05-29). Une dépense
+   * exceptionnelle financée par la tirelire est verrouillée en modification
+   * (décision produit) : pour la changer, l'utilisateur la supprime (la
+   * tirelire est recréditée auto) puis la recrée. "Modifier" est retiré du
+   * menu ; le PUT renvoie 409 'cannot-edit-piggy-funded-exceptional' en
+   * défense en profondeur. La suppression reste possible (renvoie en tirelire).
+   */
+  const isPiggyFundedExceptional =
+    type === 'expense' &&
+    transaction.is_exceptional === true &&
+    ((transaction as RealExpense).amount_from_piggy_bank ?? 0) > 0
+
+  /**
    * Feature "Contribution au groupe" (2026-05-28). Row auto-managée par
    * trigger DB (cf. sync_contribution_real_expense + auto-devalidate v2).
    *
@@ -456,9 +469,17 @@ export default function TransactionListItem({
 
     if (expense.is_exceptional) {
       if (ravBalance == null) return undefined
-      const newRav = ravBalance + expense.amount
+      // Sprint Exceptional-Expense-Piggy-Funding — la suppression recrédite la
+      // tirelire de la part prélevée, et le RAV de la seule part propre argent
+      // (amount − part tirelire). Sans tirelire, comportement inchangé.
+      const piggyRecovered = expense.amount_from_piggy_bank ?? 0
+      const newRav = ravBalance + (expense.amount - piggyRecovered)
+      const newPiggy = piggyBankAmount != null ? piggyBankAmount + piggyRecovered : null
       return (
         <AfterOperationPanel compact>
+          {piggyRecovered > 0 && newPiggy != null && (
+            <BalanceRow label={<EntityLabel type="piggy" />} amount={newPiggy} />
+          )}
           <BalanceRow label={<EntityLabel type="rav" />} amount={newRav} />
         </AfterOperationPanel>
       )
@@ -618,7 +639,9 @@ export default function TransactionListItem({
   const getDropdownItems = () => [
     // Modifier disparaît du menu pour une transaction actuellement reportée
     // (règle produit). Réapparaît si l'utilisateur la valide d'abord.
-    ...(isCurrentlyCarried ? [] : [editItem]),
+    // Idem pour une exceptionnelle financée par tirelire (verrouillée en
+    // modification — Sprint Exceptional-Expense-Piggy-Funding).
+    ...(isCurrentlyCarried || isPiggyFundedExceptional ? [] : [editItem]),
     {
       label: toggleLabel,
       icon: toggleIcon,

@@ -163,10 +163,16 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // `validate_salary_with_delta` pour les ajustements "Équilibrage salaire".
     // Cf. règle utilisateur : "les revenus qu'on peut valider ne doivent
     // jamais avoir d'impact sur le RAV".
+    // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — seule la part
+    // « propre argent » (amount - amount_from_piggy_bank) pèse sur le RAV. La
+    // part financée par la tirelire a déjà débité `piggy_bank.amount` (donc
+    // baissé `totalSavings`) ; la compter aussi dans le RAV double-compterait
+    // la dépense. amount_from_piggy_bank est NULL pour les exceptionnelles
+    // historiques → fallback 0 (comportement inchangé : montant entier).
     const exceptionalExpenses =
       realExpenses
         ?.filter((e) => e.is_exceptional || !e.estimated_budget_id)
-        .reduce((sum, e) => sum + e.amount, 0) ?? 0
+        .reduce((sum, e) => sum + (e.amount - (e.amount_from_piggy_bank ?? 0)), 0) ?? 0
     const exceptionalIncomes =
       realIncomes?.filter((i) => i.is_exceptional).reduce((sum, i) => sum + i.amount, 0) ?? 0
 
@@ -401,6 +407,12 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
       availableBalance,
       remainingToLive,
       totalSavings,
+      // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — expose le solde
+      // tirelire seul (vs `totalSavings` qui agrège budgets + tirelire). Permet
+      // au modal d'ajout de plafonner la part finançable d'une dépense
+      // exceptionnelle. Champ `piggyBank` déclaré de longue date sur le type
+      // (consommé par useExpenseBreakdown) mais jamais peuplé jusqu'ici.
+      piggyBank: piggyBankData?.amount ?? 0,
       totalEstimatedIncome,
       totalEstimatedBudgets,
       totalRealIncome,

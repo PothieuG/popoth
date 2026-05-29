@@ -16,6 +16,7 @@ import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
+import { useFinancialData } from '@/hooks/useFinancialData'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
 import { useProgressData } from '@/hooks/useProgressData'
@@ -114,6 +115,11 @@ export default function AddTransactionModal({
   const initialDate = defaultDate ?? todayIso()
   const [serverError, setServerError] = useState<string | null>(null)
   const [wizardStep, setWizardStep] = useState<WizardStep>('select-type')
+  // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — toggle "Utiliser ma
+  // tirelire" pour les dépenses exceptionnelles. Off → amount_from_piggy_bank
+  // forcé à 0 + input masqué ; on → input révélé. Reset à chaque changement de
+  // type/kind pour ne pas trainer un état piggy sur une dépense budgétée.
+  const [usePiggy, setUsePiggy] = useState(false)
   // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
   // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
   // `setWizardStep` so the new step renders with the matching animate-in class.
@@ -128,6 +134,11 @@ export default function AddTransactionModal({
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress } = useProgressData(context)
+  // Solde tirelire courant — sert à plafonner la part finançable + l'aperçu RAV
+  // (Sprint Exceptional-Expense-Piggy-Funding). Partage le cache TanStack avec
+  // RemainingToLivePreview (même queryKey ['financial-summary', context]).
+  const { financialData } = useFinancialData(context)
+  const piggyBankBalance = financialData?.piggyBank ?? 0
   // Fallback pour éviter les dropdowns vides
   const { budgets } = useBudgets(context)
   const { incomes } = useIncomes(context)
@@ -141,6 +152,7 @@ export default function AddTransactionModal({
       expense_date: initialDate,
       is_exceptional: false,
       estimated_budget_id: null,
+      amount_from_piggy_bank: 0,
     },
     mode: 'onSubmit',
   })
@@ -151,6 +163,7 @@ export default function AddTransactionModal({
   const watchedAmount = useWatch({ control: form.control, name: 'amount' })
   const watchedBudgetId = useWatch({ control: form.control, name: 'estimated_budget_id' })
   const watchedIncomeId = useWatch({ control: form.control, name: 'estimated_income_id' })
+  const watchedPiggy = useWatch({ control: form.control, name: 'amount_from_piggy_bank' })
 
   const transactionType = (watchedType ?? 'expense') as TransactionType
   const isExceptional = Boolean(watchedExceptional)
@@ -159,6 +172,19 @@ export default function AddTransactionModal({
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
   const budgetId = (watchedBudgetId as string | null) ?? ''
   const incomeId = (watchedIncomeId as string | null) ?? ''
+
+  // Sprint Exceptional-Expense-Piggy-Funding — part tirelire saisie + bornes.
+  const piggyParsed =
+    typeof watchedPiggy === 'number' ? watchedPiggy : parseFloat(String(watchedPiggy ?? ''))
+  const piggyValue = isNaN(piggyParsed) ? 0 : piggyParsed
+  // Section visible uniquement pour une dépense exceptionnelle avec une
+  // tirelire non vide. Plafond finançable = min(solde tirelire, montant saisi).
+  const showPiggySection = transactionType === 'expense' && isExceptional && piggyBankBalance > 0
+  const maxPiggy = Math.min(piggyBankBalance, previewSafe)
+  const effectivePiggy = usePiggy ? piggyValue : 0
+  const ownMoneyShare = Math.max(0, previewSafe - effectivePiggy)
+  const formatEUR = (v: number): string =>
+    v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
   // P5 — local savings of selected budget (for cascade absorption preview + RAV calc)
   const selectedBudget = budgets.find((b) => b.id === budgetId)
@@ -241,6 +267,7 @@ export default function AddTransactionModal({
   const handleSelectType = (newType: TransactionType) => {
     const current = form.getValues()
     setStepAnimDir('forward')
+    setUsePiggy(false)
     if (newType === 'expense') {
       form.reset({
         transactionType: 'expense',
@@ -249,6 +276,7 @@ export default function AddTransactionModal({
         expense_date: initialDate,
         is_exceptional: false,
         estimated_budget_id: null,
+        amount_from_piggy_bank: 0,
       })
       setWizardStep('select-kind')
     } else {
@@ -278,6 +306,10 @@ export default function AddTransactionModal({
         form.setValue('estimated_income_id', null)
       }
     }
+    // Reset l'état tirelire à chaque (ré)entrée dans les champs — l'utilisateur
+    // ré-opte explicitement (Sprint Exceptional-Expense-Piggy-Funding).
+    setUsePiggy(false)
+    form.setValue('amount_from_piggy_bank', 0)
     setStepAnimDir('forward')
     setWizardStep('fields')
   }
@@ -305,6 +337,18 @@ export default function AddTransactionModal({
       let success = false
 
       if (data.transactionType === 'expense') {
+        // Sprint Exceptional-Expense-Piggy-Funding — part tirelire envoyée
+        // uniquement pour une exceptionnelle avec le toggle actif. Clamp ≤
+        // montant (le refine Zod le garantit déjà) ; guard ≤ solde tirelire
+        // pour éviter un 500 (la RPC raise sinon — défense serveur conservée).
+        const piggyToSend =
+          data.is_exceptional && usePiggy
+            ? Math.min(data.amount_from_piggy_bank ?? 0, data.amount)
+            : 0
+        if (piggyToSend > piggyBankBalance + 0.001) {
+          setServerError('Le montant prélevé dépasse le solde de votre tirelire.')
+          return
+        }
         success = await addExpense({
           description: data.description,
           amount: data.amount,
@@ -314,6 +358,7 @@ export default function AddTransactionModal({
             : (data.estimated_budget_id ?? undefined),
           is_for_group: context === 'group',
           use_savings: useSavings,
+          amount_from_piggy_bank: piggyToSend,
         })
       } else {
         success = await addIncome({
@@ -372,6 +417,9 @@ export default function AddTransactionModal({
   ]
   const fkError = (fieldErrors as Record<string, { message?: string } | undefined>)[
     transactionType === 'expense' ? 'estimated_budget_id' : 'estimated_income_id'
+  ]
+  const piggyError = (fieldErrors as Record<string, { message?: string } | undefined>)[
+    'amount_from_piggy_bank'
   ]
 
   // Step title for the dialog header (a11y + i18n future-proof)
@@ -843,6 +891,78 @@ export default function AddTransactionModal({
                 )}
               </div>
 
+              {/* Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) — option
+                  pour financer une dépense exceptionnelle avec la tirelire.
+                  Visible seulement si exceptionnelle + solde tirelire > 0. Le
+                  toggle révèle un champ plafonné à min(solde, montant) ; la
+                  part tirelire ne pèse pas sur le RAV (cf. financial-data.ts). */}
+              {showPiggySection && (
+                <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-violet-900">Utiliser ma tirelire</p>
+                      <p className="text-xs text-violet-700">
+                        Disponible : {formatEUR(piggyBankBalance)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={usePiggy}
+                      aria-label="Utiliser ma tirelire pour cette dépense"
+                      onClick={() => {
+                        setUsePiggy((prev) => {
+                          const next = !prev
+                          form.setValue('amount_from_piggy_bank', next ? maxPiggy : 0, {
+                            shouldValidate: false,
+                          })
+                          return next
+                        })
+                      }}
+                      className={cn(
+                        'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+                        usePiggy ? 'bg-violet-600' : 'bg-gray-300',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                          usePiggy ? 'translate-x-5' : 'translate-x-0.5',
+                        )}
+                      />
+                    </button>
+                  </div>
+
+                  {usePiggy && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="piggy-amount" className="text-sm font-medium text-violet-900">
+                        Montant pris dans la tirelire (€)
+                      </Label>
+                      <DecimalFormInput
+                        control={form.control}
+                        name="amount_from_piggy_bank"
+                        id="piggy-amount"
+                        placeholder="0.00"
+                        className="w-full"
+                        ariaInvalid={!!piggyError}
+                        ariaDescribedby={piggyError ? 'add-transaction-piggy-error' : undefined}
+                      />
+                      <p className="text-xs text-violet-800">
+                        Reste à votre charge : {formatEUR(ownMoneyShare)}
+                        {piggyBankBalance < previewSafe && (
+                          <> · Maximum finançable&nbsp;: {formatEUR(maxPiggy)}</>
+                        )}
+                      </p>
+                      {piggyError && (
+                        <p id="add-transaction-piggy-error" className="text-sm text-red-600">
+                          {piggyError.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Sprint Auto-Cascade-Piggy (2026-05-25) — encart violet
                   informatif quand la dépense dépasse le budget + ses
                   économies locales. La tirelire est puisée en priorité,
@@ -881,6 +1001,9 @@ export default function AddTransactionModal({
                   isExceptional={isExceptional}
                   selectedId={transactionType === 'expense' ? budgetId : incomeId}
                   context={context}
+                  fromPiggyBank={
+                    transactionType === 'expense' && isExceptional ? effectivePiggy : 0
+                  }
                 />
               )}
 

@@ -43,6 +43,20 @@ export const moneyFormSchema = z.coerce
   })
 
 /**
+ * Client-form variant of nonNegativeMoneySchema (z.coerce, allows 0). Same
+ * comma→dot coercion contract as moneyFormSchema but accepts 0 — used for
+ * optional "use piggy bank" amount fields where the toggle-off state is 0
+ * (Sprint Exceptional-Expense-Piggy-Funding).
+ */
+export const nonNegativeMoneyFormSchema = z.coerce
+  .number()
+  .finite('Montant invalide')
+  .nonnegative('Le montant doit être positif ou nul')
+  .refine((v) => Math.round(v * 100) === v * 100, {
+    message: 'Au maximum 2 décimales',
+  })
+
+/**
  * Query schema for GET routes that accept only an optional `context` param
  * (profile|group). Defaults to 'profile' when absent. Used by ~10 GET
  * routes under finance, savings, monthly-recap, bank-balance.

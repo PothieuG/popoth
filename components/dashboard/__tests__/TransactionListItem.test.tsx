@@ -850,3 +850,82 @@ describe('<TransactionListItem> carry-over (sprint 15)', () => {
     })
   })
 })
+
+// Sprint Exceptional-Expense-Piggy-Funding (2026-05-29). Une dépense
+// exceptionnelle financée par la tirelire est verrouillée en modification
+// ("Modifier" omis) ; la suppression affiche la tirelire recréditée + le RAV
+// recrédité de la seule part propre argent.
+describe('<TransactionListItem> piggy-funded exceptional (sprint Exceptional-Piggy)', () => {
+  const piggyExceptional = buildExpense({
+    amount: 300,
+    is_exceptional: true,
+    estimated_budget_id: undefined,
+    estimated_budget: undefined,
+    amount_from_piggy_bank: 200,
+    amount_from_budget_savings: 0,
+    amount_from_budget: 100,
+  })
+
+  it('dropdown OMITS "Modifier" for a piggy-funded exceptional expense', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={piggyExceptional}
+        type="expense"
+        currentRemainingToLive={1000}
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(screen.queryByRole('button', { name: 'Modifier' })).not.toBeInTheDocument()
+  })
+
+  it('dropdown KEEPS "Modifier" for a plain exceptional expense (no piggy funding)', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={buildExpense({
+          amount: 25,
+          is_exceptional: true,
+          estimated_budget_id: undefined,
+          estimated_budget: undefined,
+          amount_from_piggy_bank: 0,
+          amount_from_budget_savings: 0,
+          amount_from_budget: undefined,
+        })}
+        type="expense"
+        currentRemainingToLive={1000}
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await user.click(screen.getByLabelText('Options'))
+    expect(screen.getByRole('button', { name: 'Modifier' })).toBeInTheDocument()
+  })
+
+  it('delete panel shows tirelire recréditée (50+200) + RAV recovery (own-money 100)', async () => {
+    const user = userEvent.setup()
+    render(
+      <TransactionListItem
+        transaction={piggyExceptional}
+        type="expense"
+        currentRemainingToLive={1000}
+        piggyBankAmount={50}
+        onEdit={vi.fn()}
+        onDelete={vi.fn(async () => true)}
+        onToggleApplied={vi.fn(async () => 'applied' as const)}
+      />,
+    )
+    await openDeleteDialog(user)
+    const dlg = inDialog()
+    // Tirelire : 50 + 200 (part prélevée recréditée) = 250
+    expect(dlg.getByText('Tirelire')).toBeInTheDocument()
+    expect(dlg.getByText(/250\s*€/)).toBeInTheDocument()
+    // RAV : 1000 + (300 - 200) = 1100 (seule la part propre argent revient)
+    expect(dlg.getByText('Reste à vivre')).toBeInTheDocument()
+    expect(dlg.getByText(/1\s*100\s*€/)).toBeInTheDocument()
+  })
+})
