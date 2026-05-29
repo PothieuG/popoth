@@ -207,7 +207,14 @@ describe.skipIf(!ENABLED)('financial-data + savings_projects (Sprint Projets-Ép
 
     const withProject = await getGroupFinancialData(testGroupId)
     expect(withProject.totalEstimatedBudgets).toBe(baselineBudgets + 50)
-    expect(withProject.remainingToLive).toBe(baselineRav - 50)
+    // Sprint PÉ-12 (migration 20260604000000_sync_group_budget_on_project_change) :
+    // un projet groupe propage son monthly_allocation dans
+    // groups.monthly_budget_estimate → recalcul des contributions → +50 sur
+    // totalGroupContributions. Comme le RAV groupe est additif sur les
+    // contributions (calc-rtl.ts : +totalGroupContributions − estimatedBudgets),
+    // le +50 de budget et le +50 de contribution s'annulent → RAV inchangé.
+    // (Avant PÉ-12 le RAV chutait de 50 ; assertion corrigée 2026-05-29.)
+    expect(withProject.remainingToLive).toBe(baselineRav)
     expect(withProject.meta?.totalMonthlyProjects).toBe(50)
     expect(withProject.meta?.savingsProjects).toHaveLength(1)
     expect(withProject.meta?.savingsProjects?.[0]?.name).toBe('Group Trip')
