@@ -37,7 +37,7 @@
       "Bash(echo \"exit: $?\")",
       "Bash(echo \"ci exit code: $?\")",
       "Bash(pnpm format *)",
-      "Bash(pnpm format:check CLAUDE.md README.md prompt/prompt-04-tooling-dx-v6.md)",
+      "Bash(pnpm format:check CLAUDE.md README.md)",
       "Bash(findstr /I \"trigger drift apply baseline\")",
       "Read(//c/Users/gille/.claude/plans/**)",
       "Bash(pnpm db:audit-functions)",

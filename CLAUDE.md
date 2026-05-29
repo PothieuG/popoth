@@ -13,7 +13,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 - `CLAUDE.md` — index opérationnel + instructions critiques actives
 - [.claude/history/](.claude/history/) — score-evolution, sprint-history-security, roadmap-detailed (95 sprints verbatim)
 - [.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) — inventaire fichiers annoté
-- [.claude/conventions/](.claude/conventions/) — 6 patterns ; auto : operational-rules, operational-rules-ui-modals, git-workflow, typescript ; on-demand : zod-patterns, logs-cleanup
+- [.claude/conventions/](.claude/conventions/) — 9 patterns ; auto : operational-rules, operational-rules-ui-modals, git-workflow, typescript, multi-env, user-questions ; on-demand : zod-patterns, logs-cleanup, applied-balance-toggle
 - [@.claude/guardrails/size-policy.md](.claude/guardrails/size-policy.md) — politique 39.5k chars
 - `.claude/skills/` — slash commands
 

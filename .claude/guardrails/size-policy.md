@@ -203,18 +203,19 @@ LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md | awk '$1 > 39500 && $2 != "t
 Si un fichier > 39.5k → refactor immédiat (split ou trim) — la gate est censée l'avoir bloqué avant ce stade.
 Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purger l'historique ancien ou splitter davantage les parts de roadmap.
 
-## 11. Fichiers concernés par cette règle (inventaire 2026-05-27 post-Sprints Carryover-Fixes)
+## 11. Fichiers concernés par cette règle (inventaire réconcilié 2026-05-29 post-Cleanup-Stale-Docs)
 
-**51 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**59 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
-- 1× `CLAUDE.md` (~39k post-trim §3 commandes Sprint PWA-Standalone-Polish — sortie zone alerte vers ~38-39k stable)
-- 34× `.claude/history/roadmap-detailed-01..34-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-34 récentes ~8-23k ; Part 34 (~17k) carryover-fixes étendue post-PWA)
-- 2× `.claude/history/sprint-chronology{,-part-2}.md` (~39k + ~34k — Part 1 gelée 2026-05-22, Part 2 créée 2026-05-24)
+- 1× `CLAUDE.md` (~39.4k — en zone alerte stable)
+- 39× `.claude/history/roadmap-detailed-01..39-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-39 récentes ~8-23k)
+- 3× `.claude/history/sprint-chronology{,-part-2,-part-3}.md` (Part 1 gelée 2026-05-22, Part 2 2026-05-24, Part 3 2026-05-29)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-37k — part-2 en zone alerte)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
-- 1× `.claude/reference/structure-repo.md` (~39.5k — en zone alerte, trim sprint 02 closeout)
-- 8× `.claude/conventions/{applied-balance-toggle,zod-patterns,typescript,logs-cleanup,git-workflow,multi-env,operational-rules,operational-rules-ui-modals,user-questions}.md` (4-39k — operational-rules.md + operational-rules-ui-modals.md en zone alerte 38-39.5k)
-- 1× `.claude/guardrails/size-policy.md` (~16k — ce fichier).
+- 1× `.claude/reference/structure-repo.md` (~39.4k — en zone alerte)
+- 9× `.claude/conventions/{applied-balance-toggle,zod-patterns,typescript,logs-cleanup,git-workflow,multi-env,operational-rules,operational-rules-ui-modals,user-questions}.md` (4-39k — operational-rules.md + operational-rules-ui-modals.md en zone alerte 38-39.5k)
+- 1× `.claude/guardrails/size-policy.md` (~20k — ce fichier).
+- 1× `.claude/skills/update-package/SKILL.md` (skill slash-command).
 
 **Sprint Multi-Env (2026-05-27)** : création branche `dev` + workflow staging (2 projets Supabase + 2 projets Vercel). `.claude/conventions/multi-env.md` créé (6k) avec setup local (`.env.local` commenté) + setup Vercel-dev + scripts DB cross-env. CLAUDE.md trims §6 Git (branches main/dev) + §8 (middleware/self-update condensés) + §10 (pointeur multi-env + compression security note). `next-env.d.ts` gitignored + untracked (file regénéré localement par Next dev/build).
 
@@ -225,5 +226,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **Sprint Salary-Auto-At-Recap-Complete + Contribution-Income-Mirror (2026-05-28)** : 2 features parentes (revenu salaire auto-créé à la finalisation du recap solo + revenu miroir côté groupe synchronisé avec dépense contribution sprint 16 V3). 7 migrations DB (3 RPCs nouvelles, 2 triggers, 2 colonnes `real_income_entries.recap_origin_id` + `contribution_id`). Part 36 créée (~10k). CLAUDE.md §5.5 invariants `EXPECTED_RPCS 25→28, Tests 796→797, Routes 44→45, fn 36→38`. §11 État global + Historique bumpés (35→36 parts, 146→148 sprints). §11 listing : 7 Parts trims (16/22/23/24/27/28/32/33/34/35 labels raccourcis) pour absorber l'ajout Part 36 sous le cap 39.5k.
 
 **Sprint Housekeeping-Deps-Format-Triage (2026-05-29)** : hygiène repo post-Part 38/39 (4 vulns Dependabot transitives patchées via `pnpm.overrides` ; glob lint-staged `*.{mjs,cjs,js}` ajouté ; fix assertion gated group-project RAV post-PÉ-12). Côté doc : `sprint-chronology-part-3.md` **créée** (split chronologique préemptif — part-2 à 39 267 saturée, 1 ligne table = +~2000 chars de padding) + pointeur en pied de part-2 (39 389). `CLAUDE.md` §9 réconcilié sur §5.5 (`447/158 → 846/242`, net-neutre) + §6 note lint-staged `.mjs` (trim "mécanique", net +12, 39 492). `git-workflow.md` §3 détaille les globs lint-staged. Total `.md` contexte 50 → 51.
+
+**Sprint Cleanup-Stale-Docs (2026-05-29)** : suppression des artefacts de features livrées — `prompt-montly-recap/` (19 fichiers, hors `.claude/`), `.claude/plans/` (12 plans Projets d'épargne, **retirés du set scanné**), `prompt-housekeeping/maintenance.md` (1, hors `.claude/`). Liens fantômes `doc2/audit/{RLS-FINDINGS,POST-MORTEM-C3-DRIFT}.md` (jamais créés, vérifié `git log --all`) retirés de CLAUDE.md §5/§8 + operational-rules §8 + README. README slim (−341/+86 lignes : sections datées → pointeurs CLAUDE.md/doc2/.claude ; Tailwind 4, 29 RPC, 5 fn). Cascade : `.prettierignore` (entrée prompt-montly-recap), `lib/recap/load-summary.ts` (commentaire RAV repointé), operational-rules §5 sync 7→5 spots, structure-repo:15. Index : CLAUDE.md §6 conventions 6→9, operational-rules §4 `EXPECTED_RPCS` 25→29, settings.json permission stale `prompt/` retirée. Inventaire §11 ci-dessus réconcilié — la valeur 51 était périmée (drift accumulé) : roadmap 34→39, chronology 2→3, conventions 8→9, + SKILL.md, −12 `.claude/plans`.
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
