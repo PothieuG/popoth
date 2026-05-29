@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import type { GroupMemberRavRow } from '@/lib/finance/group-members-rav-preview'
+import { ravColorClass } from './rav-color'
 
 interface GroupMembersRavRecapProps {
   rows: GroupMemberRavRow[]
@@ -54,12 +55,7 @@ export default function GroupMembersRavRecap({ rows, showPreview }: GroupMembers
                 <div className="flex shrink-0 items-baseline gap-1">
                   <span className="text-gray-500">{formatAmount(row.currentRav)}</span>
                   <span className="text-gray-400">→</span>
-                  <span
-                    className={cn(
-                      'font-semibold',
-                      row.willGoNegative ? 'text-red-600' : 'text-gray-900',
-                    )}
-                  >
+                  <span className={cn('font-semibold', ravColorClass(row.projectedRav))}>
                     {formatAmount(row.projectedRav)}
                   </span>
                 </div>

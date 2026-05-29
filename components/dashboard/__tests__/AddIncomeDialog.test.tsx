@@ -10,14 +10,7 @@ describe('AddIncomeDialog', () => {
   it('shows inline error when name is empty (min 2 chars)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddIncomeDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentIncomesTotal={1000}
-      />,
-    )
+    render(<AddIncomeDialog isOpen={true} onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
     await user.type(screen.getByPlaceholderText('0.00'), '500')
     await user.click(screen.getByRole('button', { name: /ajouter le revenu/i }))
     expect(
@@ -29,14 +22,7 @@ describe('AddIncomeDialog', () => {
   it('does not call onSave when estimatedAmount is 0 (positive refine)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddIncomeDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentIncomesTotal={1000}
-      />,
-    )
+    render(<AddIncomeDialog isOpen={true} onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
     await user.type(screen.getByPlaceholderText(/salaire, freelance/i), 'Salaire')
     // estimatedAmount stays at default 0 — moneyFormSchema rejects
     await user.click(screen.getByRole('button', { name: /ajouter le revenu/i }))
@@ -49,14 +35,7 @@ describe('AddIncomeDialog', () => {
     const onSave = vi.fn()
     const onClose = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddIncomeDialog
-        isOpen={true}
-        onClose={onClose}
-        onSave={onSave}
-        currentIncomesTotal={1000}
-      />,
-    )
+    render(<AddIncomeDialog isOpen={true} onClose={onClose} onSave={onSave} currentRav={1500} />)
     await user.type(screen.getByPlaceholderText(/salaire, freelance/i), 'Salaire')
     await user.type(screen.getByPlaceholderText('0.00'), '2500')
     await user.click(screen.getByRole('button', { name: /ajouter le revenu/i }))

@@ -22,15 +22,7 @@ describe('AddProjectDialog', () => {
     const onSave = makeSaveMock()
     const onClose = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddProjectDialog
-        isOpen
-        onClose={onClose}
-        onSave={onSave}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddProjectDialog isOpen onClose={onClose} onSave={onSave} currentRav={1500} />)
 
     await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Voyage')
     // Cible : 1200€, durée par défaut 12 → mensuel dérivé 100€ (Math.ceil cents)
@@ -52,15 +44,7 @@ describe('AddProjectDialog', () => {
   it('mode B (monthly) — calcule la durée dérivée et submit avec les bons champs', async () => {
     const onSave = makeSaveMock()
     const user = userEvent.setup()
-    render(
-      <AddProjectDialog
-        isOpen
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddProjectDialog isOpen onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
 
     await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Voiture')
     await user.type(screen.getByPlaceholderText('0.00'), '1200')
@@ -90,15 +74,7 @@ describe('AddProjectDialog', () => {
 
   it('toggle A↔B — preserve la cohérence des valeurs calculées', async () => {
     const user = userEvent.setup()
-    render(
-      <AddProjectDialog
-        isOpen
-        onClose={vi.fn()}
-        onSave={makeSaveMock()}
-        currentAllocatedTotal={0}
-        totalEstimatedIncome={3000}
-      />,
-    )
+    render(<AddProjectDialog isOpen onClose={vi.fn()} onSave={makeSaveMock()} currentRav={3000} />)
 
     await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Bali')
     await user.type(screen.getByPlaceholderText('0.00'), '1200')
@@ -119,15 +95,7 @@ describe('AddProjectDialog', () => {
   it('allows submit even when monthly allocation exceeds remaining margin (RAV may go negative)', async () => {
     const onSave = makeSaveMock()
     const user = userEvent.setup()
-    render(
-      <AddProjectDialog
-        isOpen
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentAllocatedTotal={1800}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddProjectDialog isOpen onClose={vi.fn()} onSave={onSave} currentRav={200} />)
 
     await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Au-dessus marge')
     await user.type(screen.getByPlaceholderText('0.00'), '6000')
@@ -148,13 +116,7 @@ describe('AddProjectDialog', () => {
   it('a11y — Esc keydown ferme la modal (focus trap natif Radix)', async () => {
     const onClose = vi.fn()
     await expectEscClose(
-      <AddProjectDialog
-        isOpen
-        onClose={onClose}
-        onSave={makeSaveMock()}
-        currentAllocatedTotal={0}
-        totalEstimatedIncome={3000}
-      />,
+      <AddProjectDialog isOpen onClose={onClose} onSave={makeSaveMock()} currentRav={3000} />,
       onClose,
       "Nouveau projet d'épargne",
     )
@@ -162,13 +124,7 @@ describe('AddProjectDialog', () => {
 
   it('a11y — axe ne rapporte aucune violation critique', async () => {
     const { container } = render(
-      <AddProjectDialog
-        isOpen
-        onClose={vi.fn()}
-        onSave={makeSaveMock()}
-        currentAllocatedTotal={0}
-        totalEstimatedIncome={3000}
-      />,
+      <AddProjectDialog isOpen onClose={vi.fn()} onSave={makeSaveMock()} currentRav={3000} />,
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])

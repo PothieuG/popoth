@@ -16,7 +16,7 @@ describe('EditIncomeDialog', () => {
         onClose={vi.fn()}
         onSave={vi.fn(async () => true)}
         income={null}
-        currentIncomesTotal={1000}
+        currentRav={1500}
       />,
     )
     expect(container.querySelector('input[name="name"]')).toBeNull()
@@ -26,12 +26,7 @@ describe('EditIncomeDialog', () => {
     const onSave = vi.fn(async () => true)
     const user = userEvent.setup()
     render(
-      <EditIncomeDialog
-        onClose={vi.fn()}
-        onSave={onSave}
-        income={baseIncome}
-        currentIncomesTotal={3000}
-      />,
+      <EditIncomeDialog onClose={vi.fn()} onSave={onSave} income={baseIncome} currentRav={2500} />,
     )
     const nameInput = screen.getByLabelText(/nom du revenu/i)
     await user.clear(nameInput)
@@ -48,12 +43,7 @@ describe('EditIncomeDialog', () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
     render(
-      <EditIncomeDialog
-        onClose={onClose}
-        onSave={onSave}
-        income={baseIncome}
-        currentIncomesTotal={3000}
-      />,
+      <EditIncomeDialog onClose={onClose} onSave={onSave} income={baseIncome} currentRav={2500} />,
     )
     const nameInput = screen.getByLabelText(/nom du revenu/i)
     await user.clear(nameInput)
@@ -71,12 +61,7 @@ describe('EditIncomeDialog', () => {
     const onSave = vi.fn(async () => true)
     const user = userEvent.setup()
     render(
-      <EditIncomeDialog
-        onClose={vi.fn()}
-        onSave={onSave}
-        income={baseIncome}
-        currentIncomesTotal={3000}
-      />,
+      <EditIncomeDialog onClose={vi.fn()} onSave={onSave} income={baseIncome} currentRav={2500} />,
     )
     const nameInput = screen.getByLabelText(/nom du revenu/i)
     await user.clear(nameInput)

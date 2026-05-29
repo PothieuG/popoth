@@ -32,6 +32,15 @@ export interface GroupMemberContributionRow {
   projectedContribution: number
   /** Negative if the member will pay less (the common case). */
   delta: number
+  /**
+   * RAV perso du membre — actuel (authoritative) → projeté. Quand un revenu
+   * groupe est ajouté, la contribution baisse (`delta < 0`) et donc le RAV
+   * perso **monte** d'autant : `projectedRav = currentRav − delta`. Même
+   * delta-math que `computeGroupMembersRavPreview` (la contribution est une
+   * dépense exceptionnelle « miroir » dans le RAV perso de chaque membre).
+   */
+  currentRav: number
+  projectedRav: number
 }
 
 /**
@@ -90,13 +99,16 @@ export function computeGroupMembersContributionsPreview(opts: {
       memberCount: members.length,
       contributionBase: projectedBase,
     })
+    const delta = projectedContribution - currentContribution
     return {
       profileId: m.profileId,
       firstName: m.firstName,
       salary: m.salary,
       currentContribution,
       projectedContribution,
-      delta: projectedContribution - currentContribution,
+      delta,
+      currentRav: m.currentRav,
+      projectedRav: m.currentRav - delta,
     }
   })
 }

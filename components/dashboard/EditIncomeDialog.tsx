@@ -16,6 +16,7 @@ import {
 } from '@/lib/finance/group-members-contributions-preview'
 import type { GroupMemberRavDetail } from '@/lib/finance'
 import GroupMembersContributionsRecap from './GroupMembersContributionsRecap'
+import RavProjectionRecap from './RavProjectionRecap'
 
 interface EstimatedIncome {
   id: string
@@ -28,7 +29,11 @@ interface EditIncomeDialogProps {
   onClose: () => void
   onSave: (incomeData: { name: string; estimatedAmount: number }) => Promise<boolean>
   income: EstimatedIncome | null
-  currentIncomesTotal: number
+  /**
+   * RAV courant (authoritative) du profil — affiché « actuel → projeté » dans
+   * l'encart `RavProjectionRecap`. Ignoré en contexte groupe.
+   */
+  currentRav?: number
   /**
    * Sprint Group-Income-Cascade — props miroir AddIncomeDialog en contexte
    * groupe. `currentGroupIncomeTotal` inclut déjà `income.estimated_amount` ;
@@ -64,7 +69,7 @@ export default function EditIncomeDialog({
   onClose,
   onSave,
   income,
-  currentIncomesTotal,
+  currentRav,
   context,
   groupMembersRav,
   currentGroupBudgetTotal,
@@ -97,18 +102,12 @@ export default function EditIncomeDialog({
     }
   }
 
-  const formatAmount = (amount: number): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
-
   const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
   const previewAmount =
     typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
+  // Reste à vivre projeté : delta = nouveau − actuel ; un revenu augmente le RAV.
+  const projectedRav = (currentRav ?? 0) + (previewSafe - (income?.estimated_amount ?? 0))
 
   // Sprint Group-Income-Cascade — projection en mode édition : on soustrait
   // le montant actuel du revenu (`income.estimated_amount`) avant d'ajouter
@@ -255,8 +254,9 @@ export default function EditIncomeDialog({
               )}
             </div>
 
-            {/* Recap — en groupe : contributions projetées par membre. En perso :
-                aperçu financier classique. Sprint Group-Income-Cascade. */}
+            {/* Recap — en groupe : contributions + RAV projetés par membre.
+                En perso : reste à vivre estimé actuel → projeté (vert/rouge).
+                Sprint Group-Income-Cascade. */}
             {isGroupContext ? (
               <GroupMembersContributionsRecap
                 rows={groupContribRows}
@@ -264,38 +264,11 @@ export default function EditIncomeDialog({
                 projectedGroupSurplus={projectedGroupSurplus}
               />
             ) : (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Aperçu :</p>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Autres revenus</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(currentIncomesTotal - income.estimated_amount)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Ce revenu</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(previewSafe)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-blue-200" />
-                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                      Résultat
-                    </span>
-                    <div className="h-px flex-1 bg-blue-200" />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                    <span className="font-medium text-gray-700">Total des revenus</span>
-                    <span className="shrink-0 font-bold text-gray-900">
-                      {formatAmount(currentIncomesTotal - income.estimated_amount + previewSafe)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <RavProjectionRecap
+                currentRav={currentRav ?? 0}
+                projectedRav={projectedRav}
+                showPreview={true}
+              />
             )}
           </div>
 

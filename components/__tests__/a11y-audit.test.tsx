@@ -260,13 +260,7 @@ describe('axe-core a11y audit (regression-guard)', () => {
 
   it('AddBudgetDialog has no critical a11y violations', async () => {
     const { container } = render(
-      <AddBudgetDialog
-        isOpen
-        onClose={() => {}}
-        onSave={() => {}}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
+      <AddBudgetDialog isOpen onClose={() => {}} onSave={() => {}} currentRav={1500} />,
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])
@@ -296,7 +290,7 @@ describe('axe-core a11y audit (regression-guard)', () => {
 
   it('AddIncomeDialog has no critical a11y violations', async () => {
     const { container } = render(
-      <AddIncomeDialog isOpen onClose={() => {}} onSave={() => {}} currentIncomesTotal={1500} />,
+      <AddIncomeDialog isOpen onClose={() => {}} onSave={() => {}} currentRav={1500} />,
     )
     const results = await axe(container)
     expect(results.violations).toEqual([])
@@ -324,8 +318,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         onClose={onClose}
         onSave={async () => true}
         budget={{ id: 'b-1', name: 'Alimentation', estimated_amount: 500 }}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
+        currentRav={1500}
       />,
       onClose,
       'Modifier le budget',
@@ -344,13 +337,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
   it('AddBudgetDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
     await expectEscClose(
-      <AddBudgetDialog
-        isOpen
-        onClose={onClose}
-        onSave={async () => true}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
+      <AddBudgetDialog isOpen onClose={onClose} onSave={async () => true} currentRav={1500} />,
       onClose,
       'Nouveau Budget',
     )
@@ -359,12 +346,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
   it('AddIncomeDialog: Esc keydown invokes onClose', async () => {
     const onClose = vi.fn()
     await expectEscClose(
-      <AddIncomeDialog
-        isOpen
-        onClose={onClose}
-        onSave={async () => true}
-        currentIncomesTotal={1500}
-      />,
+      <AddIncomeDialog isOpen onClose={onClose} onSave={async () => true} currentRav={1500} />,
       onClose,
       'Nouveau Revenu',
     )
@@ -386,7 +368,7 @@ describe('Radix Dialog focus-trap + Esc-to-close (regression-guard)', () => {
         onClose={onClose}
         onSave={async () => true}
         income={income}
-        currentIncomesTotal={1500}
+        currentRav={1500}
       />,
       onClose,
       'Modifier le revenu',

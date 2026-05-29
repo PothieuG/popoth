@@ -16,8 +16,7 @@ describe('EditBudgetDialog', () => {
         onClose={vi.fn()}
         onSave={vi.fn(async () => true)}
         budget={null}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
+        currentRav={1500}
       />,
     )
     expect(container.querySelector('input[name="name"]')).toBeNull()
@@ -27,13 +26,7 @@ describe('EditBudgetDialog', () => {
     const onSave = vi.fn(async () => true)
     const user = userEvent.setup()
     render(
-      <EditBudgetDialog
-        onClose={vi.fn()}
-        onSave={onSave}
-        budget={baseBudget}
-        currentBudgetsTotal={1000}
-        totalEstimatedIncome={2000}
-      />,
+      <EditBudgetDialog onClose={vi.fn()} onSave={onSave} budget={baseBudget} currentRav={1000} />,
     )
     // otherBudgets = 1000 - 500 = 500. New amount = 800. Total = 1300 < 2000 → OK.
     const amount = screen.getByLabelText(/montant mensuel/i)
@@ -49,13 +42,7 @@ describe('EditBudgetDialog', () => {
     const onSave = vi.fn(async () => true)
     const user = userEvent.setup()
     render(
-      <EditBudgetDialog
-        onClose={vi.fn()}
-        onSave={onSave}
-        budget={baseBudget}
-        currentBudgetsTotal={1500}
-        totalEstimatedIncome={2000}
-      />,
+      <EditBudgetDialog onClose={vi.fn()} onSave={onSave} budget={baseBudget} currentRav={500} />,
     )
     // otherBudgets = 1500 - 500 = 1000. New amount = 1500. Total = 2500 > 2000 →
     // allowed since 2026-05-27 (RAV negative permitted).
@@ -73,13 +60,7 @@ describe('EditBudgetDialog', () => {
     const onClose = vi.fn()
     const user = userEvent.setup()
     render(
-      <EditBudgetDialog
-        onClose={onClose}
-        onSave={onSave}
-        budget={baseBudget}
-        currentBudgetsTotal={1000}
-        totalEstimatedIncome={3000}
-      />,
+      <EditBudgetDialog onClose={onClose} onSave={onSave} budget={baseBudget} currentRav={2000} />,
     )
     const nameInput = screen.getByLabelText(/nom du budget/i)
     await user.clear(nameInput)

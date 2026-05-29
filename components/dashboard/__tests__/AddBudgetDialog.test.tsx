@@ -10,15 +10,7 @@ describe('AddBudgetDialog', () => {
   it('shows inline error when name is empty (min 2 chars)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddBudgetDialog isOpen={true} onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
     await user.type(screen.getByPlaceholderText('0.00'), '300')
     await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))
     expect(
@@ -30,15 +22,7 @@ describe('AddBudgetDialog', () => {
   it('allows submit even when newTotal exceeds totalEstimatedIncome (RAV may go negative)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentBudgetsTotal={1800}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddBudgetDialog isOpen={true} onClose={vi.fn()} onSave={onSave} currentRav={200} />)
     await user.type(screen.getByPlaceholderText(/alimentation/i), 'Voyages')
     // 1800 + 500 = 2300 > 2000 — would push RAV negative, but allowed since 2026-05-27
     await user.type(screen.getByPlaceholderText('0.00'), '500')
@@ -52,15 +36,7 @@ describe('AddBudgetDialog', () => {
     const onSave = vi.fn()
     const onClose = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={onClose}
-        onSave={onSave}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddBudgetDialog isOpen={true} onClose={onClose} onSave={onSave} currentRav={1500} />)
     await user.type(screen.getByPlaceholderText(/alimentation/i), 'Loisirs')
     await user.type(screen.getByPlaceholderText('0.00'), '300')
     await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))
@@ -75,15 +51,7 @@ describe('AddBudgetDialog', () => {
   it('aria-describedby + aria-invalid + setFocus on invalid empty name (Axe 1 + 2)', async () => {
     const onSave = vi.fn()
     const user = userEvent.setup()
-    render(
-      <AddBudgetDialog
-        isOpen={true}
-        onClose={vi.fn()}
-        onSave={onSave}
-        currentBudgetsTotal={500}
-        totalEstimatedIncome={2000}
-      />,
-    )
+    render(<AddBudgetDialog isOpen={true} onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
     // Submit with empty name (amount = 300 to bypass the amount field error)
     await user.type(screen.getByPlaceholderText('0.00'), '300')
     await user.click(screen.getByRole('button', { name: /ajouter le budget/i }))

@@ -30,18 +30,6 @@ interface FinancialIndicatorsProps {
    */
   readOnlyIncomes?: ReadOnlyIncome[]
   /**
-   * Sprint 16 V3 (groupe uniquement) — somme des salaires des membres,
-   * forward au drawer Planification comme plafond de validation budget.
-   * Source backend `FinancialData.meta.groupSalaryTotal`.
-   */
-  groupSalaryTotal?: number
-  /**
-   * Sprint PÉ-12 (groupe uniquement) — somme des RAV perso de chaque membre,
-   * forward au drawer Planification comme plafond de validation projets.
-   * Source backend `FinancialData.meta.groupMembersPersonalRavTotal`.
-   */
-  groupMembersPersonalRavTotal?: number
-  /**
    * Sprint Group-RAV-Recap (groupe uniquement) — détail par membre du RAV
    * courant, forwardé au drawer Planification qui le passe aux 4 modals
    * (AddBudget/EditBudget/AddProject/EditProject) pour le recap par-membre.
@@ -64,8 +52,6 @@ export default function FinancialIndicators({
   context,
   isFetching = false,
   readOnlyIncomes,
-  groupSalaryTotal,
-  groupMembersPersonalRavTotal,
   groupMembersRav,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
@@ -295,9 +281,8 @@ export default function FinancialIndicators({
         onClose={() => setIsPlanningOpen(false)}
         onPlanningChange={onPlanningChange}
         context={context}
+        currentRav={remainingToLive}
         readOnlyIncomes={readOnlyIncomes}
-        groupSalaryTotal={groupSalaryTotal}
-        groupMembersPersonalRavTotal={groupMembersPersonalRavTotal}
         groupMembersRav={groupMembersRav}
       />
 

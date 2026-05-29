@@ -25,6 +25,7 @@ import {
 import type { GroupMemberRavDetail } from '@/lib/finance'
 import type { SavingsProject } from '@/hooks/useProjects'
 import GroupMembersRavRecap from './GroupMembersRavRecap'
+import RavProjectionRecap from './RavProjectionRecap'
 
 interface EditProjectDialogProps {
   isOpen?: boolean
@@ -37,13 +38,10 @@ interface EditProjectDialogProps {
   }) => Promise<boolean>
   project: SavingsProject
   /**
-   * Somme des allocations déjà planifiées (budgets + projets, ce projet inclus).
-   * Le schéma applique le delta `currentAllocatedTotal − currentProjectAllocation +
-   * d.monthlyAllocation` pour éviter de double-compter l'allocation existante
-   * (cf. `makeProjectClientSchema` refine 1).
+   * RAV courant (authoritative) du profil — affiché « actuel → projeté » dans
+   * l'encart `RavProjectionRecap`. Ignoré en contexte groupe.
    */
-  currentAllocatedTotal: number
-  totalEstimatedIncome: number
+  currentRav?: number
   /** Sprint Group-RAV-Recap — voir AddBudgetDialog. */
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
@@ -82,8 +80,7 @@ export default function EditProjectDialog({
   onClose,
   onSave,
   project,
-  currentAllocatedTotal,
-  totalEstimatedIncome,
+  currentRav,
   context,
   groupMembersRav,
   currentGroupTotal,
@@ -133,7 +130,8 @@ export default function EditProjectDialog({
   const targetSafe = isNaN(targetParsed) ? 0 : targetParsed
   const monthlySafe = isNaN(monthlyParsed) ? 0 : monthlyParsed
 
-  const margeDispo = totalEstimatedIncome - (currentAllocatedTotal - currentProjectAllocation)
+  // Reste à vivre projeté : delta = nouveau − actuel (le projet consomme le RAV).
+  const projectedRav = (currentRav ?? 0) - (monthlySafe - currentProjectAllocation)
   const remaining = Math.max(0, targetSafe - amountSaved)
 
   // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
@@ -491,23 +489,15 @@ export default function EditProjectDialog({
             )}
 
             {/* Recap — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
-                En perso : marge globale historique. */}
+                En perso : reste à vivre estimé actuel → projeté (vert/rouge). */}
             {isGroupContext ? (
               <GroupMembersRavRecap rows={groupRavRows} showPreview={true} />
             ) : (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="font-medium text-gray-700">Marge disponible</span>
-                  <span
-                    className={cn('font-bold', margeDispo < 0 ? 'text-red-600' : 'text-gray-900')}
-                  >
-                    {formatAmount(margeDispo)} / mois
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Revenus estimés − autres budgets &amp; projets (hors celui-ci)
-                </p>
-              </div>
+              <RavProjectionRecap
+                currentRav={currentRav ?? 0}
+                projectedRav={projectedRav}
+                showPreview={true}
+              />
             )}
           </div>
 

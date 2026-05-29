@@ -45,8 +45,7 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={makeSaveMock()}
         project={buildProject()}
-        currentAllocatedTotal={695}
-        totalEstimatedIncome={3000}
+        currentRav={2305}
       />,
     )
 
@@ -76,8 +75,7 @@ describe('EditProjectDialog', () => {
         // budgets+projets = 1000 dont 195 du projet ⇒ "other" = 805. Income
         // = 2000 ⇒ marge dispo = 1195. Edit le mensuel à 500 reste sous le
         // plafond (805 + 500 = 1305 ≤ 2000 → refine 1 passe).
-        currentAllocatedTotal={1000}
-        totalEstimatedIncome={2000}
+        currentRav={1000}
       />,
     )
 
@@ -107,8 +105,7 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={onSave}
         project={buildProject({ monthly_allocation: 195 })}
-        currentAllocatedTotal={1000}
-        totalEstimatedIncome={2000}
+        currentRav={1000}
       />,
     )
 
@@ -140,8 +137,7 @@ describe('EditProjectDialog', () => {
           amount_saved: 3000,
           monthly_allocation: 400,
         })}
-        currentAllocatedTotal={400}
-        totalEstimatedIncome={5000}
+        currentRav={4600}
       />,
     )
 
@@ -175,8 +171,7 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={onSave}
         project={projectA}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={3000}
+        currentRav={2500}
       />,
     )
     expect((screen.getByLabelText(/nom du projet/i) as HTMLInputElement).value).toBe('Voyage Japon')
@@ -191,8 +186,7 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={onSave}
         project={projectB}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={3000}
+        currentRav={2500}
       />,
     )
 
@@ -211,8 +205,7 @@ describe('EditProjectDialog', () => {
         onClose={onClose}
         onSave={makeSaveMock()}
         project={buildProject()}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={3000}
+        currentRav={2500}
       />,
       onClose,
       'Modifier le projet',
@@ -226,8 +219,7 @@ describe('EditProjectDialog', () => {
         onClose={vi.fn()}
         onSave={makeSaveMock()}
         project={buildProject()}
-        currentAllocatedTotal={500}
-        totalEstimatedIncome={3000}
+        currentRav={2500}
       />,
     )
     const results = await axe(container)

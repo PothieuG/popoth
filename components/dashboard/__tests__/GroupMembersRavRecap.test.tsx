@@ -38,10 +38,12 @@ describe('<GroupMembersRavRecap>', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('affiche un membre sans warning quand willGoNegative=false', () => {
+  it('affiche un membre sans warning quand willGoNegative=false (RAV projeté positif → vert)', () => {
     render(<GroupMembersRavRecap rows={[ALICE_OK]} showPreview={true} />)
     expect(screen.getByTestId('group-members-rav-recap')).toBeInTheDocument()
     expect(screen.getByText('Alice')).toBeInTheDocument()
+    // RAV projeté 1400 (positif, unique vs 1600) → vert.
+    expect(screen.getByText(/1\s*400/)).toHaveClass('text-green-600')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

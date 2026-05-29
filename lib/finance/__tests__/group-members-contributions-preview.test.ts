@@ -93,6 +93,22 @@ describe('computeGroupMembersContributionsPreview', () => {
     })
   })
 
+  it('expose le RAV projeté par membre — le RAV monte quand la contribution baisse', () => {
+    // Même scénario que le happy path, mais avec un RAV courant non nul par
+    // membre. projectedRav = currentRav − delta (delta négatif ⇒ RAV monte).
+    //   Alice : 1000 − (−180) = 1180 ; Bob : 500 − (−120) = 620.
+    const aliceWithRav: GroupMemberRavDetail = { ...ALICE, currentRav: 1000 }
+    const bobWithRav: GroupMemberRavDetail = { ...BOB, currentRav: 500 }
+    const rows = computeGroupMembersContributionsPreview({
+      members: [aliceWithRav, bobWithRav],
+      currentGroupBudgetTotal: 1000,
+      currentGroupIncomeTotal: 0,
+      projectedGroupIncomeTotal: 300,
+    })
+    expect(rows[0]).toMatchObject({ currentRav: 1000, projectedRav: 1180 })
+    expect(rows[1]).toMatchObject({ currentRav: 500, projectedRav: 620 })
+  })
+
   it('surplus (revenus > budgets) → contributions clampées à 0', () => {
     // Budgets 1000, revenus projetés 1500 → contribution_base = max(0, 1000 − 1500) = 0.
     // Toutes contributions = 0 (surplus de 500 reste en cagnotte).

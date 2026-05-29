@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import type { GroupMemberContributionRow } from '@/lib/finance/group-members-contributions-preview'
+import { ravColorClass } from './rav-color'
 
 interface GroupMembersContributionsRecapProps {
   rows: GroupMemberContributionRow[]
@@ -52,25 +53,48 @@ export default function GroupMembersContributionsRecap({
       data-testid="group-members-contributions-recap"
     >
       <div className="space-y-3">
-        <p className="text-sm font-medium text-gray-700">Impact sur les contributions :</p>
+        <p className="text-sm font-medium text-gray-700">
+          Impact sur les contributions et le reste à vivre :
+        </p>
         <div className="space-y-2">
           {rows.map((row) => {
             const reduced = row.delta < 0
             return (
               <div
                 key={row.profileId}
-                className="flex items-baseline justify-between gap-2 border-b border-blue-100 pb-2 text-sm last:border-0 last:pb-0"
+                className="flex flex-col gap-1 border-b border-blue-100 pb-2 text-sm last:border-0 last:pb-0"
               >
-                <span className="truncate text-gray-700">{row.firstName || 'Membre'}</span>
-                <div className="flex shrink-0 items-baseline gap-1">
-                  <span className="text-gray-500">{formatAmount(row.currentContribution)}</span>
-                  <span className="text-gray-400">→</span>
-                  <span
-                    className={cn('font-semibold', reduced ? 'text-green-700' : 'text-gray-900')}
-                  >
-                    {formatAmount(row.projectedContribution)}
-                  </span>
+                <span className="truncate font-medium text-gray-700">
+                  {row.firstName || 'Membre'}
+                </span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="shrink-0 text-gray-500">Contribution</span>
+                  <div className="flex shrink-0 items-baseline gap-1">
+                    <span className="text-gray-500">{formatAmount(row.currentContribution)}</span>
+                    <span className="text-gray-400">→</span>
+                    <span
+                      className={cn('font-semibold', reduced ? 'text-green-700' : 'text-gray-900')}
+                    >
+                      {formatAmount(row.projectedContribution)}
+                    </span>
+                  </div>
                 </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="shrink-0 text-gray-500">Reste à vivre</span>
+                  <div className="flex shrink-0 items-baseline gap-1">
+                    <span className="text-gray-500">{formatAmount(row.currentRav)}</span>
+                    <span className="text-gray-400">→</span>
+                    <span className={cn('font-semibold', ravColorClass(row.projectedRav))}>
+                      {formatAmount(row.projectedRav)}
+                    </span>
+                  </div>
+                </div>
+                {row.projectedRav < 0 && (
+                  <p role="alert" className="text-xs text-red-600">
+                    Avertissement : le reste à vivre de {row.firstName || 'ce membre'} deviendrait
+                    négatif.
+                  </p>
+                )}
               </div>
             )
           })}

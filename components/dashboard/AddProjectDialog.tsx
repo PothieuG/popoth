@@ -20,6 +20,7 @@ import {
 } from '@/lib/finance/group-members-rav-preview'
 import type { GroupMemberRavDetail } from '@/lib/finance'
 import GroupMembersRavRecap from './GroupMembersRavRecap'
+import RavProjectionRecap from './RavProjectionRecap'
 
 interface AddProjectDialogProps {
   isOpen: boolean
@@ -31,18 +32,10 @@ interface AddProjectDialogProps {
     deadlineDate: string
   }) => Promise<boolean>
   /**
-   * Somme des allocations déjà planifiées (budgets + projets existants), qui
-   * sert de point de départ au refine RAV du schéma. `useFinancialData(ctx).
-   * totalEstimatedBudgets` agrège déjà budgets + projets (Sprint 03) — depuis
-   * PlanningDrawer on passe directement `totalBudgets + totalMonthlyAllocations`.
+   * RAV courant (authoritative) du profil — affiché « actuel → projeté » dans
+   * l'encart `RavProjectionRecap`. Ignoré en contexte groupe.
    */
-  currentAllocatedTotal: number
-  /**
-   * Plafond servant au refine RAV. Mirror du `budgetCeiling` côté AddBudgetDialog :
-   * en perso = totalIncomes + salaire (read-only) ; en groupe = totalIncomes +
-   * groupSalaryTotal (sinon un groupe vide ne peut jamais bootstrapper).
-   */
-  totalEstimatedIncome: number
+  currentRav?: number
   /** Sprint Group-RAV-Recap — voir AddBudgetDialog. */
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
@@ -79,8 +72,7 @@ export default function AddProjectDialog({
   isOpen,
   onClose,
   onSave,
-  currentAllocatedTotal,
-  totalEstimatedIncome,
+  currentRav,
   context,
   groupMembersRav,
   currentGroupTotal,
@@ -126,7 +118,9 @@ export default function AddProjectDialog({
   const targetSafe = isNaN(targetParsed) ? 0 : targetParsed
   const monthlySafe = isNaN(monthlyParsed) ? 0 : monthlyParsed
 
-  const margeDispo = totalEstimatedIncome - currentAllocatedTotal
+  // Reste à vivre projeté : un projet (allocation mensuelle) consomme le RAV
+  // comme un budget virtuel (delta-math, cf. group-members-rav-preview.ts).
+  const projectedRav = (currentRav ?? 0) - monthlySafe
 
   // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
   // Le projet ajouté entre dans `groups.monthly_budget_estimate` (trigger
@@ -494,23 +488,15 @@ export default function AddProjectDialog({
             )}
 
             {/* Recap — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
-                En perso : marge globale historique. */}
+                En perso : reste à vivre estimé actuel → projeté (vert/rouge). */}
             {isGroupContext ? (
               <GroupMembersRavRecap rows={groupRavRows} showPreview={monthlySafe > 0} />
             ) : (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="flex items-baseline justify-between gap-2 text-sm">
-                  <span className="font-medium text-gray-700">Marge disponible</span>
-                  <span
-                    className={cn('font-bold', margeDispo < 0 ? 'text-red-600' : 'text-gray-900')}
-                  >
-                    {formatAmount(margeDispo)} / mois
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Revenus estimés − budgets &amp; projets actuels
-                </p>
-              </div>
+              <RavProjectionRecap
+                currentRav={currentRav ?? 0}
+                projectedRav={projectedRav}
+                showPreview={monthlySafe > 0}
+              />
             )}
           </div>
 

@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
-import { cn } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
@@ -17,6 +16,7 @@ import {
 } from '@/lib/finance/group-members-rav-preview'
 import type { GroupMemberRavDetail } from '@/lib/finance'
 import GroupMembersRavRecap from './GroupMembersRavRecap'
+import RavProjectionRecap from './RavProjectionRecap'
 
 interface EstimatedBudget {
   id: string
@@ -29,8 +29,11 @@ interface EditBudgetDialogProps {
   onClose: () => void
   onSave: (budgetData: { name: string; estimatedAmount: number }) => Promise<boolean>
   budget: EstimatedBudget | null
-  currentBudgetsTotal: number
-  totalEstimatedIncome: number
+  /**
+   * RAV courant (authoritative) du profil — affiché « actuel → projeté » dans
+   * l'encart `RavProjectionRecap`. Ignoré en contexte groupe.
+   */
+  currentRav?: number
   /** Sprint Group-RAV-Recap — voir AddBudgetDialog. */
   context?: 'profile' | 'group'
   groupMembersRav?: GroupMemberRavDetail[]
@@ -58,8 +61,7 @@ export default function EditBudgetDialog({
   onClose,
   onSave,
   budget,
-  currentBudgetsTotal,
-  totalEstimatedIncome,
+  currentRav,
   context,
   groupMembersRav,
   currentGroupTotal,
@@ -96,20 +98,12 @@ export default function EditBudgetDialog({
     }
   }
 
-  const formatAmount = (amount: number): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-    }).format(amount)
-  }
-
   const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
   const previewAmount =
     typeof watchedAmount === 'number' ? watchedAmount : parseFloat(String(watchedAmount ?? ''))
   const previewSafe = isNaN(previewAmount) ? 0 : previewAmount
-  const otherBudgets = currentBudgetsTotal - currentBudgetAmount
-  const newBalance = totalEstimatedIncome - otherBudgets - previewSafe
+  // Reste à vivre projeté : delta = nouveau − actuel (le budget consomme le RAV).
+  const projectedRav = (currentRav ?? 0) - (previewSafe - currentBudgetAmount)
 
   // Sprint Group-RAV-Recap — projection RAV par membre (groupe uniquement).
   // En édition : delta = newAmount - currentBudgetAmount.
@@ -236,53 +230,15 @@ export default function EditBudgetDialog({
             </div>
 
             {/* Aperçu — en groupe : RAV projeté par membre (Sprint Group-RAV-Recap).
-                En perso : panel uniformisé Sprint Recap-Compact-And-Uniform 2026-05-22. */}
+                En perso : reste à vivre estimé actuel → projeté (vert/rouge). */}
             {isGroupContext ? (
               <GroupMembersRavRecap rows={groupRavRows} showPreview={true} />
             ) : (
-              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Aperçu :</p>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Revenus estimés</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(totalEstimatedIncome)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Autres budgets</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(otherBudgets)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-gray-700">Ce budget</span>
-                      <span className="shrink-0 font-semibold text-gray-900">
-                        {formatAmount(previewSafe)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 pt-1">
-                    <div className="h-px flex-1 bg-blue-200" />
-                    <span className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                      Résultat
-                    </span>
-                    <div className="h-px flex-1 bg-blue-200" />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-sm">
-                    <span className="font-medium text-gray-700">Reste disponible</span>
-                    <span
-                      className={cn(
-                        'shrink-0 font-bold',
-                        newBalance < 0 ? 'text-red-600' : 'text-gray-900',
-                      )}
-                    >
-                      {formatAmount(newBalance)}
-                    </span>
-                  </div>
-                </div>
-              </div>
+              <RavProjectionRecap
+                currentRav={currentRav ?? 0}
+                projectedRav={projectedRav}
+                showPreview={true}
+              />
             )}
           </div>
 
