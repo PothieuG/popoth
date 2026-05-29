@@ -61,7 +61,24 @@ export function DecimalFormInput<T extends FieldValues>({
               field.onChange(v.replace(',', '.'))
             }
           }}
-          onBlur={field.onBlur}
+          onFocus={() => {
+            // UX (2026-05-29) : si le champ vaut exactement "0" (valeur par
+            // défaut), on le vide au focus pour que la frappe parte d'un champ
+            // propre (sinon taper "1999" donnait "01999"). On ne touche pas aux
+            // valeurs non-nulles (mode édition : "50" reste éditable). Champ
+            // contrôlé → field.onChange('') suffit à vider l'affichage.
+            if (String(field.value ?? '') === '0') {
+              field.onChange('')
+            }
+          }}
+          onBlur={(e) => {
+            // Restaure "0" si l'utilisateur quitte le champ sans rien saisir —
+            // garde l'affichage par défaut cohérent (pas de champ vide orphelin).
+            if (e.target.value === '') {
+              field.onChange(0)
+            }
+            field.onBlur()
+          }}
           placeholder={placeholder}
           disabled={disabled}
           aria-invalid={ariaInvalid ? 'true' : 'false'}

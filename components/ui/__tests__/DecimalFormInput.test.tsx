@@ -87,6 +87,40 @@ describe('DecimalFormInput', () => {
     expect(screen.getByRole('textbox')).toHaveAttribute('aria-invalid', 'false')
   })
 
+  // UX (2026-05-29) — vider le "0" par défaut au focus (sinon "01999").
+  it('clears the default 0 on focus', () => {
+    render(<TestHost defaultValues={{ amount: 0 }} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    expect(input.value).toBe('0')
+    fireEvent.focus(input)
+    expect(screen.getByTestId('display').textContent).toBe('')
+    expect(input.value).toBe('')
+  })
+
+  it('restores 0 on blur when the field was left empty', () => {
+    render(<TestHost defaultValues={{ amount: 0 }} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input) // clears the 0
+    fireEvent.blur(input)
+    expect(screen.getByTestId('display').textContent).toBe('0')
+  })
+
+  it('does NOT clear a non-zero value on focus (edit mode preserved)', () => {
+    render(<TestHost defaultValues={{ amount: 50 }} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input)
+    expect(input.value).toBe('50')
+  })
+
+  it('keeps the typed value on blur (no spurious restore)', () => {
+    render(<TestHost defaultValues={{ amount: 0 }} />)
+    const input = screen.getByRole('textbox') as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '1999' } })
+    fireEvent.blur(input)
+    expect(screen.getByTestId('display').textContent).toBe('1999')
+  })
+
   it('displays empty string when field.value is undefined', () => {
     render(<TestHost defaultValues={{}} />)
     // form.getValues('amount') is undefined; component renders value=''
