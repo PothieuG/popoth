@@ -163,7 +163,7 @@ Format obligatoire : `// eslint-disable-next-line <rule> -- <raison explicite>` 
 
 ### Format / Prettier
 
-Config [.prettierrc.json](.prettierrc.json) : `semi:false`, `singleQuote:true`, `trailingComma:'all'`, `printWidth:100`, `tabWidth:2`, `endOfLine:'lf'`, plugin `prettier-plugin-tailwindcss`. Ignore auto-gen (`lib/database.types.ts`, `next-env.d.ts`). **Ne PAS lancer** `pnpm format` dans PR feature (diff mécanique massif) — `lint-staged` formate les staged au commit.
+Config [.prettierrc.json](.prettierrc.json) : `semi:false`, `singleQuote:true`, `trailingComma:'all'`, `printWidth:100`, `tabWidth:2`, `endOfLine:'lf'`, plugin `prettier-plugin-tailwindcss`. Ignore auto-gen (`lib/database.types.ts`, `next-env.d.ts`). **Ne PAS lancer** `pnpm format` dans PR feature (diff massif) — `lint-staged` formate les staged au commit, dont `.mjs/.cjs/.js`.
 
 ### Logs
 

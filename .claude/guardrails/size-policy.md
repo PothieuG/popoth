@@ -205,7 +205,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 
 ## 11. Fichiers concernés par cette règle (inventaire 2026-05-27 post-Sprints Carryover-Fixes)
 
-**50 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**51 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
 - 1× `CLAUDE.md` (~39k post-trim §3 commandes Sprint PWA-Standalone-Polish — sortie zone alerte vers ~38-39k stable)
 - 34× `.claude/history/roadmap-detailed-01..34-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-34 récentes ~8-23k ; Part 34 (~17k) carryover-fixes étendue post-PWA)
@@ -223,5 +223,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **Sprints Carryover-Fixes (2026-05-27)** : 3 commits consécutifs (`90a890f` + `ef44067` + `5b69bb9`) qui corrigent l'omission de `carryover_spent_amount` dans 4 routes API (`expenses-preview-breakdown`, `expenses-add-with-logic`, `expenses-real` PUT, `expenses-progress`) + 1 calcul client (`EditTransactionModal.editBudgetSpentPostReverse`). Part 34 étendue de ~7k à ~17k (3 sections ajoutées : Sprint Fix-Preview-Allocation-Carryover + Follow-up Fix-Progress-Route-Carryover + Follow-up Fix-Edit-Encart-Carryover). CLAUDE.md §5.5 invariant Tests 791→793, §11 État global réécrit pour mentionner "4 sprints de fix livrés", §11 Part 34 label "(3) → (6)". `.claude/conventions/operational-rules.md` §5 RAV formula : nouvelle règle ❌ 1-ligne pointant Part 34 + compaction du bullet `persisted-then-override` (libéré ~120 chars pour rester sous le cap 39.5k).
 
 **Sprint Salary-Auto-At-Recap-Complete + Contribution-Income-Mirror (2026-05-28)** : 2 features parentes (revenu salaire auto-créé à la finalisation du recap solo + revenu miroir côté groupe synchronisé avec dépense contribution sprint 16 V3). 7 migrations DB (3 RPCs nouvelles, 2 triggers, 2 colonnes `real_income_entries.recap_origin_id` + `contribution_id`). Part 36 créée (~10k). CLAUDE.md §5.5 invariants `EXPECTED_RPCS 25→28, Tests 796→797, Routes 44→45, fn 36→38`. §11 État global + Historique bumpés (35→36 parts, 146→148 sprints). §11 listing : 7 Parts trims (16/22/23/24/27/28/32/33/34/35 labels raccourcis) pour absorber l'ajout Part 36 sous le cap 39.5k.
+
+**Sprint Housekeeping-Deps-Format-Triage (2026-05-29)** : hygiène repo post-Part 38/39 (4 vulns Dependabot transitives patchées via `pnpm.overrides` ; glob lint-staged `*.{mjs,cjs,js}` ajouté ; fix assertion gated group-project RAV post-PÉ-12). Côté doc : `sprint-chronology-part-3.md` **créée** (split chronologique préemptif — part-2 à 39 267 saturée, 1 ligne table = +~2000 chars de padding) + pointeur en pied de part-2 (39 389). `CLAUDE.md` §9 réconcilié sur §5.5 (`447/158 → 846/242`, net-neutre) + §6 note lint-staged `.mjs` (trim "mécanique", net +12, 39 492). `git-workflow.md` §3 détaille les globs lint-staged. Total `.md` contexte 50 → 51.
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.

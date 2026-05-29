@@ -20,7 +20,7 @@ Config dans [commitlint.config.js](../../commitlint.config.js) (`@commitlint/con
 
 3 hooks installés (Sprint Lint-Followups / Sprint 1 / Sprint Commitlint) :
 
-- **pre-commit** ([.husky/pre-commit](../../.husky/pre-commit)) — `pnpm lint-staged` (prettier `--write` + eslint `--fix` sur fichiers staged). Première ligne de défense locale.
+- **pre-commit** ([.husky/pre-commit](../../.husky/pre-commit)) — `pnpm lint-staged` (prettier `--write` + eslint `--fix` sur fichiers staged). Première ligne de défense locale. Globs couverts : `*.{ts,tsx}` (prettier + eslint), `*.{json,md,yml,yaml,css}` + `*.{mjs,cjs,js}` (prettier seul ; ce dernier ajouté 2026-05-29 — avant, les scripts `.mjs`/`.cjs`/`.js` dérivaient et seul `format:check` global les rattrapait, jamais le pre-commit), `CLAUDE.md` + `.claude/**/*.md` (check-md-size).
 - **pre-push** ([.husky/pre-push](../../.husky/pre-push)) — `pnpm lint:check && pnpm typecheck` fail-fast. Filet final full-tree avant le PR gate `code-checks.yml`.
 - **commit-msg** ([.husky/commit-msg](../../.husky/commit-msg)) — `pnpm exec commitlint --edit "$1"`. Tout commit hors convention sort exit 1.
 
