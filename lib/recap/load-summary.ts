@@ -21,7 +21,7 @@
  *      n'a pas encore de row).
  *   5. Solde bancaire (`bank_balances.balance`) — `.maybeSingle()` + 0.
  *
- * RAV mapping (cf. prompt-montly-recap/04-calculations.md ligne 45-46) :
+ * RAV mapping (cf. .claude/conventions/operational-rules.md §5 — formule RAV canonique) :
  *   - ravEstime (profile) = totalEstimatedIncome - totalEstimatedBudgets
  *   - ravEstime (group)   = totalEstimatedIncome + totalGroupContributions - totalEstimatedBudgets
  *   - ravEffectif         = remainingToLive (calc-rtl existant)

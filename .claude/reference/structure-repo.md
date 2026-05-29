@@ -12,7 +12,7 @@
 
 ## 4. Structure du repo
 
-> ⚠️ **Note historique (Sprint Clean-Slate-Recap — 2026-05-23)** : Tout le code V1+V2 du Monthly Recap (routes, libs, components, hooks, schemas, dev tools, tables DB) a été supprimé. V3 en cours d'implémentation, spec sous `prompt-montly-recap/` untracked. Détail dans CLAUDE.md §5.
+> ⚠️ **Note historique (Sprint Clean-Slate-Recap — 2026-05-23)** : Tout le code V1+V2 du Monthly Recap (routes, libs, components, hooks, schemas, dev tools, tables DB) a été supprimé. V3 livré (Parts 19-23) ; prompts `prompt-montly-recap/` purgés post-livraison. Détail dans CLAUDE.md §5.
 
 > ⚠️ **Note historique (chantier 16 + Mission-suppression-audits — 2026-05-16)** : `docs/audit/` + `prompts/` + `audit_2/` + `audit_3/` archivés. Survivants migrés vers `doc2/db/SCHEMA.md` + `doc2/api/README.md`. Refs historiques dans cette doc — recovery via `git show <sha>:<path>`.
 
