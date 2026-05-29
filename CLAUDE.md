@@ -99,7 +99,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 - **2 clients Supabase** :
   - `lib/supabase-server.ts` (service_role, **bypass RLS**) — utilisé par TOUTES les routes API. Les failles RLS ne s'exploitent PAS depuis ce client.
-  - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables (cf. [doc2/audit/RLS-FINDINGS.md](doc2/audit/RLS-FINDINGS.md)).
+  - `lib/supabase-client.ts` (anon key, **soumis à RLS**) — utilisé côté browser via les hooks. C'est par ici que les failles RLS sont exploitables.
 - **Monthly Recap V3** (sprints 01-15/17) : [lib/recap/](lib/recap/) + [schemas/recap.ts](lib/schemas/recap.ts), 11 endpoints via `withAuthAndProfile`. `proxy.ts` redirige `/dashboard` vers `/monthly-recap?context=X` tant que `isRecapBlocking(status)` (cookie 5min cache `completed`). Wizard 5 steps + refloat sous `components/monthly-recap/*` ; [useMonthlyRecap.ts](hooks/useMonthlyRecap.ts) (useQuery + 9 mutations). Seeds [scripts/seed-recap/](scripts/seed-recap/README.md). ⚠️ Re-entrée = EXACT step + sub-state (memory `feedback_recap_exact_reentry`).
 - **Projets d'épargne** (sprints PÉ 01-12, [Part 29-31](.claude/history/roadmap-detailed-29-projets-epargne.md)) : `savings_projects` + 4 RPCs. `monthly_allocation` = budget virtuel dans `totalEstimatedBudgets`. Refloat cascade savings→budget snapshot (`BilanNegativeStep` PÉ-09) ; `apply_recap_projects_snapshot` (PÉ-10) : `amount_saved += monthly-refund` + deadline shift. PÉ-12 : sync projets groupe → recalc contributions + `groupMembersPersonalRavTotal`. Seed `project-deficit-refloat.mjs`. ⚠️ Sanctuarisés (cascade auto-piggy ne touche pas).
 - **Allocation dépenses** : local = savings dest puis budget. **Dépassement** > 0 : cascade auto tirelire → savings autres budgets proportionnel (Sprint Auto-Cascade-Piggy 2026-05-25). Reste = déficit dest. Module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (`calculateBreakdown` legacy + `calculateBreakdownWithAutoCascade` ADD). RPC `add_expense_with_cross_budget_cascade` si piggy>0 ou cross non vide.
@@ -201,7 +201,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - ✅ **Sprints 0 / DB / Refactor / Hardening** : `ignoreBuildErrors` retiré (C1), 20 routes debug `blockInProduction` (C2), 4 RPC atomiques C3, RLS `piggy_bank` (D1), policies group_contributions + remaining_to_live_snapshots fixées (D2/D3), baseline schéma versionné (D5), `createClient<Database>` wirage (R2), `pnpm db:check-drift` (R4), 17 scope-casts unwound + 3 bugs surfacés (H1), ~~H3 overdraft~~ retiré 2026-05-25, `pnpm db:check-rpcs` (H4).
 - ✅ **Sprints Polish → Stabilize-Deps** (9 sprints) : consolidations CI / db-audit / dependabot.
 
-**Drift C3 résolu** ([post-mortem](doc2/audit/POST-MORTEM-C3-DRIFT.md)) : filet = `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` + tests gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.
+**Drift C3 résolu** : filet = `pnpm db:check-drift` + `db:check-rpcs` + `db:check-types-fresh` + tests gated `SUPABASE_RPC_CONCURRENCY_TESTS=1`.
 
 ## 8. À FAIRE / À NE PAS FAIRE
 
@@ -258,7 +258,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **`any`** dans nouveau code. **`console.log` ajouté** → `logger.debug/info`. **Mocker la DB** dans tests d'intégration.
 - **Commiter** de secret. `.env.local` + `.claude/settings.local.json` gitignored.
 - **Réactiver** `typescript.ignoreBuildErrors`. **Upgrader `eslint-config-next` 15→16** (déjà fait, ignore rule en place).
-- **Écrire des docs `.md`** sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, sous-fichiers `.claude/`).
+- **Écrire des docs `.md`** sans demande explicite (sauf CLAUDE.md et sous-fichiers `.claude/`).
 - **Écrire la phrase littérale `eslint-disable-next-line`** dans un commentaire qui n'est PAS un disable directive (ESLint la parse comme rule "directive.").
 - **Trigger / handler-side cleanup pour FK** avant d'avoir vérifié `ON DELETE SET NULL` / `ON DELETE CASCADE` existant.
 - **Réintroduire `middleware.ts`** — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20).

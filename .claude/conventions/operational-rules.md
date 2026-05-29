@@ -194,7 +194,7 @@ Règles ❌ + précédents → [Part 32](../history/roadmap-detailed-32-group-ra
 - ❌ **NE PAS** réactiver `typescript.ignoreBuildErrors`.
 - ❌ **NE PAS** upgrader `eslint-config-next` 15→16 maintenant (Sprint 1 séparé).
 - ❌ **NE PAS** mocker la DB dans les tests d'intégration — utiliser Supabase local ou staging.
-- ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md, RLS-FINDINGS, prompts/, et les fichiers `.claude/` mis en place pour la refactorisation du CLAUDE.md).
+- ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md et les fichiers `.claude/` mis en place pour la refactorisation du CLAUDE.md).
 - ❌ **NE PAS** réintroduire les exports supprimés au Sprint Dead-Code-Purge (cf. §1 ci-dessus).
 - ❌ **NE PAS** réintroduire un fichier `lib/financial-calculations.ts` — le god file (1069 LOC) a été splitté en 8 modules sous [lib/finance/](../../lib/finance/) au Sprint Refactor-I4.
 - ❌ **NE PAS** réintroduire un fichier `middleware.ts` — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Runtime nodejs non-configurable ; pour edge, garder le nom legacy. Migration : `git mv middleware.ts proxy.ts` + rename function + maj log prefixes + maj `eslint.config.mjs` files override.
