@@ -21,7 +21,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 
 **Popoth** : PWA francophone **mobile-first** de gestion financière personnelle et en groupe. **Toute UI doit être pensée mobile uniquement** (cible iPhone Safari/Chrome, viewport ≤ 430 px). Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) — workflow par défaut côté dev ; `scripts/db-*.mjs` ciblent prod par défaut (fallback hardcodé), override `$env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'` pour dev (cf. `feedback_supabase_project_target` memory). **Score audit ~100/100** (baseline 47/100 audit 2026-04). Évolution sprint par sprint → [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
+Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) — workflow par défaut côté dev ; `scripts/db-*.mjs` ciblent prod par défaut (fallback hardcodé), override `$env:SUPABASE_PROJECT_REF` pour dev (cf. `feedback_supabase_project_target` memory). Dev sans tracker `schema_migrations` (schéma ad-hoc `apply-sql.mjs`, cf. multi-env.md §6). **Score audit ~100/100** (baseline 47/100). Évolution → [score-evolution-1](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
 ## 2. Stack
 

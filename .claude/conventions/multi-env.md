@@ -119,6 +119,14 @@ $env:SUPABASE_PROJECT_REF = $null
 
 Si la DB dev est vide / fresh : copier la baseline prod via `supabase db push --include-all` après link.
 
+> ⚠️ **Réalité dev (constatée 2026-05-29)** : le projet dev `ddehmjucyfgyppfkbddr` n'a **aucun tracker de migrations** — le schéma `supabase_migrations` (et donc la table `schema_migrations`) **n'existe pas**. Son schéma a été bâti entièrement en ad-hoc via `apply-sql.mjs` (Management API), jamais via `supabase db push`. Conséquences :
+>
+> - `supabase migration list` / `db push` contre dev **ne marchent pas tels quels** : un `db push` créerait le tracker puis tenterait d'appliquer **toutes** les migrations locales — or la plupart existent déjà sur dev → collisions (`relation already exists`, `type already exists`…). Le bloc PowerShell ci-dessus (link + `db push`) est donc **théorique** tant que le tracker dev n'est pas initialisé.
+> - Il n'y a donc **rien à enregistrer** dans `schema_migrations` côté dev (aucun risque « db push ré-applique »). Pour migrer dev aujourd'hui : `apply-sql.mjs` (idempotent via `CREATE OR REPLACE` ; un `CREATE TABLE`/`CREATE TYPE` neuf passe une fois).
+> - Initialiser un vrai tracker dev = créer `supabase_migrations.schema_migrations` + **backfiller toutes** les versions historiques (~100) pour matcher les fichiers locaux. Tâche séparée, non faite.
+>
+> Côté **prod** (`jzmppreybwabaeycvasz`), au contraire, `schema_migrations` **existe et fait foi**. Toute migration appliquée hors `db push` (ex. `20260608000000_create_add_exceptional_expense_with_piggy_rpc`, poussée via `apply-sql.mjs` le 2026-05-29) **doit y être enregistrée** — `INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES (…)` (équivalent de `migration repair --status applied <version>`), sinon un futur `db push` la re-tente (inoffensif si idempotente, mais tracker désynchronisé). Enregistrement faisable via `apply-sql.mjs` (Management API + `SUPABASE_ACCESS_TOKEN`) quand le `SUPABASE_DB_PASSWORD` du shell est ambigu (bloc `.env.local` basculé prod↔dev).
+
 ## 7. Règle de sécurité (rappel)
 
 Le fichier `.env.local` (et tout autre `.env*.local`) est **gitignored** et contient des secrets. Claude **ne doit JAMAIS lire ses valeurs** (règle absolue CLAUDE.md §10). Pour le user uniquement — y compris les blocs commentés contenant les clés prod ou dev.
