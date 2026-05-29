@@ -267,7 +267,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 ## 9. Tests
 
 - **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
-- **Total** : 447 non-gated + 158 gated skipped (sans env vars).
+- **Total** : 846 non-gated + 242 gated skipped (sans env vars).
 
 ### Tests gated DB (env var requise)
 
