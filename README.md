@@ -127,7 +127,7 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm pwa:assets`                          | Régénère apple-icon + icons manifest + splash iPhone (sharp)                           |
 | `pnpm supabase ...`                        | CLI Supabase (lié au projet distant)                                                   |
 | `node scripts/export-schema.mjs <out.sql>` | Snapshot du schéma prod via API Management                                             |
-| `node scripts/apply-sql.mjs <file.sql>`    | Applique un .sql (write OU SELECT lecture seule)                                        |
+| `node scripts/apply-sql.mjs <file.sql>`    | Applique un .sql (write OU SELECT lecture seule)                                       |
 | `node scripts/seed-recap/<key>.mjs`        | Seede la DB dev pour un scénario Monthly Recap V3 (cf. `scripts/seed-recap/README.md`) |
 
 **Tests gated** (la suite skip sans la variable, donc la CI standard reste rapide) :
