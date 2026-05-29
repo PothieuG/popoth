@@ -1,10 +1,12 @@
 # Prompt housekeeping — vulnérabilités Dependabot + format + triage
 
 > Créé 2026-05-29 après le sprint Planner-RAV-Color (Part 38). Snapshot des problèmes
-> repérés à ce moment-là. **Usage** : coller le contenu sous la ligne `---` dans une nouvelle
-> session Claude Code ouverte sur la branche `dev`. Réviser le compte de vulnérabilités au
-> moment de l'exécution (il peut avoir changé). Les items de la Tâche 3 sont optionnels —
-> Claude doit confirmer le périmètre avant de les attaquer.
+> repérés à ce moment-là. **Étendu 2026-05-29** (Tâche 4) en clôturant le sprint
+> Exceptional-Expense-Piggy-Funding (RPC `add_exceptional_expense_with_piggy`). **Usage** :
+> coller le contenu sous la ligne `---` dans une nouvelle session Claude Code ouverte sur la
+> branche `dev`. Réviser le compte de vulnérabilités au moment de l'exécution (il peut avoir
+> changé). Les items des Tâches 3 et 4 sont en partie optionnels — Claude doit confirmer le
+> périmètre avant de les attaquer.
 
 ---
 
@@ -103,6 +105,54 @@ une ligne = +~2000 chars (dépassement). Avant de pouvoir y logger de nouveaux s
 `sprint-chronology-part-3.md` (split chronologique préemptif, size-policy §7) + pointeur. De
 même `CLAUDE.md` (≈ 39 391), `operational-rules.md` (≈ 39 249), `operational-rules-ui-modals.md`
 (≈ 39 268) sont en zone d'alerte = candidats refactor. Optionnel / cosmétique.
+
+## Tâche 4 — Suivi du sprint Exceptional-Expense-Piggy-Funding (2026-05-29)
+
+> Items générés en finalisant la feature « financer une dépense exceptionnelle avec la tirelire »
+> (migration `20260608000000`, RPC `add_exceptional_expense_with_piggy`). La feature elle-même est
+> livrée et verte (typecheck + lint 0/0 + tests 842/242 + tous les `db:*` checks). Ce sont des
+> items de **suivi**, pas des régressions. Le point « format » remonté à ce moment-là est déjà la
+> **Tâche 2** ci-dessus (toujours ouverte) — ne pas le dupliquer.
+
+**A. [Environnement DB cassé — PRIORITÉ HAUTE, action UTILISATEUR]** `supabase db push` échoue :
+`SUPABASE_DB_PASSWORD` ne s'authentifie plus contre prod (`failed SASL auth ... password
+authentication failed for user "postgres" (SQLSTATE 28P01)` sur `db.jzmppreybwabaeycvasz.supabase.co`).
+Claude ne peut PAS corriger ça (et ne doit jamais lire/coller le secret). À faire par l'utilisateur :
+reset le mot de passe DB (Supabase Dashboard → Project Settings → Database → Reset database password)
+puis mettre à jour la variable persistée `SUPABASE_DB_PASSWORD` (User env), et redémarrer la session.
+Tant que ce n'est pas réglé, toute migration future passe par `node scripts/apply-sql.mjs <fichier>`
+(Management API via `SUPABASE_ACCESS_TOKEN`, qui lui fonctionne) — mais ce workaround NE met PAS à
+jour le tracker `schema_migrations` (cf. B).
+
+**B. [Migration RPC non trackée — dépend de A]** La migration
+`20260608000000_create_add_exceptional_expense_with_piggy_rpc.sql` a été appliquée en **prod ET dev**
+via `apply-sql.mjs` (la fonction EST présente : `pnpm db:check-rpcs` retourne 29/29 OK ;
+`pnpm db:check-drift` / `db:audit-functions` OK), mais elle n'est PAS enregistrée dans
+`schema_migrations` (apply-sql ne track pas). Une fois A réglé, la register sur les **deux** projets :
+`supabase migration repair --status applied 20260608000000` (prod par défaut, puis
+`$env:SUPABASE_PROJECT_REF='ddehmjucyfgyppfkbddr'` + repair pour dev), OU un `supabase db push` qui
+ré-applique le `CREATE OR REPLACE FUNCTION` (idempotent) et l'enregistre. Vérifier avec
+`supabase migration list` (les deux DBs doivent montrer `20260608000000` appliquée). Sans ça, un
+futur `db push` voudra la ré-appliquer — inoffensif (idempotent) mais le tracker reste désynchronisé.
+
+**C. [Test gated à exécuter une fois]** `lib/finance/__tests__/add-exceptional-expense-with-piggy.test.ts`
+(8 cas : débit partiel `P<A` / couverture totale `P=A` / overdraft → rollback atomique / XOR contexte /
+compte neuf sans ligne piggy / round-trip create→`delete_expense_with_sources_refund` rendant la
+tirelire / 30 créations concurrentes) est écrit + typé mais JAMAIS exécuté (gated
+`SUPABASE_RPC_CONCURRENCY_TESTS=1` ; il crée de vrais users + rows). Le lancer **contre DEV** : bloc
+dev actif dans `.env.local`, puis
+`$env:SUPABASE_RPC_CONCURRENCY_TESTS='1'; pnpm exec vitest run lib/finance/__tests__/add-exceptional-expense-with-piggy.test.ts`.
+Confirmer les 8 verts (cleanup `afterAll` supprime les fixtures). ⚠️ NE PAS lancer contre prod.
+
+**D. [Doc roadmap manquante — bloquée par cap 39.5k]** Le sprint Exceptional-Expense-Piggy-Funding
+n'a pas encore d'entrée d'historique : créer `.claude/history/roadmap-detailed-39-exceptional-expense-piggy.md`
+(closeout verbatim — modal toggle tirelire, RPC atomique, RAV = part propre argent uniquement,
+delete→refund via `delete_expense_with_sources_refund`, lock édition 409 + UI) + ajouter la ligne
+« Part 39 » dans CLAUDE.md §11 (index + « Dernier »). ⚠️ CLAUDE.md est à ~39 388 / 39 500 → pas de
+place pour la ligne §11 sans trim équivalent au préalable (voir 3.E + `size-policy.md`). Les
+**invariants chiffrés sont DÉJÀ à jour** (§5.5 : 29 RPCs, 44/44 fn, 842 non-gated / 242 gated ;
+`scripts/check-rpcs.mjs` inclut `add_exceptional_expense_with_piggy`). Item cosmétique/dette doc —
+confirmer avec moi (peut attendre un refactor CLAUDE.md).
 
 ## Règles transverses
 
