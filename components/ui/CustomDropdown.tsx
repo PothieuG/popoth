@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { cn } from '@/lib/utils'
+import { cn, sortByName } from '@/lib/utils'
 
 export interface DropdownOption {
   id: string
@@ -186,6 +186,27 @@ export default function CustomDropdown({
     return () => document.removeEventListener('mousedown', handler)
   }, [isOpen])
 
+  // Laisse le menu portalé scroller malgré le scroll-lock de Radix
+  // (react-remove-scroll). Quand un Dialog est ouvert, RRS attache des listeners
+  // `wheel`/`touchmove` non-passifs sur `document` (phase bubble) et preventDefault
+  // tout scroll dont la cible est hors du sous-arbre Dialog ; or notre menu vit
+  // dans `document.body` (sibling) → il serait bloqué. stopPropagation au niveau
+  // du menu coupe l'event avant qu'il n'atteigne `document`, donc le handler RRS
+  // ne tourne jamais → le scroll natif du `overflow-y-auto` fonctionne. Listener
+  // NATIF requis : React et RRS écoutent tous deux sur `document`, et le
+  // `stopPropagation` synthetic n'arrête pas un listener du même nœud.
+  useEffect(() => {
+    const el = menuRef.current
+    if (!isOpen || !el) return
+    const stop = (e: Event) => e.stopPropagation()
+    el.addEventListener('wheel', stop, { passive: true })
+    el.addEventListener('touchmove', stop, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', stop)
+      el.removeEventListener('touchmove', stop)
+    }
+  }, [isOpen])
+
   const toggleOpen = () => {
     if (disabled) return
     if (!isOpen) {
@@ -194,6 +215,10 @@ export default function CustomDropdown({
     }
     setIsOpen((prev) => !prev)
   }
+
+  // Tri alphabétique (fr) des options affichées — source de vérité unique pour
+  // tous les dropdowns de modal. Copie (sortByName ne mute pas le prop reçu).
+  const sortedOptions = useMemo(() => sortByName(options), [options])
 
   const selectedOption = options.find((option) => option.id === value)
 
@@ -257,10 +282,10 @@ export default function CustomDropdown({
             }}
             className="z-[100] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg"
           >
-            {options.length === 0 ? (
+            {sortedOptions.length === 0 ? (
               <div className="px-3 py-2 text-sm text-gray-500">Aucune option disponible</div>
             ) : (
-              options.map((option) => (
+              sortedOptions.map((option) => (
                 <button
                   key={option.id}
                   type="button"
