@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
-import { cn } from '@/lib/utils'
+import { cn, sortByName } from '@/lib/utils'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
@@ -174,6 +174,14 @@ export default function PlanningDrawer({
     refreshProjects,
     totalMonthlyAllocations,
   } = useProjects(context)
+
+  // Tri alphabétique (fr) des listes affichées dans les onglets du planificateur.
+  // Copie obligatoire (sortByName) : `budgets`/`incomes`/`projects` viennent du
+  // cache TanStack Query et ne doivent pas être mutés. Le bloc read-only des
+  // revenus (salaire / contributions groupe) reste affiché tel quel, en tête.
+  const sortedBudgets = useMemo(() => sortByName(budgets), [budgets])
+  const sortedIncomes = useMemo(() => sortByName(incomes), [incomes])
+  const sortedProjects = useMemo(() => sortByName(projects), [projects])
 
   // Sprint P1 — lit la période depuis l'URL ?period= pour filtrer les progress
   // bars budget. Hérité automatiquement du dashboard (PeriodSelector).
@@ -747,7 +755,7 @@ export default function PlanningDrawer({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {budgets.map((budget) => {
+                  {sortedBudgets.map((budget) => {
                     const progress = budgetProgresses.find((p) => p.budgetId === budget.id)
                     if (!progress) return null
 
@@ -919,7 +927,7 @@ export default function PlanningDrawer({
                       </div>
                     </div>
                   ))}
-                  {incomes.map((income) => {
+                  {sortedIncomes.map((income) => {
                     const progress = incomeProgresses.find((p) => p.incomeId === income.id)
                     if (!progress) return null
 
@@ -1053,7 +1061,7 @@ export default function PlanningDrawer({
                 </div>
               ) : (
                 <div className="space-y-2" data-testid="projects-list">
-                  {projects.map((project) => (
+                  {sortedProjects.map((project) => (
                     <ProjectListItem
                       key={project.id}
                       project={project}
