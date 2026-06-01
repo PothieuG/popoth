@@ -1,14 +1,15 @@
 /**
- * Sprint Fix-Group-Recap-RavEstime (2026-05-27) — pin the symmetric formula
+ * Sprint Fix-Group-Recap-RavEstime (2026-05-27) — pin the formula
  * `ravEstime = totalEstimatedIncome + (meta.totalGroupContributions ?? 0) −
  * totalEstimatedBudgets` in `lib/recap/load-summary.ts`.
  *
- * Without `+ meta.totalGroupContributions`, a group with budgets+projets sees
- * `bilan = ravEffectif − ravEstime` drift to a permanent false positive
- * (cas vu : 600€ budget + 2370€ projets → bilan +2970€ alors qu'aucune activité
- * réelle). The symmetry mirrors `calculateRemainingToLiveGroup`
- * ([lib/finance/calc-rtl.ts:58-74](../../finance/calc-rtl.ts)) which adds the
- * same term on the effectif side.
+ * `ravEstime` est une métrique d'AFFICHAGE autonome (carte « Reste à vivre
+ * estimé »). Depuis Sprint Bilan-Equals-RavEffectif, le bilan = `ravEffectif`
+ * et ne lit PLUS `ravEstime` — ces tests pinnent donc la formule `ravEstime`
+ * elle-même, plus l'invariant `bilan === ravEffectif`. Le terme groupe miroite
+ * `calculateRemainingToLiveGroup`
+ * ([lib/finance/calc-rtl.ts:58-74](../../finance/calc-rtl.ts)) pour que le RAV
+ * estimé affiché reste cohérent avec le RAV effectif.
  *
  * Mocks `@/lib/finance` (controlled FinancialData) + `@/lib/supabase-server`
  * (empty query chain) so the test exercises only the formula in load-summary.
@@ -161,5 +162,34 @@ describe('loadRecapSummary — ravEstime formula', () => {
 
     // 3000 − 700 = 2300 (no contribution term in perso)
     expect(summary.ravEstime).toBe(2300)
+  })
+})
+
+describe('loadRecapSummary — bilan = ravEffectif (Sprint Bilan-Equals-RavEffectif)', () => {
+  it('bilan equals remainingToLive (ravEffectif), independent of ravEstime', async () => {
+    // remainingToLive = 300 (positif) ; ravEstime = 1000 − 200 = 800.
+    // Ancienne formule : bilan = 300 − 800 = -500 (négatif). Nouvelle : 300.
+    FINANCIAL_DATA_STATE.value = {
+      availableBalance: 0,
+      remainingToLive: 300,
+      totalSavings: 0,
+      totalEstimatedIncome: 1000,
+      totalEstimatedBudgets: 200,
+      totalRealIncome: 0,
+      totalRealExpenses: 0,
+      meta: { readOnlyIncomes: [], totalMonthlyProjects: 0, savingsProjects: [] },
+    }
+
+    const { loadRecapSummary } = await import('../load-summary')
+    const summary = await loadRecapSummary({
+      context: 'profile',
+      profileId: PROFILE_ID,
+      groupId: null,
+    })
+
+    expect(summary.ravEstime).toBe(800)
+    expect(summary.ravEffectif).toBe(300)
+    expect(summary.bilan).toBe(300)
+    expect(summary.bilanSign).toBe('positive')
   })
 })

@@ -115,8 +115,8 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **846**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped                    | **242**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
+| Tests non-gated passants               | **851**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped                    | **245**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **45**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
@@ -329,7 +329,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 846/242. 45 routes. 29 RPCs + 44 fn. MRv3+PÉ livrés. Dernier : financer une dépense exceptionnelle avec la tirelire (solo + groupe).
+**État global** : Score ~100. Lint 0/0. Tests 851/245. 45 routes. 29 RPCs + 44 fn. MRv3+PÉ livrés. Dernier : bilan récap = RAV effectif ; surplus positif → tirelire.
 
 **Historique** — 39 parts (151 sprints) :
 

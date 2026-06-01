@@ -25,22 +25,22 @@ export interface BudgetSummary {
 
 export interface RecapSummary {
   currentBalance: number
-  /** Reste à vivre estimé.
+  /** Reste à vivre estimé — métrique indicative affichée au résumé ; n'entre
+   *  PAS dans le bilan (depuis Sprint Bilan-Equals-RavEffectif).
    *  - Profile : `totalEstimatedIncome − totalEstimatedBudgets`
    *  - Group   : `totalEstimatedIncome + totalGroupContributions − totalEstimatedBudgets`
-   *  Le terme groupe DOIT figurer pour rester symétrique à `ravEffectif`
-   *  (cf. `lib/finance/calc-rtl.ts::calculateRemainingToLiveGroup`). Sans cette
-   *  symétrie, le bilan dérive en faux positif dès qu'il y a un budget ou
-   *  projet groupe (les contributions auto-syncées sur
-   *  `groups.monthly_budget_estimate` ne figurent que côté effectif). */
+   *  Le terme groupe figure pour cohérence d'affichage avec `ravEffectif`
+   *  (cf. `lib/finance/calc-rtl.ts::calculateRemainingToLiveGroup`). */
   ravEstime: number
   ravEffectif: number
   totalSurplus: number
   totalSavings: number
   piggyAmount: number
   budgets: readonly BudgetSummary[]
-  /** Bilan = ravEffectif - ravEstime (soustraction). Positif = mois mieux que prévu,
-   *  négatif = pire que prévu. Cf. `lib/recap/calculations.ts::computeRecapSummary`. */
+  /** Bilan = ravEffectif (reste à vivre effectif). Positif → argent « en plus »
+   *  versé à la tirelire à l'écran suivant ; négatif → déficit à renflouer
+   *  (= |ravEffectif|) ; zéro → équilibre. Cf.
+   *  `lib/recap/calculations.ts::computeRecapSummary`. */
   bilan: number
   bilanSign: 'positive' | 'negative' | 'zero'
   /** Sprint Projets-Épargne 07 (2026-05-26). Subset présentationnel des projets

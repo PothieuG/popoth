@@ -52,6 +52,9 @@ export interface TransformOutcome {
   failed: BudgetActionFailure[]
   /** `'salary_update'` when the state machine advanced; `null` when retry needed. */
   nextStep: 'salary_update' | null
+  /** Sprint Bilan-Equals-RavEffectif — montant du reste à vivre effectif positif
+   *  balayé vers la tirelire au « Continuer » (0 si bilan ≤ 0 ou sweep échoué). */
+  sweptToPiggy: number
 }
 
 export interface ExecuteTransferArgs {
@@ -229,10 +232,51 @@ export async function executeTransformRemainingToSavings(
   }
 
   // Advance only when something succeeded OR there was nothing to do.
-  // 100% failure on non-empty targets → keep current_step so the user can retry.
+  // 100% failure on non-empty targets → keep current_step so the user can retry
+  // (and we skip the rav sweep below, so a retry doesn't double-credit the piggy).
   const shouldAdvance = targets.length === 0 || transformed.length > 0
   let nextStep: 'salary_update' | null = null
+  let sweptToPiggy = 0
+
   if (shouldAdvance) {
+    // Sprint Bilan-Equals-RavEffectif — balayer le reste à vivre effectif positif
+    // (= summary.bilan = ravEffectif) vers la tirelire, AVANT d'avancer l'étape.
+    // C'est « l'argent en plus » non associé à un budget : disjoint des
+    // sous-dépenses budget ci-dessus (qui vivent DANS l'enveloppe budget) et des
+    // déficits (déjà soustraits de ravEffectif) → pas de double-comptage. La
+    // tirelire n'entre pas dans la formule RAV → pas d'effet boomerang au
+    // recalcul du mois suivant. On NE touche PAS `piggy_transfers_data` (réservé
+    // au tracking virtuel des sous-dépenses) — ce crédit est indépendant.
+    //
+    // Idempotence (Option A, pas de colonne dédiée) : même profil de risque que
+    // le transform ci-dessus. Le sweep est confiné à la branche `shouldAdvance`
+    // et précède l'écriture d'avance ; la gate 409 ALLOWED_STEPS de la route
+    // bloque toute ré-entrée une fois `salary_update` atteint. La seule fenêtre
+    // de double-crédit (« sweep ok + écriture d'avance échoue ») est identique à
+    // celle déjà acceptée pour cumulated_savings.
+    if (summary.bilan > 0.01) {
+      const filter: ContextFilter =
+        args.context === 'profile'
+          ? { profile_id: args.profileId }
+          : { group_id: args.groupId as string }
+      try {
+        const amount = round2(summary.bilan)
+        await ensurePiggyBankRow(filter)
+        await updatePiggyBank(filter, amount)
+        sweptToPiggy = amount
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        logger.error('[recap/positive] rav-to-piggy sweep failed', {
+          recapId: args.recap.id,
+          amount: summary.bilan,
+          reason,
+        })
+        // Ne pas avancer : l'utilisateur réessaie « Continuer » (rien n'a été
+        // crédité puisque le sweep a échoué).
+        return { transformed, failed, nextStep: null, sweptToPiggy: 0 }
+      }
+    }
+
     const { error } = await supabaseServer
       .from('monthly_recaps')
       .update({ current_step: 'salary_update' })
@@ -244,5 +288,5 @@ export async function executeTransformRemainingToSavings(
     }
   }
 
-  return { transformed, failed, nextStep }
+  return { transformed, failed, nextStep, sweptToPiggy }
 }

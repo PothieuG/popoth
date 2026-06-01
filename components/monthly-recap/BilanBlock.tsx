@@ -32,9 +32,7 @@ export function BilanBlock({
       <p className="mb-2 text-xs font-medium tracking-wide uppercase">Bilan du mois</p>
       <p className={cn('mb-3 text-2xl font-bold', styles.badge)}>{formatEuro(bilan)}</p>
       {bilanSign === 'positive' && (
-        <p className="text-sm">
-          Vous allez pouvoir ajouter {formatEuro(bilan)} à votre total d&apos;économies.
-        </p>
+        <p className="text-sm">Vous allez pouvoir ajouter {formatEuro(bilan)} à votre tirelire.</p>
       )}
       {bilanSign === 'negative' && (
         <p className="text-sm">L&apos;objectif est de revenir à l&apos;équilibre (bilan = 0).</p>

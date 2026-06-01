@@ -43,7 +43,7 @@ describe('computeRecapSummary', () => {
   it('aggregates surplus across 3 budgets when bilan is positive', () => {
     const result = computeRecapSummary({
       ...baseInput,
-      // bilan = ravEffectif - ravEstime → 400 - 100 = 300 (positive)
+      // bilan = ravEffectif → 400 (positive). ravEstime affiché seulement.
       ravEstime: 100,
       ravEffectif: 400,
       budgets: [
@@ -72,16 +72,17 @@ describe('computeRecapSummary', () => {
     })
 
     expect(result.totalSurplus).toBe(100)
-    expect(result.bilan).toBe(300)
+    expect(result.bilan).toBe(400)
     expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('positive')
   })
 
-  it('reports bilanSign zero when ravEffectif equals ravEstime (mois exactement comme prévu)', () => {
+  it('reports bilanSign zero when ravEffectif === 0 (équilibre, ravEstime ignoré)', () => {
     const result = computeRecapSummary({
       ...baseInput,
-      // bilan = 50 - 50 = 0 (équilibre exact)
+      // bilan = ravEffectif = 0 (équilibre). ravEstime non-nul prouve qu'il
+      // n'entre plus dans le bilan.
       ravEstime: 50,
-      ravEffectif: 50,
+      ravEffectif: 0,
       budgets: [],
     })
 
@@ -89,10 +90,10 @@ describe('computeRecapSummary', () => {
     expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('zero')
   })
 
-  it('reports bilanSign negative when ravEffectif < ravEstime (j-ai dépensé plus que prévu)', () => {
+  it('reports bilanSign negative when ravEffectif < 0 (reste à vivre négatif → déficit)', () => {
     const result = computeRecapSummary({
       ...baseInput,
-      // bilan = -150 - (-50) = -100 (RAV effectif pire que RAV estimé)
+      // bilan = ravEffectif = -150 (déficit à renflouer = |ravEffectif|)
       ravEstime: -50,
       ravEffectif: -150,
       budgets: [
@@ -106,10 +107,25 @@ describe('computeRecapSummary', () => {
       ],
     })
 
-    expect(result.bilan).toBe(-100)
+    expect(result.bilan).toBe(-150)
     expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('negative')
     expect(result.budgets[0]?.deficit).toBe(30)
     expect(result.budgets[0]?.surplus).toBe(0)
+  })
+
+  it('bilan equals ravEffectif even when ravEstime is much larger (regression-lock)', () => {
+    // Sprint Bilan-Equals-RavEffectif : l'ancienne formule `ravEffectif -
+    // ravEstime` aurait donné 250 - 1000 = -750 (négatif). La nouvelle donne
+    // bilan = ravEffectif = 250 (positif). Prouve que ravEstime n'entre plus.
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 1000,
+      ravEffectif: 250,
+      budgets: [],
+    })
+
+    expect(result.bilan).toBe(250)
+    expect(result.bilanSign).toBe<RecapSummary['bilanSign']>('positive')
   })
 
   it('includes carryoverSpentAmount in effectiveSpent for surplus/deficit calc', () => {
@@ -255,16 +271,17 @@ describe('computeRecapSummary', () => {
     expect(result.piggyAmount).toBe(123.45)
   })
 
-  it('computes bilan cents-precise when RAVs combine to a sub-cent value', () => {
+  it('computes bilan cents-precise (round2 absorbs float drift on ravEffectif)', () => {
     const result = computeRecapSummary({
       ...baseInput,
-      // bilan = 100.015 - 100.005 = 0.01 (cents-precise via round2 absorbe float drift)
-      ravEstime: 100.005,
-      ravEffectif: 100.015,
+      // bilan = round2(ravEffectif). round2 absorbe le drift classique
+      // 0.1 + 0.2 = 0.30000000000000004 → 0.3.
+      ravEstime: 0,
+      ravEffectif: 0.1 + 0.2,
       budgets: [],
     })
 
-    expect(result.bilan).toBe(0.01)
+    expect(result.bilan).toBe(0.3)
   })
 
   // Sprint Recap-Positive-Consume-Surplus (2026-05-25) — piggyTransfersData

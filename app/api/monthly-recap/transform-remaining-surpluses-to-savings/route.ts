@@ -1,8 +1,11 @@
 /**
  * POST /api/monthly-recap/transform-remaining-surpluses-to-savings — convert
- * every remaining positive surplus into the budgets' cumulated_savings.
- * Sprint 06 Monthly Recap V3 — positive flow action 2 (terminates the 4.A
- * branch by advancing the state machine to `'salary_update'`).
+ * every remaining positive surplus into the budgets' cumulated_savings AND
+ * sweep the positive reste à vivre effectif (= summary.bilan = ravEffectif)
+ * into the piggy bank. Sprint 06 Monthly Recap V3 — positive flow action 2
+ * (terminates the 4.A branch by advancing the state machine to
+ * `'salary_update'`). Sprint Bilan-Equals-RavEffectif added the rav→piggy sweep
+ * (`data.sweptToPiggy`).
  *
  * Loop is fail-soft per budget (`update_budget_cumulated_savings` is its own
  * single-row tx). The state machine advances only when at least one transform
@@ -63,6 +66,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
         transformed: outcome.transformed,
         failed: outcome.failed,
         nextStep: outcome.nextStep,
+        sweptToPiggy: outcome.sweptToPiggy,
       },
     })
   } catch (error) {

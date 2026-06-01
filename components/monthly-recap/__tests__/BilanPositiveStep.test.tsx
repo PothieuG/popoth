@@ -235,6 +235,37 @@ describe('BilanPositiveStep', () => {
     })
   })
 
+  describe('reste à vivre swept to piggy (Sprint Bilan-Equals-RavEffectif)', () => {
+    it('renders the "Argent en plus" line crediting the tirelire when bilan > 0', () => {
+      render(<BilanPositiveStep context="profile" summary={makeSummary({ bilan: 333.33 })} />)
+
+      expect(screen.getByText('Argent en plus (reste à vivre)')).toBeInTheDocument()
+      expect(screen.getByText(/\+333,33/)).toBeInTheDocument()
+      expect(screen.getByText(/ajoutés à ta tirelire/)).toBeInTheDocument()
+    })
+
+    it('does NOT render the "Argent en plus" line when bilan === 0', () => {
+      render(<BilanPositiveStep context="profile" summary={emptySurplusSummary} />)
+
+      expect(screen.queryByText('Argent en plus (reste à vivre)')).not.toBeInTheDocument()
+    })
+
+    it('renders the "Argent en plus" line even with no per-budget surplus (bilan > 0)', () => {
+      // RAV positif mais 0 sous-dépense budget : le balayage du reste à vivre
+      // s'affiche quand même (gate indépendant de `hasSurplus`).
+      render(
+        <BilanPositiveStep
+          context="profile"
+          summary={makeSummary({ ...emptySurplusSummary, bilan: 120, bilanSign: 'positive' })}
+        />,
+      )
+
+      expect(screen.getByText('Aucun surplus à transformer.')).toBeInTheDocument()
+      expect(screen.getByText('Argent en plus (reste à vivre)')).toBeInTheDocument()
+      expect(screen.getByText(/\+120,00/)).toBeInTheDocument()
+    })
+  })
+
   describe('piggy bank card', () => {
     it('renders the violet "Tirelire actuelle" card with the formatted amount', () => {
       render(<BilanPositiveStep context="profile" summary={makeSummary({ piggyAmount: 123.45 })} />)

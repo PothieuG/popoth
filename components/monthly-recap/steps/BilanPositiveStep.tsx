@@ -158,6 +158,21 @@ export function BilanPositiveStep({ context, summary }: BilanPositiveStepProps) 
         Répartir un surplus vers la tirelire ?
       </Button>
 
+      {/* Sprint Bilan-Equals-RavEffectif — le reste à vivre effectif positif
+          (« l'argent en plus », non associé à un budget) est ajouté à la
+          tirelire au clic « Continuer ». Indépendant de `hasSurplus`. */}
+      {summary.bilan > 0.01 && (
+        <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+          <p className="mb-1 text-xs font-medium tracking-wide text-violet-700 uppercase">
+            Argent en plus (reste à vivre)
+          </p>
+          <p className="text-sm text-violet-900">
+            <span className="font-semibold tabular-nums">+{formatEuro(summary.bilan)}</span> seront
+            ajoutés à ta tirelire au clic sur « Continuer ».
+          </p>
+        </section>
+      )}
+
       <Button type="button" className="w-full" onClick={handleContinue} disabled={isBusy}>
         {transformMutation.isPending ? 'Chargement…' : 'Continuer'}
       </Button>

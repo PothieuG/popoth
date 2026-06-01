@@ -8,9 +8,7 @@ describe('BilanBlock', () => {
     const { container } = render(<BilanBlock bilan={150} bilanSign="positive" />)
 
     expect(screen.getByText(/Bilan du mois/)).toBeInTheDocument()
-    expect(
-      screen.getByText(/Vous allez pouvoir ajouter .+ à votre total d'économies/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Vous allez pouvoir ajouter .+ à votre tirelire/)).toBeInTheDocument()
     // 150 € formatted with 2 decimals appears twice (badge + message)
     expect(screen.getAllByText(/150,00/).length).toBeGreaterThanOrEqual(2)
 

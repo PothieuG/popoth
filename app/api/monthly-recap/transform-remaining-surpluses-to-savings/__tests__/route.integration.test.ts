@@ -134,6 +134,9 @@ describe.skipIf(!ENABLED)(
         await admin.from('real_expenses').delete().eq('profile_id', userAId)
         await admin.from('estimated_budgets').delete().eq('profile_id', userAId)
         await admin.from('piggy_bank').delete().eq('profile_id', userAId)
+        // Reset the salary set by the rav-sweep tests so it doesn't leak into
+        // the other tests (which rely on ravEffectif ≤ 0 → no sweep).
+        await admin.from('profiles').update({ salary: null }).eq('id', userAId)
       }
       if (groupAId) {
         await admin.from('monthly_recaps').delete().eq('group_id', groupAId)
@@ -200,6 +203,18 @@ describe.skipIf(!ENABLED)(
         .single()
       if (error || !data) throw error ?? new Error('budget insert returned no row')
       return data.id
+    }
+
+    // Sprint Bilan-Equals-RavEffectif helpers — a positive ravEffectif requires
+    // income; seed it via the profile salary (no estimated_incomes needed).
+    async function setProfileSalary(amount: number): Promise<void> {
+      const { error } = await admin.from('profiles').update({ salary: amount }).eq('id', userAId)
+      if (error) throw error
+    }
+
+    async function seedPiggy(amount: number): Promise<void> {
+      const { error } = await admin.from('piggy_bank').insert({ profile_id: userAId, amount })
+      if (error) throw error
     }
 
     it('happy 3 surplus — cumulated_savings increments + advance to salary_update', async () => {
@@ -276,6 +291,120 @@ describe.skipIf(!ENABLED)(
         .eq('id', recap.id)
         .single()
       expect(row?.current_step).toBe('salary_update')
+    })
+
+    // Sprint Bilan-Equals-RavEffectif — the positive reste à vivre effectif
+    // (= summary.bilan) is swept into the piggy bank on "Continuer".
+
+    it('positive reste à vivre, no budgets — sweeps full ravEffectif into the piggy + advances', async () => {
+      mockedAuth.userId = userAId
+      mockedAuth.groupId = groupAId
+      await setProfileSalary(1000)
+      const recap = await seedRecap({ ownerKind: 'profile' })
+      // No budgets → ravEffectif = salary 1000 − 0 = 1000 (positive), zero surplus.
+
+      const response = await POST(buildRequest({ context: 'profile' }))
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as {
+        data: {
+          transformed: unknown[]
+          failed: unknown[]
+          nextStep: string | null
+          sweptToPiggy: number
+        }
+      }
+      expect(body.data.transformed).toEqual([])
+      expect(body.data.failed).toEqual([])
+      expect(body.data.nextStep).toBe('salary_update')
+      expect(body.data.sweptToPiggy).toBe(1000)
+
+      const { data: piggy } = await admin
+        .from('piggy_bank')
+        .select('amount')
+        .eq('profile_id', userAId)
+        .maybeSingle()
+      expect(Number(piggy?.amount ?? 0)).toBe(1000)
+
+      const { data: row } = await admin
+        .from('monthly_recaps')
+        .select('current_step')
+        .eq('id', recap.id)
+        .single()
+      expect(row?.current_step).toBe('salary_update')
+    })
+
+    it('positive reste à vivre WITH a budget surplus — transforms surplus AND sweeps (disjoint pools)', async () => {
+      mockedAuth.userId = userAId
+      mockedAuth.groupId = groupAId
+      await setProfileSalary(1000)
+      await seedRecap({ ownerKind: 'profile' })
+      // Budget est 200, spent 0 → surplus 200 (→ cumulated_savings). ravEffectif
+      // = salary 1000 − budgets 200 = 800 (→ piggy). Pools disjoints.
+      const budgetId = await seedBudget({ estimated: 200, cumulatedSavings: 50 })
+
+      const response = await POST(buildRequest({ context: 'profile' }))
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as {
+        data: {
+          transformed: Array<{ budgetId: string; amount: number }>
+          nextStep: string | null
+          sweptToPiggy: number
+        }
+      }
+      expect(body.data.transformed).toHaveLength(1)
+      expect(body.data.sweptToPiggy).toBe(800)
+      expect(body.data.nextStep).toBe('salary_update')
+
+      // Surplus → cumulated_savings (50 + 200 = 250), independent of the sweep.
+      const { data: budget } = await admin
+        .from('estimated_budgets')
+        .select('cumulated_savings')
+        .eq('id', budgetId)
+        .single()
+      expect(Number(budget?.cumulated_savings ?? 0)).toBe(250)
+
+      // Reste à vivre (800) → piggy.
+      const { data: piggy } = await admin
+        .from('piggy_bank')
+        .select('amount')
+        .eq('profile_id', userAId)
+        .maybeSingle()
+      expect(Number(piggy?.amount ?? 0)).toBe(800)
+    })
+
+    it('negative reste à vivre — sweep skipped, piggy untouched', async () => {
+      mockedAuth.userId = userAId
+      mockedAuth.groupId = groupAId
+      // No salary → ravEffectif = 0 − budgets 300 = -300 (negative). The budget
+      // surplus (300) still transforms to cumulated_savings; the piggy sweep
+      // must NOT fire.
+      await seedRecap({ ownerKind: 'profile' })
+      const budgetId = await seedBudget({ estimated: 300, cumulatedSavings: 0 })
+      await seedPiggy(50)
+
+      const response = await POST(buildRequest({ context: 'profile' }))
+      expect(response.status).toBe(200)
+      const body = (await response.json()) as {
+        data: { nextStep: string | null; sweptToPiggy: number }
+      }
+      expect(body.data.sweptToPiggy).toBe(0)
+      expect(body.data.nextStep).toBe('salary_update')
+
+      // Piggy unchanged.
+      const { data: piggy } = await admin
+        .from('piggy_bank')
+        .select('amount')
+        .eq('profile_id', userAId)
+        .maybeSingle()
+      expect(Number(piggy?.amount ?? 0)).toBe(50)
+
+      // Budget surplus still transformed (300 → cumulated_savings).
+      const { data: budget } = await admin
+        .from('estimated_budgets')
+        .select('cumulated_savings')
+        .eq('id', budgetId)
+        .single()
+      expect(Number(budget?.cumulated_savings ?? 0)).toBe(300)
     })
 
     it("current_step already 'salary_update' — 409 invalid_step", async () => {

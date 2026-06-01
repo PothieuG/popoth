@@ -26,12 +26,12 @@
  *   - ravEstime (group)   = totalEstimatedIncome + totalGroupContributions - totalEstimatedBudgets
  *   - ravEffectif         = remainingToLive (calc-rtl existant)
  *
- * Le terme `totalGroupContributions` (mirror auto-synchronisé de
- * `groups.monthly_budget_estimate` via trigger PG) DOIT figurer côté ravEstime
- * en contexte groupe pour rester symétrique à la formule `ravEffectif`
- * (cf. `lib/finance/calc-rtl.ts:58-74` qui ajoute le même terme côté effectif).
- * Sans cette symétrie, le bilan = `ravEffectif − ravEstime` dérive
- * mécaniquement vers un faux positif dès qu'il y a un budget ou projet groupe.
+ * Depuis Sprint Bilan-Equals-RavEffectif, le bilan = `ravEffectif` seul — le
+ * terme `ravEstime` n'entre plus dans le bilan, il n'est plus qu'une métrique
+ * affichée. On garde néanmoins `totalGroupContributions` côté ravEstime en
+ * contexte groupe (mirror auto-synchronisé de `groups.monthly_budget_estimate`
+ * via trigger PG) pour que la carte « Reste à vivre estimé » reste cohérente
+ * d'affichage avec `ravEffectif` (cf. `lib/finance/calc-rtl.ts:58-74`).
  *
  * Tous les montants sont passés en cents-precise via `computeRecapSummary`
  * (round2 stable). Ce helper ne fait pas d'écriture (pure read + compose).

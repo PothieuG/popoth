@@ -86,9 +86,7 @@ describe('SummaryStep', () => {
         summary={makeSummary({ bilan: 200, bilanSign: 'positive' })}
       />,
     )
-    expect(
-      screen.getByText(/Vous allez pouvoir ajouter .+ à votre total d'économies/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Vous allez pouvoir ajouter .+ à votre tirelire/)).toBeInTheDocument()
 
     rerender(
       <SummaryStep
