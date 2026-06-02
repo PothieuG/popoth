@@ -291,12 +291,19 @@ export default function CustomDropdown({
                   type="button"
                   role="option"
                   aria-selected={value === option.id}
-                  onPointerDown={(e) => {
-                    // Commit selection on pointerdown to win the race against any
-                    // higher-level close-on-outside handler (DismissableLayer, our own
-                    // mousedown click-outside in this component). preventDefault avoids
-                    // focus-shift to <body> that would also blur the open state.
-                    e.preventDefault()
+                  onClick={() => {
+                    // Sélection sur `click` (et NON `pointerdown`) pour laisser le
+                    // navigateur distinguer nativement un tap d'un scroll : un
+                    // glissement au-delà du seuil de slop de la plateforme n'émet pas
+                    // de `click` → la liste scrolle au pouce sans rien sélectionner ;
+                    // un tap bref émet un `click` → sélection. Le menu se ferme sur le
+                    // `click` lui-même, donc aucun ghost-tap ne fuit vers l'input
+                    // sous-jacent. Les handlers de fermeture sont déjà neutralisés
+                    // ailleurs (pointerEvents:'auto' + stopPropagation du wrapper menu
+                    // + click-outside qui vérifie menuRef.contains), donc onClick ne
+                    // perd aucune course.
+                    // ⚠️ NE PAS revenir à un commit sur `onPointerDown` : ça
+                    // resélectionne dès le contact du doigt et casse le scroll mobile.
                     onChange(option.id)
                     setIsOpen(false)
                   }}
