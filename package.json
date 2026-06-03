@@ -19,6 +19,7 @@
     "db:diff": "supabase db diff",
     "db:reset": "supabase db reset",
     "db:check-drift": "node scripts/check-drift.mjs",
+    "db:check-rls": "node scripts/check-rls.mjs",
     "db:check-rpcs": "node scripts/check-rpcs.mjs",
     "db:check-functions": "node scripts/check-trigger-functions.mjs",
     "db:check-types-fresh": "node scripts/check-types-fresh.mjs",
@@ -26,7 +27,7 @@
     "db:audit-objects": "node scripts/audit-db-objects.mjs",
     "check:md-size": "node scripts/check-md-size.mjs",
     "pwa:assets": "node scripts/generate-pwa-assets.mjs",
-    "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
+    "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rls && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
     "ci": "pnpm typecheck && pnpm lint:check && pnpm format:check && pnpm test:run && pnpm build",
     "prepare": "husky"
   },
