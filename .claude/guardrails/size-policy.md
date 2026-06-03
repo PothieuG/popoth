@@ -205,10 +205,10 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 
 ## 11. Fichiers concernés par cette règle (inventaire réconcilié 2026-05-29 post-Cleanup-Stale-Docs)
 
-**59 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
+**60 fichiers `.md`** chargés comme contexte par Claude Code, **tous sous le cap 39.5k** :
 
 - 1× `CLAUDE.md` (~39.4k — en zone alerte stable)
-- 39× `.claude/history/roadmap-detailed-01..39-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-39 récentes ~8-23k)
+- 40× `.claude/history/roadmap-detailed-01..40-*.md` (8-39k — Parts 12, 13, 17, 18, 19, 20 en zone alerte 38-39.5k ; Parts 25-40 récentes ~7-23k)
 - 3× `.claude/history/sprint-chronology{,-part-2,-part-3}.md` (Part 1 gelée 2026-05-22, Part 2 2026-05-24, Part 3 2026-05-29)
 - 2× `.claude/history/score-evolution-part-1..2-*.md` (33-37k — part-2 en zone alerte)
 - 2× `.claude/history/sprint-history-security-part-1..2-*.md` (18-24k)
@@ -228,5 +228,7 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 **Sprint Housekeeping-Deps-Format-Triage (2026-05-29)** : hygiène repo post-Part 38/39 (4 vulns Dependabot transitives patchées via `pnpm.overrides` ; glob lint-staged `*.{mjs,cjs,js}` ajouté ; fix assertion gated group-project RAV post-PÉ-12). Côté doc : `sprint-chronology-part-3.md` **créée** (split chronologique préemptif — part-2 à 39 267 saturée, 1 ligne table = +~2000 chars de padding) + pointeur en pied de part-2 (39 389). `CLAUDE.md` §9 réconcilié sur §5.5 (`447/158 → 846/242`, net-neutre) + §6 note lint-staged `.mjs` (trim "mécanique", net +12, 39 492). `git-workflow.md` §3 détaille les globs lint-staged. Total `.md` contexte 50 → 51.
 
 **Sprint Cleanup-Stale-Docs (2026-05-29)** : suppression des artefacts de features livrées — `prompt-montly-recap/` (19 fichiers, hors `.claude/`), `.claude/plans/` (12 plans Projets d'épargne, **retirés du set scanné**), `prompt-housekeeping/maintenance.md` (1, hors `.claude/`). Liens fantômes `doc2/audit/{RLS-FINDINGS,POST-MORTEM-C3-DRIFT}.md` (jamais créés, vérifié `git log --all`) retirés de CLAUDE.md §5/§8 + operational-rules §8 + README. README slim (−341/+86 lignes : sections datées → pointeurs CLAUDE.md/doc2/.claude ; Tailwind 4, 29 RPC, 5 fn). Cascade : `.prettierignore` (entrée prompt-montly-recap), `lib/recap/load-summary.ts` (commentaire RAV repointé), operational-rules §5 sync 7→5 spots, structure-repo:15. Index : CLAUDE.md §6 conventions 6→9, operational-rules §4 `EXPECTED_RPCS` 25→29, settings.json permission stale `prompt/` retirée. Inventaire §11 ci-dessus réconcilié — la valeur 51 était périmée (drift accumulé) : roadmap 34→39, chronology 2→3, conventions 8→9, + SKILL.md, −12 `.claude/plans`.
+
+**Sprint Security-RLS-Monthly-Recaps (2026-06-03)** : fix sécurité (finding linter Supabase `rls_disabled_in_public` sur `monthly_recaps`) + cause racine (event trigger `ensure_rls` restauré en prod) + guard `db:check-rls`. Doc : Part 40 créée (~7k). `CLAUDE.md` §3 (+ligne `db:check-rls`, fix `25→29 RPCs`, `6→7 db checks` ×2), §7 ligne 201 compressée (énumération C1-H4 → codes + pointeur ; dédup ligne 340 `Historique sécurité` redondante avec l'intro §7) pour financer l'ajout sous le cap (39 404 → 39 388 post-prettier), §11 listing Part 40 + count 39→40 / 151→152. Extensions : `sprint-chronology-part-3.md` +1 ligne, `git-workflow.md` §12 RLS conventions ajoutée. Total `.md` contexte 60.
 
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.

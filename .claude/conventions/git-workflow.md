@@ -160,3 +160,11 @@ Pour toute nouvelle fonction trigger ou modification d'une existante : versionne
 **Après toute migration touchant une fonction PL/pgSQL** : lancer `pnpm db:audit-functions` (Sprint Audit-Functions-v2 / B1).
 **Après toute migration ajoutant un `CREATE TYPE` / `CREATE DOMAIN` / `CREATE OPERATOR`** : lancer `pnpm db:audit-objects` (Sprint Cleanup-Legacy / C2).
 **Après chaque migration non-triviale** : lancer `pnpm db:check-drift`. Si exit 1, re-exporter le baseline via `node scripts/export-schema.mjs supabase/migrations/20260101000000_remote_schema.sql` et committer (sinon le détecteur reste rouge et on retombe dans la trap C3).
+
+## 12. RLS conventions (Sprint Security-RLS-Monthly-Recaps 2026-06-03)
+
+- **Toute table `public` doit avoir la RLS activée.** L'event trigger `ensure_rls` (→ `rls_auto_enable`) l'active automatiquement au `CREATE TABLE` (prod + dev, restauré sur prod migration `20260609000001`). Filet : `pnpm db:check-rls` ([scripts/check-rls.mjs](../../scripts/check-rls.mjs)) dans `pnpm verify` — exit 1 si une table publique manque de RLS (linter Supabase `rls_disabled_in_public`).
+- **Table server-only** (accédée uniquement via `supabaseServer` / service_role) : `ALTER TABLE x ENABLE ROW LEVEL SECURITY` **sans policy** = deny-all `anon`/`authenticated` correct (service_role bypasse la RLS). Ex : `monthly_recaps` (`20260609000000`).
+- **Table lue par le client browser/anon** : RLS **+ policies owner-scoped** (`profile_id = auth.uid() OR group_id IN (SELECT group_id FROM profiles WHERE id = auth.uid())`). Ex : `piggy_bank` (D1, `20260507000000`).
+- **Event triggers** (`pg_event_trigger`) ne sont PAS capturés par `export-schema.mjs` (qui ne lit que `pg_trigger`) → invisibles au drift. Un binding manquant (cas prod pré-2026-06-03) n'est pas détecté par `db:check-drift` ; c'est `db:check-rls` (état final, indépendant de la baseline) qui tient l'invariant.
+- Détails → [Part 40](../history/roadmap-detailed-40-security-rls-monthly-recaps.md).
