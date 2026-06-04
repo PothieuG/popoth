@@ -19,10 +19,6 @@ const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTran
   ssr: false,
 })
 
-// Routes du route group `(dashboards)` qui activent le pull-to-refresh.
-// Allowlist explicite → toute future page n'en hérite pas par défaut.
-const PULL_TO_REFRESH_ROUTES = ['/dashboard', '/group-dashboard']
-
 /**
  * Layout partagé entre /dashboard (profile) et /group-dashboard (group).
  *
@@ -49,7 +45,9 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
   const { refreshFinancialData } = useFinancialData(context)
 
   const queryClient = useQueryClient()
-  const pullEnabled = PULL_TO_REFRESH_ROUTES.includes(pathname)
+  // Pull-to-refresh actif uniquement sur les 2 dashboards (pas les autres pages
+  // du route group). startsWith tolère un éventuel trailing slash (PWA start_url).
+  const pullEnabled = pathname.startsWith('/dashboard') || pathname.startsWith('/group-dashboard')
   // Tire-pour-rafraîchir : invalide les 10 keys financières (couvre perso ET
   // groupe) et attend la fin des refetch actifs pour la durée de la roue.
   const handlePullRefresh = useCallback(
@@ -93,7 +91,7 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
     <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
       <DashboardHeader context={context} onOpenMenu={() => setIsMenuOpen(true)} />
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4">
         <PullToRefresh enabled={pullEnabled} onRefresh={handlePullRefresh}>
           {children}
         </PullToRefresh>

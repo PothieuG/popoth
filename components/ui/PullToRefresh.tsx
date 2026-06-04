@@ -13,9 +13,14 @@ import { dampPull, findScrollableAncestor, shouldTriggerRefresh } from '@/lib/pu
  * `onRefresh` (et la roue tourne jusqu'à sa résolution). Geste fait-main (zéro
  * dépendance), dans l'esprit de `hooks/useLongPress.ts`.
  *
- * Branché uniquement sur /dashboard et /group-dashboard via le layout. Le
- * `touchmove` est attaché en NON-passif (`{ passive: false }`) — indispensable
- * pour `preventDefault()` qui bloque le scroll natif pendant le tir.
+ * Détails critiques :
+ * - `touchmove` est attaché en NON-passif (`{ passive: false }`) et on appelle
+ *   `preventDefault()` dès le PREMIER mouvement descendant qualifiant. Sans ça,
+ *   iOS/PWA verrouille le geste en scroll (overscroll/rubber-band) et ignore les
+ *   `preventDefault()` suivants → le tir ne se déclenche jamais.
+ * - On décide « est-on en haut ? » au `touchstart` (snapshot du scrollTop). Si la
+ *   liste était scrollée, le geste reste un scroll normal jusqu'au prochain appui.
+ * - Wrapper transparent (pas de bg, pas d'`overflow`) → rendu identique au repos.
  */
 interface PullToRefreshProps {
   /** Déclenché au relâchement au-delà du seuil. La roue tourne jusqu'à résolution. */
@@ -29,7 +34,6 @@ const TRIGGER_PX = 72 // distance de tir avant d'armer le refresh
 const MAX_PULL_PX = 120 // plafond de la distance visible
 const REFRESH_REST_PX = 56 // offset maintenu pendant le refresh
 const RESISTANCE = 0.5 // fraction du déplacement du doigt rendue (effet élastique)
-const AXIS_SLOP_PX = 8 // seuil avant de décider d'un geste vertical
 const MIN_SPINNER_MS = 600 // durée mini de la roue (anti-flicker)
 const SETTLE_MS = 220 // durée de l'animation de retour
 
@@ -54,9 +58,9 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
   const gesture = useRef({
     startX: 0,
     startY: 0,
+    canPull: false, // snapshot « en haut » au touchstart
     pulling: false,
     distance: 0,
-    scrollEl: null as HTMLElement | null,
     refreshing: false,
     vibrated: false,
   })
@@ -115,37 +119,41 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
       g.pulling = false
       g.distance = 0
       g.vibrated = false
-      g.scrollEl = findScrollableAncestor(e.target as Element | null, container)
+      // Snapshot « en haut ? » au départ du geste — si la liste est scrollée,
+      // on laisse le scroll natif tout le geste.
+      const scrollEl = findScrollableAncestor(e.target as Element | null, container)
+      g.canPull = scrollEl ? scrollEl.scrollTop <= 0 : true
     }
 
     const onTouchMove = (e: TouchEvent) => {
       const g = gesture.current
-      if (g.refreshing || e.touches.length !== 1) return
+      if (g.refreshing || !g.canPull || e.touches.length !== 1) return
       const t = e.touches[0]
       if (!t) return
       const deltaY = t.clientY - g.startY
       const deltaX = t.clientX - g.startX
-      const atTop = g.scrollEl ? g.scrollEl.scrollTop <= 0 : true
 
-      if (!g.pulling) {
-        // N'armer que sur un geste vertical, descendant, parti du sommet.
-        if (deltaY > AXIS_SLOP_PX && atTop && Math.abs(deltaY) > Math.abs(deltaX)) {
-          g.pulling = true
-          g.startY = t.clientY // rebase → la distance repart de 0
-          setPhase('pulling')
+      // Doigt remonte (ou immobile) → rendre la main au scroll natif.
+      if (deltaY <= 0) {
+        if (g.pulling) {
+          settleBack()
+          setPhase('idle')
         }
         return
       }
+      // Geste plutôt horizontal → ignorer (pas un tir vertical).
+      if (Math.abs(deltaX) > deltaY) return
 
-      // En tir mais le doigt repasse au-dessus → rendre la main au scroll natif.
-      if (deltaY <= 0) {
-        settleBack()
-        setPhase('idle')
-        return
+      // Descendant + en haut → c'est un TIR. preventDefault dès ce 1er mouvement
+      // (sinon iOS verrouille en scroll et ignore les prevent suivants).
+      e.preventDefault()
+      if (!g.pulling) {
+        g.pulling = true
+        g.startY = t.clientY // rebase → la distance repart de 0
+        setPhase('pulling')
       }
 
-      e.preventDefault() // nécessite le listener non-passif
-      const d = dampPull(deltaY, { resistance: RESISTANCE, max: MAX_PULL_PX })
+      const d = dampPull(t.clientY - g.startY, { resistance: RESISTANCE, max: MAX_PULL_PX })
       g.distance = d
       paint(d, false)
 
@@ -188,8 +196,8 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
   const refreshing = phase === 'refreshing'
 
   return (
-    <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Roue derrière le contenu, révélée dans le gap quand il descend. */}
+    <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
+      {/* Roue derrière le contenu (transparent), révélée dans le gap au tir. */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center pt-3"
         aria-hidden={!refreshing}

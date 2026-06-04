@@ -559,7 +559,9 @@ export default function TransactionTabsComponent({
 
       {/* Tab Content - Scrollable */}
       <div className="flex-1 overflow-hidden p-3">
-        <div className="h-full overflow-y-auto pb-2">{renderTransactionsList()}</div>
+        <div className="h-full overflow-y-auto overscroll-y-contain pb-2">
+          {renderTransactionsList()}
+        </div>
       </div>
 
       {/* Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23). Snackbar

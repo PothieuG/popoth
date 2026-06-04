@@ -47,7 +47,11 @@ describe('PullToRefresh', () => {
     )
     const child = screen.getByTestId('child')
     fireEvent.touchStart(child, touch(100))
-    fireEvent.touchMove(child, touch(120)) // arms + rebase (startY = 120)
+    // The FIRST qualifying downward move must call preventDefault (core fix:
+    // otherwise iOS commits the gesture to scrolling and the pull never fires).
+    // fireEvent returns false when a handler called preventDefault.
+    const firstMoveNotCancelled = fireEvent.touchMove(child, touch(120))
+    expect(firstMoveNotCancelled).toBe(false)
     fireEvent.touchMove(child, touch(320)) // deltaY 200 → distance 100 ≥ 72
     fireEvent.touchEnd(child)
 
