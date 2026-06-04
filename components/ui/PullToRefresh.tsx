@@ -32,7 +32,7 @@ interface PullToRefreshProps {
 
 const TRIGGER_PX = 72 // distance de tir avant d'armer le refresh
 const MAX_PULL_PX = 120 // plafond de la distance visible
-const REFRESH_REST_PX = 72 // offset maintenu pendant le refresh (= seuil, roue sous le notch)
+const REFRESH_REST_PX = 88 // hauteur du rectangle de refresh (roue centrée dedans, sous le notch)
 const RESISTANCE = 0.5 // fraction du déplacement du doigt rendue (effet élastique)
 const MIN_SPINNER_MS = 600 // durée mini de la roue (anti-flicker)
 const SETTLE_MS = 220 // durée de l'animation de retour
@@ -197,11 +197,12 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
 
   return (
     <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
-      {/* Roue derrière le contenu, révélée dans le gap au tir. Le padding-top
-          safe-area la place sous le notch / la barre de statut (au-dessus du header). */}
+      {/* Roue derrière le contenu, révélée dans le gap au tir. La box prend la
+          hauteur du rectangle de refresh ; items-center + justify-center centrent
+          la roue, et le padding-top safe-area la garde sous le notch / Dynamic Island. */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 flex items-center justify-center"
+        style={{ height: REFRESH_REST_PX, paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
         aria-hidden={!refreshing}
       >
         <div
@@ -211,7 +212,7 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
           role="status"
           aria-label={refreshing ? 'Rafraîchissement en cours' : undefined}
         >
-          <RefreshIcon className={refreshing ? 'animate-spin' : ''} size="md" />
+          <RefreshIcon className={refreshing ? 'animate-spin' : ''} size="lg" />
         </div>
       </div>
 
