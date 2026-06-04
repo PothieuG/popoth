@@ -732,7 +732,7 @@ export default function TransactionListItem({
               </div>
             )}
 
-            {/* 4-line layout */}
+            {/* 3-line layout (montant+date / nom / catégorie) */}
             <div className="min-w-0 flex-1 space-y-0.5">
               {/* Sprint 15 V3 — badge "Mois <X>" pour les transactions
                   carry-over actuellement non-validées. Gris neutre (cf. décision
@@ -748,8 +748,10 @@ export default function TransactionListItem({
                   </span>
                 </div>
               )}
-              {/* Line 1: Amount with breakdown badges */}
-              <div className="flex items-baseline space-x-1.5">
+              {/* Line 1: Amount + date (date juste à côté du montant ; badges en fin
+                  de ligne, flex-wrap pour ne pas déborder sur mobile si gros montant
+                  + 2 badges). */}
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                 <span
                   className={cn(
                     'text-lg font-bold',
@@ -758,6 +760,13 @@ export default function TransactionListItem({
                 >
                   {type === 'expense' ? '-' : '+'}
                   {formatAmount(transaction.amount)}
+                </span>
+
+                {/* Date juste après le montant — taille & couleur inchangées
+                    (text-xs / gris), séparateur tiret discret. */}
+                <span className="text-xs text-gray-400">-</span>
+                <span className="text-xs text-gray-500">
+                  {formatDateWithTime(transaction.created_at)}
                 </span>
 
                 {/* Breakdown badges for expenses with smart allocation */}
@@ -784,13 +793,10 @@ export default function TransactionListItem({
                 {transaction.description}
               </p>
 
-              {/* Line 3: Category name — own line, between name and date */}
+              {/* Line 3: Category name — own line, sous le nom */}
               <p className={cn('truncate text-sm font-medium', getCategoryTextColor())}>
                 {getCategoryName()}
               </p>
-
-              {/* Line 4: Date with time (very small) */}
-              <p className="text-xs text-gray-500">{formatDateWithTime(transaction.created_at)}</p>
             </div>
           </div>
 
