@@ -89,13 +89,16 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
-      <DashboardHeader context={context} onOpenMenu={() => setIsMenuOpen(true)} />
-
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4">
-        <PullToRefresh enabled={pullEnabled} onRefresh={handlePullRefresh}>
+      {/* Pull-to-refresh enveloppe le header + main → c'est toute la page qui
+          suit le doigt et la roue apparaît tout en haut (au-dessus du header).
+          La BottomNav reste fixe (hors wrapper) et passe au-dessus du contenu
+          qui glisse via son z-index. */}
+      <PullToRefresh enabled={pullEnabled} onRefresh={handlePullRefresh}>
+        <DashboardHeader context={context} onOpenMenu={() => setIsMenuOpen(true)} />
+        <main className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain p-4">
           {children}
-        </PullToRefresh>
-      </main>
+        </main>
+      </PullToRefresh>
 
       <BottomNav
         context={context}

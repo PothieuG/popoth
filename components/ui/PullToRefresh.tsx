@@ -32,7 +32,7 @@ interface PullToRefreshProps {
 
 const TRIGGER_PX = 72 // distance de tir avant d'armer le refresh
 const MAX_PULL_PX = 120 // plafond de la distance visible
-const REFRESH_REST_PX = 56 // offset maintenu pendant le refresh
+const REFRESH_REST_PX = 72 // offset maintenu pendant le refresh (= seuil, roue sous le notch)
 const RESISTANCE = 0.5 // fraction du déplacement du doigt rendue (effet élastique)
 const MIN_SPINNER_MS = 600 // durée mini de la roue (anti-flicker)
 const SETTLE_MS = 220 // durée de l'animation de retour
@@ -197,9 +197,11 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
 
   return (
     <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
-      {/* Roue derrière le contenu (transparent), révélée dans le gap au tir. */}
+      {/* Roue derrière le contenu, révélée dans le gap au tir. Le padding-top
+          safe-area la place sous le notch / la barre de statut (au-dessus du header). */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center pt-3"
+        className="pointer-events-none absolute inset-x-0 top-0 z-0 flex justify-center"
+        style={{ paddingTop: 'max(env(safe-area-inset-top), 0.75rem)' }}
         aria-hidden={!refreshing}
       >
         <div

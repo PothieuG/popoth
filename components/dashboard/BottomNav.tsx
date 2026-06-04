@@ -30,7 +30,7 @@ export default function BottomNav({
   const isGroup = context === 'group'
 
   return (
-    <footer className="pb-safe shrink-0 border-t border-gray-200 bg-white">
+    <footer className="pb-safe relative z-20 shrink-0 border-t border-gray-200 bg-white">
       <div className="grid grid-cols-3">
         {/* Personal Finance Tab */}
         <button
