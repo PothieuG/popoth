@@ -13,7 +13,12 @@ export function createQueryClient() {
 }
 
 /**
- * Invalidate the 7 cross-domain financial-refresh keys.
+ * Invalidate the 10 cross-domain financial-refresh keys.
+ *
+ * Returns a Promise that resolves once the active refetches settle — a caller
+ * that needs to await the refresh (e.g. pull-to-refresh spinner timing) can
+ * `await invalidateFinancialRefreshes(qc)`. Existing fire-and-forget callers
+ * (mutation `onSuccess`) simply ignore the returned promise.
  *
  * Replaces the legacy bridge `triggerFinancialRefresh()` removed in Sprint 2.
  * Call from a CRUD mutation's `onSuccess` so the dashboard summary, progress
@@ -56,15 +61,17 @@ export function createQueryClient() {
  * via la modal doivent invalider la liste des revenus pour refresh la vue
  * dashboard sans refresh manuel.
  */
-export function invalidateFinancialRefreshes(qc: QueryClient): void {
-  qc.invalidateQueries({ queryKey: ['financial-summary'] })
-  qc.invalidateQueries({ queryKey: ['progress-data'] })
-  qc.invalidateQueries({ queryKey: ['budgets'] })
-  qc.invalidateQueries({ queryKey: ['group-contributions'] })
-  qc.invalidateQueries({ queryKey: ['savings-data'] })
-  qc.invalidateQueries({ queryKey: ['real-expenses'] })
-  qc.invalidateQueries({ queryKey: ['real-incomes'] })
-  qc.invalidateQueries({ queryKey: ['bank-balance'] })
-  qc.invalidateQueries({ queryKey: ['salary-editability'] })
-  qc.invalidateQueries({ queryKey: ['projects'] })
+export function invalidateFinancialRefreshes(qc: QueryClient): Promise<void> {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['financial-summary'] }),
+    qc.invalidateQueries({ queryKey: ['progress-data'] }),
+    qc.invalidateQueries({ queryKey: ['budgets'] }),
+    qc.invalidateQueries({ queryKey: ['group-contributions'] }),
+    qc.invalidateQueries({ queryKey: ['savings-data'] }),
+    qc.invalidateQueries({ queryKey: ['real-expenses'] }),
+    qc.invalidateQueries({ queryKey: ['real-incomes'] }),
+    qc.invalidateQueries({ queryKey: ['bank-balance'] }),
+    qc.invalidateQueries({ queryKey: ['salary-editability'] }),
+    qc.invalidateQueries({ queryKey: ['projects'] }),
+  ]).then(() => {})
 }

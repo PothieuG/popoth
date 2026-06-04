@@ -1,13 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLogoutAndRedirect } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroups } from '@/hooks/useGroups'
 import { useBankBalance } from '@/hooks/useBankBalance'
 import { useFinancialData } from '@/hooks/useFinancialData'
+import { invalidateFinancialRefreshes } from '@/lib/query-client'
+import { PullToRefresh } from '@/components/ui/PullToRefresh'
 import BottomNav from '@/components/dashboard/BottomNav'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import SettingsDrawer from '@/components/settings/SettingsDrawer'
@@ -15,6 +18,10 @@ import SettingsDrawer from '@/components/settings/SettingsDrawer'
 const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), {
   ssr: false,
 })
+
+// Routes du route group `(dashboards)` qui activent le pull-to-refresh.
+// Allowlist explicite → toute future page n'en hérite pas par défaut.
+const PULL_TO_REFRESH_ROUTES = ['/dashboard', '/group-dashboard']
 
 /**
  * Layout partagé entre /dashboard (profile) et /group-dashboard (group).
@@ -40,6 +47,15 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
   const { isCreator } = useGroups()
   const { balance: bankBalance, updateBankBalance } = useBankBalance(context)
   const { refreshFinancialData } = useFinancialData(context)
+
+  const queryClient = useQueryClient()
+  const pullEnabled = PULL_TO_REFRESH_ROUTES.includes(pathname)
+  // Tire-pour-rafraîchir : invalide les 10 keys financières (couvre perso ET
+  // groupe) et attend la fin des refetch actifs pour la durée de la roue.
+  const handlePullRefresh = useCallback(
+    () => invalidateFinancialRefreshes(queryClient),
+    [queryClient],
+  )
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] = useState(false)
@@ -77,7 +93,11 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
     <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
       <DashboardHeader context={context} onOpenMenu={() => setIsMenuOpen(true)} />
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4">
+        <PullToRefresh enabled={pullEnabled} onRefresh={handlePullRefresh}>
+          {children}
+        </PullToRefresh>
+      </main>
 
       <BottomNav
         context={context}
