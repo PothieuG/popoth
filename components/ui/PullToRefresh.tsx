@@ -212,7 +212,7 @@ export function PullToRefresh({ onRefresh, enabled = true, children }: PullToRef
           role="status"
           aria-label={refreshing ? 'Rafraîchissement en cours' : undefined}
         >
-          <RefreshIcon className={refreshing ? 'animate-spin' : ''} size="xl" />
+          <RefreshIcon className={refreshing ? 'animate-spin' : ''} size="2xl" />
         </div>
       </div>
 

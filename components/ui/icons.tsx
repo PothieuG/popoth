@@ -7,7 +7,7 @@ import React from 'react'
 
 interface IconProps {
   className?: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   color?: string
 }
 
@@ -16,6 +16,7 @@ const sizeClasses = {
   md: 'w-5 h-5',
   lg: 'w-6 h-6',
   xl: 'w-7 h-7',
+  '2xl': 'w-10 h-10',
 }
 
 // Icône de calendrier pour le récapitulatif mensuel
