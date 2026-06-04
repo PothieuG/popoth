@@ -732,7 +732,7 @@ export default function TransactionListItem({
               </div>
             )}
 
-            {/* 3-line layout */}
+            {/* 4-line layout */}
             <div className="min-w-0 flex-1 space-y-0.5">
               {/* Sprint 15 V3 — badge "Mois <X>" pour les transactions
                   carry-over actuellement non-validées. Gris neutre (cf. décision
@@ -779,16 +779,17 @@ export default function TransactionListItem({
                   )}
               </div>
 
-              {/* Line 2: Description — Category name (with em-dash separator) */}
-              <p className="truncate text-sm">
-                <span className="font-semibold text-gray-900">{transaction.description}</span>
-                <span className="mx-1.5 text-gray-400">—</span>
-                <span className={cn('font-medium', getCategoryTextColor())}>
-                  {getCategoryName()}
-                </span>
+              {/* Line 2: Description (name) */}
+              <p className="truncate text-sm font-semibold text-gray-900">
+                {transaction.description}
               </p>
 
-              {/* Line 3: Date with time (very small) */}
+              {/* Line 3: Category name — own line, between name and date */}
+              <p className={cn('truncate text-sm font-medium', getCategoryTextColor())}>
+                {getCategoryName()}
+              </p>
+
+              {/* Line 4: Date with time (very small) */}
               <p className="text-xs text-gray-500">{formatDateWithTime(transaction.created_at)}</p>
             </div>
           </div>
