@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  hasAtMostTwoDecimals,
   isoDateSchema,
   moneyFormSchema,
   moneySchema,
@@ -114,7 +115,7 @@ export const validateSalaryFormSchema = z.object({
     .number()
     .finite('Montant invalide')
     .nonnegative('Le montant doit être positif ou nul')
-    .refine((v) => Math.round(v * 100) === v * 100, {
+    .refine(hasAtMostTwoDecimals, {
       message: 'Au maximum 2 décimales',
     }),
 })

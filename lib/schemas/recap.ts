@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { contextSchema, uuidSchema } from './common'
+import { contextSchema, hasAtMostTwoDecimals, uuidSchema } from './common'
 
 /**
  * Positive amount with at-most-2-decimals constraint. Mirrors the refine
@@ -10,7 +10,7 @@ const positiveAmountSchema = z
   .number()
   .finite('Montant invalide')
   .positive('Le montant doit être positif')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 
@@ -22,7 +22,7 @@ const salaryAmountSchema = z
   .number()
   .finite('Salaire invalide')
   .nonnegative('Le salaire doit être positif ou nul')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 

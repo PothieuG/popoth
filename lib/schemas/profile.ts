@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { hasAtMostTwoDecimals } from './common'
 
 /**
  * Profile salary range: 0 < salary <= 999999.99, at most 2 decimals.
@@ -10,7 +11,7 @@ const salarySchema = z
   .finite('Salaire invalide')
   .positive('Le salaire doit être strictement positif')
   .max(999999.99, 'Le salaire ne peut pas dépasser 999 999,99 €')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 

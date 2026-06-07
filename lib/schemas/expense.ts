@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import {
   contextSchema,
+  hasAtMostTwoDecimals,
   isoDateSchema,
   moneySchema,
   nonNegativeMoneySchema,
@@ -115,7 +116,7 @@ export const previewBreakdownQuerySchema = z.object({
     .number()
     .finite('Montant invalide')
     .positive('Le montant doit être positif')
-    .refine((v) => Math.round(v * 100) === v * 100, {
+    .refine(hasAtMostTwoDecimals, {
       message: 'Au maximum 2 décimales',
     }),
   budget_id: uuidSchema,

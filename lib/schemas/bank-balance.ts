@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { hasAtMostTwoDecimals } from './common'
 
 /**
  * Bank balance can be negative (legitimate overdraft scenario). The schema
@@ -8,12 +9,9 @@ import { z } from 'zod'
  * Infinity and >2 decimal precision too).
  */
 export const updateBankBalanceBodySchema = z.object({
-  balance: z
-    .number()
-    .finite('Le solde doit être un nombre fini')
-    .refine((v) => Math.round(v * 100) === v * 100, {
-      message: 'Au maximum 2 décimales',
-    }),
+  balance: z.number().finite('Le solde doit être un nombre fini').refine(hasAtMostTwoDecimals, {
+    message: 'Au maximum 2 décimales',
+  }),
 })
 
 export type UpdateBankBalanceBody = z.infer<typeof updateBankBalanceBodySchema>
@@ -28,7 +26,7 @@ export const editBalanceFormSchema = z.object({
   balance: z.coerce
     .number()
     .finite('Le solde doit être un nombre fini')
-    .refine((v) => Math.round(v * 100) === v * 100, {
+    .refine(hasAtMostTwoDecimals, {
       message: 'Au maximum 2 décimales',
     }),
 })

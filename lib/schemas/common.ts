@@ -5,6 +5,18 @@ export type Context = z.infer<typeof contextSchema>
 
 export const uuidSchema = z.string().uuid()
 
+/**
+ * True si `v` a au plus 2 décimales, robuste à l'erreur de représentation
+ * IEEE-754. `Number(v.toFixed(2)) === v` est indépendant de la magnitude.
+ * L'ancien check (×100 puis comparaison à l'entier arrondi) rejetait à tort
+ * des montants 2-décimales légitimes dont le produit ×100 n'est pas un entier
+ * binaire exact (ex. 16.4 → 1639.9999999999998, 16.42 → 1642.0000000000002),
+ * d'où des erreurs « Au maximum 2 décimales » / breakdown intermittentes selon
+ * la valeur tapée (corrigé 2026-06-07).
+ */
+export const hasAtMostTwoDecimals = (v: number): boolean =>
+  Number.isFinite(v) && Number(v.toFixed(2)) === v
+
 export const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date attendue au format ISO YYYY-MM-DD')
@@ -13,7 +25,7 @@ export const moneySchema = z
   .number()
   .finite('Montant invalide')
   .positive('Le montant doit être positif')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 
@@ -21,7 +33,7 @@ export const nonNegativeMoneySchema = z
   .number()
   .finite('Montant invalide')
   .nonnegative('Le montant doit être positif ou nul')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 
@@ -38,7 +50,7 @@ export const moneyFormSchema = z.coerce
   .number()
   .finite('Montant invalide')
   .positive('Le montant doit être positif')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 
@@ -52,7 +64,7 @@ export const nonNegativeMoneyFormSchema = z.coerce
   .number()
   .finite('Montant invalide')
   .nonnegative('Le montant doit être positif ou nul')
-  .refine((v) => Math.round(v * 100) === v * 100, {
+  .refine(hasAtMostTwoDecimals, {
     message: 'Au maximum 2 décimales',
   })
 
