@@ -19,9 +19,10 @@ const EditBudgetDialog = dynamic(() => import('./EditBudgetDialog'), { ssr: fals
 const EditIncomeDialog = dynamic(() => import('./EditIncomeDialog'), { ssr: false })
 const EditProjectDialog = dynamic(() => import('./EditProjectDialog'), { ssr: false })
 const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
+const BudgetExpensesModal = dynamic(() => import('./BudgetExpensesModal'), { ssr: false })
 import { useBudgets, type EstimatedBudget } from '@/hooks/useBudgets'
 import { useIncomes, type EstimatedIncome } from '@/hooks/useIncomes'
-import { useBudgetProgress } from '@/hooks/useBudgetProgress'
+import { useBudgetProgress, type BudgetProgress } from '@/hooks/useBudgetProgress'
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProjects, type SavingsProject } from '@/hooks/useProjects'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
@@ -133,6 +134,9 @@ export default function PlanningDrawer({
     name: string
     type: 'budget' | 'income'
   } | null>(null)
+
+  // Modal informative (lecture seule) — dépenses associées au budget cliqué.
+  const [selectedBudgetProgress, setSelectedBudgetProgress] = useState<BudgetProgress | null>(null)
 
   // Hooks pour la gestion des données
   const {
@@ -765,8 +769,21 @@ export default function PlanningDrawer({
                         className="rounded-xl border border-gray-200 p-3 shadow-md"
                       >
                         <div className="flex items-center justify-between">
-                          {/* Indicateur de progression intégré */}
-                          <div className="flex-1">
+                          {/* Indicateur de progression — cliquable pour voir
+                              le détail des dépenses associées (lecture seule) */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setSelectedBudgetProgress(progress)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault()
+                                setSelectedBudgetProgress(progress)
+                              }
+                            }}
+                            aria-label={`Voir les dépenses du budget ${budget.name}`}
+                            className="flex-1 cursor-pointer rounded-md text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:outline-none"
+                          >
                             <BudgetProgressIndicator progress={progress} />
                           </div>
 
@@ -1297,6 +1314,23 @@ export default function PlanningDrawer({
           variant="info"
           loading={false}
         />
+
+        {/* Modal informative — dépenses associées à un budget (lecture seule).
+           Montée à la demande (pattern `{isOpen && <Modal/>}`) : le hook
+           useRealExpenses ne tourne que lorsque la modal est ouverte. */}
+        {selectedBudgetProgress && (
+          <BudgetExpensesModal
+            isOpen
+            onClose={() => setSelectedBudgetProgress(null)}
+            context={context}
+            budget={{
+              id: selectedBudgetProgress.budgetId,
+              name: selectedBudgetProgress.budgetName,
+              spentAmount: selectedBudgetProgress.spentAmount,
+              estimatedAmount: selectedBudgetProgress.estimatedAmount,
+            }}
+          />
+        )}
 
         {/* Snackbar post-suppression — économies transférées dans la tirelire
            OU projet sans solde supprimé (Pattern §8 ✅ feedback transient).
