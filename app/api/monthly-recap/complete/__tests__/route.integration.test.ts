@@ -19,6 +19,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import type { Database, Json } from '@/lib/database.types'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 const ENABLED = process.env.SUPABASE_RECAP_TESTS === '1'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -60,9 +61,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
   const emailA = `recap-cpl-a-${stamp}@popoth.test`
   const emailB = `recap-cpl-b-${stamp}@popoth.test`
 
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -100,8 +99,12 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
 
     const { error: profilesError } = await admin.from('profiles').upsert(
       [
-        { id: userAId, first_name: 'Alice', last_name: 'Aaaa', group_id: groupAId },
-        { id: userBId, first_name: 'Bob', last_name: 'Bbbb', group_id: groupAId },
+        // salary > 0 required so calculate_group_contributions produces a
+        // non-zero contribution_amount — needed by the contribution-mirror
+        // regression tests below (sync_contribution_real_expense/_income
+        // no-op / DELETE the mirror at contribution_amount = 0).
+        { id: userAId, first_name: 'Alice', last_name: 'Aaaa', group_id: groupAId, salary: 3000 },
+        { id: userBId, first_name: 'Bob', last_name: 'Bbbb', group_id: groupAId, salary: 2000 },
       ],
       { onConflict: 'id' },
     )
@@ -131,12 +134,19 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
       await admin.from('real_income_entries').delete().eq('profile_id', userAId)
       await admin.from('monthly_recaps').delete().eq('profile_id', userAId)
       await admin.from('estimated_budgets').delete().eq('profile_id', userAId)
+      await admin.from('bank_balances').delete().eq('profile_id', userAId)
     }
     if (groupAId) {
       await admin.from('real_expenses').delete().eq('group_id', groupAId)
       await admin.from('real_income_entries').delete().eq('group_id', groupAId)
       await admin.from('monthly_recaps').delete().eq('group_id', groupAId)
       await admin.from('estimated_budgets').delete().eq('group_id', groupAId)
+      await admin.from('bank_balances').delete().eq('group_id', groupAId)
+      // group_contributions rows aren't touched by the estimated_budgets/
+      // real_expenses cleanup above (no FK CASCADE from that direction) —
+      // the contribution-mirror tests below seed these directly, so they
+      // must be cleaned explicitly or they leak amount/state into the next test.
+      await admin.from('group_contributions').delete().eq('group_id', groupAId)
     }
   }
 
@@ -156,8 +166,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
     budgetSnapshotData?: Record<string, number>
   }): Promise<{ id: string }> {
     const base = {
-      recap_month: currentMonth,
-      recap_year: currentYear,
+      recap_month: recapMonth,
+      recap_year: recapYear,
       current_step: args.currentStep ?? 'final_recap',
       started_by_profile_id: args.startedBy ?? userAId,
       started_at: new Date().toISOString(),
@@ -243,6 +253,41 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
       .single()
     if (error || !data) throw error ?? new Error('income insert returned no row')
     return data.id
+  }
+
+  async function readBalance(filter: { profileId?: string; groupId?: string }): Promise<number> {
+    let query = admin.from('bank_balances').select('balance')
+    query = filter.profileId
+      ? query.eq('profile_id', filter.profileId).is('group_id', null)
+      : query.eq('group_id', filter.groupId as string).is('profile_id', null)
+    const { data, error } = await query.single()
+    if (error) throw error
+    return Number(data?.balance)
+  }
+
+  async function getContributionExpenseMirror(profileId: string) {
+    const { data } = await admin
+      .from('real_expenses')
+      .select(
+        'id, amount, is_carried_over, carried_from_recap_id, applied_to_balance_at, last_applied_amount, contribution_id',
+      )
+      .eq('profile_id', profileId)
+      .not('contribution_id', 'is', null)
+      .maybeSingle()
+    return data
+  }
+
+  async function getContributionIncomeMirrorForMember(groupId: string, memberProfileId: string) {
+    const { data } = await admin
+      .from('real_income_entries')
+      .select(
+        'id, amount, is_carried_over, carried_from_recap_id, applied_to_balance_at, last_applied_amount, contribution_id',
+      )
+      .eq('group_id', groupId)
+      .eq('created_by_profile_id', memberProfileId)
+      .not('contribution_id', 'is', null)
+      .maybeSingle()
+    return data
   }
 
   it('happy profile — snapshot applied + transactions processed + completed_at set', async () => {
@@ -393,7 +438,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
     expect(body.currentStep).toBe('salary_update')
   })
 
-  it('empty snapshot — snapshotApplied=null, still processes + marks completed', async () => {
+  it('empty snapshot — snapshotApplied={applied:[],reset_count:0}, still processes + marks completed', async () => {
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     const recap = await seedRecap({ ownerKind: 'profile', budgetSnapshotData: {} })
@@ -401,9 +446,18 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
     const body = (await response.json()) as {
-      data: { snapshotApplied: unknown; completed: true; recapId: string }
+      data: {
+        snapshotApplied: { applied: unknown[]; reset_count: number } | null
+        completed: true
+        recapId: string
+      }
     }
-    expect(body.data.snapshotApplied).toBeNull()
+    // finalize_recap_apply_snapshot always returns {applied, reset_count} since
+    // the OVERWRITE-semantics rewrite (20260603000000_finalize_overwrite_carryover.sql)
+    // — it's never null, even for an empty snapshot (that's precisely how stale
+    // carryovers get reset to 0). reset_count=0 here because this test seeds no
+    // estimated_budgets for the owner.
+    expect(body.data.snapshotApplied).toEqual({ applied: [], reset_count: 0 })
     expect(body.data.completed).toBe(true)
     expect(body.data.recapId).toBe(recap.id)
   })
@@ -521,5 +575,117 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/complete (gated)', () => {
     }
     expect(body.data.snapshotApplied?.applied).toHaveLength(1)
     expect(body.data.snapshotApplied?.applied[0]?.budget_id).toBe(b1)
+  })
+
+  // Regression tests for the 2026-07-05 fix: process_recap_transactions must
+  // never touch contribution-mirror rows (real_expenses/real_income_entries
+  // with contribution_id set). Seeding goes through the real DB triggers
+  // (group-owned estimated_budgets insert → calculate_group_contributions →
+  // sync_contribution_real_expense/_income), mirroring
+  // lib/__tests__/contribution-real-expense.test.ts, rather than faking
+  // contribution_id — the FK to group_contributions(id) requires a real row.
+
+  it('validated contribution mirror (profile expense) survives /complete — balance unperturbed', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const { error: bankErr } = await admin
+      .from('bank_balances')
+      .insert({ profile_id: userAId, group_id: null, balance: 1000 })
+    if (bankErr) throw bankErr
+
+    // Group-owned budget cascades: estimated_budgets_sync_group_budget →
+    // calculate_group_contributions → sync_contribution_real_expense creates
+    // userA's profile-side mirror row.
+    await seedBudget({ estimated: 400, ownerKind: 'group' })
+
+    const mirror = await getContributionExpenseMirror(userAId)
+    expect(mirror).not.toBeNull()
+
+    const { error: applyErr } = await admin.rpc('toggle_real_expense_applied_to_balance', {
+      p_expense_id: mirror!.id,
+      p_apply: true,
+    })
+    expect(applyErr).toBeNull()
+
+    const balanceBefore = await readBalance({ profileId: userAId })
+    const recap = await seedRecap({ ownerKind: 'profile' })
+
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { recapId: string } }
+    expect(body.data.recapId).toBe(recap.id)
+
+    // The whole point of the fix: the erroneous credit_balance_on_contribution_delete
+    // restitution must NOT fire, because the mirror must never be DELETEd here.
+    const balanceAfter = await readBalance({ profileId: userAId })
+    expect(balanceAfter).toBe(balanceBefore)
+
+    const mirrorAfter = await getContributionExpenseMirror(userAId)
+    expect(mirrorAfter).not.toBeNull()
+    expect(mirrorAfter!.id).toBe(mirror!.id)
+    expect(mirrorAfter!.is_carried_over).toBe(false)
+    expect(mirrorAfter!.carried_from_recap_id).toBeNull()
+    expect(mirrorAfter!.applied_to_balance_at).not.toBeNull()
+  })
+
+  it('validated contribution mirror (group income) survives /complete in group context — group balance unperturbed', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const { error: bankErr } = await admin
+      .from('bank_balances')
+      .insert({ profile_id: null, group_id: groupAId, balance: 500 })
+    if (bankErr) throw bankErr
+
+    await seedBudget({ estimated: 400, ownerKind: 'group' })
+
+    const mirror = await getContributionIncomeMirrorForMember(groupAId, userAId)
+    expect(mirror).not.toBeNull()
+
+    const { error: applyErr } = await admin.rpc('toggle_real_income_applied_to_balance', {
+      p_income_id: mirror!.id,
+      p_apply: true,
+    })
+    expect(applyErr).toBeNull()
+
+    const balanceBefore = await readBalance({ groupId: groupAId })
+    const recap = await seedRecap({ ownerKind: 'group' })
+
+    const response = await POST(buildRequest({ context: 'group' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { recapId: string } }
+    expect(body.data.recapId).toBe(recap.id)
+
+    const balanceAfter = await readBalance({ groupId: groupAId })
+    expect(balanceAfter).toBe(balanceBefore)
+
+    const mirrorAfter = await getContributionIncomeMirrorForMember(groupAId, userAId)
+    expect(mirrorAfter).not.toBeNull()
+    expect(mirrorAfter!.id).toBe(mirror!.id)
+    expect(mirrorAfter!.is_carried_over).toBe(false)
+    expect(mirrorAfter!.carried_from_recap_id).toBeNull()
+    expect(mirrorAfter!.applied_to_balance_at).not.toBeNull()
+  })
+
+  it('unvalidated contribution mirror is never marked carried-over by /complete', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    await seedBudget({ estimated: 250, ownerKind: 'group' })
+
+    const mirror = await getContributionExpenseMirror(userAId)
+    expect(mirror).not.toBeNull()
+    expect(mirror!.applied_to_balance_at).toBeNull()
+
+    await seedRecap({ ownerKind: 'profile' })
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+
+    const mirrorAfter = await getContributionExpenseMirror(userAId)
+    expect(mirrorAfter).not.toBeNull()
+    expect(mirrorAfter!.id).toBe(mirror!.id)
+    expect(mirrorAfter!.is_carried_over).toBe(false)
+    expect(mirrorAfter!.carried_from_recap_id).toBeNull()
   })
 })
