@@ -35,6 +35,7 @@ import { logger } from '@/lib/logger'
 import { getActiveRecap } from '@/lib/recap/active-recap'
 import { executeCompleteRecap } from '@/lib/recap/actions-finalize'
 import { RecapActionError } from '@/lib/recap/actions-negative'
+import { getRecapPeriod } from '@/lib/recap/period'
 import { completeRecapBodySchema } from '@/lib/schemas/recap'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -51,9 +52,10 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
     const recap = await getActiveRecap({ context: body.context, userId, profile })
 
     if (!recap) {
-      // Idempotency disambiguation: query for a COMPLETED row for the current
-      // month. If present, the user already finalized — return success.
-      const now = new Date()
+      // Idempotency disambiguation: query for a COMPLETED row for the
+      // recapped month (previous calendar month, per getRecapPeriod). If
+      // present, the user already finalized — return success.
+      const { month: recapMonth, year: recapYear } = getRecapPeriod()
       const ownerFilter: { profile_id?: string; group_id?: string } =
         body.context === 'profile'
           ? { profile_id: profile.id }
@@ -64,8 +66,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
         .select('id, completed_at, current_step')
         .match({
           ...ownerFilter,
-          recap_month: now.getMonth() + 1,
-          recap_year: now.getFullYear(),
+          recap_month: recapMonth,
+          recap_year: recapYear,
         })
         .not('completed_at', 'is', null)
         .maybeSingle()
