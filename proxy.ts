@@ -6,7 +6,10 @@ import { isRecapBlocking } from '@/lib/recap/lock'
 import { getRecapPeriod } from '@/lib/recap/period'
 
 // Define protected and public routes
-const protectedRoutes = ['/dashboard', '/profile', '/group-dashboard', '/dev']
+// Sprint Recap-Coherence-Audit 2026-08-31 — `/profile` et `/dev` retirés :
+// aucune page ne porte ces chemins (cf. `find app -name page.tsx`). Les
+// garder laissait croire à une surface protégée qui n'existe pas.
+const protectedRoutes = ['/dashboard', '/group-dashboard']
 const authRoutes = [
   '/connexion',
   '/inscription',
@@ -17,9 +20,14 @@ const authRoutes = [
 ]
 
 // Sprint 05 Monthly Recap V3 — routes gated par le state machine recap.
-// Seuls les 2 dashboards sont blockés tant que le recap du mois n'est pas
-// terminé. /profile et /dev restent accessibles librement (le user peut
-// régler son compte ou debug avant de fermer le recap).
+// Les 2 dashboards sont bloqués tant que le recap du mois n'est pas terminé.
+//
+// Portée RÉELLE de ce portier : la navigation UI seulement. Le proxy
+// court-circuite `/api` (early-return `path.startsWith('/api')` plus bas),
+// donc aucune route API n'est gated par l'état du récap — et c'est
+// volontaire : le wizard lui-même écrit via /api/finance/** pendant que le
+// récap est in_progress (écran « Compléter le mois »). Gater l'API sur
+// « récap en cours » casserait le wizard.
 const RECAP_GATED_ROUTES: Record<string, RecapContext> = {
   '/dashboard': 'profile',
   '/group-dashboard': 'group',
