@@ -31,7 +31,30 @@
  *         owner has zero projects (LOOP exits with `updated_count=0`).
  *
  *      3. (fail-soft) Process transactions — RPC `process_recap_transactions(
- *         p_recap_id, p_profile_id?, p_group_id?)`. For the given context:
+ *         p_recap_id, p_profile_id?, p_group_id?)`.
+ *
+ *         ⚠️ INVARIANT DE TIMING (explicité sprint Recap-Coherence-Audit
+ *         2026-08-31). Cette RPC n'a **aucun filtre de date** : elle traite
+ *         TOUTES les lignes non-carried du propriétaire, quel que soit leur
+ *         mois. Ce qui la rend correcte n'est donc pas sa structure mais un
+ *         invariant de séquence : au moment où elle tourne, il ne doit exister
+ *         aucune transaction du mois SUIVANT.
+ *
+ *         Cet invariant tient parce que `proxy.ts` bloque les 2 dashboards
+ *         tant que le récap n'est pas fini, et que le seul autre point de
+ *         saisie (l'écran « Compléter le mois » du wizard) borne ses dates au
+ *         mois recapé (`dateMin`/`dateMax`). Ce n'est PAS garanti au niveau
+ *         API : le proxy court-circuite `/api`. Toute nouvelle surface de
+ *         saisie doit donc soit borner ses dates, soit rester inaccessible
+ *         pendant un récap — sinon la finalisation balaiera des transactions
+ *         du mois en cours.
+ *
+ *         Ajouter un filtre de date à la RPC changerait le comportement de
+ *         report des transactions anciennes (une dépense non validée d'un mois
+ *         antérieur doit-elle encore être reportée ?) → arbitrage produit, pas
+ *         un simple durcissement.
+ *
+ *         For the given context:
  *           - DELETEs `real_expenses` + `real_income_entries` rows where
  *             `applied_to_balance_at IS NOT NULL AND is_carried_over = false`
  *             (the user "validated" them during the month → they're now
@@ -52,8 +75,11 @@
  * Fail-soft strategy on steps 1+2+3 is deliberate (see plan): the recap should
  * close even if a snapshot apply or transaction batch errors at the RPC layer,
  * because re-opening the recap to retry is more disruptive than the partial
- * outcome. Errors are logged and the response carries zero counts so a human
- * can investigate. The projects snapshot fail-soft has an extra implication:
+ * outcome. Errors are logged AND surfaced in `outcome.warnings` (sprint
+ * Finalize-Surface-Failsoft 2026-08-31) — auparavant seul le log les portait,
+ * si bien qu'un récap partiellement traité était indiscernable d'un récap
+ * réussi côté client. Cas réel : un récap de juin marqué complété en prod avait
+ * laissé 87 transactions non traitées. The projects snapshot fail-soft has an extra implication:
  * a partial failure would leave projects un-credited for the month — the user
  * sees stale `amount_saved` until the next finalize. Logged for triage.
  */
@@ -127,7 +153,26 @@ export interface CompleteRecapOutcome {
    *  (no-op — la mécanique trigger Sprint 16 V3 étendu prend le relais).
    *  En mode solo : résultat de l'INSERT idempotent du salaire. */
   salaryIncome: CreateSalaryIncomeResult | null
+  /**
+   * Sprint Finalize-Surface-Failsoft 2026-08-31. Codes des étapes fail-soft qui
+   * ont échoué. Vide = tout s'est bien passé.
+   *
+   * Pourquoi : les 4 premières étapes sont volontairement fail-soft (rouvrir un
+   * récap est plus perturbant qu'un résultat partiel), mais l'erreur n'était
+   * QUE loguée — l'utilisateur voyait « terminé » quoi qu'il arrive. Constaté
+   * en prod le 2026-08-31 : un récap de juin marqué complété avait laissé
+   * 87 transactions non traitées (`process_recap_transactions` sans effet),
+   * invisible depuis l'app. On expose désormais les codes pour que le client
+   * puisse le dire, sans changer la stratégie fail-soft elle-même.
+   */
+  warnings: FinalizeWarning[]
 }
+
+export type FinalizeWarning =
+  | 'apply_snapshot_failed'
+  | 'apply_projects_snapshot_failed'
+  | 'process_transactions_failed'
+  | 'create_salary_income_failed'
 
 const ZERO_TRANSACTIONS: ProcessTransactionsResult = {
   deleted_expenses: 0,
@@ -145,6 +190,7 @@ export async function executeCompleteRecap(
   //    snapshot (OVERWRITE, not `+=`). Calling with `{}` is the legitimate way
   //    to clear stale carryovers from a previous month when this month has
   //    no deferred debt.
+  const warnings: FinalizeWarning[] = []
   let snapshotApplied: ApplySnapshotResult | null = null
   const snapshot = coerceSnapshot(args.recap.budget_snapshot_data) ?? {}
   const { data: snapData, error: snapError } = await supabaseServer.rpc(
@@ -159,6 +205,7 @@ export async function executeCompleteRecap(
       recapId: args.recap.id,
       error: snapError,
     })
+    warnings.push('apply_snapshot_failed')
   } else {
     snapshotApplied = (snapData ?? null) as ApplySnapshotResult | null
   }
@@ -184,6 +231,7 @@ export async function executeCompleteRecap(
       recapId: args.recap.id,
       error: projError,
     })
+    warnings.push('apply_projects_snapshot_failed')
   } else {
     projectsApplied = (projData ?? null) as ApplyProjectsSnapshotResult | null
   }
@@ -215,6 +263,7 @@ export async function executeCompleteRecap(
       recapId: args.recap.id,
       error: txError,
     })
+    warnings.push('process_transactions_failed')
   } else {
     transactions = (txData ?? ZERO_TRANSACTIONS) as ProcessTransactionsResult
   }
@@ -247,6 +296,7 @@ export async function executeCompleteRecap(
         recapId: args.recap.id,
         error: salaryError,
       })
+      warnings.push('create_salary_income_failed')
     } else {
       salaryIncome = (salaryData ?? null) as CreateSalaryIncomeResult | null
     }
@@ -277,6 +327,7 @@ export async function executeCompleteRecap(
     projectsApplied,
     transactions,
     salaryIncome,
+    warnings,
   }
 }
 
