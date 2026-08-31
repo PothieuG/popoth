@@ -10,10 +10,10 @@
 // `setBank`, etc.) — les scripts profile-b-* importent depuis ici.
 
 import {
-  CURRENT_MONTH,
-  CURRENT_MONTH_END,
-  CURRENT_MONTH_START,
-  CURRENT_YEAR,
+  RECAP_MONTH,
+  RECAP_MONTH_END,
+  RECAP_MONTH_START,
+  RECAP_YEAR,
   USER_B_EMAIL,
   USER_B_ID,
   insertProfileBudgets,
@@ -28,8 +28,8 @@ import {
 } from './_lib.mjs'
 
 export {
-  CURRENT_MONTH,
-  CURRENT_YEAR,
+  RECAP_MONTH,
+  RECAP_YEAR,
   USER_B_EMAIL,
   USER_B_ID,
   insertProfileBudgets,
@@ -48,7 +48,7 @@ export {
  */
 export async function cleanupForB() {
   console.log(
-    `🧹 Cleanup User B (${USER_B_EMAIL}) — ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`,
+    `🧹 Cleanup User B (${USER_B_EMAIL}) — ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`,
   )
 
   // monthly_recaps mois courant
@@ -57,8 +57,8 @@ export async function cleanupForB() {
       .from('monthly_recaps')
       .delete()
       .eq('profile_id', USER_B_ID)
-      .eq('recap_month', CURRENT_MONTH)
-      .eq('recap_year', CURRENT_YEAR)
+      .eq('recap_month', RECAP_MONTH)
+      .eq('recap_year', RECAP_YEAR)
     if (error) throw new Error(`DELETE monthly_recaps B: ${error.message}`)
   }
 
@@ -68,8 +68,8 @@ export async function cleanupForB() {
       .from('real_expenses')
       .delete()
       .eq('profile_id', USER_B_ID)
-      .gte('expense_date', CURRENT_MONTH_START)
-      .lte('expense_date', CURRENT_MONTH_END)
+      .gte('expense_date', RECAP_MONTH_START)
+      .lte('expense_date', RECAP_MONTH_END)
     if (error) throw new Error(`DELETE real_expenses B: ${error.message}`)
   }
 
@@ -79,8 +79,8 @@ export async function cleanupForB() {
       .from('real_income_entries')
       .delete()
       .eq('profile_id', USER_B_ID)
-      .gte('entry_date', CURRENT_MONTH_START)
-      .lte('entry_date', CURRENT_MONTH_END)
+      .gte('entry_date', RECAP_MONTH_START)
+      .lte('entry_date', RECAP_MONTH_END)
     if (error) throw new Error(`DELETE real_income_entries B: ${error.message}`)
   }
 
@@ -130,7 +130,7 @@ export function printForB({ scenarioKey, expectedBehavior, expectedFigures = {} 
   console.log(`✨ Scénario "${scenarioKey}" seedé pour User B`)
   console.log(sep)
   console.log(`👤 User QA          : ${USER_B_EMAIL}`)
-  console.log(`🗓️  Mois            : ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`)
+  console.log(`🗓️  Mois            : ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`)
   console.log('')
   console.log(`📝 Comportement UX attendu :`)
   console.log(`   ${expectedBehavior}`)

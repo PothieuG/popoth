@@ -12,8 +12,8 @@
 // Idempotent : re-run = wipe + re-seed propre.
 
 import {
-  CURRENT_MONTH,
-  CURRENT_YEAR,
+  RECAP_MONTH,
+  RECAP_YEAR,
   USER_B_EMAIL,
   USER_B_ID,
   insertProfileBudgets,
@@ -31,7 +31,7 @@ const BUDGETS = [
 
 async function main() {
   console.log(
-    `🧹 Cleanup User B (${USER_B_EMAIL}) — month ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`,
+    `🧹 Cleanup User B (${USER_B_EMAIL}) — month ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`,
   )
 
   // DELETE recap row du mois courant pour User B (parcours re-démarrable)
@@ -39,8 +39,8 @@ async function main() {
     .from('monthly_recaps')
     .delete()
     .eq('profile_id', USER_B_ID)
-    .eq('recap_month', CURRENT_MONTH)
-    .eq('recap_year', CURRENT_YEAR)
+    .eq('recap_month', RECAP_MONTH)
+    .eq('recap_year', RECAP_YEAR)
   if (recapErr) throw new Error(`DELETE monthly_recaps B: ${recapErr.message}`)
 
   // DELETE estimated_budgets de User B (récurrents, on repart à zéro)
@@ -71,7 +71,7 @@ async function main() {
   console.log(`   📊 Total estimé   : ${totalEstimated}€`)
   console.log(`   💰 Total économies : ${totalSavings}€`)
   console.log('')
-  console.log(`🗓️  Mois             : ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`)
+  console.log(`🗓️  Mois             : ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`)
   console.log(`🔄 Recap du mois    : wipe (le parcours redémarre à welcome)`)
   console.log('')
   console.log('🌐 Étapes UX :')

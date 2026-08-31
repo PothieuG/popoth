@@ -4,20 +4,14 @@
 // Usage:
 //   node scripts/seed-recap/_reset.mjs
 
-import {
-  cleanupCurrentMonth,
-  runScenario,
-  USER_A_EMAIL,
-  CURRENT_MONTH,
-  CURRENT_YEAR,
-} from './_lib.mjs'
+import { cleanupCurrentMonth, runScenario, USER_A_EMAIL, RECAP_MONTH, RECAP_YEAR } from './_lib.mjs'
 
 runScenario('_reset', async () => {
   await cleanupCurrentMonth()
   console.log('')
   console.log('━'.repeat(70))
   console.log(
-    `✨ Reset complet pour ${USER_A_EMAIL} (mois ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR})`,
+    `✨ Reset complet pour ${USER_A_EMAIL} (mois ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR})`,
   )
   console.log('━'.repeat(70))
   console.log(`📝 État résultant : no_recap (aucune ligne monthly_recaps du mois).`)

@@ -11,8 +11,8 @@
 //   node scripts/seed-recap/_init-recap.mjs --both       # profile A + group G
 
 import {
-  CURRENT_MONTH,
-  CURRENT_YEAR,
+  RECAP_MONTH,
+  RECAP_YEAR,
   GROUP_ID,
   USER_A_EMAIL,
   USER_A_ID,
@@ -32,14 +32,14 @@ async function deleteRecap(filterKey, contextId, label) {
     .from('monthly_recaps')
     .delete({ count: 'exact' })
     .eq(filterKey, contextId)
-    .eq('recap_month', CURRENT_MONTH)
-    .eq('recap_year', CURRENT_YEAR)
+    .eq('recap_month', RECAP_MONTH)
+    .eq('recap_year', RECAP_YEAR)
   if (error) throw new Error(`DELETE monthly_recaps ${label}: ${error.message}`)
   return count ?? 0
 }
 
 runScenario('_init-recap', async () => {
-  const monthLabel = `${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`
+  const monthLabel = `${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`
   console.log(`🔄 Init recap ${monthLabel} (data préservée)`)
 
   let profileDeleted = 0

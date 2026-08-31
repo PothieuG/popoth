@@ -82,8 +82,8 @@ node scripts/seed-recap/_reset.mjs
 
 Le `_reset` :
 
-- DELETE la row `monthly_recaps` du mois courant (profile A + group G)
-- DELETE toutes les `real_expenses` + `real_income_entries` du mois courant
+- DELETE la row `monthly_recaps` du mois RECAPÉ — le mois écoulé, cf. `RECAP_MONTH` (profile A + group G)
+- DELETE toutes les `real_expenses` + `real_income_entries` du mois RECAPÉ
 - DELETE tous les `estimated_budgets` + `estimated_incomes` (profile A + group G)
 - Reset `piggy_bank` A + G à 0
 - Reset `bank_balances` A à 0
@@ -103,7 +103,7 @@ node scripts/seed-recap/_init-recap.mjs --both       # profile A + group G
 
 Le `_init-recap` :
 
-- DELETE **uniquement** la row `monthly_recaps` du mois courant
+- DELETE **uniquement** la row `monthly_recaps` du mois RECAPÉ (mois écoulé)
 - **Ne touche pas** : budgets, expenses, incomes, piggy_bank, bank_balances, savings_projects
 
 Le proxy gating détectera "no_recap" → redirect /dashboard vers /monthly-recap → tu cliques "Démarrer" → POST /start recrée la row → wizard se déroule sur tes données réelles.
@@ -192,7 +192,7 @@ scripts/seed-recap/
 
 - `supabase` (service-role client dev-only)
 - `USER_A_ID` / `USER_A_EMAIL` / `USER_B_ID` / `USER_B_EMAIL` / `GROUP_ID`
-- `CURRENT_MONTH` / `CURRENT_YEAR` / `CURRENT_MONTH_START` / `CURRENT_MONTH_END`
+- `RECAP_MONTH` / `RECAP_YEAR` / `RECAP_MONTH_START` / `RECAP_MONTH_END`
 - `cleanupCurrentMonth({ profile, group })`
 - `ensureGroupMembership()`
 - `insertProfileBudgets(profileId, [{ name, estimated_amount, cumulated_savings? }, ...])` → `Map<name, id>`

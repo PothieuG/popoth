@@ -89,9 +89,23 @@ export const USER_B_ID = 'bb53b671-812d-422c-a786-09ee515b680b'
 export const USER_B_EMAIL = 'b.pothieu@gmail.com'
 export const GROUP_ID = '92dbf6f2-7aa1-4f63-b31c-b85c57e3657e'
 
+// Période RECAPÉE = le mois écoulé (mois précédent), PAS le mois calendaire
+// courant. Réplique exacte de `getRecapPeriod()` (lib/recap/period.ts) — les
+// seeds sont en .mjs et ne peuvent pas importer le module TS, donc la logique
+// est dupliquée ici ; toute évolution de `getRecapPeriod` doit être répercutée.
+//
+// Sans ça, un scénario seedé est doublement invisible pour l'app : la ligne
+// `monthly_recaps` porte le mauvais mois (checkRecapStatus ne la trouve pas →
+// écran "no_recap"), et les transactions sont datées hors de la fenêtre lue
+// par `loadRecapSummary` (→ tous les budgets à 100 % de surplus, exactement le
+// bug que `getRecapPeriod` corrige).
 const _now = new Date()
-export const CURRENT_MONTH = _now.getMonth() + 1
-export const CURRENT_YEAR = _now.getFullYear()
+const _recapPeriod =
+  _now.getMonth() + 1 === 1
+    ? { month: 12, year: _now.getFullYear() - 1 }
+    : { month: _now.getMonth(), year: _now.getFullYear() }
+export const RECAP_MONTH = _recapPeriod.month
+export const RECAP_YEAR = _recapPeriod.year
 
 function monthBounds(year, month) {
   const mm = String(month).padStart(2, '0')
@@ -100,11 +114,11 @@ function monthBounds(year, month) {
   const end = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`
   return { start, end, mm }
 }
-const _b = monthBounds(CURRENT_YEAR, CURRENT_MONTH)
-export const CURRENT_MONTH_START = _b.start
-export const CURRENT_MONTH_END = _b.end
-export const DEFAULT_EXPENSE_DATE = `${CURRENT_YEAR}-${_b.mm}-15`
-export const DEFAULT_INCOME_DATE = `${CURRENT_YEAR}-${_b.mm}-10`
+const _b = monthBounds(RECAP_YEAR, RECAP_MONTH)
+export const RECAP_MONTH_START = _b.start
+export const RECAP_MONTH_END = _b.end
+export const DEFAULT_EXPENSE_DATE = `${RECAP_YEAR}-${_b.mm}-15`
+export const DEFAULT_INCOME_DATE = `${RECAP_YEAR}-${_b.mm}-10`
 
 // --- Cleanup ----------------------------------------------------------------
 /**
@@ -113,7 +127,7 @@ export const DEFAULT_INCOME_DATE = `${CURRENT_YEAR}-${_b.mm}-10`
  */
 export async function cleanupCurrentMonth({ profile = true, group = true } = {}) {
   console.log(
-    `🧹 Cleanup: ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR} for A=${USER_A_EMAIL}` +
+    `🧹 Cleanup: ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR} for A=${USER_A_EMAIL}` +
       (group ? ` + group G (${GROUP_ID.slice(0, 8)}…)` : ''),
   )
 
@@ -123,8 +137,8 @@ export async function cleanupCurrentMonth({ profile = true, group = true } = {})
       .from('monthly_recaps')
       .delete()
       .eq('profile_id', USER_A_ID)
-      .eq('recap_month', CURRENT_MONTH)
-      .eq('recap_year', CURRENT_YEAR)
+      .eq('recap_month', RECAP_MONTH)
+      .eq('recap_year', RECAP_YEAR)
     if (error) throw new Error(`DELETE monthly_recaps profile: ${error.message}`)
   }
   if (group) {
@@ -132,8 +146,8 @@ export async function cleanupCurrentMonth({ profile = true, group = true } = {})
       .from('monthly_recaps')
       .delete()
       .eq('group_id', GROUP_ID)
-      .eq('recap_month', CURRENT_MONTH)
-      .eq('recap_year', CURRENT_YEAR)
+      .eq('recap_month', RECAP_MONTH)
+      .eq('recap_year', RECAP_YEAR)
     if (error) throw new Error(`DELETE monthly_recaps group: ${error.message}`)
   }
 
@@ -182,8 +196,8 @@ async function _deleteByMonth(table, dateCol, { profile, group }) {
       .from(table)
       .delete()
       .eq('profile_id', USER_A_ID)
-      .gte(dateCol, CURRENT_MONTH_START)
-      .lte(dateCol, CURRENT_MONTH_END)
+      .gte(dateCol, RECAP_MONTH_START)
+      .lte(dateCol, RECAP_MONTH_END)
     if (error) throw new Error(`DELETE ${table} profile: ${error.message}`)
   }
   if (group) {
@@ -191,8 +205,8 @@ async function _deleteByMonth(table, dateCol, { profile, group }) {
       .from(table)
       .delete()
       .eq('group_id', GROUP_ID)
-      .gte(dateCol, CURRENT_MONTH_START)
-      .lte(dateCol, CURRENT_MONTH_END)
+      .gte(dateCol, RECAP_MONTH_START)
+      .lte(dateCol, RECAP_MONTH_END)
     if (error) throw new Error(`DELETE ${table} group: ${error.message}`)
   }
 }
@@ -508,13 +522,13 @@ export async function seedRecapRow({
     .from('monthly_recaps')
     .delete()
     .eq(filterKey, contextId)
-    .eq('recap_month', CURRENT_MONTH)
-    .eq('recap_year', CURRENT_YEAR)
+    .eq('recap_month', RECAP_MONTH)
+    .eq('recap_year', RECAP_YEAR)
 
   const payload = {
     [filterKey]: contextId,
-    recap_month: CURRENT_MONTH,
-    recap_year: CURRENT_YEAR,
+    recap_month: RECAP_MONTH,
+    recap_year: RECAP_YEAR,
     current_step: currentStep,
     started_by_profile_id: startedByProfileId,
     started_at: startedAt,
@@ -562,7 +576,7 @@ export function printPostSeedInstructions({
     console.log(`👥 Co-équipier      : ${USER_B_EMAIL}`)
     console.log(`🏷️  Group ID        : ${GROUP_ID}`)
   }
-  console.log(`🗓️  Mois            : ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`)
+  console.log(`🗓️  Mois            : ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`)
   console.log('')
   console.log(`📝 Comportement UX attendu :`)
   console.log(`   ${expectedBehavior}`)
