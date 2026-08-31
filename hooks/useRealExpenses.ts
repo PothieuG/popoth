@@ -98,6 +98,16 @@ export interface UpdateRealExpenseRequest {
   description?: string
   expense_date?: string
   estimated_budget_id?: string
+  /**
+   * Fenêtre mensuelle explicite pour le RECALCUL de la répartition (sprint
+   * Fix-Recap-EditPath-Month 2026-08-31). Même contrat que sur
+   * `CreateRealExpenseRequest` : ce ne sont PAS des champs à mettre à jour,
+   * mais le mois contre lequel le serveur agrège `budgetSpentCurrent`.
+   * Fournis par le wizard récap (« Compléter le mois » édite une transaction
+   * du mois recapé) ; absents sur le Dashboard → fallback today côté serveur.
+   */
+  month?: number
+  year?: number
 }
 
 /**

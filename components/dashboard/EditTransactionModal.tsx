@@ -36,6 +36,21 @@ interface EditTransactionModalProps {
   transactionType: 'expense' | 'income'
   context?: 'profile' | 'group'
   onTransactionUpdated?: () => void
+  /**
+   * Fenêtre mensuelle explicite du RECALCUL de répartition (sprint
+   * Fix-Recap-EditPath-Month 2026-08-31). Fournis par le wizard récap, qui
+   * édite des transactions du mois RECAPÉ alors que `now()` est déjà sur le
+   * mois suivant. Transmis à la fois au PUT et à `ExpenseBreakdownPreview`
+   * pour que l'aperçu et l'écriture calculent la même chose. Absents sur le
+   * Dashboard → fallback today côté serveur, comportement inchangé.
+   *
+   * Miroir de `AddTransactionModal` (commit 34384e7).
+   */
+  recapMonth?: number
+  recapYear?: number
+  /** Bornes ISO du sélecteur de date (mois recapé). Cf. `AddTransactionModal`. */
+  dateMin?: string
+  dateMax?: string
 }
 
 /**
@@ -64,6 +79,10 @@ export default function EditTransactionModal({
   transactionType,
   context,
   onTransactionUpdated,
+  recapMonth,
+  recapYear,
+  dateMin,
+  dateMax,
 }: EditTransactionModalProps) {
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -201,6 +220,13 @@ export default function EditTransactionModal({
         })
       : null
   const editOverflow = editLocalBreakdown?.overflow ?? 0
+  // Sprint Fix-Recap-EditPath-Month 2026-08-31 — l'encart local de dépassement
+  // ci-dessous s'appuie sur `editSelectedBudget.spent_this_month`, que
+  // `useBudgets` calcule TOUJOURS sur le mois COURANT. Dans le wizard récap, on
+  // édite une transaction du mois RECAPÉ : ce chiffre serait faux. On masque
+  // l'encart et on laisse `ExpenseBreakdownPreview` — qui, lui, reçoit
+  // `month`/`year` — être la seule source affichée de la répartition.
+  const usesRecapMonthWindow = recapMonth != null && recapYear != null
   const editAmountChanged =
     editExpense && previewSafe > 0
       ? Math.round(previewSafe * 100) !== Math.round(editExpense.amount * 100)
@@ -225,6 +251,11 @@ export default function EditTransactionModal({
           estimated_budget_id: data.is_exceptional
             ? undefined
             : (data.estimated_budget_id ?? undefined),
+          // Fenêtre mensuelle du recalcul serveur — identique à celle passée
+          // à `ExpenseBreakdownPreview` ci-dessous, pour que l'aperçu et
+          // l'écriture ne divergent jamais. `undefined` hors wizard.
+          month: recapMonth,
+          year: recapYear,
         })
       } else {
         success = await updateIncome({
@@ -430,6 +461,8 @@ export default function EditTransactionModal({
                   <Input
                     id="date"
                     type="date"
+                    min={dateMin}
+                    max={dateMax}
                     {...form.register('expense_date')}
                     aria-invalid={dateError ? 'true' : 'false'}
                     aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
@@ -439,6 +472,8 @@ export default function EditTransactionModal({
                   <Input
                     id="date"
                     type="date"
+                    min={dateMin}
+                    max={dateMax}
                     {...form.register('entry_date')}
                     aria-invalid={dateError ? 'true' : 'false'}
                     aria-describedby={dateError ? 'edit-transaction-date-error' : undefined}
@@ -473,21 +508,24 @@ export default function EditTransactionModal({
                 La cascade auto sera appliquée (tirelire + autres budgets
                 proportionnellement) avec refund précis des sources d'origine
                 via la trace expense_savings_sources. */}
-            {transactionType === 'expense' && editAmountChanged && editOverflow > 0 && (
-              <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50 p-3">
-                <p className="text-sm font-medium text-violet-900">
-                  Dépassement de{' '}
-                  {editOverflow.toLocaleString('fr-FR', {
-                    style: 'currency',
-                    currency: 'EUR',
-                  })}
-                </p>
-                <p className="text-xs text-violet-800">
-                  La tirelire sera utilisée en priorité, puis les économies des autres budgets
-                  proportionnellement. Le détail apparaît ci-dessous.
-                </p>
-              </div>
-            )}
+            {transactionType === 'expense' &&
+              !usesRecapMonthWindow &&
+              editAmountChanged &&
+              editOverflow > 0 && (
+                <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                  <p className="text-sm font-medium text-violet-900">
+                    Dépassement de{' '}
+                    {editOverflow.toLocaleString('fr-FR', {
+                      style: 'currency',
+                      currency: 'EUR',
+                    })}
+                  </p>
+                  <p className="text-xs text-violet-800">
+                    La tirelire sera utilisée en priorité, puis les économies des autres budgets
+                    proportionnellement. Le détail apparaît ci-dessous.
+                  </p>
+                </div>
+              )}
 
             {/* Expense Breakdown Preview - only for budgeted expenses.
                 Gated sur `previewSafe !== transaction.amount` (comparé en
@@ -507,6 +545,8 @@ export default function EditTransactionModal({
                   budgetId={String(watchedBudgetId)}
                   context={context}
                   expenseId={transaction.id}
+                  month={recapMonth}
+                  year={recapYear}
                 />
               )}
 

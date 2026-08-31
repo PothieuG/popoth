@@ -42,6 +42,15 @@ export const createRealExpenseBodySchema = z.object({
  * Real-expense update body. id is required, everything else optional.
  * estimated_budget_id accepts null (untie from a budget → exceptional).
  * Refine: at least one update field must be defined (mirror L302 check).
+ *
+ * Sprint Fix-Recap-EditPath-Month 2026-08-31 : `month`/`year` sont des
+ * paramètres de CONTEXTE (quelle fenêtre mensuelle interroger pour recalculer
+ * la répartition), pas des champs à mettre à jour. Miroir du contrat déjà en
+ * place sur `addExpenseWithLogicBodySchema`.
+ *
+ * ⚠️ Ils sont volontairement ABSENTS de la disjonction du `.refine` : sinon un
+ * body `{ id, month, year }` seul passerait la validation et atteindrait le
+ * chemin d'update avec un objet de mises à jour vide.
  */
 export const updateRealExpenseBodySchema = z
   .object({
@@ -50,6 +59,8 @@ export const updateRealExpenseBodySchema = z
     description: descriptionSchema.optional(),
     expense_date: isoDateSchema.optional(),
     estimated_budget_id: uuidSchema.nullable().optional(),
+    month: z.number().int().min(1).max(12).optional(),
+    year: z.number().int().min(2000).max(3000).optional(),
   })
   .refine(
     (d) =>

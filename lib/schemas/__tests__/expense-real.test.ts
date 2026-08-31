@@ -30,6 +30,64 @@ describe('updateRealExpenseBodySchema', () => {
       expect(refineIssue).toBeDefined()
     }
   })
+
+  // Sprint Fix-Recap-EditPath-Month 2026-08-31 — month/year sont des paramètres
+  // de contexte (fenêtre du recalcul), pas des champs à mettre à jour.
+  it('accepts month/year alongside a real update field', () => {
+    const result = updateRealExpenseBodySchema.safeParse({
+      id: validUuid,
+      amount: 42.5,
+      month: 5,
+      year: 2026,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.month).toBe(5)
+      expect(result.data.year).toBe(2026)
+    }
+  })
+
+  it('still rejects a body carrying only id + month/year (they are not update fields)', () => {
+    const result = updateRealExpenseBodySchema.safeParse({
+      id: validUuid,
+      month: 5,
+      year: 2026,
+    })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      const refineIssue = result.error.issues.find((i) =>
+        i.message.includes('Aucune donnée à mettre à jour'),
+      )
+      expect(refineIssue).toBeDefined()
+    }
+  })
+
+  it('rejects out-of-range month/year', () => {
+    expect(
+      updateRealExpenseBodySchema.safeParse({ id: validUuid, amount: 10, month: 13, year: 2026 })
+        .success,
+    ).toBe(false)
+    expect(
+      updateRealExpenseBodySchema.safeParse({ id: validUuid, amount: 10, month: 0, year: 2026 })
+        .success,
+    ).toBe(false)
+    expect(
+      updateRealExpenseBodySchema.safeParse({ id: validUuid, amount: 10, month: 5, year: 1999 })
+        .success,
+    ).toBe(false)
+  })
+
+  it('accepts month without year (route falls back to today when either is missing)', () => {
+    const result = updateRealExpenseBodySchema.safeParse({
+      id: validUuid,
+      amount: 10,
+      month: 5,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.year).toBeUndefined()
+    }
+  })
 })
 
 describe('previewBreakdownQuerySchema', () => {

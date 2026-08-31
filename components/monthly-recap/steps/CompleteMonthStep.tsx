@@ -3,11 +3,14 @@
 import { useMemo, useState } from 'react'
 
 import AddTransactionModal from '@/components/dashboard/AddTransactionModal'
+import EditTransactionModal from '@/components/dashboard/EditTransactionModal'
 import TransactionTabsComponent from '@/components/dashboard/TransactionTabsComponent'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import { useAdvanceStep } from '@/hooks/useMonthlyRecap'
+import type { RealExpense } from '@/hooks/useRealExpenses'
+import type { RealIncome } from '@/hooks/useRealIncomes'
 import type { DateRange } from '@/lib/finance/period'
 import { formatEuro } from '@/lib/format-currency'
 import type { RecapContext } from '@/lib/recap'
@@ -27,6 +30,8 @@ interface CompleteMonthStepProps {
   /** Mois recapé 1-12 (server-side `recapMonth` de `checkRecapStatus`). */
   recapMonth: number
 }
+
+type EditableTransaction = RealExpense | RealIncome
 
 function amountColor(amount: number): string {
   if (amount > 0) return 'text-green-600'
@@ -148,6 +153,14 @@ function BalanceRavCards({ availableBalance, remainingToLive, isFetching }: Bala
 // `manage_bilan` seraient faussés.
 export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMonthStepProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  // Sprint Fix-Recap-EditPath-Month 2026-08-31 — l'écran rendait le kebab
+  // « Modifier » (readOnly retiré au sprint Complete-Month-Step) mais ne
+  // passait aucun `onEditTransaction` et ne montait aucun modal : le bouton
+  // était inerte. On câble le modal ici, comme le font les 2 dashboards.
+  const [editing, setEditing] = useState<{
+    transaction: EditableTransaction
+    type: 'expense' | 'income'
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const advanceMutation = useAdvanceStep(context)
@@ -213,7 +226,12 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
         isFetching={isFetching || !financialData}
       />
 
-      <TransactionTabsComponent context={context} dateRange={dateRange} className="min-h-[280px]" />
+      <TransactionTabsComponent
+        context={context}
+        dateRange={dateRange}
+        onEditTransaction={(transaction, type) => setEditing({ transaction, type })}
+        className="min-h-[280px]"
+      />
 
       <Button
         onClick={handleNext}
@@ -241,6 +259,25 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
           recapMonth={recapMonth}
           recapYear={recapYear}
           onTransactionAdded={() => setIsAddModalOpen(false)}
+        />
+      )}
+
+      {/* Mêmes bornes et même fenêtre mensuelle que l'ajout : la répartition
+          doit être recalculée contre le budget du mois RECAPÉ, pas du mois
+          courant (qui est vide à ce stade du wizard). */}
+      {editing && (
+        <EditTransactionModal
+          key={editing.transaction.id}
+          isOpen
+          onClose={() => setEditing(null)}
+          transaction={editing.transaction}
+          transactionType={editing.type}
+          context={context}
+          dateMin={startDate}
+          dateMax={endDate}
+          recapMonth={recapMonth}
+          recapYear={recapYear}
+          onTransactionUpdated={() => setEditing(null)}
         />
       )}
     </div>

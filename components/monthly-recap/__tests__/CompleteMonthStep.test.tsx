@@ -4,10 +4,15 @@
  *
  * Stratégie de mock :
  *   - `useAdvanceStep` mocké comme les autres tests d'étape.
- *   - `AddTransactionModal` + `TransactionTabsComponent` mockés en stubs qui
- *     rendent leurs props clés via `data-*` — on vérifie le câblage
- *     (defaultDate, dateMin/dateMax, readOnly, dateRange) sans dérouler tout
- *     le sous-arbre Dashboard qui dépend de useBudgets/useIncomes/etc.
+ *   - `AddTransactionModal` + `EditTransactionModal` + `TransactionTabsComponent`
+ *     mockés en stubs qui rendent leurs props clés via `data-*` — on vérifie
+ *     le câblage (defaultDate, dateMin/dateMax, readOnly, dateRange,
+ *     recapMonth/recapYear) sans dérouler tout le sous-arbre Dashboard qui
+ *     dépend de useBudgets/useIncomes/etc.
+ *
+ * Sprint Fix-Recap-EditPath-Month (2026-08-31) : le stub des tabs expose un
+ * bouton qui déclenche `onEditTransaction`, pour épingler le câblage du modal
+ * d'édition — auparavant absent, ce qui rendait le kebab « Modifier » inerte.
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -74,10 +79,12 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
     context,
     readOnly,
     dateRange,
+    onEditTransaction,
   }: {
     context?: string
     readOnly?: boolean
     dateRange?: { startDate: string; endDate: string } | null
+    onEditTransaction?: (transaction: { id: string }, type: 'expense' | 'income') => void
   }) => (
     <div
       data-testid="transaction-tabs"
@@ -85,10 +92,51 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
       data-read-only={readOnly ? 'true' : 'false'}
       data-range-start={dateRange?.startDate ?? ''}
       data-range-end={dateRange?.endDate ?? ''}
+      data-has-edit-handler={onEditTransaction ? 'true' : 'false'}
     >
       Stub tabs
+      <button type="button" onClick={() => onEditTransaction?.({ id: 'exp-1' }, 'expense')}>
+        Stub modifier dépense
+      </button>
     </div>
   ),
+}))
+
+vi.mock('@/components/dashboard/EditTransactionModal', () => ({
+  default: ({
+    isOpen,
+    onClose,
+    transactionType,
+    context,
+    dateMin,
+    dateMax,
+    recapMonth,
+    recapYear,
+  }: {
+    isOpen?: boolean
+    onClose: () => void
+    transactionType?: string
+    context?: string
+    dateMin?: string
+    dateMax?: string
+    recapMonth?: number
+    recapYear?: number
+  }) =>
+    isOpen ? (
+      <div
+        data-testid="edit-transaction-modal"
+        data-context={context}
+        data-transaction-type={transactionType}
+        data-date-min={dateMin}
+        data-date-max={dateMax}
+        data-recap-month={recapMonth}
+        data-recap-year={recapYear}
+      >
+        <button type="button" onClick={onClose}>
+          Fermer édition stub
+        </button>
+      </div>
+    ) : null,
 }))
 
 import { CompleteMonthStep } from '../steps/CompleteMonthStep'
@@ -123,6 +171,42 @@ describe('CompleteMonthStep', () => {
     expect(tabs).toHaveAttribute('data-range-start', '2026-05-01')
     // May has 31 days
     expect(tabs).toHaveAttribute('data-range-end', '2026-05-31')
+  })
+
+  // Sprint Fix-Recap-EditPath-Month 2026-08-31 — régression : le kebab
+  // « Modifier » était rendu mais `onEditTransaction` n'était jamais fourni,
+  // donc le clic était un no-op silencieux.
+  it('wires onEditTransaction and opens the edit modal on the recapped month', async () => {
+    const user = userEvent.setup()
+    render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
+
+    expect(screen.getByTestId('transaction-tabs')).toHaveAttribute('data-has-edit-handler', 'true')
+    expect(screen.queryByTestId('edit-transaction-modal')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Stub modifier dépense' }))
+
+    const modal = await screen.findByTestId('edit-transaction-modal')
+    expect(modal).toHaveAttribute('data-transaction-type', 'expense')
+    expect(modal).toHaveAttribute('data-context', 'profile')
+    // Le recalcul serveur ET l'aperçu doivent viser le mois recapé, pas today.
+    expect(modal).toHaveAttribute('data-recap-month', '5')
+    expect(modal).toHaveAttribute('data-recap-year', '2026')
+    // La date reste bornée au mois recapé.
+    expect(modal).toHaveAttribute('data-date-min', '2026-05-01')
+    expect(modal).toHaveAttribute('data-date-max', '2026-05-31')
+  })
+
+  it('closes the edit modal without leaving it mounted', async () => {
+    const user = userEvent.setup()
+    render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
+
+    await user.click(screen.getByRole('button', { name: 'Stub modifier dépense' }))
+    await screen.findByTestId('edit-transaction-modal')
+
+    await user.click(screen.getByRole('button', { name: 'Fermer édition stub' }))
+    await waitFor(() => {
+      expect(screen.queryByTestId('edit-transaction-modal')).not.toBeInTheDocument()
+    })
   })
 
   it('renders Solde Disponible + Reste à Vivre cards with formatted amounts from useFinancialData', () => {

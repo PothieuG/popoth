@@ -293,7 +293,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 export const PUT = withAuth(async (request: NextRequest) => {
   try {
     const body = await parseBody(request, updateRealExpenseBodySchema)
-    const { id, amount, description, expense_date, estimated_budget_id } = body
+    const { id, amount, description, expense_date, estimated_budget_id, month, year } = body
 
     // Sprint 15 V3 (2026-05-27) — interdire la modification d'une dépense
     // reportée du mois précédent (`is_carried_over=true`). Règle produit :
@@ -408,15 +408,28 @@ export const PUT = withAuth(async (request: NextRequest) => {
           : (oldExpense.amount_from_budget_savings ?? 0)
         const savingsPostReverse = (budgetData.cumulated_savings ?? 0) + destinationOldSavingsClaim
 
-        // Filter by current calendar month + carried_from_recap_id IS NULL :
+        // Filter by month window + carried_from_recap_id IS NULL :
         // same rationale as `lib/finance/financial-data.ts` deficit loop
         // (2026-05-27 + Part 35) — exclure les transactions héritées d'un
         // recap antérieur (états A & B) pour que la cascade auto ne soit pas
         // faussée par une carry-over validée qui aurait rempli le pool budget.
+        //
+        // Sprint Fix-Recap-EditPath-Month 2026-08-31 — miroir du fix
+        // `add-with-logic` (34384e7). Le wizard récap « Compléter le mois »
+        // laisse éditer une transaction du mois RECAPÉ alors que `now()` est
+        // déjà sur le mois suivant : sans `month`/`year` explicites, le budget
+        // était vu comme VIDE, tout partait sur `amount_from_budget` sans
+        // cascade, et cette valeur alimente ensuite le `spentThisMonth` du
+        // récap. Les deux champs doivent être présents pour activer la fenêtre
+        // explicite ; un seul des deux retombe sur le fallback today (chemin
+        // Dashboard, strictement inchangé).
+        const useExplicitMonthEdit = month != null && year != null
         const todayEdit = new Date()
-        const firstDayCurrentEdit = `${todayEdit.getFullYear()}-${String(todayEdit.getMonth() + 1).padStart(2, '0')}-01`
+        const refYearEdit = useExplicitMonthEdit ? year : todayEdit.getFullYear()
+        const refMonth0Edit = useExplicitMonthEdit ? month - 1 : todayEdit.getMonth()
+        const firstDayCurrentEdit = `${refYearEdit}-${String(refMonth0Edit + 1).padStart(2, '0')}-01`
         const lastDayCurrentEdit = (() => {
-          const d = new Date(todayEdit.getFullYear(), todayEdit.getMonth() + 1, 0)
+          const d = new Date(refYearEdit, refMonth0Edit + 1, 0)
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         })()
         const { data: budgetExpenses } = await supabaseServer
