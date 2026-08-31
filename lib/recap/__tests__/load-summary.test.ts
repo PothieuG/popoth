@@ -292,4 +292,42 @@ describe('loadRecapSummary — spentThisMonth window follows recapMonth/recapYea
     expect(realExpensesQuery?.gte).toBe('2025-12-01')
     expect(realExpensesQuery?.lt).toBe('2026-01-01')
   })
+
+  // Sprint Fix-Recap-Bilan-Month 2026-08-31 — le bilan (= ravEffectif) doit être
+  // agrégé sur LA MÊME fenêtre que le tableau par budget. Avant, le tableau
+  // portait sur le mois recapé et le bilan sur le mois courant : un budget
+  // dépassé le mois écoulé n'entrait pas dans le bilan.
+  it('passes the recapped month window to getProfileFinancialData', async () => {
+    tableData.estimated_budgets = []
+    tableData.real_expenses = []
+
+    const { getProfileFinancialData } = await import('@/lib/finance')
+    const { loadRecapSummary } = await import('../load-summary')
+    await loadRecapSummary({
+      context: 'profile',
+      profileId: PROFILE_ID,
+      groupId: null,
+      recapMonth: 6,
+      recapYear: 2026,
+    })
+
+    expect(getProfileFinancialData).toHaveBeenCalledWith(PROFILE_ID, { month: 6, year: 2026 })
+  })
+
+  it('passes the recapped month window to getGroupFinancialData', async () => {
+    tableData.estimated_budgets = []
+    tableData.real_expenses = []
+
+    const { getGroupFinancialData } = await import('@/lib/finance')
+    const { loadRecapSummary } = await import('../load-summary')
+    await loadRecapSummary({
+      context: 'group',
+      profileId: PROFILE_ID,
+      groupId: GROUP_ID,
+      recapMonth: 12,
+      recapYear: 2025,
+    })
+
+    expect(getGroupFinancialData).toHaveBeenCalledWith(GROUP_ID, { month: 12, year: 2025 })
+  })
 })

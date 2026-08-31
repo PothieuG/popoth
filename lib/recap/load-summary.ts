@@ -28,6 +28,15 @@
  *   - ravEstime (group)   = totalEstimatedIncome + totalGroupContributions - totalEstimatedBudgets
  *   - ravEffectif         = remainingToLive (calc-rtl existant)
  *
+ * ⚠️ `get{Profile,Group}FinancialData` sont appelées avec la fenêtre
+ * `{ month: recapMonth, year: recapYear }` (sprint Fix-Recap-Bilan-Month
+ * 2026-08-31). Le terme `budgetDeficits` du RAV est donc agrégé sur le mois
+ * RECAPÉ, comme le tableau par budget ci-dessus. Sans ça les deux moitiés de
+ * l'écran résumé portaient sur des mois différents, et un budget dépassé le
+ * mois écoulé n'entrait pas dans le bilan. Les exceptionnelles, elles, restent
+ * NON fenêtrées côté `financial-data` — le miroir de contribution garde sa
+ * date d'origine à vie (cf. `FinancialMonthWindow`).
+ *
  * Depuis Sprint Bilan-Equals-RavEffectif, le bilan = `ravEffectif` seul — le
  * terme `ravEstime` n'entre plus dans le bilan, il n'est plus qu'une métrique
  * affichée. On garde néanmoins `totalGroupContributions` côté ravEstime en
@@ -105,7 +114,16 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       : formatIsoDate(recapYear, recapMonth + 1, 1)
 
   const [financialData, budgetsResult, spentRows, piggyRow, bankRow] = await Promise.all([
-    context === 'profile' ? getProfileFinancialData(profileId) : getGroupFinancialData(groupId!),
+    // Sprint Fix-Recap-Bilan-Month 2026-08-31 — fenêtre = mois RECAPÉ.
+    // Sans elle, `ravEffectif` (donc le bilan) agrégeait les dépenses budget
+    // du mois COURANT tandis que le tableau par budget ci-dessous portait sur
+    // le mois recapé : un budget dépassé le mois écoulé n'entrait pas dans le
+    // bilan, et un bilan positif à tort faisait passer la branche positive,
+    // qui n'écrit jamais `budget_snapshot_data` — la dette était alors effacée
+    // au finalize par l'ÉCRASEMENT de `finalize_recap_apply_snapshot`.
+    context === 'profile'
+      ? getProfileFinancialData(profileId, { month: recapMonth, year: recapYear })
+      : getGroupFinancialData(groupId!, { month: recapMonth, year: recapYear }),
     supabaseServer
       .from('estimated_budgets')
       .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')

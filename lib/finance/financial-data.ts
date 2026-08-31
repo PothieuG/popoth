@@ -40,7 +40,36 @@ import type {
   SavingsProjectMeta,
 } from './types'
 
-async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData> {
+/**
+ * Fenêtre mensuelle explicite pour l'agrégation des dépenses budget
+ * (sprint Fix-Recap-Bilan-Month 2026-08-31).
+ *
+ * Par défaut (absente) → **mois calendaire courant**, sémantique dashboard
+ * temps réel, inchangée pour tous les appelants historiques.
+ *
+ * Fournie → le terme `budgetDeficits` du RAV est agrégé sur CE mois. Seul
+ * `loadRecapSummary` s'en sert, avec la période recapée : sans ça, le bilan
+ * du récap (= `ravEffectif`) portait sur le mois COURANT alors que le tableau
+ * par budget affiché juste au-dessus portait sur le mois RECAPÉ — un budget
+ * dépassé le mois écoulé n'apparaissait donc pas dans le bilan.
+ *
+ * ⚠️ N'affecte QUE la fenêtre des dépenses rattachées à un budget. Les
+ * exceptionnelles restent volontairement NON filtrées par date : le miroir de
+ * contribution (`contribution_id IS NOT NULL`) garde sa `expense_date`
+ * d'origine à vie (cf. 20260528010000, « dépense récurrente, pas ponctuelle
+ * datée »), donc le fenêtrer le ferait disparaître du bilan de tous les récaps
+ * suivants — 2 363,33 € sur un compte réel.
+ */
+export interface FinancialMonthWindow {
+  /** Mois 1-12. */
+  month: number
+  year: number
+}
+
+async function _loadFinancialData(
+  filter: ContextFilter,
+  window?: FinancialMonthWindow,
+): Promise<FinancialData> {
   // resolveContextIds enforces the discriminated-union invariant at runtime
   // (throws if neither id is set) and exposes them as `string | undefined`,
   // letting us narrow with a single ternary.
@@ -200,10 +229,14 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
     // bouclé) — sinon `spentOnBudget` accumulerait des dépenses hors-mois et
     // créerait un déficit fantôme. Ces dépenses seront prises en compte via
     // `carryover_spent_amount` lorsque l'utilisateur finalisera leur recap.
+    // Sprint Fix-Recap-Bilan-Month 2026-08-31 — fenêtre explicite quand le
+    // caller en fournit une (récap : mois recapé), sinon mois courant.
     const today = new Date()
-    const firstDayCurrentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`
+    const refYear = window ? window.year : today.getFullYear()
+    const refMonth0 = window ? window.month - 1 : today.getMonth()
+    const firstDayCurrentMonth = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`
     const lastDayCurrentMonth = (() => {
-      const d = new Date(today.getFullYear(), today.getMonth() + 1, 0)
+      const d = new Date(refYear, refMonth0 + 1, 0)
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     })()
 
@@ -374,6 +407,11 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
         const memberRavResults = await Promise.all(
           memberIds.map(async (id) => ({
             profileId: id,
+            // Volontairement SANS `window` : ce chiffre est libellé « RAV
+            // actuel » du membre et alimente les aperçus de planification.
+            // Le propager depuis un récap groupe changerait silencieusement
+            // un nombre affiché, et chaque membre a de toute façon sa propre
+            // période de récap. Cf. FinancialMonthWindow.
             rav: (await getProfileFinancialData(id)).remainingToLive,
           })),
         )
@@ -436,9 +474,13 @@ async function _loadFinancialData(filter: ContextFilter): Promise<FinancialData>
   }
 }
 
-/** Récupère les données financières pour un profile. Fail-soft → EMPTY_FINANCIAL_DATA. */
-export async function getProfileFinancialData(profileId: string): Promise<FinancialData> {
-  return _loadFinancialData(asContextFilter({ profile_id: profileId }))
+/** Récupère les données financières pour un profile. Fail-soft → EMPTY_FINANCIAL_DATA.
+ *  `window` optionnelle : cf. `FinancialMonthWindow` (défaut = mois courant). */
+export async function getProfileFinancialData(
+  profileId: string,
+  window?: FinancialMonthWindow,
+): Promise<FinancialData> {
+  return _loadFinancialData(asContextFilter({ profile_id: profileId }), window)
 }
 
 /**
@@ -448,7 +490,12 @@ export async function getProfileFinancialData(profileId: string): Promise<Financ
  * de CHAQUE membre du groupe (label `Contribution de <prénom>`) en plus du
  * calcul RAV existant. Pas de paramètre userId : on ne distingue pas
  * visuellement la contribution du user courant des autres.
+ *
+ * `window` optionnelle : cf. `FinancialMonthWindow` (défaut = mois courant).
  */
-export async function getGroupFinancialData(groupId: string): Promise<FinancialData> {
-  return _loadFinancialData(asContextFilter({ group_id: groupId }))
+export async function getGroupFinancialData(
+  groupId: string,
+  window?: FinancialMonthWindow,
+): Promise<FinancialData> {
+  return _loadFinancialData(asContextFilter({ group_id: groupId }), window)
 }
