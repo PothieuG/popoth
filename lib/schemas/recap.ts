@@ -145,9 +145,14 @@ export type RecapStepInput = z.infer<typeof recapStepSchema>
 
 /**
  * Body POST /api/monthly-recap/advance-step — endpoint générique de
- * transition explicite du wizard (sprint 11). Utilisé par les écrans Welcome
- * (welcome→summary) et Summary (summary→manage_bilan). Le serveur valide
- * via `isAdvanceAllowed(fromStep, toStep)` + cohérence avec `current_step`.
+ * transition explicite du wizard (sprint 11). Utilisé par les 5 boutons
+ * "Continuer" du wizard, dont les transitions sont toutes ADJACENTES :
+ * welcome→complete_month→summary→manage_bilan→salary_update→final_recap.
+ *
+ * Le schéma accepte les 7 valeurs de `recapStepSchema`, mais la route
+ * resserre à `nextRequiredStep(fromStep)` et refuse `toStep='completed'`
+ * (sprint Advance-Step-Adjacency) — cf. l'en-tête de
+ * `app/api/monthly-recap/advance-step/route.ts` pour le pourquoi.
  */
 export const advanceStepBodySchema = z.object({
   context: contextSchema,

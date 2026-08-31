@@ -2,12 +2,19 @@
  * Integration tests for POST /api/monthly-recap/advance-step (Sprint 11).
  * Gated by `SUPABASE_RECAP_TESTS=1`.
  *
- * Covers the 5 outcome shapes the route maps :
+ * Covers the outcome shapes the route maps :
  *   - happy summary → manage_bilan : 200 + persisted current_step + summary reload
+ *   - happy welcome → complete_month : 200
  *   - invalid_transition (welcome → welcome) : 400
+ *   - invalid_transition (forward skip summary → final_recap) : 400 + step unmoved
+ *   - invalid_transition (final_recap → completed, /complete's job) : 400
  *   - stale_step (client says from=welcome, server has summary) : 409
  *   - not_initiator (group recap started by someone else) : 403
  *   - no_active_recap (no row for this period) : 404
+ *
+ * The 3 last invalid_transition / adjacency cases come from sprint
+ * Advance-Step-Adjacency (2026-08-31). Note the helper-level contract stays
+ * permissive on purpose — see `lib/recap/__tests__/actions-advance.test.ts`.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -190,17 +197,68 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/advance-step (gated)', () => 
     expect(recap?.current_step).toBe('manage_bilan')
   })
 
-  it('happy welcome → summary (most common transition from WelcomeStep)', async () => {
+  it('happy welcome → complete_month (first transition, from WelcomeStep)', async () => {
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile', currentStep: 'welcome' })
 
     const response = await POST(
-      buildRequest({ context: 'profile', fromStep: 'welcome', toStep: 'summary' }),
+      buildRequest({ context: 'profile', fromStep: 'welcome', toStep: 'complete_month' }),
     )
     expect(response.status).toBe(200)
     const body = (await response.json()) as { data: { recap: { current_step: string } } }
-    expect(body.data.recap.current_step).toBe('summary')
+    expect(body.data.recap.current_step).toBe('complete_month')
+  })
+
+  // Sprint Advance-Step-Adjacency 2026-08-31 — the route tightens the helper's
+  // deliberately permissive forward-skip contract down to the single adjacent
+  // step. Skipping manage_bilan on a negative bilan would leave
+  // budget_snapshot_data empty, and finalize_recap_apply_snapshot (OVERWRITE
+  // semantics) would then ERASE the overspend debt instead of carrying it over.
+  it('invalid_transition: forward skip summary → final_recap returns 400 and does not move the step', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+    await seedRecap({ ownerKind: 'profile', currentStep: 'summary' })
+
+    const response = await POST(
+      buildRequest({ context: 'profile', fromStep: 'summary', toStep: 'final_recap' }),
+    )
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string; fromStep: string; toStep: string }
+    expect(body.error).toBe('invalid_transition')
+    expect(body.fromStep).toBe('summary')
+    expect(body.toStep).toBe('final_recap')
+
+    const { data: recap } = await admin
+      .from('monthly_recaps')
+      .select('current_step')
+      .eq('profile_id', userAId)
+      .single()
+    expect(recap?.current_step).toBe('summary')
+  })
+
+  // Closing the recap is /complete's job. Writing current_step=completed here
+  // would leave completed_at NULL → checkRecapStatus keeps saying in_progress
+  // while RecapWizard spins on "Redirection…" forever and /complete answers 409.
+  it('invalid_transition: final_recap → completed returns 400 (only /complete may close)', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+    await seedRecap({ ownerKind: 'profile', currentStep: 'final_recap' })
+
+    const response = await POST(
+      buildRequest({ context: 'profile', fromStep: 'final_recap', toStep: 'completed' }),
+    )
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as { error: string }
+    expect(body.error).toBe('invalid_transition')
+
+    const { data: recap } = await admin
+      .from('monthly_recaps')
+      .select('current_step, completed_at')
+      .eq('profile_id', userAId)
+      .single()
+    expect(recap?.current_step).toBe('final_recap')
+    expect(recap?.completed_at).toBeNull()
   })
 
   it('invalid_transition: same step (welcome → welcome) returns 400', async () => {
