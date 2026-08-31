@@ -359,6 +359,12 @@ export default function AddTransactionModal({
           is_for_group: context === 'group',
           use_savings: useSavings,
           amount_from_piggy_bank: piggyToSend,
+          // Sprint Fix-Recap-AddPath-Month — mêmes bornes que celles passées à
+          // `ExpenseBreakdownPreview` ci-dessous, sinon l'aperçu et l'écriture
+          // calculent la répartition sur deux mois différents. `undefined` hors
+          // wizard récap (Dashboard) → fallback today côté serveur.
+          month: recapMonth,
+          year: recapYear,
         })
       } else {
         success = await addIncome({

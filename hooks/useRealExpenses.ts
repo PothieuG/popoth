@@ -80,6 +80,16 @@ export interface CreateRealExpenseRequest {
    * pour financer une dépense exceptionnelle (hors budget). Default 0 / absent.
    */
   amount_from_piggy_bank?: number
+  /**
+   * Sprint Fix-Recap-AddPath-Month — mois/année RECAPÉS, fournis uniquement par
+   * le wizard récap « Compléter le mois » (où la transaction ajoutée est datée
+   * du mois écoulé alors que `now()` est déjà sur le mois suivant). Les deux
+   * doivent être présents ; absents sur le Dashboard → fallback today côté
+   * serveur. Miroir du contrat de `preview-breakdown` pour que l'aperçu et
+   * l'écriture calculent la même répartition.
+   */
+  month?: number
+  year?: number
 }
 
 export interface UpdateRealExpenseRequest {

@@ -99,6 +99,16 @@ export const addExpenseWithLogicBodySchema = z.object({
   use_savings: z.boolean().optional().default(false),
   cross_budget_cascade: z.array(crossBudgetCascadeEntrySchema).optional(),
   amount_from_piggy_bank: nonNegativeMoneySchema.optional(),
+  // Sprint Fix-Recap-AddPath-Month : miroir exact du contrat déjà en place sur
+  // `previewBreakdownQuerySchema` (Sprint Fix-Recap-Preview-Month 2026-05-27).
+  // Le wizard récap « Compléter le mois » ajoute des transactions datées du
+  // mois RECAPÉ alors que `now()` est déjà sur le mois suivant : sans ces
+  // champs la route calculait `budgetSpentBefore` sur le mois courant (vide)
+  // et allouait tout au budget, divergeant de l'aperçu montré à l'utilisateur.
+  // Les deux doivent être présents pour activer le filtre ; un seul des deux
+  // retombe sur le fallback today côté route.
+  month: z.number().int().min(1).max(12).optional(),
+  year: z.number().int().min(2000).max(3000).optional(),
 })
 export type AddExpenseWithLogicBody = z.infer<typeof addExpenseWithLogicBodySchema>
 

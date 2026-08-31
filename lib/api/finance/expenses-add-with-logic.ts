@@ -63,7 +63,8 @@ export interface ExpenseBreakdown {
 export const POST = withAuth(async (request: NextRequest, { userId }) => {
   try {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
-    const { amount, description, expense_date, estimated_budget_id, use_savings } = body
+    const { amount, description, expense_date, estimated_budget_id, use_savings, month, year } =
+      body
     const is_for_group = body.is_for_group ?? false
     // Sprint Exceptional-Expense-Piggy-Funding — montant tirelire (dépense
     // exceptionnelle uniquement ; ignoré côté budgétée où la cascade auto
@@ -237,10 +238,18 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     // validation post-recap modifie le solde mais ne mange pas la cap du
     // budget courant. Only count amount_from_budget (not piggy bank or
     // savings amounts).
-    const todayLogic = new Date()
-    const firstDayCurrentLogic = `${todayLogic.getFullYear()}-${String(todayLogic.getMonth() + 1).padStart(2, '0')}-01`
+    // Sprint Fix-Recap-AddPath-Month : quand `month`/`year` sont fournis
+    // (wizard récap « Compléter le mois »), on borne sur le mois RECAPÉ —
+    // strictement le même contrat que `expenses-preview-breakdown.ts`, sinon
+    // l'aperçu (mois recapé) et l'écriture (mois courant) divergent et la
+    // répartition budget/tirelire/économies persistée est fausse. Fallback
+    // `today` pour le Dashboard : comportement inchangé.
+    const useExplicitMonthLogic = month != null && year != null
+    const refYearLogic = useExplicitMonthLogic ? year : new Date().getFullYear()
+    const refMonth0Logic = useExplicitMonthLogic ? month - 1 : new Date().getMonth()
+    const firstDayCurrentLogic = `${refYearLogic}-${String(refMonth0Logic + 1).padStart(2, '0')}-01`
     const lastDayCurrentLogic = (() => {
-      const d = new Date(todayLogic.getFullYear(), todayLogic.getMonth() + 1, 0)
+      const d = new Date(refYearLogic, refMonth0Logic + 1, 0)
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     })()
     const { data: expenses } = await supabaseServer
