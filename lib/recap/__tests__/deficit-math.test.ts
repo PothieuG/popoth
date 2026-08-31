@@ -89,4 +89,28 @@ describe('deficit-math re-export surface', () => {
       }),
     ).toBe(80)
   })
+
+  // Sprint Deficit-Guard 2026-08-31 — garde-fou : sur un bilan >= 0 il n'y a
+  // rien à renflouer. Avant, `Math.abs` produisait un déficit fictif positif
+  // (piège pour le prochain appelant ; les 4 appelants actuels gardent tous
+  // un `bilanSign !== 'negative'` → 409 en amont).
+  it('computeDeficitRemaining short-circuits to 0 on a non-negative bilan', () => {
+    expect(
+      computeDeficitRemaining({
+        initialBilan: 120,
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: { x: 10 },
+        projectSnapshotData: { p1: 5 },
+      }),
+    ).toBe(0)
+    expect(
+      computeDeficitRemaining({
+        initialBilan: 0,
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+      }),
+    ).toBe(0)
+  })
 })

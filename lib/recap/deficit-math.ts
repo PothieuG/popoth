@@ -15,8 +15,8 @@
  *     - sumSnapshotValues(projectSnapshotData)`. Sprint Projets-Épargne 08
  *     (2026-05-26) added the trailing `projectSnapshotData` term — the
  *     refloat-from-projects step inserted between savings and the final
- *     budget snapshot. Caller is responsible for treating a non-negative
- *     bilan as "no deficit" (the function still returns a number).
+ *     budget snapshot. Returns `0` on a non-negative `initialBilan`
+ *     (sprint Deficit-Guard 2026-08-31) — see the function docstring.
  *  - `coerceSnapshot(raw)` : narrows the JSONB `budget_snapshot_data` blob
  *     (`Json | null | undefined`) into a strict `Record<string, number>`
  *     (or `null`), dropping any unexpected non-number entries.
@@ -30,8 +30,8 @@ export function sumSnapshotValues(snapshot: Record<string, number> | null | unde
 }
 
 export interface ComputeDeficitArgs {
-  /** `summary.bilan` — negative when the recap is in deficit. Positive values
-   *  produce a non-zero return (caller must check). */
+  /** `summary.bilan` — negative when the recap is in deficit. A non-negative
+   *  value means "no deficit" and short-circuits the computation to `0`. */
   initialBilan: number
   refloatedFromPiggy: number
   refloatedFromSavings: number
@@ -44,7 +44,22 @@ export interface ComputeDeficitArgs {
   projectSnapshotData?: Record<string, number> | null | undefined
 }
 
+/**
+ * Reste à renflouer après les étapes déjà consommées de la cascade négative.
+ *
+ * Sprint Deficit-Guard 2026-08-31 — court-circuite à `0` quand
+ * `initialBilan >= 0`. Le `Math.abs` ci-dessous n'a de sens QUE sur un bilan
+ * négatif : sur un bilan positif il fabriquait un "déficit" positif fictif
+ * (bilan 50 → 50 à renflouer), et la fonction reportait la responsabilité sur
+ * l'appelant. Aucun appelant n'était fautif — les 4 helpers d'
+ * `actions-negative.ts` gardent tous un `bilanSign !== 'negative'` → 409, et
+ * `BilanNegativeStep` n'est rendu que sur `bilanSign === 'negative'` — mais
+ * c'était un piège armé pour le prochain. Les gardes appelantes sont
+ * CONSERVÉES (défense en profondeur) : elles répondent 409 `no_deficit` avec
+ * le bon statut HTTP, ce que ce `0` ne fait pas.
+ */
 export function computeDeficitRemaining(args: ComputeDeficitArgs): number {
+  if (args.initialBilan >= 0) return 0
   return round2(
     Math.abs(args.initialBilan) -
       args.refloatedFromPiggy -

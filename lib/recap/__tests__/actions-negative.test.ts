@@ -81,10 +81,13 @@ describe('computeDeficitRemaining', () => {
     ).toBe(-10)
   })
 
-  it('returns a non-positive value for a positive initialBilan (caller responsibility)', () => {
-    // computeDeficitRemaining doesn't enforce caller invariants — it computes
-    // `|bilan| - refloat`, leaving the negative-bilan check to the executeXxx
-    // helpers / routes.
+  // Sprint Deficit-Guard 2026-08-31 — CHANGEMENT DE CONTRAT délibéré. Ce cas
+  // épinglait auparavant `40` (`|50| - 10`) en déclarant la vérification
+  // "caller responsibility". Sur un bilan positif, `Math.abs` fabriquait un
+  // déficit fictif : le helper court-circuite désormais à 0. Les gardes
+  // appelantes (`bilanSign !== 'negative'` → 409 `no_deficit`) sont conservées,
+  // c'est elles qui portent le bon statut HTTP.
+  it('returns 0 for a non-negative initialBilan (no deficit to refloat)', () => {
     expect(
       computeDeficitRemaining({
         initialBilan: 50, // positive bilan → no deficit
@@ -92,7 +95,15 @@ describe('computeDeficitRemaining', () => {
         refloatedFromSavings: 0,
         snapshotData: null,
       }),
-    ).toBe(40) // |50| - 10 = 40 (caller must treat positive bilan as "no_deficit")
+    ).toBe(0)
+    expect(
+      computeDeficitRemaining({
+        initialBilan: 0, // équilibre exact → no deficit
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+      }),
+    ).toBe(0)
   })
 
   it('snapshot float drift does not break the cents-precise result', () => {
