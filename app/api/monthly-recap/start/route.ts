@@ -1,6 +1,7 @@
 /**
- * POST /api/monthly-recap/start — claim the recap lock for the current
- * month/year + context. Sprint 05 Monthly Recap V3.
+ * POST /api/monthly-recap/start — claim the recap lock for the recapped
+ * month/year (previous calendar month, per `getRecapPeriod`) + context.
+ * Sprint 05 Monthly Recap V3.
  *
  * Atomicité garantie côté DB par la RPC `start_monthly_recap` (cf.
  * supabase/migrations/20260525000000_create_recap_start_rpc.sql) qui retourne
@@ -21,6 +22,7 @@ import { handleBadRequest, parseBody } from '@/lib/api/parse-body'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 import { loadRecapSummary } from '@/lib/recap/load-summary'
+import { getRecapPeriod } from '@/lib/recap/period'
 import { startRecapBodySchema } from '@/lib/schemas/recap'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -47,9 +49,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       return NextResponse.json({ error: 'Pas de groupe' }, { status: 400 })
     }
 
-    const now = new Date()
-    const month = now.getMonth() + 1
-    const year = now.getFullYear()
+    const { month, year } = getRecapPeriod()
 
     const { data, error } = await supabaseServer.rpc('start_monthly_recap', {
       p_month: month,
@@ -85,6 +85,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       context,
       profileId: userId,
       groupId: profile.group_id,
+      recapMonth: payload.recap.recap_month,
+      recapYear: payload.recap.recap_year,
     })
 
     return NextResponse.json({ data: { recap: payload.recap, summary } })

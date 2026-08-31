@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import type { Database } from '@/lib/database.types'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 const ENABLED = process.env.SUPABASE_RECAP_TESTS === '1'
 
@@ -32,9 +33,9 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
   const passwordB = `recap-B-${randomUUID()}`
   const passwordC = `recap-C-${randomUUID()}`
 
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  // Fixtures must be tagged with the SAME period `checkRecapStatus` resolves
+  // internally (previous calendar month, per `getRecapPeriod`) — not "now".
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -112,8 +113,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
     const result = await checkRecapStatus(userAId, 'profile')
     expect(result.context).toBe('profile')
     expect(result.contextId).toBe(userAId)
-    expect(result.currentMonth).toBe(currentMonth)
-    expect(result.currentYear).toBe(currentYear)
+    expect(result.recapMonth).toBe(recapMonth)
+    expect(result.recapYear).toBe(recapYear)
     expect(result.status.kind).toBe('no_recap')
   })
 
@@ -123,8 +124,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userAId,
         started_at: new Date().toISOString(),
@@ -149,8 +150,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'completed',
         started_by_profile_id: userAId,
         started_at: completedAt,
@@ -172,8 +173,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'welcome',
         started_by_profile_id: null,
       })
@@ -189,8 +190,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
       .from('monthly_recaps')
       .insert({
         group_id: groupAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'manage_bilan',
         started_by_profile_id: userAId,
         started_at: new Date().toISOString(),
@@ -213,8 +214,8 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
       .from('monthly_recaps')
       .insert({
         group_id: groupAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userBId,
         started_at: new Date().toISOString(),

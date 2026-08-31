@@ -1,4 +1,5 @@
 import { supabaseServer } from '@/lib/supabase-server'
+import { getRecapPeriod } from './period'
 import type { RecapStep } from './state'
 
 export type RecapContext = 'profile' | 'group'
@@ -42,8 +43,9 @@ export interface RecapStatusResult {
   context: RecapContext
   contextId: string
   status: RecapStatusKind
-  currentMonth: number
-  currentYear: number
+  /** Mois recapé 1-12 — le mois écoulé (précédent), pas le mois en cours. */
+  recapMonth: number
+  recapYear: number
 }
 
 export class RecapStatusError extends Error {
@@ -72,7 +74,10 @@ function coerceStep(raw: string): RecapStep {
 
 /**
  * Read the recap status for the given user in the given context, for the
- * current server-side month/year (UTC fallback per JS Date defaults).
+ * recapped month/year — the previous calendar month relative to the
+ * server-side now (UTC fallback per JS Date defaults), per `getRecapPeriod`.
+ * The recap opened "now" always reviews the month that just ended, never the
+ * one in progress (cf. `WelcomeStep.tsx` copy "récap mensuel du mois écoulé").
  *
  * Uses `.maybeSingle()` — the row legitimately may not exist (no_recap).
  * Never use `.single()` here: it would raise PGRST116 on any fresh account.
@@ -84,9 +89,7 @@ export async function checkRecapStatus(
   userId: string,
   context: RecapContext,
 ): Promise<RecapStatusResult> {
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   const { data: profile, error: profileError } = await supabaseServer
     .from('profiles')
@@ -105,8 +108,8 @@ export async function checkRecapStatus(
       .from('monthly_recaps')
       .select('id, current_step, started_at, started_by_profile_id, completed_at')
       .eq('profile_id', profile.id)
-      .eq('recap_month', currentMonth)
-      .eq('recap_year', currentYear)
+      .eq('recap_month', recapMonth)
+      .eq('recap_year', recapYear)
       .maybeSingle()
 
     if (!row) {
@@ -114,8 +117,8 @@ export async function checkRecapStatus(
         context,
         contextId,
         status: { kind: 'no_recap' },
-        currentMonth,
-        currentYear,
+        recapMonth,
+        recapYear,
       }
     }
 
@@ -124,8 +127,8 @@ export async function checkRecapStatus(
         context,
         contextId,
         status: { kind: 'completed', recapId: row.id, completedAt: row.completed_at },
-        currentMonth,
-        currentYear,
+        recapMonth,
+        recapYear,
       }
     }
 
@@ -135,8 +138,8 @@ export async function checkRecapStatus(
         context,
         contextId,
         status: { kind: 'no_recap' },
-        currentMonth,
-        currentYear,
+        recapMonth,
+        recapYear,
       }
     }
 
@@ -150,8 +153,8 @@ export async function checkRecapStatus(
         startedAt: row.started_at,
         startedByProfileId: row.started_by_profile_id,
       },
-      currentMonth,
-      currentYear,
+      recapMonth,
+      recapYear,
     }
   }
 
@@ -168,8 +171,8 @@ export async function checkRecapStatus(
        starter:profiles!monthly_recaps_started_by_profile_id_fkey(first_name, last_name)`,
     )
     .eq('group_id', profile.group_id)
-    .eq('recap_month', currentMonth)
-    .eq('recap_year', currentYear)
+    .eq('recap_month', recapMonth)
+    .eq('recap_year', recapYear)
     .maybeSingle()
 
   if (!row) {
@@ -177,8 +180,8 @@ export async function checkRecapStatus(
       context,
       contextId,
       status: { kind: 'no_recap' },
-      currentMonth,
-      currentYear,
+      recapMonth,
+      recapYear,
     }
   }
 
@@ -187,8 +190,8 @@ export async function checkRecapStatus(
       context,
       contextId,
       status: { kind: 'completed', recapId: row.id, completedAt: row.completed_at },
-      currentMonth,
-      currentYear,
+      recapMonth,
+      recapYear,
     }
   }
 
@@ -197,8 +200,8 @@ export async function checkRecapStatus(
       context,
       contextId,
       status: { kind: 'no_recap' },
-      currentMonth,
-      currentYear,
+      recapMonth,
+      recapYear,
     }
   }
 
@@ -213,8 +216,8 @@ export async function checkRecapStatus(
         startedAt: row.started_at,
         startedByProfileId: row.started_by_profile_id,
       },
-      currentMonth,
-      currentYear,
+      recapMonth,
+      recapYear,
     }
   }
 
@@ -230,7 +233,7 @@ export async function checkRecapStatus(
       startedByProfileId: row.started_by_profile_id,
       startedByName,
     },
-    currentMonth,
-    currentYear,
+    recapMonth,
+    recapYear,
   }
 }

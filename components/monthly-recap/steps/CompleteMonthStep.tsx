@@ -22,9 +22,9 @@ const ADVANCE_ERROR_COPY: Record<string, string> = {
 
 interface CompleteMonthStepProps {
   context: RecapContext
-  /** Année du mois recapé (server-side `currentYear` de `checkRecapStatus`). */
+  /** Année du mois recapé (server-side `recapYear` de `checkRecapStatus`). */
   recapYear: number
-  /** Mois recapé 1-12 (server-side `currentMonth` de `checkRecapStatus`). */
+  /** Mois recapé 1-12 (server-side `recapMonth` de `checkRecapStatus`). */
   recapMonth: number
 }
 

@@ -19,6 +19,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 import type { Database, Json } from '@/lib/database.types'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 const ENABLED = process.env.SUPABASE_RECAP_TESTS === '1'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -60,9 +61,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
   const emailA = `recap-sbs-a-${stamp}@popoth.test`
   const emailB = `recap-sbs-b-${stamp}@popoth.test`
 
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -156,8 +155,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     budgetSnapshotData?: Record<string, number>
   }): Promise<{ id: string }> {
     const base = {
-      recap_month: currentMonth,
-      recap_year: currentYear,
+      recap_month: recapMonth,
+      recap_year: recapYear,
       current_step: args.currentStep ?? 'summary',
       started_by_profile_id: args.startedBy ?? userAId,
       started_at: new Date().toISOString(),

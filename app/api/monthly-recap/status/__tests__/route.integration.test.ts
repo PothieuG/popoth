@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/lib/database.types'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 const ENABLED = process.env.SUPABASE_RECAP_TESTS === '1'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -54,9 +55,7 @@ describe.skipIf(!ENABLED)('GET /api/monthly-recap/status (gated)', () => {
   const emailB = `recap-status-route-b-${stamp}@popoth.test`
   const emailC = `recap-status-route-c-${stamp}@popoth.test`
 
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -169,8 +168,8 @@ describe.skipIf(!ENABLED)('GET /api/monthly-recap/status (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userAId,
         started_at: new Date().toISOString(),
@@ -200,8 +199,8 @@ describe.skipIf(!ENABLED)('GET /api/monthly-recap/status (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'completed',
         started_by_profile_id: userAId,
         started_at: completedAt,
@@ -226,8 +225,8 @@ describe.skipIf(!ENABLED)('GET /api/monthly-recap/status (gated)', () => {
       .from('monthly_recaps')
       .insert({
         group_id: groupAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userBId,
         started_at: new Date().toISOString(),

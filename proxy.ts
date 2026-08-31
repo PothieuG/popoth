@@ -3,6 +3,7 @@ import { decrypt } from '@/lib/session'
 import { logger } from '@/lib/logger'
 import { checkRecapStatus, RecapStatusError, type RecapContext } from '@/lib/recap/check-status'
 import { isRecapBlocking } from '@/lib/recap/lock'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 // Define protected and public routes
 const protectedRoutes = ['/dashboard', '/profile', '/group-dashboard', '/dev']
@@ -123,9 +124,14 @@ export default async function proxy(req: NextRequest) {
     }
 
     if (session?.userId && gatedContext) {
-      const now = new Date()
-      const month = now.getMonth() + 1
-      const year = now.getFullYear()
+      // Clé de cache = la période RECAPÉE (mois écoulé), pas le mois courant —
+      // même source de vérité que `checkRecapStatus` dont ce cookie met le
+      // résultat en cache. Les deux sont en bijection (ils basculent au même
+      // instant), donc l'invalidation reste correcte à la frontière de mois ;
+      // l'alignement évite qu'un cookie nommé `...-2026-07` désigne en fait le
+      // récap de juin — exactement le genre d'écart sémantique à l'origine du
+      // bug corrigé par `getRecapPeriod` (cf. lib/recap/period.ts).
+      const { month, year } = getRecapPeriod()
       const cookieName = recapCookieName(gatedContext, year, month)
 
       // Cache hit : on a déjà confirmé status='completed' dans les 5 dernières

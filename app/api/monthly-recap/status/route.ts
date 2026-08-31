@@ -1,6 +1,7 @@
 /**
  * GET /api/monthly-recap/status?context=profile|group — read the recap
- * status for the current month/year + context. Sprint 05 Monthly Recap V3.
+ * status for the recapped month/year (previous calendar month, per
+ * `getRecapPeriod`) + context. Sprint 05 Monthly Recap V3.
  *
  * Wraps `checkRecapStatus` (sprint 03) qui retourne un discriminated union
  * `RecapStatusKind = no_recap | in_progress | locked_by_other | completed`.
@@ -65,8 +66,8 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
     // the new wizard step can filter the transaction list to the recapped
     // month and default the AddTransactionModal date. Derived server-side via
     // `checkRecapStatus` so client doesn't drift when crossing a month boundary.
-    const recapYear = result.currentYear
-    const recapMonth = result.currentMonth
+    const recapYear = result.recapYear
+    const recapMonth = result.recapMonth
 
     if (result.status.kind === 'in_progress') {
       // Sprint Recap-Positive-Consume-Surplus (2026-05-25) — fetch the recap
@@ -86,6 +87,12 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
         context,
         profileId: userId,
         groupId: profile.group_id,
+        // Prefer the row's own persisted month/year (robust even if this
+        // recap somehow stayed open across a further month boundary) —
+        // fall back to checkRecapStatus's resolved period only when the row
+        // lookup raced/missed (recapRow null despite kind === 'in_progress').
+        recapMonth: recapRow?.recap_month ?? recapMonth,
+        recapYear: recapRow?.recap_year ?? recapYear,
         piggyTransfersData,
         projectSnapshotData,
       })

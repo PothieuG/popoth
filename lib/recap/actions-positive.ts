@@ -84,6 +84,8 @@ export async function executeTransferSurplusesToPiggy(args: ExecuteTransferArgs)
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
     piggyTransfersData: existingTracker,
   })
 
@@ -112,6 +114,8 @@ export async function executeTransferSurplusesToPiggy(args: ExecuteTransferArgs)
         context: args.context,
         profileId: args.profileId,
         groupId: args.groupId,
+        recapMonth: args.recap.recap_month,
+        recapYear: args.recap.recap_year,
         piggyTransfersData: existingTracker,
       })
       return {
@@ -174,6 +178,8 @@ export async function executeTransferSurplusesToPiggy(args: ExecuteTransferArgs)
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
     piggyTransfersData: mergedTracker,
   })
 
@@ -203,6 +209,8 @@ export async function executeTransformRemainingToSavings(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
     piggyTransfersData: existingTracker,
   })
   // `surplus > 0` is already enough — loadRecapSummary subtracted the tracker

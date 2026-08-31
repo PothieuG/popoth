@@ -1,6 +1,7 @@
 /**
  * Monthly Recap V3 — fetch the active (non-completed) recap row for the
- * current calendar month + context. Sprint 06 (positive flow) and beyond.
+ * recapped month (previous calendar month, per `getRecapPeriod`) + context.
+ * Sprint 06 (positive flow) and beyond.
  *
  * Returns `null` when:
  *   - no row exists for this period (the user must `/start` first),
@@ -23,6 +24,7 @@ import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
 import type { RecapContext } from './check-status'
+import { getRecapPeriod } from './period'
 
 export type MonthlyRecapRow = Database['public']['Tables']['monthly_recaps']['Row']
 
@@ -36,9 +38,7 @@ export interface GetActiveRecapArgs {
 
 export async function getActiveRecap(args: GetActiveRecapArgs): Promise<MonthlyRecapRow | null> {
   const { context, userId, profile } = args
-  const now = args.now ?? new Date()
-  const month = now.getMonth() + 1
-  const year = now.getFullYear()
+  const { month, year } = getRecapPeriod(args.now)
 
   if (context === 'group' && !profile.group_id) {
     return null

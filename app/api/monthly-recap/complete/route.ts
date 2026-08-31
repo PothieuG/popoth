@@ -6,7 +6,8 @@
  * `{ alreadyCompleted: true, recap }` with HTTP 200. `getActiveRecap` filters
  * `completed_at IS NULL`, so a NULL recap here means either "never started"
  * OR "already completed" — disambiguate with a direct lookup of the completed
- * row for the current month before responding 404.
+ * row for the RECAPPED month (mois écoulé, cf. `getRecapPeriod`) before
+ * responding 404.
  *
  * Orchestration (via `executeCompleteRecap`):
  *   1. (fail-soft) `finalize_recap_apply_snapshot` — applies the deferred

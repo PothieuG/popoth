@@ -103,6 +103,8 @@ export async function executeRefloatFromPiggy(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
   if (summaryBefore.bilanSign !== 'negative') {
     throw new RecapActionError('no_deficit', 409)
@@ -147,6 +149,8 @@ export async function executeRefloatFromPiggy(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
 
   return {
@@ -183,6 +187,8 @@ export async function executeRefloatFromSavings(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
   if (summaryBefore.bilanSign !== 'negative') {
     throw new RecapActionError('no_deficit', 409)
@@ -259,6 +265,8 @@ export async function executeRefloatFromSavings(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
 
   const newDeficit = round2(deficitRemaining - totalApplied)
@@ -299,6 +307,8 @@ export async function executeSaveBudgetSnapshot(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
   if (summary.bilanSign !== 'negative') {
     throw new RecapActionError('no_deficit', 409)
@@ -425,6 +435,8 @@ export async function executeRefloatFromProjects(
     context: args.context,
     profileId: args.profileId,
     groupId: args.groupId,
+    recapMonth: args.recap.recap_month,
+    recapYear: args.recap.recap_year,
   })
   if (summary.bilanSign !== 'negative') {
     throw new RecapActionError('no_deficit', 409)

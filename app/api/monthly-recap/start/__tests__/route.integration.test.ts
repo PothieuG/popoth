@@ -18,6 +18,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { randomUUID } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import type { Database } from '@/lib/database.types'
+import { getRecapPeriod } from '@/lib/recap/period'
 
 const ENABLED = process.env.SUPABASE_RECAP_TESTS === '1'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -61,9 +62,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
   const emailB = `recap-start-b-${stamp}@popoth.test`
   const emailC = `recap-start-c-${stamp}@popoth.test`
 
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1
-  const currentYear = now.getFullYear()
+  const { month: recapMonth, year: recapYear } = getRecapPeriod()
 
   beforeAll(async () => {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -177,8 +176,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
       .from('monthly_recaps')
       .select('id, started_at')
       .eq('profile_id', userAId)
-      .eq('recap_month', currentMonth)
-      .eq('recap_year', currentYear)
+      .eq('recap_month', recapMonth)
+      .eq('recap_year', recapYear)
       .single()
     expect(row).not.toBeNull()
     expect(row!.started_at).not.toBeNull()
@@ -193,8 +192,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userAId,
         started_at: initialStartedAt,
@@ -219,8 +218,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'welcome',
         started_by_profile_id: null,
         started_at: null,
@@ -257,8 +256,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
       .from('monthly_recaps')
       .insert({
         group_id: groupAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'summary',
         started_by_profile_id: userBId,
         started_at: new Date().toISOString(),
@@ -281,8 +280,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
       .from('monthly_recaps')
       .insert({
         profile_id: userAId,
-        recap_month: currentMonth,
-        recap_year: currentYear,
+        recap_month: recapMonth,
+        recap_year: recapYear,
         current_step: 'completed',
         started_by_profile_id: userAId,
         started_at: completedAt,

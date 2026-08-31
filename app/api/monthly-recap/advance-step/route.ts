@@ -75,6 +75,8 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       context: body.context,
       profileId: userId,
       groupId: profile.group_id,
+      recapMonth: recap.recap_month,
+      recapYear: recap.recap_year,
     })
 
     return NextResponse.json({

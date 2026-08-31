@@ -12,7 +12,9 @@
  * estimé affiché reste cohérent avec le RAV effectif.
  *
  * Mocks `@/lib/finance` (controlled FinancialData) + `@/lib/supabase-server`
- * (empty query chain) so the test exercises only the formula in load-summary.
+ * (per-table builder, capture `.gte`/`.lt` args) so the tests can exercise
+ * both the formula in load-summary AND (Sprint Fix-Recap-Surplus-Wrong-Month)
+ * the `real_expenses` date-range query itself.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,20 +39,48 @@ vi.mock('@/lib/finance', () => ({
   getGroupFinancialData: vi.fn(async () => FINANCIAL_DATA_STATE.value),
 }))
 
-vi.mock('@/lib/supabase-server', () => {
-  const builder = {
-    select: () => builder,
-    eq: () => builder,
-    is: () => builder,
-    not: () => builder,
-    gte: () => builder,
-    lt: () => builder,
-    maybeSingle: () => Promise.resolve({ data: null }),
-    then: (resolve: (v: { data: unknown[] }) => void) => resolve({ data: [] }),
+// `vi.hoisted` so the mock factory below (itself hoisted above imports by
+// vitest) can close over — and tests can later inspect/reset — the same
+// arrays. `capturedQueries` records one entry per `.from(table)` chain that
+// reached a terminal call (`.then`/`.maybeSingle`), including the raw
+// `.gte`/`.lt` args — that's what the date-range regression test asserts on.
+const { capturedQueries, tableData } = vi.hoisted(() => {
+  return {
+    capturedQueries: [] as Array<{ table: string; gte?: unknown; lt?: unknown }>,
+    tableData: {
+      estimated_budgets: [] as unknown[],
+      real_expenses: [] as unknown[],
+    },
   }
+})
+
+vi.mock('@/lib/supabase-server', () => {
   return {
     supabaseServer: {
-      from: () => builder,
+      from: (table: string) => {
+        const record: { table: string; gte?: unknown; lt?: unknown } = { table }
+        const builder = {
+          select: () => builder,
+          eq: () => builder,
+          is: () => builder,
+          not: () => builder,
+          gte: (_column: string, value: unknown) => {
+            record.gte = value
+            return builder
+          },
+          lt: (_column: string, value: unknown) => {
+            record.lt = value
+            return builder
+          },
+          maybeSingle: () => Promise.resolve({ data: null }),
+          then: (resolve: (v: { data: unknown[] }) => void) => {
+            capturedQueries.push(record)
+            const rows = (tableData as Record<string, unknown[]>)[table] ?? []
+            resolve({ data: rows })
+          },
+        }
+        return builder
+      },
     },
   }
 })
@@ -69,6 +99,9 @@ beforeEach(() => {
     totalRealExpenses: 0,
     meta: { readOnlyIncomes: [], totalMonthlyProjects: 0, savingsProjects: [] },
   }
+  capturedQueries.length = 0
+  tableData.estimated_budgets = []
+  tableData.real_expenses = []
 })
 
 afterEach(() => {
@@ -101,6 +134,8 @@ describe('loadRecapSummary — ravEstime formula', () => {
       context: 'group',
       profileId: PROFILE_ID,
       groupId: GROUP_ID,
+      recapMonth: 6,
+      recapYear: 2026,
     })
 
     expect(summary.ravEstime).toBe(0)
@@ -133,6 +168,8 @@ describe('loadRecapSummary — ravEstime formula', () => {
       context: 'group',
       profileId: PROFILE_ID,
       groupId: GROUP_ID,
+      recapMonth: 6,
+      recapYear: 2026,
     })
 
     // 100 + 500 − 1000 = -400
@@ -158,6 +195,8 @@ describe('loadRecapSummary — ravEstime formula', () => {
       context: 'profile',
       profileId: PROFILE_ID,
       groupId: null,
+      recapMonth: 6,
+      recapYear: 2026,
     })
 
     // 3000 − 700 = 2300 (no contribution term in perso)
@@ -185,11 +224,72 @@ describe('loadRecapSummary — bilan = ravEffectif (Sprint Bilan-Equals-RavEffec
       context: 'profile',
       profileId: PROFILE_ID,
       groupId: null,
+      recapMonth: 6,
+      recapYear: 2026,
     })
 
     expect(summary.ravEstime).toBe(800)
     expect(summary.ravEffectif).toBe(300)
     expect(summary.bilan).toBe(300)
     expect(summary.bilanSign).toBe('positive')
+  })
+})
+
+describe('loadRecapSummary — spentThisMonth window follows recapMonth/recapYear', () => {
+  // Sprint Fix-Recap-Surplus-Wrong-Month (2026-07-03) — before the fix,
+  // `loadRecapSummary` derived the `real_expenses` date range from `new
+  // Date()` (the calendar month "now"), not from the month the recap is
+  // actually reviewing. A recap opened at the start of a new month found
+  // ~zero expenses in that not-yet-lived-in month, so every budget's full
+  // estimated amount showed up as "surplus". These 2 cases pin: (a) the SQL
+  // window matches the *input* `recapMonth`/`recapYear` regardless of when
+  // the test runs, and (b) a budget that was actually spent on comes back
+  // with the correct (non-inflated) surplus.
+  it('queries real_expenses against the recapped month, not the calendar month', async () => {
+    tableData.estimated_budgets = [
+      {
+        id: 'budget-1',
+        name: 'Crypto',
+        estimated_amount: 190,
+        cumulated_savings: 0,
+        carryover_spent_amount: 0,
+      },
+    ]
+    tableData.real_expenses = [{ estimated_budget_id: 'budget-1', amount_from_budget: 190 }]
+
+    const { loadRecapSummary } = await import('../load-summary')
+    const summary = await loadRecapSummary({
+      context: 'profile',
+      profileId: PROFILE_ID,
+      groupId: null,
+      recapMonth: 6,
+      recapYear: 2026,
+    })
+
+    const realExpensesQuery = capturedQueries.find((q) => q.table === 'real_expenses')
+    expect(realExpensesQuery?.gte).toBe('2026-06-01')
+    expect(realExpensesQuery?.lt).toBe('2026-07-01')
+
+    // Fully spent budget → 0 surplus, not the full 190€ (the pre-fix symptom).
+    expect(summary.budgets[0]?.spentThisMonth).toBe(190)
+    expect(summary.budgets[0]?.surplus).toBe(0)
+  })
+
+  it('handles the December → January rollover in the query window', async () => {
+    tableData.estimated_budgets = []
+    tableData.real_expenses = []
+
+    const { loadRecapSummary } = await import('../load-summary')
+    await loadRecapSummary({
+      context: 'profile',
+      profileId: PROFILE_ID,
+      groupId: null,
+      recapMonth: 12,
+      recapYear: 2025,
+    })
+
+    const realExpensesQuery = capturedQueries.find((q) => q.table === 'real_expenses')
+    expect(realExpensesQuery?.gte).toBe('2025-12-01')
+    expect(realExpensesQuery?.lt).toBe('2026-01-01')
   })
 })

@@ -7,8 +7,10 @@
  *      `getGroupFinancialData` — réutilise l'existant lib/finance).
  *   2. Liste des `estimated_budgets` du contexte (id, name, estimated_amount,
  *      cumulated_savings) pour le tableau per-budget du summary.
- *   3. Dépensé par budget ce mois — agrégat `amount_from_budget` filtré sur
- *      `carried_from_recap_id IS NULL` et `expense_date` dans le mois courant.
+ *   3. Dépensé par budget sur le mois recapé (`input.recapMonth`/`recapYear`,
+ *      PAS le mois calendaire en cours — cf. `getRecapPeriod`, le récap revoit
+ *      toujours le mois écoulé) — agrégat `amount_from_budget` filtré sur
+ *      `carried_from_recap_id IS NULL` et `expense_date` dans ce mois-là.
  *      Toutes les transactions pures du mois comptent (validées ou non — la
  *      validation `applied_to_balance_at` n'impacte que le solde bancaire,
  *      pas le RAV ni le surplus, miroir de `getProfileFinancialData` deficit
@@ -35,8 +37,14 @@
  *
  * Tous les montants sont passés en cents-precise via `computeRecapSummary`
  * (round2 stable). Ce helper ne fait pas d'écriture (pure read + compose).
- * Utilisé par /api/monthly-recap/start (post-claim) et /api/monthly-recap/
- * status (in_progress only) — sera ré-utilisé sprints 06/07.
+ * `recapMonth`/`recapYear` sont **requis** — le caller doit les fournir
+ * depuis la ligne `monthly_recaps` en jeu (`recap_month`/`recap_year`) ou,
+ * à défaut de ligne existante, depuis `checkRecapStatus`/`getRecapPeriod`.
+ * Pas de fallback implicite sur `now()` ici : un call site qui oublierait de
+ * les passer réintroduirait la classe de bug "le récap regarde le mauvais
+ * mois" (cf. Fix-Recap-Surplus-Wrong-Month). Utilisé par /api/monthly-recap/
+ * start (post-claim), /api/monthly-recap/status (in_progress), et les
+ * actions positive/negative du wizard (sprints 06+).
  */
 
 import { getGroupFinancialData, getProfileFinancialData } from '@/lib/finance'
@@ -50,6 +58,11 @@ export interface LoadRecapSummaryInput {
   context: RecapContext
   profileId: string
   groupId: string | null
+  /** Mois recapé 1-12 (`monthly_recaps.recap_month` de la ligne en jeu, ou
+   *  `getRecapPeriod()` s'il n'y a pas encore de ligne). PAS le mois
+   *  calendaire courant — cf. docstring du module. */
+  recapMonth: number
+  recapYear: number
   /** Sprint Recap-Positive-Consume-Surplus (2026-05-25). Forwarded to
    *  `computeRecapSummary` so per-budget surpluses already routed to the
    *  piggy bank during this active recap are consumed (subtracted from the
@@ -67,7 +80,15 @@ export interface LoadRecapSummaryInput {
 }
 
 export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<RecapSummary> {
-  const { context, profileId, groupId, piggyTransfersData, projectSnapshotData } = input
+  const {
+    context,
+    profileId,
+    groupId,
+    recapMonth,
+    recapYear,
+    piggyTransfersData,
+    projectSnapshotData,
+  } = input
 
   if (context === 'group' && !groupId) {
     throw new Error('loadRecapSummary: group context requires non-null groupId')
@@ -76,15 +97,12 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
   const ownerColumn: 'profile_id' | 'group_id' = context === 'profile' ? 'profile_id' : 'group_id'
   const ownerId = context === 'profile' ? profileId : (groupId as string)
 
-  // Bornes calendaires du mois courant (UTC fallback aligné avec checkRecapStatus).
-  const now = new Date()
-  const currentMonth = now.getMonth() + 1 // 1..12
-  const currentYear = now.getFullYear()
-  const monthStart = formatIsoDate(currentYear, currentMonth, 1)
+  // Bornes calendaires du mois RECAPÉ (pas le mois calendaire en cours).
+  const monthStart = formatIsoDate(recapYear, recapMonth, 1)
   const nextMonthStart =
-    currentMonth === 12
-      ? formatIsoDate(currentYear + 1, 1, 1)
-      : formatIsoDate(currentYear, currentMonth + 1, 1)
+    recapMonth === 12
+      ? formatIsoDate(recapYear + 1, 1, 1)
+      : formatIsoDate(recapYear, recapMonth + 1, 1)
 
   const [financialData, budgetsResult, spentRows, piggyRow, bankRow] = await Promise.all([
     context === 'profile' ? getProfileFinancialData(profileId) : getGroupFinancialData(groupId!),
