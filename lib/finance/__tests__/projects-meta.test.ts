@@ -5,12 +5,13 @@ import {
   computeDeadlineFromDuration,
   formatDeadline,
   formatMonthsRemaining,
+  isLastDayOfMonthUtc,
   monthsBetween,
 } from '@/lib/finance/projects-meta'
 
 /**
  * Sprint Projets-Épargne 03 — pure helpers, no I/O. Pinned cases :
- *   - monthsBetween : exact, fractional, past, cross-year
+ *   - monthsBetween : exact, fractional, past, cross-year, clamp fin de mois
  *   - computeDeadlineFromDuration : first-of-month, end-of-month overflow,
  *     cross-year
  *   - buildSavingsProjectMeta : maps snake_case → camelCase + injects today
@@ -36,6 +37,39 @@ describe('monthsBetween', () => {
   it('handles cross-year deadlines (year+month combo)', () => {
     const from = new Date(2026, 10, 15) // 2026-11-15
     expect(monthsBetween(from, '2027-04-15')).toBe(5)
+  })
+
+  // Sprint Deadline-Month-End-Clamp 2026-08-31 — régression de production.
+  // `computeDeadlineFromDuration(6)` depuis le 31 août rabote le jour au
+  // 28 février (Feb n'a pas de 31). L'ancien floor `dayDiff < 0` relisait
+  // alors 5 mois, et le refine de `makeProjectClientSchema` refusait une
+  // échéance que le formulaire venait lui-même de produire.
+  it('counts a full month when the deadline was clamped to the last day of a shorter month', () => {
+    const from = new Date(2026, 7, 31) // 2026-08-31 local
+    expect(computeDeadlineFromDuration(6, new Date(Date.UTC(2026, 7, 31)))).toBe('2027-02-28')
+    expect(monthsBetween(from, '2027-02-28')).toBe(6)
+  })
+
+  it('still floors when the deadline is early in its month (not a clamp artefact)', () => {
+    // 2027-02-27 n'est PAS le dernier jour de février → vrai mois entamé.
+    expect(monthsBetween(new Date(2026, 7, 31), '2027-02-27')).toBe(5)
+  })
+})
+
+describe('isLastDayOfMonthUtc', () => {
+  it('is true on the last day of 31-, 30- and 28-day months', () => {
+    expect(isLastDayOfMonthUtc(new Date('2027-01-31'))).toBe(true)
+    expect(isLastDayOfMonthUtc(new Date('2027-04-30'))).toBe(true)
+    expect(isLastDayOfMonthUtc(new Date('2027-02-28'))).toBe(true)
+  })
+
+  it('is true on Feb 29 of a leap year and false on Feb 28 of that year', () => {
+    expect(isLastDayOfMonthUtc(new Date('2028-02-29'))).toBe(true)
+    expect(isLastDayOfMonthUtc(new Date('2028-02-28'))).toBe(false)
+  })
+
+  it('is false mid-month', () => {
+    expect(isLastDayOfMonthUtc(new Date('2027-03-15'))).toBe(false)
   })
 })
 

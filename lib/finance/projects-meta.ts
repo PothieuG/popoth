@@ -11,8 +11,19 @@
  * Date, deadline: Date)` consommé par le refine 2 de `makeProjectClientSchema`.
  * Les deux signatures coexistent : `monthsUntilDeadline` prend 2 `Date` (form
  * client), `monthsBetween` prend `(Date, string)` (orchestrateur lit la
- * colonne `date` ISO). Pas de duplication sémantique — même règle floor des
- * mois calendaires, formats d'entrée différents.
+ * colonne `date` ISO). Pas de duplication sémantique — même règle de comptage
+ * des mois calendaires, formats d'entrée différents.
+ *
+ * ⚠️ MIROIR À MAINTENIR (sprint Deadline-Month-End-Clamp 2026-08-31) : la règle
+ * de comptage est dupliquée dans les deux fichiers (comme `round2` entre
+ * `deficit-math.ts` et `actions-negative.ts`). Elle a DEUX volets, et toute
+ * évolution doit toucher LES DEUX endroits :
+ *   1. floor du mois entamé (`dayDiff < 0` ⇒ −1 mois) ;
+ *   2. EXCEPTION quand l'échéance tombe le dernier jour de son mois — le
+ *      résidu de jours vient alors du clamp de `computeDeadlineFromDuration`
+ *      (31 août + 6 mois → 28 février), pas d'un mois incomplet. Sans elle,
+ *      « +6 mois » se relit « 5 mois » et le refine du formulaire refuse une
+ *      échéance qu'il vient lui-même de calculer (les 29/30/31 du mois).
  */
 
 import type { Database } from '@/lib/database.types'
@@ -22,11 +33,22 @@ import type { SavingsProjectMeta } from './types'
 export type SavingsProjectRow = Database['public']['Tables']['savings_projects']['Row']
 
 /**
+ * `true` quand `date`, lue en UTC, est le dernier jour de son mois. Neutralise
+ * le floor de `monthsBetween` / `monthsUntilDeadline` sur les échéances
+ * ramenées en fin de mois par `computeDeadlineFromDuration`.
+ */
+export function isLastDayOfMonthUtc(date: Date): boolean {
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+  return date.getUTCDate() === lastDay
+}
+
+/**
  * Mois calendaires entiers entre `from` (date courante, locale) et `to`
  * (ISO `YYYY-MM-DD`). Floor : un demi-mois résiduel ne peut pas accueillir
  * une allocation mensuelle créditée 1× par recap calendaire (sémantique
- * miroir `apply_recap_projects_snapshot`). Retourne `0` si la deadline est
- * passée ou que `to` n'est pas une date valide.
+ * miroir `apply_recap_projects_snapshot`). Exception fin-de-mois : voir
+ * `isLastDayOfMonthUtc` et le volet 2 de l'en-tête. Retourne `0` si la
+ * deadline est passée ou que `to` n'est pas une date valide.
  */
 export function monthsBetween(from: Date, to: string): number {
   const toDate = new Date(`${to}T00:00:00Z`)
@@ -36,7 +58,10 @@ export function monthsBetween(from: Date, to: string): number {
   const monthDiff = toDate.getUTCMonth() - fromUtc.getUTCMonth()
   const dayDiff = toDate.getUTCDate() - fromUtc.getUTCDate()
   let months = yearDiff * 12 + monthDiff
-  if (dayDiff < 0) months -= 1
+  // Volet 2 de la règle miroir (cf. en-tête) : pas de floor quand l'échéance
+  // est le dernier jour de son mois — le jour a été raboté par
+  // `computeDeadlineFromDuration`, ce n'est pas un mois entamé.
+  if (dayDiff < 0 && !isLastDayOfMonthUtc(toDate)) months -= 1
   return Math.max(0, months)
 }
 

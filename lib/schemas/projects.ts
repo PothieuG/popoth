@@ -41,24 +41,50 @@ export type CreateProjectBody = z.infer<typeof createProjectBodySchema>
 export type UpdateProjectBody = z.infer<typeof updateProjectBodySchema>
 
 /**
- * Calendar-month delta between `today` (00:00 local) and `deadline`. Returns
- * the floor of full months elapsed: a deadline 1 calendar year + 11 days
- * away returns 12 (the 11-day tail counts as a partial month and is dropped
- * since a partial month cannot host a full monthly allocation).
+ * `true` quand `date`, lue en UTC, est le dernier jour de son mois.
+ * Copie locale de `isLastDayOfMonthUtc` (lib/finance/projects-meta.ts) —
+ * `lib/schemas/**` ne dépend pas de `lib/finance/**` et on ne crée pas cette
+ * dépendance pour 3 lignes (même arbitrage que `round2`, dupliqué entre
+ * `deficit-math.ts` et `actions-negative.ts`).
+ */
+function isLastDayOfMonthUtc(date: Date): boolean {
+  const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
+  return date.getUTCDate() === lastDay
+}
+
+/**
+ * Calendar-month delta between `today` and `deadline`. Returns the floor of
+ * full months elapsed: a deadline 1 calendar year + 11 days away returns 12
+ * (the 11-day tail counts as a partial month and is dropped since a partial
+ * month cannot host a full monthly allocation).
  *
  * Mirror the trigger semantics for `apply_recap_projects_snapshot`: monthly
  * allocations are credited at recap finalization, which happens once per
  * calendar month, so fractional months at the tail are not actionable.
  *
+ * ⚠️ EXCEPTION fin-de-mois (sprint Deadline-Month-End-Clamp 2026-08-31) : le
+ * floor NE s'applique PAS quand l'échéance tombe le dernier jour de son mois.
+ * `computeDeadlineFromDuration` y rabote déjà le jour (31 août + 6 mois →
+ * 28 février, pour éviter l'overflow JS) ; sans cette exception le refine
+ * ci-dessous relisait « 5 mois » sur une échéance « +6 mois » qu'il venait
+ * lui-même de calculer, et refusait le formulaire les 29/30/31 du mois.
+ * Règle dupliquée dans `monthsBetween` — TOUTE évolution doit toucher les deux.
+ *
+ * Lecture des dates : `today` est une date calendaire LOCALE (`new Date()`),
+ * `deadline` est lue en UTC (`new Date('YYYY-MM-DD')` donne minuit UTC).
+ * Sans cette normalisation, une zone à offset négatif décale l'échéance d'un
+ * jour. Miroir exact de `monthsBetween`.
+ *
  * Exported for the form components (sprint 04+) to compute the suggested
  * duration when the user enters a target+monthly pair.
  */
 export function monthsUntilDeadline(today: Date, deadline: Date): number {
-  const years = deadline.getFullYear() - today.getFullYear()
-  const months = deadline.getMonth() - today.getMonth()
-  const days = deadline.getDate() - today.getDate()
+  const todayUtc = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()))
+  const years = deadline.getUTCFullYear() - todayUtc.getUTCFullYear()
+  const months = deadline.getUTCMonth() - todayUtc.getUTCMonth()
+  const days = deadline.getUTCDate() - todayUtc.getUTCDate()
   let total = years * 12 + months
-  if (days < 0) total -= 1
+  if (days < 0 && !isLastDayOfMonthUtc(deadline)) total -= 1
   return total
 }
 
