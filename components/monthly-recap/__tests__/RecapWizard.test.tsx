@@ -243,4 +243,57 @@ describe('RecapWizard', () => {
       expect(routerReplaceMock).toHaveBeenCalledWith('/group-dashboard')
     })
   })
+
+  // Sprint Abandoned-Recap-Recovery (2026-09-01) — garde-fou de câblage : le
+  // bandeau est la SEULE explication que reçoit l'utilisateur d'un mouvement de
+  // sa tirelire. S'il disparaît du wizard, l'argent revient sans un mot.
+  it('shows the recovered-funds banner when the recap carries recovery data', () => {
+    mockStatus(
+      {
+        kind: 'in_progress',
+        recapId: 'r1',
+        step: 'summary',
+        startedAt: null,
+        startedByProfileId: 'u1',
+      },
+      makeSummary(),
+      {
+        id: 'r1',
+        currentStep: 'summary',
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+        piggyTransfersData: null,
+        projectSnapshotData: null,
+        recoveryData: { total: 150, periods: [{ month: 6, year: 2026, amount: 150 }] },
+      },
+    )
+    render(<RecapWizard context="profile" />)
+    expect(screen.getByRole('status')).toHaveTextContent('remis dans ta tirelire')
+  })
+
+  it('shows no banner when the recap carries no recovery data', () => {
+    mockStatus(
+      {
+        kind: 'in_progress',
+        recapId: 'r1',
+        step: 'summary',
+        startedAt: null,
+        startedByProfileId: 'u1',
+      },
+      makeSummary(),
+      {
+        id: 'r1',
+        currentStep: 'summary',
+        refloatedFromPiggy: 0,
+        refloatedFromSavings: 0,
+        snapshotData: null,
+        piggyTransfersData: null,
+        projectSnapshotData: null,
+        recoveryData: null,
+      },
+    )
+    render(<RecapWizard context="profile" />)
+    expect(screen.queryByText(/remis dans ta tirelire/)).toBeNull()
+  })
 })
