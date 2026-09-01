@@ -11,6 +11,7 @@ import type { RecapContext } from '@/lib/recap'
 import { GroupLockScreen } from './GroupLockScreen'
 import { RecapProgressFrieze } from './RecapProgressFrieze'
 import { RecapShell } from './RecapShell'
+import { RecoveredFundsBanner } from './RecoveredFundsBanner'
 import { BilanNegativeStep } from './steps/BilanNegativeStep'
 import { BilanPositiveStep } from './steps/BilanPositiveStep'
 import { CompleteMonthStep } from './steps/CompleteMonthStep'
@@ -153,6 +154,14 @@ export function RecapWizard({ context }: { context: RecapContext }) {
   return (
     <RecapShell headerLabel={headerLabel}>
       <RecapProgressFrieze currentStep={status.step} />
+      {/* Sprint Abandoned-Recap-Recovery (2026-09-01) — annonce l'argent remis
+          dans la tirelire en balayant les bilans restés en plan sur des mois
+          passés. Rendu au-dessus de l'étape courante et sur TOUTES les étapes :
+          le balayage a lieu au clic « Commencer » (POST /start), donc l'écran
+          `no_recap` ci-dessus est trop tôt pour l'afficher, et WelcomeStep
+          enchaîne immédiatement sur `complete_month`. Le composant se
+          court-circuite tout seul quand il n'y a rien à annoncer. */}
+      <RecoveredFundsBanner data={recap?.recoveryData ?? null} />
       {status.step === 'welcome' && <WelcomeStep context={context} />}
       {status.step === 'complete_month' && (
         <CompleteMonthStep context={context} recapYear={recapYear} recapMonth={recapMonth} />
