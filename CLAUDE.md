@@ -116,7 +116,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **913**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **925**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **253**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **45**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
@@ -329,7 +329,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 913/253. 45 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
+**État global** : Score ~100. Lint 0/0. Tests 925/253. 45 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
 
 **Historique** — 41 parts (153 sprints) :
 

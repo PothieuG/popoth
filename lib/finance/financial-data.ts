@@ -30,7 +30,7 @@ import {
 } from './calc-rtl'
 import { EMPTY_FINANCIAL_DATA } from './constants'
 import { asContextFilter, resolveContextIds, type ContextFilter } from './context'
-import { calculateIncomeCompensation } from './income-compensation'
+import { computeIncomeCompensation } from './income-compensation'
 import { buildSavingsProjectMeta } from './projects-meta'
 import { saveRavToDatabase } from './rav-persistence'
 import type {
@@ -66,6 +66,20 @@ export interface FinancialMonthWindow {
   year: number
 }
 
+/**
+ * Ligne de `group_contributions` jointe au profil du membre.
+ *
+ * Remontée au niveau module (Sprint Perf-Parallel-Financial-Data 2026-09-01)
+ * pour pouvoir typer le retour de la lecture group-only désormais embarquée
+ * dans la phase 1 parallèle.
+ */
+type GroupContribRow = {
+  contribution_amount: number
+  salary: number
+  profile_id: string
+  profiles: { first_name: string; salary: number | null } | null
+}
+
 async function _loadFinancialData(
   filter: ContextFilter,
   window?: FinancialMonthWindow,
@@ -85,52 +99,131 @@ async function _loadFinancialData(
   }
 
   try {
-    // 1. Solde bancaire (commun)
-    const { data: bankBalance } = await supabaseServer
-      .from('bank_balances')
-      .select('balance')
-      .eq(ownerColumn, ownerId)
-      .single()
-    const userBankBalance = bankBalance?.balance ?? 0
+    // ── Phase 1 — toutes les lectures indépendantes, en parallèle ─────────
+    //
+    // Sprint Perf-Parallel-Financial-Data (2026-09-01). Aucune de ces requêtes
+    // ne consomme le résultat d'une autre : les enchaîner en série empilait
+    // autant de latences réseau (~90 ms pièce quand la fonction Vercel et
+    // Supabase ne partagent pas la région, ~10 ms sinon). Un seul
+    // `Promise.all` ramène la profondeur réseau de 9 à 1.
+    //
+    // ⚠️ N'ajouter ici QUE des lectures sans dépendance sur ce bloc. La
+    // persistance du RAV (§12) et les RAV par membre (§13) restent après,
+    // puisqu'ils consomment le résultat du calcul.
+    const [
+      bankBalanceRes,
+      profileSalary,
+      estimatedIncomesRes,
+      estimatedBudgetsRes,
+      savingsProjectsRes,
+      realIncomesRes,
+      realExpensesRes,
+      piggyBankRes,
+      groupContributions,
+    ] = await Promise.all([
+      // 1. Solde bancaire (commun)
+      supabaseServer.from('bank_balances').select('balance').eq(ownerColumn, ownerId).single(),
 
-    // 1.bis Profile-only: salaire fixe (toujours à 100%, pas de "real income" lié)
-    let profileSalary = 0
-    if (isProfile) {
-      const { data: profileData } = await supabaseServer
-        .from('profiles')
-        .select('salary')
-        .eq('id', ownerId)
-        .single()
-      profileSalary = profileData?.salary ?? 0
-    }
+      // 1.bis Profile-only: salaire fixe (toujours à 100%, pas de "real income" lié)
+      (async (): Promise<number> => {
+        if (!isProfile) return 0
+        const { data } = await supabaseServer
+          .from('profiles')
+          .select('salary')
+          .eq('id', ownerId)
+          .single()
+        return data?.salary ?? 0
+      })(),
 
-    // 2. Revenus estimés
-    const { data: estimatedIncomes } = await supabaseServer
-      .from('estimated_incomes')
-      .select('estimated_amount')
-      .eq(ownerColumn, ownerId)
+      // 2. Revenus estimés. `id` est SELECTed en plus du montant pour
+      // alimenter la compensation revenus (§11) sans re-requêter la table.
+      supabaseServer
+        .from('estimated_incomes')
+        .select('id, estimated_amount')
+        .eq(ownerColumn, ownerId),
+
+      // 3. Budgets estimés
+      supabaseServer
+        .from('estimated_budgets')
+        .select(
+          'id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date, cumulated_savings',
+        )
+        .eq(ownerColumn, ownerId),
+
+      // 3.bis Projets d'épargne — le `monthly_allocation` est traité comme un
+      // budget classique (cf. spec §4 "le montant mensuel s'ajoute à
+      // l'ensemble des budgets dans tous les calculs"). Agrégé directement
+      // dans `totalEstimatedBudgets` pour ne pas dupliquer le terme dans la
+      // formule RAV. Sprint Projets-Épargne 03.
+      supabaseServer
+        .from('savings_projects')
+        .select(
+          'id, name, monthly_allocation, amount_saved, target_amount, deadline_date, pending_delay_fraction',
+        )
+        .eq(ownerColumn, ownerId),
+
+      // 4. Revenus réels. Sprint 15 V3 + Part 35 — exclure toute transaction
+      // provenant d'un recap antérieur (`carried_from_recap_id != null`). Ces
+      // transactions appartiennent au mois d'origine, déjà comptées dans son
+      // RAV ; les inclure dans le RAV du mois courant créerait un double-
+      // comptage cross-mois. Couvre les 2 états : carry-over en attente
+      // (state A, `is_carried_over=true`) ET carry-over validé (state B,
+      // `is_carried_over=false` post long-press). Seul le solde bancaire est
+      // impacté par la validation, pas les calculs current-month.
+      supabaseServer
+        .from('real_income_entries')
+        .select('amount, estimated_income_id, is_exceptional')
+        .eq(ownerColumn, ownerId)
+        .is('carried_from_recap_id', null),
+
+      // 5. Dépenses réelles (idem §4 — exclure les carry-overs des deux états).
+      // `expense_date` est SELECTed pour permettre le filtrage current-calendar-
+      // month dans le deficit loop (§9). Voir bug repro 2026-05-27 : sans ce
+      // filtre, des dépenses passées encore non-carry-over (recap M-1 non
+      // finalisé) gonflent `spentOnBudget` au-delà de l'estimé courant et
+      // créent un déficit fantôme qui fait chuter le RAV à chaque nouvelle
+      // dépense — alors que l'API d'affichage `budgets-estimated.ts` filtre
+      // déjà par mois calendaire courant (display "0/400" alors que calc voit
+      // ≥ 400 hors-mois).
+      supabaseServer
+        .from('real_expenses')
+        .select(
+          'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, expense_date',
+        )
+        .eq(ownerColumn, ownerId)
+        .is('carried_from_recap_id', null),
+
+      // 6. Tirelire
+      supabaseServer.from('piggy_bank').select('amount').eq(ownerColumn, ownerId).maybeSingle(),
+
+      // 6.bis Group-only — Sprint 16 V3 : on fetch une fois les contributions
+      // jointes au first_name des membres + le snapshot de salaire. Le
+      // résultat sert à 3 calculs : (1) RAV via totalProfileContributions,
+      // (2) lignes virtuelles read-only une-par-membre, (3) plafond de
+      // validation budget (`meta.groupSalaryTotal`, voir types.ts).
+      (async (): Promise<GroupContribRow[]> => {
+        if (isProfile) return []
+        const { data } = await supabaseServer
+          .from('group_contributions')
+          .select(
+            'contribution_amount, salary, profile_id, profiles:profile_id (first_name, salary)',
+          )
+          .eq('group_id', ownerId)
+        return (data ?? []) as unknown as GroupContribRow[]
+      })(),
+    ])
+
+    const userBankBalance = bankBalanceRes.data?.balance ?? 0
+    const estimatedIncomes = estimatedIncomesRes.data
+    const estimatedBudgets = estimatedBudgetsRes.data
+    const savingsProjects = savingsProjectsRes.data
+    const realIncomes = realIncomesRes.data
+    const realExpenses = realExpensesRes.data
+    const piggyBankData = piggyBankRes.data
+
     const totalEstimatedIncome =
       (estimatedIncomes?.reduce((sum, x) => sum + x.estimated_amount, 0) ?? 0) + profileSalary
 
-    // 3. Budgets estimés
-    const { data: estimatedBudgets } = await supabaseServer
-      .from('estimated_budgets')
-      .select(
-        'id, name, estimated_amount, monthly_surplus, carryover_spent_amount, carryover_applied_date, cumulated_savings',
-      )
-      .eq(ownerColumn, ownerId)
-
-    // 3.bis Projets d'épargne — le `monthly_allocation` est traité comme un
-    // budget classique (cf. spec §4 "le montant mensuel s'ajoute à
-    // l'ensemble des budgets dans tous les calculs"). Agrégé directement
-    // dans `totalEstimatedBudgets` pour ne pas dupliquer le terme dans la
-    // formule RAV. Sprint Projets-Épargne 03.
-    const { data: savingsProjects } = await supabaseServer
-      .from('savings_projects')
-      .select(
-        'id, name, monthly_allocation, amount_saved, target_amount, deadline_date, pending_delay_fraction',
-      )
-      .eq(ownerColumn, ownerId)
     const totalMonthlyProjects =
       savingsProjects?.reduce((sum, p) => sum + p.monthly_allocation, 0) ?? 0
 
@@ -138,45 +231,8 @@ async function _loadFinancialData(
       (estimatedBudgets?.reduce((sum, b) => sum + b.estimated_amount, 0) ?? 0) +
       totalMonthlyProjects
 
-    // 4. Revenus réels. Sprint 15 V3 + Part 35 — exclure toute transaction
-    // provenant d'un recap antérieur (`carried_from_recap_id != null`). Ces
-    // transactions appartiennent au mois d'origine, déjà comptées dans son
-    // RAV ; les inclure dans le RAV du mois courant créerait un double-
-    // comptage cross-mois. Couvre les 2 états : carry-over en attente
-    // (state A, `is_carried_over=true`) ET carry-over validé (state B,
-    // `is_carried_over=false` post long-press). Seul le solde bancaire est
-    // impacté par la validation, pas les calculs current-month.
-    const { data: realIncomes } = await supabaseServer
-      .from('real_income_entries')
-      .select('amount, estimated_income_id, is_exceptional')
-      .eq(ownerColumn, ownerId)
-      .is('carried_from_recap_id', null)
     const totalRealIncome = realIncomes?.reduce((sum, x) => sum + x.amount, 0) ?? 0
-
-    // 5. Dépenses réelles (idem §4 — exclure les carry-overs des deux états).
-    // `expense_date` est SELECTed pour permettre le filtrage current-calendar-
-    // month dans le deficit loop (§9). Voir bug repro 2026-05-27 : sans ce
-    // filtre, des dépenses passées encore non-carry-over (recap M-1 non
-    // finalisé) gonflent `spentOnBudget` au-delà de l'estimé courant et
-    // créent un déficit fantôme qui fait chuter le RAV à chaque nouvelle
-    // dépense — alors que l'API d'affichage `budgets-estimated.ts` filtre
-    // déjà par mois calendaire courant (display "0/400" alors que calc voit
-    // ≥ 400 hors-mois).
-    const { data: realExpenses } = await supabaseServer
-      .from('real_expenses')
-      .select(
-        'amount, estimated_budget_id, is_exceptional, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget, expense_date',
-      )
-      .eq(ownerColumn, ownerId)
-      .is('carried_from_recap_id', null)
     const totalRealExpenses = realExpenses?.reduce((sum, x) => sum + x.amount, 0) ?? 0
-
-    // 6. Tirelire
-    const { data: piggyBankData } = await supabaseServer
-      .from('piggy_bank')
-      .select('amount')
-      .eq(ownerColumn, ownerId)
-      .maybeSingle()
 
     // 7. Exceptionnels (revenus + dépenses).
     //
@@ -292,30 +348,18 @@ async function _loadFinancialData(
     // backward-compat helpers (cf. lib/finance/calc-rtl.ts).
     const availableBalance = userBankBalance
 
-    // 11. Contribution revenus + RAV
-    const incomeCompensation = await calculateIncomeCompensation(filter)
+    // 11. Contribution revenus + RAV.
+    //
+    // Sprint Perf-Parallel-Financial-Data (2026-09-01) — calcul pur sur les
+    // lignes déjà chargées en phase 1 (§2 et §4). Le wrapper async
+    // `calculateIncomeCompensation` re-fetchait `estimated_incomes` et
+    // `real_income_entries`, soit 2 allers-retours strictement redondants, en
+    // série après les 8 autres lectures. Les carry-overs sont déjà exclus par
+    // le `.is('carried_from_recap_id', null)` de §4, ce que le calcul pur
+    // exige de ses appelants.
+    const incomeCompensation = computeIncomeCompensation(estimatedIncomes, realIncomes)
     // Profile : ajouter le salaire fixe à la contribution (group n'a pas de salaire)
     const incomeContribution = incomeCompensation + profileSalary
-
-    // Sprint 16 V3 — pour le groupe, on fetch une fois les contributions
-    // jointes au first_name des membres + le snapshot de salaire. Le résultat
-    // sert à 3 calculs : (1) RAV via totalProfileContributions, (2) lignes
-    // virtuelles read-only une-par-membre, (3) plafond de validation budget
-    // (`meta.groupSalaryTotal`, voir types.ts).
-    type GroupContribRow = {
-      contribution_amount: number
-      salary: number
-      profile_id: string
-      profiles: { first_name: string; salary: number | null } | null
-    }
-    let groupContributions: GroupContribRow[] = []
-    if (!isProfile) {
-      const { data } = await supabaseServer
-        .from('group_contributions')
-        .select('contribution_amount, salary, profile_id, profiles:profile_id (first_name, salary)')
-        .eq('group_id', ownerId)
-      groupContributions = (data ?? []) as unknown as GroupContribRow[]
-    }
 
     // Somme des contributions auto-synchronisées des membres (group only).
     // Calculée ici pour être à la fois consommée par `calculateRemainingToLiveGroup`
