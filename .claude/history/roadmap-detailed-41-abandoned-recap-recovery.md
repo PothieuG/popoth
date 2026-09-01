@@ -155,18 +155,10 @@ avec ce sprint, mais bloquant pour `pnpm verify`.
    (~l. 53-61), marqué « followup candidate ». Option « empêcher que ça arrive »
    explicitement écartée au profit du remboursement lors de l'arbitrage du
    2026-09-01 — reste ouverte.
-3. **Tests gated en échec** (`SUPABASE_RECAP_TESTS=1`) : **17 au 2026-09-01**
-   (19 annoncés au 2026-07), sur 7 fichiers. Cause dominante : ces tests
-   (sprint 07) supposent `bilan = −2 × Σ estimated_amount` pour un profil vierge,
-   alors que la formule actuelle donne **−1 ×** — symptôme typique : un
-   `400 overflow` là où un `200` est attendu, le déficit valant la moitié de ce
-   qui est semé. Répartition : `refloat-from-savings` 5, `save-budget-snapshot` 4,
-   `refloat-from-piggy` 3, `refloat-from-projects` 2, `update-salaries` 1,
-   `transform-remaining-surpluses-to-savings` 1. Un cas à part :
-   `check-status.test.ts` compare un horodatage `'…Z'` à `'…+00:00'` (format
-   PostgREST), sans rapport. Ces tests **ne tournent pas** dans `pnpm verify`
-   (variable d'env requise) : ils sont silencieusement rouges depuis longtemps.
-   Chantier à part entière.
+3. **Tests gated — RÉSOLU le 2026-09-01** (voir §6). Les 17 rouges décrits ici
+   ont été réparés dans la foulée du sprint : la suite récap est passée à
+   266/266. Les 5 autres suites gated ont été vérifiées dans la même passe.
+
 4. **Flakiness sous charge parallèle.** Le jeu d'échecs varie d'une exécution à
    l'autre sur des fichiers non modifiés (résidu de mock, cf. mémoire projet
    `project_flaky_expenses_add_logic_test`). **Toujours revérifier un échec en
@@ -234,3 +226,71 @@ uniquement**, vérifier que `.env.local` pointe bien sur `ddehmjucyfgyppfkbddr`)
 $env:SUPABASE_RECAP_TESTS = '1'
 pnpm vitest run lib/recap app/api/monthly-recap
 ```
+
+## 6. Suite — réparation des tests gated (2026-09-01)
+
+Demandée par l'utilisateur juste après la livraison du sprint. La suite récap
+gated passe de **17 rouges / 7 fichiers** à **266 verts / 24 fichiers**. Quatre
+causes distinctes, et non la seule « formule du bilan » annoncée :
+
+1. **Formule du bilan périmée** (la cause majoritaire). Ces tests du sprint 07
+   figeaient l'ancienne formule — `bilan = ravEffectif + ravEstime` (donc
+   `-2 × Σ estimated` pour un profil vierge) dans `refloat-from-piggy` /
+   `-savings` / `save-budget-snapshot`, et `ravEffectif - ravEstime` dans
+   `refloat-from-projects`. Depuis Bilan-Equals-RavEffectif, `bilan =
+ravEffectif` tout court. Seeds et pré-crédits `refloated_from_piggy`
+   recalibrés pour viser le **même déficit** qu'à l'origine : les intentions de
+   test sont préservées, seules les valeurs d'entrée changent.
+2. **Fixture menteuse** dans `refloat-from-projects` : `new Date(y, m, 1)
+.toISOString()` recule d'un jour en UTC+N (le 1er août à Paris devient
+   `2026-07-31Z`). La dépense sortait de la fenêtre du mois recapé et ne créait
+   **aucun** déficit — le test vérifiait donc autre chose que ce qu'il
+   annonçait. Date désormais construite en chaîne directe, au 15 du mois.
+   ⚠️ Le même motif subsiste dans `actions-finalize-projects.test.ts` (deadlines
+   à +1 an, sans conséquence aujourd'hui) — à ne pas propager.
+3. **Comportements changés volontairement, que les tests contredisaient** :
+   - le snapshot budget ne laisse plus de `shortfall` (`capPerPool: false`,
+     Sprint Carryover-Self-Healing) mais **surcharge** les budgets au-delà de
+     leur enveloppe. Le cas a été réécrit pour pinner cette bascule ; obtenir un
+     déficit supérieur au pool passe par `carryover_spent_amount`, seul levier
+     qui creuse le déficit sans gonfler le pool (`estimated_amount`).
+   - le recalcul des contributions n'est plus gaté sur `context === 'group'`
+     mais sur l'appartenance à un groupe (sprint 14 follow-up). Cas corrigé, et
+     **ajout du cas « appelant sans groupe »** — la branche `false` n'était
+     couverte nulle part.
+4. **Fuite d'isolation** dans `transform-remaining-surpluses-to-savings` : le
+   `afterEach` remettait `profiles.salary` à `null` sans effet ni vérification
+   d'erreur, si bien qu'un salaire de 1000 fuyait sur le test suivant — lequel
+   balayait 700 € vers la tirelire en croyant son reste à vivre négatif. Il
+   passait **en isolation** et échouait en fichier complet. Reset à `0` (le
+   DEFAULT de la colonne) et erreur propagée.
+
+Plus une comparaison d'horodatage `'…Z'` vs `'…+00:00'` (format PostgREST, même
+instant) alignée sur le pattern déjà en place dans `start/route.integration`.
+
+### Les 5 autres suites gated
+
+`SUPABASE_RLS_TESTS`, `_API_TESTS`, `_TRIGGER_TESTS`, `_FINANCE_TESTS` : vertes.
+`SUPABASE_RPC_CONCURRENCY_TESTS` a révélé deux choses :
+
+- **Fixture périmé** dans `toggle-applied-to-balance` : il insérait une dépense
+  appliquée **sans** `last_applied_amount` (colonne arrivée avec
+  Contribution-Drift 2026-05-28). La RPC voyait une dérive de montant et partait
+  en branche « re-apply au nouveau montant » au lieu de lever `P0002`. Aucun
+  chemin applicatif ne produit cet état, et la prod n'a aucune ligne concernée.
+- **RPC morte ET cassée** : `transfer_piggy_to_budget_with_insert` (2026-05-19)
+  INSERT dans `budget_transfers.monthly_recap_id`, colonne supprimée 4 jours plus
+  tard par `20260523000001_drop_legacy_recap_tables.sql`. Elle levait donc une
+  exception à **chaque** appel depuis le 2026-05-23 — invisible car 0
+  consommateur applicatif (le flux Phase-B a disparu au même sprint) et son seul
+  test vit dans une suite que `pnpm verify` ne joue pas. **Décision utilisateur :
+  supprimer** (Path B closed-by-deletion). Migration `20260901000002`, helper et
+  test retirés, `EXPECTED_RPCS` 29 → 28.
+
+### Leçon
+
+Une suite de tests qu'aucune commande de routine ne joue dérive en silence, et
+la dérive n'est pas homogène : sur 20 échecs, 1 seul (la RPC cassée) était un
+vrai défaut produit, mais 2 fixtures **mentaient** — ils passaient ou échouaient
+pour la mauvaise raison. Envisager de faire tourner les suites gated
+périodiquement (cron hebdomadaire), sans forcément les rendre bloquantes.

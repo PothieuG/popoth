@@ -54,7 +54,7 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 | `pnpm db:types`                            | Régénère `lib/database.types.ts` depuis prod.                                                                      |
 | `pnpm db:check-drift`                      | Compare prod ↔ baseline. Exit 0/1 si drift                                                                         |
 | `pnpm db:check-rls`                        | Vérifie la RLS active sur toutes les tables publiques (linter 0013)                                                |
-| `pnpm db:check-rpcs`                       | Vérifie les **29 RPCs pinnées** dans `pg_proc`                                                                     |
+| `pnpm db:check-rpcs`                       | Vérifie les **28 RPCs pinnées** dans `pg_proc`                                                                     |
 | `pnpm db:check-functions`                  | Vérifie les 5 fonctions trigger custom                                                                             |
 | `pnpm db:check-types-fresh`                | Vérifie `database.types.ts` ↔ prod                                                                                 |
 | `pnpm db:audit-functions`                  | Audit `pg_proc` ↔ migrations (post-changement fonction PL/pgSQL)                                                   |
@@ -111,7 +111,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 | Invariant                              | Valeur                    | Source / Vérification                                                                                                    |
 | -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                        | **29**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
+| `EXPECTED_RPCS`                        | **28**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
 | Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
@@ -251,7 +251,6 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Appels directs `updatePiggyBank` + `updateBudgetCumulatedSavings` + `INSERT real_expenses`** séparés en smart-allocation → `addExpenseWithBreakdown`.
 - **2 RPCs séquentielles + manual rollback** dans `savings/transfer` → `transferSavingsBetweenBudgets` / `transferBudgetToPiggyBank`. `handlePiggyBankAction` supprimé v2 (0 consumer).
 - **Pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched`** → `transferWithSavingsDebit` per-pair.
-- **Pattern reversed `updatePiggyBank(aggregate) + INSERT batched (from_budget_id=NULL)`** → `transferPiggyToBudgetWithInsert` per-pair (Phase-B).
 
 **Forbidden absolus**
 
@@ -329,7 +328,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 911/256. 45 routes. 29 RPCs + 44 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
+**État global** : Score ~100. Lint 0/0. Tests 911/256. 45 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
 
 **Historique** — 41 parts (153 sprints) :
 

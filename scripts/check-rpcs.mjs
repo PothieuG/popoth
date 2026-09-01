@@ -36,7 +36,6 @@ const EXPECTED_RPCS = [
   'transfer_savings_between_budgets',
   'transfer_budget_to_piggy_bank',
   'add_expense_with_cross_budget_cascade',
-  'transfer_piggy_to_budget_with_insert',
   'delete_budget_with_savings_transfer',
   // Sprint Long-Press-Toggle-Apply-To-Balance (2026-05-23) —
   // supabase/migrations/20260523010000_create_toggle_applied_to_balance_rpcs.sql

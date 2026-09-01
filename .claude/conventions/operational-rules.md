@@ -40,21 +40,20 @@ Patterns à NE PAS supprimer même si fail-soft cosmétique :
 
 Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_bank.amount`, `bank_balances.balance`, `estimated_budgets.cumulated_savings`), utiliser un helper `lib/finance/*` qui invoque une composite RPC :
 
-| Helper                             | RPC                                     | Sprint                      | Use case                                                                               |
-| ---------------------------------- | --------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
-| `updatePiggyBank`                  | `update_piggy_bank_amount`              | Sprint 0 / C3               | Single piggy debit/credit                                                              |
-| `updateBankBalance`                | `update_bank_balance`                   | Sprint 0 / C3               | Single bank update                                                                     |
-| `updateBudgetCumulatedSavings`     | `update_budget_cumulated_savings`       | Sprint 0 / C3               | Single savings update                                                                  |
-| `transferFromPiggyToBudget`        | `transfer_from_piggy_to_budget`         | Sprint 0 / C3               | Piggy debit + budget savings credit                                                    |
-| `transferWithSavingsDebit`         | `transfer_with_savings_debit`           | Refactor-I5-followup-v2     | INSERT budget_transfers + debit cumulated_savings                                      |
-| `addExpenseWithBreakdown`          | `add_expense_with_breakdown`            | Atomicity-Expenses          | Smart-allocation expense (piggy + savings + INSERT real_expenses)                      |
-| `transferSavingsBetweenBudgets`    | `transfer_savings_between_budgets`      | Atomicity-Savings           | Debit FROM + credit TO en 1 tx                                                         |
-| `transferBudgetToPiggyBank`        | `transfer_budget_to_piggy_bank`         | Atomicity-Savings           | Debit budget + UPSERT piggy_bank                                                       |
-| `transferPiggyToBudgetWithInsert`  | `transfer_piggy_to_budget_with_insert`  | Auto-Balance-Atomic-Phase-B | Debit piggy + INSERT budget_transfers (from_budget_id=NULL)                            |
-| `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                    | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
-| `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings       | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
+| Helper                             | RPC                                     | Sprint                  | Use case                                                                               |
+| ---------------------------------- | --------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |
+| `updatePiggyBank`                  | `update_piggy_bank_amount`              | Sprint 0 / C3           | Single piggy debit/credit                                                              |
+| `updateBankBalance`                | `update_bank_balance`                   | Sprint 0 / C3           | Single bank update                                                                     |
+| `updateBudgetCumulatedSavings`     | `update_budget_cumulated_savings`       | Sprint 0 / C3           | Single savings update                                                                  |
+| `transferFromPiggyToBudget`        | `transfer_from_piggy_to_budget`         | Sprint 0 / C3           | Piggy debit + budget savings credit                                                    |
+| `transferWithSavingsDebit`         | `transfer_with_savings_debit`           | Refactor-I5-followup-v2 | INSERT budget_transfers + debit cumulated_savings                                      |
+| `addExpenseWithBreakdown`          | `add_expense_with_breakdown`            | Atomicity-Expenses      | Smart-allocation expense (piggy + savings + INSERT real_expenses)                      |
+| `transferSavingsBetweenBudgets`    | `transfer_savings_between_budgets`      | Atomicity-Savings       | Debit FROM + credit TO en 1 tx                                                         |
+| `transferBudgetToPiggyBank`        | `transfer_budget_to_piggy_bank`         | Atomicity-Savings       | Debit budget + UPSERT piggy_bank                                                       |
+| `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
+| `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings   | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 29` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)).
+`EXPECTED_RPCS = 28` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
@@ -63,7 +62,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** appeler `updatePiggyBank` puis `updateBudgetCumulatedSavings` puis `supabaseServer.from('real_expenses').insert(...)` séparément pour smart-allocation → utiliser `addExpenseWithBreakdown` (Sprint Atomicity-Expenses).
 - ❌ **NE PAS** appeler `updateBudgetCumulatedSavings` deux fois séparées avec un manual rollback compensatoire → utiliser `transferSavingsBetweenBudgets` (Sprint Atomicity-Savings).
 - ❌ **NE PAS** réintroduire le pattern reversed `for(savingsUpdates) updateBudgetCumulatedSavings → INSERT batched` → utiliser `transferWithSavingsDebit` per-pair (Sprint Auto-Balance-Atomic).
-- ❌ **NE PAS** réintroduire le pattern reversed `updatePiggyBank(aggregate) + INSERT batched budget_transfers (from_budget_id=NULL)` → utiliser `transferPiggyToBudgetWithInsert` per-pair (Sprint Auto-Balance-Atomic-Phase-B).
+- ❌ **NE PAS** ressusciter `transfer_piggy_to_budget_with_insert` / `transferPiggyToBudgetWithInsert` (DROP 2026-09-01, migration `20260901000002`). La RPC INSERT dans `budget_transfers.monthly_recap_id`, colonne supprimée dès le 2026-05-23 par Clean-Slate-Recap : elle levait donc une exception à **chaque** appel depuis, sans que personne le voie (0 consommateur applicatif, et son seul test vit dans la suite gated que `pnpm verify` ne joue pas). Si tracer ces transferts redevient un besoin, réécrire contre le schéma du moment.
 - ❌ **NE PAS** appeler `supabase.from('estimated_budgets').delete()` directement dans la route DELETE — utiliser `deleteBudgetWithSavingsTransfer` qui DELETE + UPSERT piggy en 1 tx si `cumulated_savings > 0` (Sprint Delete-Budget-Savings). Le raw DELETE perd les économies silencieusement.
 
 ### Créateur des transactions réelles (Sprint Group-Transaction-Creator-Avatar)
