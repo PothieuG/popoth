@@ -149,6 +149,9 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/update-salaries (gated)', () 
     if (userAId) {
       await admin.from('monthly_recaps').delete().eq('profile_id', userAId)
     }
+    if (userDId) {
+      await admin.from('monthly_recaps').delete().eq('profile_id', userDId)
+    }
     if (groupAId) {
       await admin.from('monthly_recaps').delete().eq('group_id', groupAId)
       await admin.from('group_contributions').delete().eq('group_id', groupAId)
@@ -157,6 +160,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/update-salaries (gated)', () 
     await admin.from('profiles').update({ salary: 1000 }).eq('id', userAId)
     await admin.from('profiles').update({ salary: 1500 }).eq('id', userBId)
     await admin.from('profiles').update({ salary: 2000 }).eq('id', userCId)
+    await admin.from('profiles').update({ salary: 999 }).eq('id', userDId)
   }
 
   function buildRequest(body: unknown): NextRequest {
@@ -171,18 +175,20 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/update-salaries (gated)', () 
     ownerKind: 'profile' | 'group'
     currentStep?: string
     startedBy?: string
+    /** Propriétaire du récap en contexte profil (défaut userA). */
+    profileId?: string
   }): Promise<{ id: string }> {
     const base = {
       recap_month: recapMonth,
       recap_year: recapYear,
       current_step: args.currentStep ?? 'salary_update',
-      started_by_profile_id: args.startedBy ?? userAId,
+      started_by_profile_id: args.startedBy ?? args.profileId ?? userAId,
       started_at: new Date().toISOString(),
       completed_at: null,
     }
     const payload: Database['public']['Tables']['monthly_recaps']['Insert'] =
       args.ownerKind === 'profile'
-        ? { profile_id: userAId, ...base }
+        ? { profile_id: args.profileId ?? userAId, ...base }
         : { group_id: groupAId, ...base }
     const { data, error } = await admin.from('monthly_recaps').insert(payload).select('id').single()
     if (error || !data) throw error ?? new Error('recap insert returned no row')
@@ -206,7 +212,14 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/update-salaries (gated)', () 
     }
     expect(body.data.updated).toBe(1)
     expect(body.data.nextStep).toBe('final_recap')
-    expect(body.data.contributionsRecalculated).toBe(false)
+    // Sprint 14 follow-up (2026-05-25) — le recalcul des contributions n'est
+    // plus gaté sur `context === 'group'` : il se déclenche dès que l'appelant
+    // APPARTIENT à un groupe, contexte perso inclus (explicite > implicite,
+    // le trigger `profiles_contribution_recalc` restant un filet). userA est
+    // membre de groupA, donc `true` ici. Ce test affirmait `false` — l'ancien
+    // gating — jusqu'au 2026-09-01. Le cas réellement sans groupe est couvert
+    // par le test « profil sans groupe » ajouté juste après (userD).
+    expect(body.data.contributionsRecalculated).toBe(true)
 
     const { data: prof } = await admin.from('profiles').select('salary').eq('id', userAId).single()
     expect(Number(prof?.salary)).toBe(3500)
@@ -256,6 +269,32 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/update-salaries (gated)', () 
     expect(response.status).toBe(400)
     const body = (await response.json()) as { error: string }
     expect(body.error).toBe('invalid_target')
+  })
+
+  // Contrepartie du cas ci-dessus : sans groupe, aucune contribution à
+  // recalculer. C'est la seule branche qui distingue encore les deux chemins
+  // depuis que le gating porte sur `profile.group_id` et non sur le contexte.
+  it('profil sans groupe — salaire mis à jour, aucune contribution recalculée', async () => {
+    mockedAuth.userId = userDId
+    mockedAuth.groupId = null
+    await seedRecap({ ownerKind: 'profile', profileId: userDId })
+
+    const response = await POST(
+      buildRequest({
+        context: 'profile',
+        salaries: [{ profileId: userDId, salary: 1234 }],
+      }),
+    )
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: { updated: number; nextStep: string; contributionsRecalculated: boolean }
+    }
+    expect(body.data.updated).toBe(1)
+    expect(body.data.nextStep).toBe('final_recap')
+    expect(body.data.contributionsRecalculated).toBe(false)
+
+    const { data: dave } = await admin.from('profiles').select('salary').eq('id', userDId).single()
+    expect(Number(dave?.salary)).toBe(1234)
   })
 
   it('happy group — 3 members in group → all updated + contributions recalculated', async () => {

@@ -7,10 +7,11 @@
  * hit real Supabase.
  *
  * Bilan engineering — for a fresh profile with no incomes / no real
- * expenses, the bilan equals `-2 × Σ estimated_amount` (cf. load-summary.ts
- * `ravEstime = -X` and `ravEffectif = -X` where X is the budgets total).
- * Tests seed estimated_budgets so that `|bilan|` matches the expected
- * deficit; piggy fixture is seeded directly via INSERT.
+ * expenses, the bilan equals `-Σ estimated_amount`. Depuis le Sprint
+ * Bilan-Equals-RavEffectif, `bilan = ravEffectif` tout court : l'ancienne
+ * formule additive `ravEffectif + ravEstime` (qui donnait `-2 × Σ`) a été
+ * retirée, cf. operational-rules.md §5. Tests seed estimated_budgets so that
+ * `|bilan|` matches the expected deficit; piggy fixture seeded via INSERT.
  */
 
 import { randomUUID } from 'node:crypto'
@@ -183,8 +184,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-piggy (gated)', 
 
   /**
    * Seed a budget without cumulated_savings (no real expenses either).
-   * For a fresh profile with 0 incomes: bilan = -2 × Σ estimated_amount.
-   * So `seedBudget({ estimated: 40 })` → bilan = -80.
+   * For a fresh profile with 0 incomes: bilan = -Σ estimated_amount.
+   * So `seedBudget({ estimated: 80 })` → bilan = -80.
    */
   async function seedBudget(args: {
     estimated: number
@@ -221,7 +222,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-piggy (gated)', 
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    await seedBudget({ estimated: 40 }) // bilan = -80
+    await seedBudget({ estimated: 80 }) // bilan = -80
     await seedPiggy(100)
 
     const response = await POST(buildRequest({ context: 'profile', amount: 80 }))
@@ -254,7 +255,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-piggy (gated)', 
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    await seedBudget({ estimated: 40 })
+    await seedBudget({ estimated: 80 }) // bilan = -80
     await seedPiggy(50)
 
     const response = await POST(buildRequest({ context: 'profile', amount: 50 }))
@@ -274,7 +275,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-piggy (gated)', 
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    await seedBudget({ estimated: 40 }) // deficit=80
+    await seedBudget({ estimated: 80 }) // deficit=80
     await seedPiggy(200)
 
     const response = await POST(buildRequest({ context: 'profile', amount: 150 }))
@@ -288,7 +289,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-piggy (gated)', 
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    await seedBudget({ estimated: 100 }) // deficit=200
+    await seedBudget({ estimated: 200 }) // deficit=200
     await seedPiggy(20)
 
     const response = await POST(buildRequest({ context: 'profile', amount: 50 }))

@@ -135,7 +135,16 @@ describe.skipIf(!ENABLED)(
         await admin.from('piggy_bank').delete().eq('profile_id', userAId)
         // Reset the salary set by the rav-sweep tests so it doesn't leak into
         // the other tests (which rely on ravEffectif ≤ 0 → no sweep).
-        await admin.from('profiles').update({ salary: null }).eq('id', userAId)
+        // ⚠️ Remettre à 0 (le DEFAULT de la colonne), PAS à null : l'écriture
+        // `null` ne prenait pas et le salaire de 1000 fuyait sur le test
+        // suivant, qui balayait alors 700 € vers la tirelire en croyant son
+        // reste à vivre négatif. L'erreur est propagée pour qu'un nettoyage
+        // muet ne puisse plus repasser inaperçu.
+        const { error: salaryResetError } = await admin
+          .from('profiles')
+          .update({ salary: 0 })
+          .eq('id', userAId)
+        if (salaryResetError) throw salaryResetError
       }
       if (groupAId) {
         await admin.from('monthly_recaps').delete().eq('group_id', groupAId)

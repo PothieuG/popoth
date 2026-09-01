@@ -174,14 +174,27 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     return data
   }
 
+  /**
+   * Pour un profil vierge (0 revenu, 0 dépense réelle) :
+   *   bilan = ravEffectif = -Σ estimated_amount - Σ budgetDeficits
+   * et le pool du snapshot = Σ estimated_amount.
+   *
+   * `carryoverSpent` est le seul levier qui creuse le déficit SANS gonfler le
+   * pool : il alimente `budgetDeficits` via `calculateBudgetDeficit(estimated,
+   * spent + carryover)` (cf. lib/finance/financial-data.ts). C'est ce qui rend
+   * testable le cas « déficit > pool », devenu impossible autrement depuis que
+   * bilan = ravEffectif (avant, la formule additive donnait -2 × Σ).
+   */
   async function seedBudget(args: {
     estimated: number
+    carryoverSpent?: number
     ownerKind?: 'profile' | 'group'
   }): Promise<string> {
     const ownerKind = args.ownerKind ?? 'profile'
     const base = {
       name: `budget-${randomUUID().slice(0, 8)}`,
       estimated_amount: args.estimated,
+      carryover_spent_amount: args.carryoverSpent ?? 0,
       cumulated_savings: 0,
       is_monthly_recurring: false,
     }
@@ -200,18 +213,16 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // Σ estimated = 50 → bilan=-100, deficit=100. Pool=50 → only partial cover.
-    // Need pool > deficit: Σ estimated must be > 100 to host the snapshot.
-    // With sum=200 (4 budgets×50): bilan=-400, deficit=400, pool=200 → still pool<deficit.
-    // bilan = -2 × Σ estimated → we can't have pool > deficit with this engineering.
-    // INSTEAD: pre-credit refloat_from_piggy to reduce deficitRemaining vs the pool.
+    // bilan = -Σ estimated = -1000, et le pool du snapshot vaut aussi 1000 :
+    // sans pré-crédit, déficit et pool sont toujours égaux. On pré-crédite donc
+    // la tirelire pour ramener deficitRemaining à 100 face à un pool de 1000.
     const idA = await seedBudget({ estimated: 200 })
     const idB = await seedBudget({ estimated: 300 })
     const idC = await seedBudget({ estimated: 500 })
-    // bilan = -2000, but refloat_from_piggy = 1900 → deficitRemaining = 100, pool = 1000.
+    // bilan = -1000, refloat_from_piggy = 900 → deficitRemaining = 100, pool = 1000.
     await admin
       .from('monthly_recaps')
-      .update({ refloated_from_piggy: 1900 })
+      .update({ refloated_from_piggy: 900 })
       .eq('profile_id', userAId)
 
     const response = await POST(buildRequest({ context: 'profile' }))
@@ -248,12 +259,19 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     expect(Math.round(persistedSum * 100) / 100).toBe(100)
   })
 
-  it('partial — pool < deficit, snapshot drains all pool, shortfall remains', async () => {
+  // Sprint Carryover-Self-Healing (2026-05-26) — `computeProportionalBudgetSnapshot`
+  // passe `capPerPool: false` : quand le déficit dépasse Σ estimated_amount, le
+  // snapshot devient AUTORITAIRE et surcharge les budgets au-delà de 100 % de
+  // leur enveloppe (la dette est résorbée par la marge des mois suivants) au
+  // lieu de laisser un shortfall. Ce test pinne cette bascule — il affirmait
+  // l'inverse (shortfall=50, étape non avancée) jusqu'au 2026-09-01.
+  it('pool < deficit — snapshot overloads the budget, no shortfall, step advances', async () => {
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // Σ estimated = 50 → bilan=-100, deficit=100, pool=50 → shortfall=50.
-    await seedBudget({ estimated: 50 })
+    // estimated 50 + dette reportée 100 → budgetDeficit = 50 :
+    // bilan = -(50) - 50 = -100 → deficit = 100, mais pool = Σ estimated = 50.
+    const id = await seedBudget({ estimated: 50, carryoverSpent: 100 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -265,16 +283,18 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
         nextStep: string | null
       }
     }
-    expect(body.data.shortfall).toBe(50)
-    expect(body.data.newDeficit).toBe(50)
-    expect(body.data.nextStep).toBeNull()
+    // Le budget encaisse 100 alors que son enveloppe n'est que de 50.
+    expect(body.data.snapshot[id]).toBe(100)
+    expect(body.data.shortfall).toBe(0)
+    expect(body.data.newDeficit).toBe(0)
+    expect(body.data.nextStep).toBe('salary_update')
 
     const { data: recap } = await admin
       .from('monthly_recaps')
       .select('current_step')
       .eq('profile_id', userAId)
       .single()
-    expect(recap?.current_step).toBe('summary') // not advanced
+    expect(recap?.current_step).toBe('salary_update')
   })
 
   it('overwrite — second call replaces the first snapshot (idempotent at unchanged state)', async () => {
@@ -284,9 +304,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     await seedBudget({ estimated: 200 })
     await seedBudget({ estimated: 300 })
     await seedBudget({ estimated: 500 })
+    // bilan = -1000, refloat 900 → deficitRemaining = 100, pool = 1000.
     await admin
       .from('monthly_recaps')
-      .update({ refloated_from_piggy: 1900 })
+      .update({ refloated_from_piggy: 900 })
       .eq('profile_id', userAId)
 
     const r1 = await POST(buildRequest({ context: 'profile' }))
@@ -318,10 +339,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/save-budget-snapshot (gated)'
     await seedBudget({ estimated: 100 })
     await seedBudget({ estimated: 100 })
     await seedBudget({ estimated: 100 })
-    // bilan=-600 (Σ=300, 2×300=600). refloat 500 → deficitRemaining=100, pool=300.
+    // bilan = -300 (Σ estimated = 300). refloat 200 → deficitRemaining = 100, pool = 300.
     await admin
       .from('monthly_recaps')
-      .update({ refloated_from_piggy: 500 })
+      .update({ refloated_from_piggy: 200 })
       .eq('profile_id', userAId)
 
     const response = await POST(buildRequest({ context: 'profile' }))

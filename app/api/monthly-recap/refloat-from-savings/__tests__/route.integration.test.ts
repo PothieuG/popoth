@@ -4,7 +4,7 @@
  *
  * Gated by `SUPABASE_RECAP_TESTS=1`. Server-side proportional allocation —
  * body carries only `{ context }`. Bilan engineering follows the same rule
- * as refloat-from-piggy tests (bilan = -2 × Σ estimated_amount for a fresh
+ * as refloat-from-piggy tests (bilan = -Σ estimated_amount for a fresh
  * profile).
  */
 
@@ -194,10 +194,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-savings (gated)'
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // bilan = -2 × Σ estimated = -2 × 60 = -120 → deficit = 120
-    const idA = await seedBudget({ estimated: 20, cumulatedSavings: 100 })
-    const idB = await seedBudget({ estimated: 20, cumulatedSavings: 200 })
-    const idC = await seedBudget({ estimated: 20, cumulatedSavings: 300 })
+    // bilan = -Σ estimated = -120 → deficit = 120
+    const idA = await seedBudget({ estimated: 40, cumulatedSavings: 100 })
+    const idB = await seedBudget({ estimated: 40, cumulatedSavings: 200 })
+    const idC = await seedBudget({ estimated: 40, cumulatedSavings: 300 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -240,8 +240,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-savings (gated)'
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
     // bilan = -200, deficit=200, savings pool = 20 + 30 = 50
-    await seedBudget({ estimated: 50, cumulatedSavings: 20 })
-    await seedBudget({ estimated: 50, cumulatedSavings: 30 })
+    await seedBudget({ estimated: 100, cumulatedSavings: 20 })
+    await seedBudget({ estimated: 100, cumulatedSavings: 30 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -263,7 +263,8 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-savings (gated)'
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    await seedBudget({ estimated: 50, cumulatedSavings: 0 })
+    // bilan = -100 → deficit = 100, aucun pool d'économies
+    await seedBudget({ estimated: 100, cumulatedSavings: 0 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -286,7 +287,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-savings (gated)'
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
     // bilan=-100, deficit=100, pool=100 (single budget)
-    await seedBudget({ estimated: 50, cumulatedSavings: 100 })
+    await seedBudget({ estimated: 100, cumulatedSavings: 100 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -339,10 +340,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-savings (gated)'
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // Σ estimated = 50 → bilan = -100, deficit = 100.
-    await seedBudget({ estimated: 20, cumulatedSavings: 100 })
-    await seedBudget({ estimated: 15, cumulatedSavings: 100 })
-    await seedBudget({ estimated: 15, cumulatedSavings: 100 })
+    // Σ estimated = 100 → bilan = -100, deficit = 100.
+    await seedBudget({ estimated: 40, cumulatedSavings: 100 })
+    await seedBudget({ estimated: 30, cumulatedSavings: 100 })
+    await seedBudget({ estimated: 30, cumulatedSavings: 100 })
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)

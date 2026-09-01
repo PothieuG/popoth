@@ -214,21 +214,21 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // Setup engineered for bilan = -350, refloated_from_piggy = 290 →
+    // Setup engineered for bilan = -1500, refloated_from_piggy = 1440 →
     // deficitRemaining = 60. Pool = 100 + 50 = 150 → proportional allocation
     // gives p1 = 40, p2 = 20 (last absorbs cents).
     //   - estimated_budget 1000€
     //   - projects 100€ + 50€ → totalEstimatedBudgets = 1150 → ravEstime = -1150
     //   - real_expense 1350€ on budget 1000 → budgetDeficit = 350
     //   - ravEffectif = 0 + 0 - 1150 - 0 - 350 = -1500
-    //   - bilan = -1500 - (-1150) = -350
+    //   - bilan = ravEffectif = -1500 (Sprint Bilan-Equals-RavEffectif)
     const budgetId = await seedBudget({ estimated: 1000 })
     const p1 = await seedProject({ monthlyAllocation: 100 })
     const p2 = await seedProject({ monthlyAllocation: 50 })
     await seedExpense({ budgetId, amount: 1350 })
     await admin
       .from('monthly_recaps')
-      .update({ refloated_from_piggy: 290 })
+      .update({ refloated_from_piggy: 1440 })
       .eq('profile_id', userAId)
 
     const response = await POST(buildRequest({ context: 'profile' }))
@@ -260,12 +260,19 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     // budget 500 + project 30 → totalEstimatedBudgets = 530 → ravEstime = -530
     // real_expense 770 on budget 500 → budgetDeficit = 270
     // ravEffectif = 0 - 530 - 270 = -800
-    // bilan = -800 - (-530) = -270
-    // No refloat → deficitRemaining = 270. Pool = 30 → totalAllocated=30,
-    // shortfall=240, newDeficit=240.
+    // bilan = ravEffectif = -800 (Sprint Bilan-Equals-RavEffectif)
+    // refloat tirelire 530 → deficitRemaining = 270. Pool = 30 →
+    // totalAllocated = 30, shortfall = 240, newDeficit = 240.
+    // (`computeProportionalProjectsRefloat` garde `capPerPool: true` : le pool
+    //  est physique — on ne peut renoncer qu'à une mensualité — donc le
+    //  shortfall reste une notion valide ici, contrairement au snapshot budget.)
     const budgetId = await seedBudget({ estimated: 500 })
     await seedProject({ monthlyAllocation: 30 })
     await seedExpense({ budgetId, amount: 770 })
+    await admin
+      .from('monthly_recaps')
+      .update({ refloated_from_piggy: 530 })
+      .eq('profile_id', userAId)
 
     const response = await POST(buildRequest({ context: 'profile' }))
     expect(response.status).toBe(200)
@@ -300,11 +307,11 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     // budget 100 + project 50 → totalEstimatedBudgets = 150 → ravEstime = -150
     // real_expense 250 on budget 100 → budgetDeficit = 150
     // ravEffectif = 0 - 150 - 150 = -300
-    // bilan = -300 - (-150) = -150
-    // refloated 100 + 50 = 150 → deficitRemaining = 0 → no_deficit.
+    // bilan = ravEffectif = -300 (Sprint Bilan-Equals-RavEffectif)
+    // refloated 250 + 50 = 300 → deficitRemaining = 0 → no_deficit.
     await seedRecap({
       ownerKind: 'profile',
-      refloatedFromPiggy: 100,
+      refloatedFromPiggy: 250,
       refloatedFromSavings: 50,
     })
     const budgetId = await seedBudget({ estimated: 100 })
@@ -321,7 +328,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     mockedAuth.userId = userAId
     mockedAuth.groupId = groupAId
     await seedRecap({ ownerKind: 'profile' })
-    // Same engineering as "happy" : bilan = -350, piggy 290 → deficit 60,
+    // Same engineering as "happy" : bilan = -1500, piggy 1440 → deficit 60,
     // pool 150 → allocation { p1: 40, p2: 20 }, newDeficit = 0.
     const budgetId = await seedBudget({ estimated: 1000 })
     const p1 = await seedProject({ monthlyAllocation: 100 })
@@ -329,7 +336,7 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     await seedExpense({ budgetId, amount: 1350 })
     await admin
       .from('monthly_recaps')
-      .update({ refloated_from_piggy: 290 })
+      .update({ refloated_from_piggy: 1440 })
       .eq('profile_id', userAId)
 
     const r1 = await POST(buildRequest({ context: 'profile' }))
@@ -400,9 +407,12 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/refloat-from-projects (gated)
     ownerKind?: 'profile' | 'group'
   }): Promise<void> {
     const ownerKind = args.ownerKind ?? 'profile'
-    // expense_date = first day of current month so loadRecapSummary
-    // picks it up via the gte/lt monthly window.
-    const expense_date = new Date(recapYear, recapMonth - 1, 1).toISOString().slice(0, 10)
+    // expense_date au MILIEU du mois recapé, construit en chaîne directe.
+    // ⚠️ Ne PAS repasser par `new Date(y, m, 1).toISOString()` : minuit heure
+    // locale recule d'un jour en UTC+N (le 1er août à Paris devient
+    // 2026-07-31Z), la dépense sortait alors de la fenêtre [1er, dernier jour]
+    // du mois recapé et ne créait AUCUN déficit — le fixture mentait.
+    const expense_date = `${recapYear}-${String(recapMonth).padStart(2, '0')}-15`
     const base = {
       estimated_budget_id: args.budgetId,
       description: `exp-${randomUUID().slice(0, 8)}`,

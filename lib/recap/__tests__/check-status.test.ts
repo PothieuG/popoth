@@ -164,7 +164,10 @@ describe.skipIf(!ENABLED)('checkRecapStatus V3 (gated)', () => {
     expect(result.status.kind).toBe('completed')
     if (result.status.kind !== 'completed') throw new Error('narrow failed')
     expect(result.status.recapId).toBe(row!.id)
-    expect(result.status.completedAt).toBe(completedAt)
+    // PostgREST renvoie l'offset `+00:00`, `toISOString()` produit `Z` : même
+    // instant, représentation différente. Comparer les instants, pas les
+    // chaînes (pattern déjà en place dans start/route.integration.test.ts).
+    expect(new Date(result.status.completedAt).getTime()).toBe(new Date(completedAt).getTime())
   })
 
   it('profile context: orphan row (started_by NULL) → kind=no_recap', async () => {
