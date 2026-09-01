@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { computeDeadlineFromDuration } from '@/lib/finance/projects-meta'
 import { makeProjectClientSchema, monthsUntilDeadline } from '@/lib/schemas/projects'
@@ -44,6 +44,19 @@ describe('monthsUntilDeadline', () => {
 
 describe('makeProjectClientSchema — refine atteignabilité', () => {
   const base = { name: 'Voiture', targetAmount: 1200, monthlyAllocation: 200 }
+
+  // Le refine de `makeProjectClientSchema` lit l'horloge réelle (`new Date()`),
+  // alors que les cas ci-dessous dérivent leur échéance d'un 31 août figé. Sans
+  // horloge gelée, le test devient rouge dès le passage au mois suivant : le
+  // 1er septembre, l'échéance 2027-02-28 ne compte plus que 5 mois pleins, soit
+  // 1000 € < 1200 € → « projet inatteignable ». Constaté le 2026-09-01.
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(Date.UTC(2026, 7, 31, 12)))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('accepts the deadline the form itself derives, on the 31st of a month', () => {
     // Reproduit le parcours réel : mode « je fixe le mensuel », durée dérivée
