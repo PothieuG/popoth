@@ -116,8 +116,8 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **911**                   | `pnpm test:run`                                                                                                          |
-| Tests gated skipped                    | **256**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
+| Tests non-gated passants               | **913**                   | `pnpm test:run`                                                                                                          |
+| Tests gated skipped                    | **253**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **45**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
 | Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
@@ -279,11 +279,12 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 
 ### Tests non-gated par module
 
-Couverture par dossier : `lib/finance/` (calc-rtl 19 + snapshots 5), `lib/api/` (parse-body 9, finance/expenses-add-with-logic 5 PIN ATOMIC CONTRACT), `app/api/savings/transfer/` (4 PIN ATOMIC CONTRACT), `app/api/monthly-recap/` (sprint 05 V3 : 13 gated start+status ; sprint 06 V3 : 15 gated transfer+transform ; sprint 07 V3 : 24 gated refloat-piggy/refloat-savings/save-snapshot, `withAuthAndProfile` mocké), `lib/schemas/` (10 fichiers : 9 post Clean-Slate + recap V3 41 cas), `lib/recap/` (state.ts 17 cas + calculations.ts 33 cas + actions-negative.ts 12 cas pure deficit helpers + 8 gated check-status), `lib/__tests__/` (auth-reducer 14 + logger 11 + contribution-calculator 8 + query-client), `components/__tests__/` (a11y-audit 19 dont 12 focus-trap `expectEscClose`), `components/ui/__tests__/` (DecimalFormInput 8 + ModalCloseX 4), RTL forms (64+ cas / 15 fichiers).
+Couverture par dossier : inventaire détaillé et à jour dans [.claude/reference/structure-repo.md](.claude/reference/structure-repo.md) (§ tests, par route et par module) — ne pas dupliquer les compteurs ici, ils dérivent. Invariants chiffrés : tableau §5.5.
 
 ### Patterns techniques
 
 - **Gated tests** : `await import(...)` dans `beforeAll` (load lazy), `chunked` helper pour batch 10× appels (pool undici), cleanup cascade obligatoire dans `afterAll` (FK → profiles sans CASCADE).
+- **Timeouts** : `testTimeout`/`hookTimeout` 30s ([vitest.config.ts](vitest.config.ts)) — le défaut 5s coupait l'`await import()` à froid sous charge, et le test abandonné vidait la file `once` des suivants. `afterEach` → `vi.resetAllMocks()` (jamais `clearAllMocks` seul, qui ne purge pas les `*Once`). ⚠️ `chain.then` doit rester une fonction simple, pas un `vi.fn()`.
 - **RTL** : mock-per-site inline `vi.mock(...)`. UUIDs valides obligatoires dans fixtures FK. CustomDropdown mocké en `<select>`.
 - **a11y regression-guards** : `toHaveAttribute('aria-describedby', 'X')` + `toHaveFocus()` ; `axe(container).violations.toEqual([])` direct (pivot vitest 4.x).
 
@@ -328,7 +329,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 911/256. 45 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
+**État global** : Score ~100. Lint 0/0. Tests 913/253. 45 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : récap abandonné → remboursement tirelire.
 
 **Historique** — 41 parts (153 sprints) :
 

@@ -9,10 +9,14 @@
 // `seedRecapRow` fait DELETE puis INSERT idempotent → relancer le script wipe
 // la row recap existante et repart à 'welcome'. Aucune autre table touchée.
 
+// `_lib.mjs` n'exporte que RECAP_MONTH / RECAP_YEAR (le mois RECAPÉ, soit le
+// mois écoulé). Les noms CURRENT_* n'ont jamais existé : l'import nommé ESM
+// échouait au link, donc ce script était cassé de bout en bout. Corrigé
+// 2026-09-01.
 import {
-  CURRENT_MONTH,
-  CURRENT_YEAR,
   GROUP_ID,
+  RECAP_MONTH,
+  RECAP_YEAR,
   USER_A_EMAIL,
   USER_A_ID,
   runScenario,
@@ -29,7 +33,7 @@ runScenario('start-recap', async () => {
   const contextId = ctxArg === 'profile' ? USER_A_ID : GROUP_ID
   const filterKey = ctxArg === 'profile' ? 'profile_id' : 'group_id'
 
-  console.log(`📅 Mois ciblé      : ${String(CURRENT_MONTH).padStart(2, '0')}/${CURRENT_YEAR}`)
+  console.log(`📅 Mois ciblé      : ${String(RECAP_MONTH).padStart(2, '0')}/${RECAP_YEAR}`)
   console.log(`👤 ${filterKey}     : ${contextId}`)
   console.log(`🏷️  Initiateur      : ${USER_A_ID} (${USER_A_EMAIL})`)
   console.log('')
@@ -52,8 +56,8 @@ runScenario('start-recap', async () => {
     .from('monthly_recaps')
     .select('id, current_step, started_at, started_by_profile_id, completed_at')
     .eq(filterKey, contextId)
-    .eq('recap_month', CURRENT_MONTH)
-    .eq('recap_year', CURRENT_YEAR)
+    .eq('recap_month', RECAP_MONTH)
+    .eq('recap_year', RECAP_YEAR)
     .maybeSingle()
 
   if (verifyError) {

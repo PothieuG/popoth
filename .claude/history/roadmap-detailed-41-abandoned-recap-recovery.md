@@ -159,10 +159,10 @@ avec ce sprint, mais bloquant pour `pnpm verify`.
    ont été réparés dans la foulée du sprint : la suite récap est passée à
    266/266. Les 5 autres suites gated ont été vérifiées dans la même passe.
 
-4. **Flakiness sous charge parallèle.** Le jeu d'échecs varie d'une exécution à
-   l'autre sur des fichiers non modifiés (résidu de mock, cf. mémoire projet
-   `project_flaky_expenses_add_logic_test`). **Toujours revérifier un échec en
-   isolation avant de le croire réel.**
+4. **Flakiness sous charge — RÉSOLUE le 2026-09-01** (voir §7). La cause
+   n'était pas un résidu de mock irréparable mais l'absence de `testTimeout`
+   dans `vitest.config.ts` (défaut 5 s).
+
 5. **Verrue d'historique assumée.** Le commit `3600c20` importe
    `@/lib/recap/period` alors que le fichier n'arrive qu'en `19291a6` : pris
    isolément, `3600c20` ne compile pas, et un `git bisect` qui s'y arrête
@@ -294,3 +294,65 @@ la dérive n'est pas homogène : sur 20 échecs, 1 seul (la RPC cassée) était 
 vrai défaut produit, mais 2 fixtures **mentaient** — ils passaient ou échouaient
 pour la mauvaise raison. Envisager de faire tourner les suites gated
 périodiquement (cron hebdomadaire), sans forcément les rendre bloquantes.
+
+## 7. Fin de la « flakiness sous charge » (2026-09-01)
+
+Six fichiers échouaient par intermittence en suite complète et passaient
+systématiquement en isolation. Le diagnostic hérité — « résidu de mock, pas un
+vrai bug, non corrigeable sans réécrire les mocks en dispatch par table » —
+était **incomplet, et sa conclusion fausse**.
+
+En capturant la sortie complète d'un run sous charge (plutôt que la seule liste
+des noms), le mécanisme saute aux yeux : le **premier** test de chaque fichier
+touché échoue en `Test timed out in 5000ms`, et ce sont les tests **suivants**
+qui portent les assertions bizarres (`from_budget` 20→50, `toHaveBeenCalledTimes(1)`
+→ 2).
+
+Chaîne causale :
+
+1. `vitest.config.ts` ne définissait **aucun `testTimeout`** → défaut 5 s.
+2. Ces tests importent le module sous test DANS le premier `it`
+   (`await import(...)` APRÈS les `vi.mock`, obligatoire pour que les mocks
+   prennent). Cette première transformation Vite à froid dépasse 5 s dès que les
+   workers se disputent le CPU — typiquement quand les suites gated tapent
+   Supabase en parallèle.
+3. Vitest abandonne le test, mais **la route continue de tourner** en arrière-plan
+   et consomme les `mockResolvedValueOnce` de la file.
+4. `afterEach` faisait `vi.restoreAllMocks() + vi.clearAllMocks()` — or
+   `clearAllMocks` ne **vide pas** la file `once`. Le test suivant héritait donc
+   de valeurs décalées.
+
+Correctif, minimal :
+
+- `testTimeout` et `hookTimeout` à **30 s** dans `vitest.config.ts`.
+- `afterEach` → **`vi.resetAllMocks()`** dans les 7 fichiers concernés. Vérifié
+  empiriquement en Vitest 4 : il vide la file `once` **et** préserve
+  l'implémentation passée à `vi.fn(impl)` — les deux propriétés nécessaires.
+
+⚠️ **Piège** : dans ces fichiers, `chain.then` doit rester une **fonction simple**,
+jamais un `vi.fn()`. Un reset sur un `then` mocké casse l'`await` sur la chaîne
+thenable et fait _pendre_ la suite — c'est ce qui avait fait abandonner une
+tentative de durcissement en `beforeEach` en juin 2026. Un `afterEach` +
+`resetAllMocks` n'a pas ce problème puisque `then` n'est pas un mock.
+
+Résultat : suite complète + gated concurrence jouée 3 fois de suite → **967
+verts, 0 échec**. Les 6 suites gated sont vertes (récap 1041, RLS 919, API 925,
+triggers 924, finance 955, concurrence 967).
+
+### Deux défauts annexes corrigés dans la foulée
+
+- `scripts/start-recap.mjs` importait `CURRENT_MONTH` / `CURRENT_YEAR` de
+  `scripts/seed-recap/_lib.mjs`, qui n'exporte que `RECAP_MONTH` / `RECAP_YEAR` :
+  l'import nommé ESM échouait au link, le script était cassé de bout en bout.
+- `actions-finalize-projects.test.ts` portait encore le motif
+  `new Date(y, m, d).toISOString()` (décalage d'un jour en UTC+N). Sans
+  conséquence — le 15 reste dans le mois — mais aligné sur la construction en
+  chaîne directe pour ne pas le propager.
+
+### Leçon
+
+Quand un test « flake sous charge », lire la sortie **complète** avant de
+conclure : ici le premier échec était un timeout, et tous les autres n'en
+étaient que la conséquence. Le diagnostic partiel avait coûté trois mois de
+contournement (« relance en isolation ») pour un correctif de deux lignes de
+configuration.

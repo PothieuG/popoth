@@ -27,6 +27,19 @@ export default defineConfig({
   test: {
     exclude: ['node_modules/**', '.next/**', 'dist/**'],
     env,
+    // Le défaut Vitest (5 s) est trop court pour cette suite : la plupart des
+    // tests de routes importent le module sous test DANS le premier `it`
+    // (`await import(...)` APRÈS les `vi.mock`), et cette première
+    // transformation à froid dépasse 5 s dès que les workers se disputent le
+    // CPU — typiquement quand les suites gated tapent Supabase en parallèle.
+    // Le test abandonné laissait alors sa route tourner en arrière-plan et
+    // consommer les `mockResolvedValueOnce` de la file : les tests SUIVANTS
+    // recevaient des données décalées. C'est l'origine réelle de la
+    // « flakiness sous charge » longtemps mise sur le compte d'un résidu de
+    // mock (diagnostiquée 2026-09-01). Filet complémentaire : les `afterEach`
+    // concernés utilisent désormais `vi.resetAllMocks()`, qui vide la file.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     projects: [
       {
         extends: true,

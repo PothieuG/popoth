@@ -49,8 +49,13 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.clearAllMocks()
+  // `resetAllMocks` (et non `restoreAllMocks` + `clearAllMocks`) : lui seul
+  // VIDE la file des `mockResolvedValueOnce` non consommés, tout en préservant
+  // l'implémentation passée au factory `vi.fn(impl)`. Sans ça, un test qui
+  // dépasse son délai laisse sa route continuer en arrière-plan, consommer des
+  // valeurs de la file, et le test SUIVANT reçoit des données décalées — c'est
+  // ce qui rendait cette suite « flaky » sous charge (2026-09-01).
+  vi.resetAllMocks()
 })
 
 describe('saveRemainingToLiveSnapshot', () => {

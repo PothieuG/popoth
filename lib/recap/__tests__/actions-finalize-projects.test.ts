@@ -125,9 +125,12 @@ describe.skipIf(!ENABLED)(
       pendingDelayFraction?: number
       deadlineDate?: string
     }): Promise<{ id: string; deadlineDate: string }> {
+      // Chaîne construite directement : `new Date(y, m, d).toISOString()`
+      // recule d'un jour en UTC+N (minuit local = 22 h UTC la veille). Sans
+      // conséquence ici — le 15 reste dans le même mois — mais c'est le motif
+      // qui faisait mentir le fixture de refloat-from-projects (cf. Part 41).
       const deadlineDate =
-        args.deadlineDate ??
-        new Date(currentYear + 1, currentMonth - 1, 15).toISOString().slice(0, 10)
+        args.deadlineDate ?? `${currentYear + 1}-${String(currentMonth).padStart(2, '0')}-15`
       const payload: Database['public']['Tables']['savings_projects']['Insert'] = {
         profile_id: userAId,
         name: `proj-${randomUUID().slice(0, 8)}`,
