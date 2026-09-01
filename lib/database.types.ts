@@ -356,6 +356,7 @@ export type Database = {
       }
       monthly_recaps: {
         Row: {
+          abandoned_at: string | null
           budget_snapshot_data: Json
           completed_at: string | null
           created_at: string
@@ -367,6 +368,7 @@ export type Database = {
           project_snapshot_data: Json
           recap_month: number
           recap_year: number
+          recovery_data: Json
           refloated_from_piggy: number
           refloated_from_savings: number
           started_at: string | null
@@ -374,6 +376,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          abandoned_at?: string | null
           budget_snapshot_data?: Json
           completed_at?: string | null
           created_at?: string
@@ -385,6 +388,7 @@ export type Database = {
           project_snapshot_data?: Json
           recap_month: number
           recap_year: number
+          recovery_data?: Json
           refloated_from_piggy?: number
           refloated_from_savings?: number
           started_at?: string | null
@@ -392,6 +396,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          abandoned_at?: string | null
           budget_snapshot_data?: Json
           completed_at?: string | null
           created_at?: string
@@ -403,6 +408,7 @@ export type Database = {
           project_snapshot_data?: Json
           recap_month?: number
           recap_year?: number
+          recovery_data?: Json
           refloated_from_piggy?: number
           refloated_from_savings?: number
           started_at?: string | null
