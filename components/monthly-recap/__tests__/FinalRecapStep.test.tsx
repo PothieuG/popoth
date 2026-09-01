@@ -61,6 +61,7 @@ function makeRecap(overrides: Partial<RecapProgress> = {}): RecapProgress {
     snapshotData: null,
     piggyTransfersData: null,
     projectSnapshotData: null,
+    recoveryData: null,
     ...overrides,
   }
 }

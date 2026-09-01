@@ -177,6 +177,7 @@ describe('RecapWizard', () => {
         snapshotData: null,
         piggyTransfersData: null,
         projectSnapshotData: null,
+        recoveryData: null,
       },
     )
     render(<RecapWizard context="profile" />)

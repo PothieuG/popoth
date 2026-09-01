@@ -3,7 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
-import type { RecapContext, RecapStatusKind, RecapStep, RecapSummary } from '@/lib/recap'
+import type {
+  RecapContext,
+  RecapRecoveryData,
+  RecapStatusKind,
+  RecapStep,
+  RecapSummary,
+} from '@/lib/recap'
 
 /**
  * Sprint 13 — `recap` sibling exposed by GET /api/monthly-recap/status when
@@ -34,6 +40,12 @@ export interface RecapProgress {
    *  recalcule le déficit pour les étapes suivantes — l'expose ici pour parité
    *  client. `null` quand aucun projet n'a encore été refloué. */
   projectSnapshotData: Record<string, number> | null
+  /** Sprint Abandoned-Recap-Recovery (2026-09-01). Ce que le balayage des
+   *  bilans abandonnés a remis dans la tirelire au moment où CE récap a été
+   *  ouvert : `{ total, periods[] }`. `null` = rien à annoncer (aucun bilan
+   *  abandonné, ou aucun n'avait coûté d'argent — archivage silencieux).
+   *  Consommé par `<RecoveredFundsBanner>` dans `RecapWizard`. */
+  recoveryData: RecapRecoveryData | null
 }
 
 export interface MonthlyRecapStatusResponse {

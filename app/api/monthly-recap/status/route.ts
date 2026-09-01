@@ -39,6 +39,7 @@ import { getActiveRecap } from '@/lib/recap/active-recap'
 import { checkRecapStatus, RecapStatusError } from '@/lib/recap/check-status'
 import { coerceSnapshot } from '@/lib/recap/deficit-math'
 import { loadRecapSummary } from '@/lib/recap/load-summary'
+import { parseRecoveryData } from '@/lib/recap/recovery'
 import type { RecapStep } from '@/lib/recap/state'
 import { statusQuerySchema } from '@/lib/schemas/recap'
 
@@ -110,6 +111,11 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
             // including the projects stage. `null` quand le wizard est sur
             // une étape antérieure ou que le user n'a aucun projet.
             projectSnapshotData: projectSnapshotData ?? null,
+            // Sprint Abandoned-Recap-Recovery (2026-09-01) — ce que le balayage
+            // des bilans abandonnés a remis dans la tirelire à l'ouverture de
+            // ce récap. `null` = rien à annoncer (aucun bilan abandonné, ou
+            // aucun n'avait coûté d'argent). Alimente `<RecoveredFundsBanner>`.
+            recoveryData: parseRecoveryData(recapRow.recovery_data),
           }
         : null
 

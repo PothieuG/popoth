@@ -12,6 +12,8 @@ export type { RecapContext, RecapStatusKind, RecapStatusResult } from './check-s
 export { loadRecapSummary } from './load-summary'
 export type { LoadRecapSummaryInput } from './load-summary'
 export { isRecapBlocking } from './lock'
+export { parseRecoveryData } from './recovery'
+export type { RecapRecoveryData, RecapRecoveryPeriod } from './recovery'
 export { isAdvanceAllowed, nextRequiredStep, RECAP_STEP_ORDER } from './state'
 export type { RecapStep } from './state'
 export type {
