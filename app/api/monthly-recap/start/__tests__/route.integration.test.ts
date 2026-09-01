@@ -129,6 +129,10 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
     if (admin) {
       if (userAId) await admin.from('monthly_recaps').delete().eq('profile_id', userAId)
       if (groupAId) await admin.from('monthly_recaps').delete().eq('group_id', groupAId)
+      // Sprint Abandoned-Recap-Recovery — le balayage CRÉE une ligne piggy_bank
+      // quand il rembourse, y compris pour un utilisateur qui n'en avait pas.
+      if (userAId) await admin.from('piggy_bank').delete().eq('profile_id', userAId)
+      if (groupAId) await admin.from('piggy_bank').delete().eq('group_id', groupAId)
       if (groupAId) await admin.from('groups').delete().eq('id', groupAId)
       if (userAId) await admin.from('profiles').update({ group_id: null }).eq('id', userAId)
       if (userBId) await admin.from('profiles').update({ group_id: null }).eq('id', userBId)
@@ -141,6 +145,54 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
   async function resetRecaps() {
     if (userAId) await admin.from('monthly_recaps').delete().eq('profile_id', userAId)
     if (groupAId) await admin.from('monthly_recaps').delete().eq('group_id', groupAId)
+    if (userAId) await admin.from('piggy_bank').delete().eq('profile_id', userAId)
+    if (groupAId) await admin.from('piggy_bank').delete().eq('group_id', groupAId)
+  }
+
+  /** Période décalée de `back` mois en arrière, rollover d'année inclus. */
+  function shiftPeriod(back: number): { month: number; year: number } {
+    const zeroBased = recapYear * 12 + (recapMonth - 1) - back
+    return { month: (zeroBased % 12) + 1, year: Math.floor(zeroBased / 12) }
+  }
+
+  /** Montant de la tirelire, `null` quand aucune ligne n'existe encore. */
+  async function readPiggy(owner: {
+    profileId?: string
+    groupId?: string
+  }): Promise<number | null> {
+    const query = admin.from('piggy_bank').select('amount')
+    const { data } = owner.profileId
+      ? await query.eq('profile_id', owner.profileId).maybeSingle()
+      : await query.eq('group_id', owner.groupId as string).maybeSingle()
+    return data ? Number(data.amount) : null
+  }
+
+  /** Insère un bilan resté en plan sur une période antérieure. */
+  async function seedAbandoned(args: {
+    profileId?: string
+    groupId?: string
+    monthsBack: number
+    fromPiggy: number
+    fromSavings: number
+  }): Promise<string> {
+    const { month, year } = shiftPeriod(args.monthsBack)
+    const { data } = await admin
+      .from('monthly_recaps')
+      .insert({
+        profile_id: args.profileId ?? null,
+        group_id: args.groupId ?? null,
+        recap_month: month,
+        recap_year: year,
+        current_step: 'manage_bilan',
+        started_by_profile_id: userAId,
+        started_at: new Date().toISOString(),
+        refloated_from_piggy: args.fromPiggy,
+        refloated_from_savings: args.fromSavings,
+      })
+      .select('id')
+      .single()
+      .throwOnError()
+    return data!.id
   }
 
   function buildRequest(body: unknown): NextRequest {
@@ -306,5 +358,183 @@ describe.skipIf(!ENABLED)('POST /api/monthly-recap/start (gated)', () => {
     expect(response.status).toBe(400)
     const body = (await response.json()) as { error: string }
     expect(body.error).toBe('Pas de groupe')
+  })
+
+  // ==========================================================================
+  // Sprint Abandoned-Recap-Recovery (2026-09-01)
+  // ==========================================================================
+  // Un bilan resté en plan sur un mois passé est invisible pour toute
+  // l'application (les lectures filtrent sur l'égalité stricte de période),
+  // et l'argent qu'il avait prélevé sur la tirelire / les économies était
+  // perdu. `start_monthly_recap` le balaye désormais : remboursement INTÉGRAL
+  // sur la tirelire, ligne marquée `abandoned_at`, montant annoncé via
+  // `recovery_data` sur la nouvelle ligne.
+  //
+  // ⚠️ Libellé volontairement distinct de « orphan » : ce mot désigne déjà,
+  // plus haut dans ce fichier, une ligne de la BONNE période dont
+  // `started_by_profile_id` est NULL. Rien à voir.
+
+  it('abandoned previous month with refloats → refunded to the piggy, row archived', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const abandonedId = await seedAbandoned({
+      profileId: userAId,
+      monthsBack: 1,
+      fromPiggy: 100,
+      fromSavings: 50,
+    })
+    expect(await readPiggy({ profileId: userAId })).toBeNull()
+
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: { recovered: { total: number; periods: Array<{ month: number; amount: number }> } }
+    }
+    expect(Number(body.data.recovered.total)).toBe(150)
+    expect(body.data.recovered.periods).toHaveLength(1)
+
+    // L'argent est revenu, en totalité, dans la tirelire — y compris la part
+    // qui venait des économies (décision produit : un seul pot de retour).
+    expect(await readPiggy({ profileId: userAId })).toBe(150)
+
+    const { data: archived } = await admin
+      .from('monthly_recaps')
+      .select('abandoned_at, completed_at')
+      .eq('id', abandonedId)
+      .single()
+    expect(archived!.abandoned_at).not.toBeNull()
+    expect(archived!.completed_at).toBeNull()
+
+    const { data: fresh } = await admin
+      .from('monthly_recaps')
+      .select('recovery_data')
+      .eq('profile_id', userAId)
+      .eq('recap_month', recapMonth)
+      .eq('recap_year', recapYear)
+      .single()
+    expect(fresh!.recovery_data).toMatchObject({ total: 150 })
+  })
+
+  it('abandoned previous month that cost nothing → archived silently, piggy untouched', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const abandonedId = await seedAbandoned({
+      profileId: userAId,
+      monthsBack: 1,
+      fromPiggy: 0,
+      fromSavings: 0,
+    })
+
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { recovered: { total: number } } }
+    expect(Number(body.data.recovered.total)).toBe(0)
+
+    // Aucune ligne piggy_bank créée : rien n'a bougé, donc rien à annoncer.
+    expect(await readPiggy({ profileId: userAId })).toBeNull()
+
+    const { data: archived } = await admin
+      .from('monthly_recaps')
+      .select('abandoned_at')
+      .eq('id', abandonedId)
+      .single()
+    expect(archived!.abandoned_at).not.toBeNull()
+
+    const { data: fresh } = await admin
+      .from('monthly_recaps')
+      .select('recovery_data')
+      .eq('profile_id', userAId)
+      .eq('recap_month', recapMonth)
+      .eq('recap_year', recapYear)
+      .single()
+    expect(fresh!.recovery_data).toEqual({})
+  })
+
+  it('two abandoned months → both archived, total summed, only paying periods announced', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const older = await seedAbandoned({
+      profileId: userAId,
+      monthsBack: 2,
+      fromPiggy: 80,
+      fromSavings: 0,
+    })
+    const recent = await seedAbandoned({
+      profileId: userAId,
+      monthsBack: 1,
+      fromPiggy: 0,
+      fromSavings: 0,
+    })
+
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: { recovered: { total: number; periods: Array<{ month: number; year: number }> } }
+    }
+    expect(Number(body.data.recovered.total)).toBe(80)
+    // Le mois à 0 € est archivé mais n'apparaît PAS dans l'annonce.
+    expect(body.data.recovered.periods).toHaveLength(1)
+    expect(body.data.recovered.periods[0]).toMatchObject(shiftPeriod(2))
+
+    expect(await readPiggy({ profileId: userAId })).toBe(80)
+
+    const { data: rows } = await admin
+      .from('monthly_recaps')
+      .select('id, abandoned_at')
+      .in('id', [older, recent])
+    expect(rows).toHaveLength(2)
+    expect(rows!.every((r) => r.abandoned_at !== null)).toBe(true)
+  })
+
+  it('no abandoned row → created path strictly unchanged, nothing announced', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    const response = await POST(buildRequest({ context: 'profile' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      data: { recovered: { total: number; periods: unknown[] }; recap: { current_step: string } }
+    }
+    expect(Number(body.data.recovered.total)).toBe(0)
+    expect(body.data.recovered.periods).toEqual([])
+    expect(body.data.recap.current_step).toBe('welcome')
+    expect(await readPiggy({ profileId: userAId })).toBeNull()
+  })
+
+  it('re-starting after a sweep does not refund twice', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    await seedAbandoned({ profileId: userAId, monthsBack: 1, fromPiggy: 100, fromSavings: 50 })
+
+    await POST(buildRequest({ context: 'profile' }))
+    expect(await readPiggy({ profileId: userAId })).toBe(150)
+
+    // Second appel : la ligne courante existe déjà ('resumed'), et la ligne
+    // abandonnée porte maintenant `abandoned_at` → hors du prédicat de balayage.
+    const second = await POST(buildRequest({ context: 'profile' }))
+    expect(second.status).toBe(200)
+    const body = (await second.json()) as { data: { recovered: { total: number } } }
+    expect(Number(body.data.recovered.total)).toBe(0)
+    expect(await readPiggy({ profileId: userAId })).toBe(150)
+  })
+
+  it('context=group: an abandoned group recap refunds the group piggy', async () => {
+    mockedAuth.userId = userAId
+    mockedAuth.groupId = groupAId
+
+    await seedAbandoned({ groupId: groupAId, monthsBack: 1, fromPiggy: 40, fromSavings: 60 })
+
+    const response = await POST(buildRequest({ context: 'group' }))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as { data: { recovered: { total: number } } }
+    expect(Number(body.data.recovered.total)).toBe(100)
+
+    expect(await readPiggy({ groupId: groupAId })).toBe(100)
+    // La tirelire perso ne doit surtout pas bouger.
+    expect(await readPiggy({ profileId: userAId })).toBeNull()
   })
 })
