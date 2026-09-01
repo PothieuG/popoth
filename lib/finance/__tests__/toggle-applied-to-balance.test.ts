@@ -58,6 +58,13 @@ describe.skipIf(!ENABLED)(
           expense_date: '2026-05-23',
           is_exceptional: true,
           applied_to_balance_at: applied ? new Date().toISOString() : null,
+          // Sprint Contribution-Drift (2026-05-28) — une ligne appliquée porte
+          // TOUJOURS le montant réellement débité. Sans lui, `last_applied_amount
+          // IS DISTINCT FROM amount` est vrai et la RPC part en branche
+          // « re-apply au nouveau montant » (correction de dérive) au lieu de
+          // lever P0002. Aucun chemin applicatif ne produit cet état — le
+          // fixture datait d'avant la colonne.
+          last_applied_amount: applied ? amount : null,
         })
         .select('id')
         .single()
