@@ -356,3 +356,46 @@ conclure : ici le premier échec était un timeout, et tous les autres n'en
 étaient que la conséquence. Le diagnostic partiel avait coûté trois mois de
 contournement (« relance en isolation ») pour un correctif de deux lignes de
 configuration.
+
+## 8. Tri des vulnérabilités (2026-09-01)
+
+GitHub annonçait 42 alertes Dependabot sur la branche par défaut ; `pnpm audit`
+en comptait **39** (1 critique, 26 hautes, 11 modérées, 1 basse). Le tri utile
+n'est pas la sévérité brute mais **ce qui atteint l'exécution** :
+
+- **Une seule touchait la production** : `next@16.2.6`, avec 9 avis (4 hautes +
+  5 modérées) tous corrigés en **≥ 16.2.11**. Dont « Middleware / Proxy bypass
+  in App Router », directement pertinent ici puisque `proxy.ts` porte le gating
+  du récap, plus deux SSRF via Server Actions / rewrites. Monté en **16.2.12**
+  (patch, même mineure), `eslint-config-next` aligné (livré en lockstep).
+- **Les 30 autres sont de l'outillage build/test** (tar, brace-expansion, vite,
+  nanoid, form-data, @babel/core, js-yaml, postcss, fast-uri) : rien n'atteint
+  le navigateur ni le serveur. Le `tar` « critique » est un DoS de décompression
+  dans un outil qui ne tourne qu'à l'install.
+- **`sharp` était le cas limite** : la devDep sert au script `pwa:assets`, mais
+  `next` en embarquait aussi une copie 0.34.5 pour l'optimisation d'images —
+  donc côté serveur de production. Traité par override `^0.35.4`. Contrôle :
+  `pnpm pwa:assets` régénère les 14 assets **au bit près** (0 fichier modifié).
+
+Constat de fond : **les overrides posés en mai avaient dérivé**. Ils pinnaient la
+version corrective de l'époque, et de nouveaux avis ont depuis relevé la barre
+(`brace-expansion@1` ^1.1.13 → ≥1.1.18, `js-yaml` ^4.1.1 → ≥4.3.1, `postcss`
+^8.5.10 → ≥8.5.23, `fast-uri` ^3.1.2 → ≥3.1.5). Un override n'est pas un
+correctif définitif : il fige un plancher qui vieillit.
+
+**Piège pnpm rencontré** : l'override sur `vite` **ne prenait pas**, deux
+installs de suite. Raison — `vite` n'est qu'un _peer_ de vitest, auto-installé,
+et les overrides ne contraignent pas ce cas. Seule la déclaration explicite en
+`devDependencies` (`vite: ^8.0.16`) force la résolution. À retenir pour toute
+future alerte sur un peer auto-installé.
+
+Effet de bord assumé et corrigé : vite 8.2.2 avertit à chaque run que
+`vitest.config.ts`, chargé en CommonJS faute de `"type": "module"`, utilise de
+la syntaxe ESM. Fichier renommé **`vitest.config.mts`** et `__dirname` dérivé de
+`import.meta.url` via `fileURLToPath` (et non `import.meta.dirname`, qui exige
+Node 20.11 alors que `engines.node` autorise 20.10). Références mises à jour
+dans `code-checks.yml` (2 filtres de chemin) et CLAUDE.md.
+
+**Résultat : 39 → 0 avis.** Validé par `pnpm verify` (exit 0), `pnpm build`
+(45 routes, invariant tenu), et un smoke runtime du serveur dev
+(`/connexion` 200, `/dashboard` 307).

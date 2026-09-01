@@ -25,16 +25,16 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 
 ## 2. Stack
 
-- **Next.js 16.2.6** App Router, Turbopack en build, **webpack en dev** (`pnpm dev` → `next dev --webpack`)
+- **Next.js 16.2.12** App Router, Turbopack en build, **webpack en dev** (`pnpm dev` → `next dev --webpack`)
 - **React 19.1.1** + **TanStack Query 5.100.9** pour le data-fetching (provider mounted dans [app/layout.tsx](app/layout.tsx) ; tous les hooks fetcher migrés au Sprint 1.5)
 - **TypeScript 5** strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax` (imports type-only obligatoires)
 - **Tailwind 4** (CSS-first config dans [app/globals.css](app/globals.css) `@theme {}` block, plus de `tailwind.config.ts` ; `@tailwindcss/postcss` + `tw-animate-css` pour animations Radix Dialog/Drawer)
 - **shadcn/ui** (variant new-york) + **Radix UI Dialog** pour modals (Sprint Zod-Rollout v8 — 12 surfaces avec focus trap natif)
 - **Supabase** (`@supabase/supabase-js@^2.105.4`) — PostgreSQL + Auth
 - **pnpm 9.15.5** (verrouillé via `packageManager` + `engines.pnpm >=9.0.0`), Node ≥ 20.10.0 (`engines.node` + [.nvmrc](.nvmrc) pinned `20` LTS major)
-- **Vitest 4.1.5** pour tests unitaires + RTL (jsdom 25 + @testing-library) — `test.projects` split env=node `*.test.ts` / env=jsdom `*.test.tsx`
+- **Vitest 4.1.6** pour tests unitaires + RTL (jsdom 25 + @testing-library) — `test.projects` split env=node `*.test.ts` / env=jsdom `*.test.tsx`
 - **Zod 4.4.3** pour validation API + client forms (`parseBody`/`parseQuery` + `react-hook-form` + `zodResolver`)
-- **eslint-config-next 16.2.6** + **eslint 9.39.4** (flat configs natifs, pas de FlatCompat). Voir [eslint.config.mjs](eslint.config.mjs).
+- **eslint-config-next 16.2.12** + **eslint 9.39.4** (flat configs natifs, pas de FlatCompat). Voir [eslint.config.mjs](eslint.config.mjs).
 
 ## 3. Commandes
 
@@ -266,7 +266,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 
 ## 9. Tests
 
-- **Vitest 4.1.5** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml) sur PR + push `cleanup`.
+- **Vitest 4.1.6** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml).
 
 ### Tests gated DB (env var requise)
 
@@ -284,7 +284,7 @@ Couverture par dossier : inventaire détaillé et à jour dans [.claude/referenc
 ### Patterns techniques
 
 - **Gated tests** : `await import(...)` dans `beforeAll` (load lazy), `chunked` helper pour batch 10× appels (pool undici), cleanup cascade obligatoire dans `afterAll` (FK → profiles sans CASCADE).
-- **Timeouts** : `testTimeout`/`hookTimeout` 30s ([vitest.config.ts](vitest.config.ts)) — le défaut 5s coupait l'`await import()` à froid sous charge, et le test abandonné vidait la file `once` des suivants. `afterEach` → `vi.resetAllMocks()` (jamais `clearAllMocks` seul, qui ne purge pas les `*Once`). ⚠️ `chain.then` doit rester une fonction simple, pas un `vi.fn()`.
+- **Timeouts** : `testTimeout`/`hookTimeout` 30s ([vitest.config.mts](vitest.config.mts)) — le défaut 5s coupait l'`await import()` à froid sous charge, et le test abandonné vidait la file `once` des suivants. `afterEach` → `vi.resetAllMocks()` (jamais `clearAllMocks` seul, qui ne purge pas les `*Once`). ⚠️ `chain.then` doit rester une fonction simple, pas un `vi.fn()`.
 - **RTL** : mock-per-site inline `vi.mock(...)`. UUIDs valides obligatoires dans fixtures FK. CustomDropdown mocké en `<select>`.
 - **a11y regression-guards** : `toHaveAttribute('aria-describedby', 'X')` + `toHaveFocus()` ; `axe(container).violations.toEqual([])` direct (pivot vitest 4.x).
 

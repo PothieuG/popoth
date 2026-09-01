@@ -1,6 +1,16 @@
 import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+// Extension `.mts` (et non `.ts`) : sans `"type": "module"` dans package.json,
+// un `.ts` est chargé en CommonJS et le loader natif de Vite 8+ avertit à chaque
+// run que la syntaxe ESM n'y est pas supportée — comportement qui deviendra le
+// défaut à la prochaine majeure de Vite. En ESM le global CommonJS de chemin
+// n'existe pas : on le dérive de `import.meta.url` (compatible Node >= 20.10,
+// contrairement à `import.meta.dirname` qui exige 20.11 alors que
+// `engines.node` autorise 20.10).
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 // Load .env.local so gated integration tests can read NEXT_PUBLIC_SUPABASE_URL
 // / SUPABASE_SERVICE_ROLE_KEY without forcing callers to export them manually
@@ -21,7 +31,7 @@ function loadDotEnv(file: string): Record<string, string> {
   }
   return out
 }
-const env = loadDotEnv(path.resolve(__dirname, '.env.local'))
+const env = loadDotEnv(path.resolve(rootDir, '.env.local'))
 
 export default defineConfig({
   test: {
@@ -64,7 +74,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, '.'),
+      '@': path.resolve(rootDir, '.'),
     },
   },
 })
