@@ -135,7 +135,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
         captured = uid
         return NextResponse.json({ ok: true })
       })
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       const res = await wrapped(buildRequest(token))
       expect(res.status).toBe(200)
       expect(await res.json()).toEqual({ ok: true })
@@ -186,7 +186,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
       const wrapped = withAuth(async (_req, { userId: uid }) => {
         return NextResponse.json({ uid })
       })
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       const res = await wrapped(buildRequest(token))
       expect(res.status).toBe(200)
       expect(await res.json()).toEqual({ uid: userId })
@@ -200,7 +200,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
         const { id } = await routeContext.params
         return NextResponse.json({ id })
       })
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       const routeContext = { params: Promise.resolve({ id: 'group-abc-123' }) }
       const res = await wrapped(buildRequest(token), routeContext)
       expect(res.status).toBe(200)
@@ -217,7 +217,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
         capturedProfile = profile
         return NextResponse.json({ ok: true })
       })
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       const res = await wrapped(buildRequest(token))
       expect(res.status).toBe(200)
       expect(capturedUid).toBe(userId)
@@ -240,7 +240,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
 
     it('valid session but profile row missing → 404 Profil non trouvé', async () => {
       const wrapped = withAuthAndProfile(async () => NextResponse.json({ ok: true }))
-      const token = await createSessionToken(userIdNoProfile, userEmailNoProfile)
+      const token = await createSessionToken(userIdNoProfile, userEmailNoProfile, null)
       const res = await wrapped(buildRequest(token))
       expect(res.status).toBe(404)
       expect(await res.json()).toEqual({ error: 'Profil non trouvé' })
@@ -257,7 +257,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
           return NextResponse.json({ uid, id })
         },
       )
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       const routeContext = { params: Promise.resolve({ id: 'member-xyz-789' }) }
       const res = await wrapped(buildRequest(token), routeContext)
       expect(res.status).toBe(200)
@@ -271,7 +271,7 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
       const wrapped = withAuth(async () => {
         throw new Error('boom')
       })
-      const token = await createSessionToken(userId, userEmail)
+      const token = await createSessionToken(userId, userEmail, null)
       // Critical invariant per lib/api/with-auth.ts:11-15 — centralizing the
       // try/catch in the wrapper would override summary.ts's deliberate
       // 200-with-default-data fallback. The wrapper must NOT mask handler
@@ -283,7 +283,9 @@ describe.skipIf(!ENABLED)('withAuth + withAuthAndProfile (Sprint Refactor-Archit
       const wrapped = withAuth(async (_req, { userId: uid }) => {
         return NextResponse.json({ uid })
       })
-      const tokens = await Promise.all(parallelUsers.map((u) => createSessionToken(u.id, u.email)))
+      const tokens = await Promise.all(
+        parallelUsers.map((u) => createSessionToken(u.id, u.email, null)),
+      )
       const responses = await Promise.all(tokens.map((t) => wrapped(buildRequest(t))))
       const responseUids = await Promise.all(
         responses.map(async (r) => (await r.json()).uid as string),

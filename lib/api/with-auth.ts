@@ -50,6 +50,18 @@ export interface AuthedProfileContext {
  * The 2nd argument Next.js App Router passes to dynamic route handlers
  * (`app/api/.../[id]/route.ts`). `params` is a Promise — must be awaited.
  */
+/**
+ * Contexte servi par `withAuthAndGroup` : l'identité et le groupe, rien de plus.
+ *
+ * Sprint Perf-Waterfall (2026-09-10). `groupId` vient du jeton de session, pas
+ * d'une lecture en base — c'est tout l'intérêt du wrapper.
+ */
+export interface AuthedGroupContext {
+  userId: string
+  /** `null` si l'utilisateur n'appartient à aucun groupe. */
+  groupId: string | null
+}
+
 export type RouteContext<TParams = Record<string, string>> = {
   params: Promise<TParams>
 }
@@ -182,5 +194,63 @@ export function withAuthAndProfile(handler: any): any {
       return NextResponse.json({ error: 'Profil non trouvé' }, { status: 404 })
     }
     return handler(request, { userId: session.userId, profile }, routeContext)
+  }
+}
+
+/**
+ * Variante de `withAuthAndProfile` qui ne fait **aucune lecture en base**.
+ *
+ * Sprint Perf-Waterfall (2026-09-10). `withAuthAndProfile` relit `profiles`
+ * avant chaque handler. Un chargement de dashboard déclenche 13 appels d'API,
+ * donc 13 lectures bloquantes — et sur les 34 modules qui l'utilisaient, un
+ * seul (`app/api/savings/data`) avait besoin d'autre chose que `group_id`.
+ *
+ * `group_id` est désormais embarqué dans le jeton de session et ré-émis à chaque
+ * mutation d'appartenance (cf. `updateSessionGroup`), donc il est lisible sans
+ * aller-retour réseau.
+ *
+ * **Repli sur la base** quand `session.groupId` est `undefined` : ce sont les
+ * jetons émis avant ce sprint. Sans ce repli, tout utilisateur déjà connecté
+ * serait vu comme « sans groupe » au déploiement — et basculerait du dashboard
+ * groupe au dashboard perso sans comprendre pourquoi. Le repli disparaît de
+ * lui-même au premier rafraîchissement de session (≤ 50 min).
+ *
+ * ⚠️ À ne PAS utiliser pour les routes qui arbitrent l'appartenance elle-même
+ * (`app/api/groups/**`) : elles doivent rester sur `withAuthAndProfile`, dont la
+ * lecture est autoritative. Ici on sert l'affichage, pas l'autorisation d'entrer
+ * ou de sortir d'un groupe.
+ */
+export function withAuthAndGroup(
+  handler: (request: NextRequest, ctx: AuthedGroupContext) => Promise<NextResponse>,
+): (request: NextRequest) => Promise<NextResponse>
+export function withAuthAndGroup<TParams>(
+  handler: (
+    request: NextRequest,
+    ctx: AuthedGroupContext,
+    routeContext: RouteContext<TParams>,
+  ) => Promise<NextResponse>,
+): (request: NextRequest, routeContext: RouteContext<TParams>) => Promise<NextResponse>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- impl signature behind overloads, identique au pattern de withAuthAndProfile ci-dessus
+export function withAuthAndGroup(handler: any): any {
+  return async (request: NextRequest, routeContext?: RouteContext) => {
+    const session = await validateSessionToken(request)
+    if (!session?.userId) {
+      return NextResponse.json({ error: 'Session invalide' }, { status: 401 })
+    }
+
+    let groupId: string | null
+    if (session.groupId !== undefined) {
+      groupId = session.groupId
+    } else {
+      // Jeton legacy : une lecture, le temps que la session se rafraîchisse.
+      const { data: profile } = await supabaseServer
+        .from('profiles')
+        .select('group_id')
+        .eq('id', session.userId)
+        .maybeSingle()
+      groupId = profile?.group_id ?? null
+    }
+
+    return handler(request, { userId: session.userId, groupId }, routeContext)
   }
 }

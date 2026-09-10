@@ -4,6 +4,7 @@ import { withAuth } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { updateGroupBodySchema } from '@/lib/schemas/groups'
 import { logger } from '@/lib/logger'
+import { updateSessionGroup } from '@/lib/session-server'
 
 interface RouteParams {
   id: string
@@ -115,6 +116,13 @@ export const DELETE = withAuth<RouteParams>(async (_request, { userId }, routeCo
         { status: 500 },
       )
     }
+
+    // La suppression du groupe met `profiles.group_id` à NULL pour ses membres
+    // (FK ON DELETE SET NULL). Le créateur agit ici, on ré-émet donc son jeton.
+    // Les AUTRES membres gardent un jeton pointant un groupe supprimé jusqu'à
+    // leur prochain rafraîchissement : dégradation d'affichage, pas un accès
+    // indu — le groupe et ses données n'existent plus.
+    await updateSessionGroup(null)
 
     return NextResponse.json({
       message: 'Groupe supprimé avec succès',

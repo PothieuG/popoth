@@ -225,3 +225,93 @@ Deux gaspillages purs, corrigés ici :
 `count: 'exact'`, absence de double lecture `profiles`, coût de
 `budgets/estimated` indépendant du nombre de budgets, ventilation du dépensé par
 budget, et report du mois précédent toujours additionné.
+
+---
+
+## 9. Troisième passe — les deux points de §8.4, traités
+
+Arbitrage utilisateur : « corrige les 2 points soulevés, tant pis pour les
+données visibles pendant 50 min ». La fenêtre de péremption a finalement pu être
+refermée sans rien concéder — voir §9.1.
+
+### 9.1 Le groupe dans le jeton, sans régression de sécurité
+
+`withAuthAndProfile` relisait `profiles` avant chaque handler : 13 lectures
+bloquantes par chargement de dashboard, alors que **sur les 34 modules
+concernés, un seul** (`app/api/savings/data`) avait besoin d'autre chose que
+`group_id`.
+
+Le risque annoncé en §8.4 était la péremption : un jeton qui affirme un groupe
+que l'utilisateur a quitté. L'audit des 4 sites qui écrivent
+`profiles.group_id` l'a écarté :
+
+| Site                          | Qui agit          | Conséquence                            |
+| ----------------------------- | ----------------- | -------------------------------------- |
+| `POST /groups`                | le créateur       | sur lui-même                           |
+| `POST /groups/[id]/members`   | celui qui rejoint | sur lui-même                           |
+| `DELETE /groups/[id]/members` | celui qui part    | sur lui-même (`.eq('id', profile.id)`) |
+| `DELETE /groups/[id]`         | le créateur       | le groupe entier disparaît             |
+
+**Il n'existe aucune fonction « exclure un membre »**, et le créateur ne peut
+pas quitter un groupe où il reste des membres. Toute mutation est donc une action
+de l'utilisateur sur lui-même → une ré-émission du jeton dans ces 4 handlers
+(`updateSessionGroup`) referme la fenêtre. Le seul cas résiduel — le créateur
+supprime le groupe alors que d'autres membres y sont encore — laisse ces membres
+avec un jeton pointant un groupe **supprimé** : dégradation d'affichage jusqu'au
+prochain rafraîchissement, aucune donnée d'autrui à lire puisque le groupe
+n'existe plus.
+
+Livré :
+
+- `SessionPayload.groupId?: string | null` — **trois** états. `undefined` =
+  jeton émis avant ce sprint, information inconnue, repli sur une lecture. Sans
+  ce troisième état, tout utilisateur déjà connecté serait vu « sans groupe » au
+  déploiement et basculerait du dashboard groupe au dashboard perso.
+- `withAuthAndGroup` — `{ userId, groupId }`, **zéro requête** (repli legacy mis
+  à part). 19 modules finance migrés ; `withAuthAndProfile` reste pour
+  `savings/data` et pour `app/api/groups/**`, dont la lecture arbitre
+  l'appartenance et doit rester autoritative.
+- Les **14 lectures manuelles** `select('group_id')` des routes finance
+  (`withAuth` + lecture maison) supprimées : `expenses-real` et `income-real` en
+  faisaient 3 chacune.
+- `updateSessionGroup(groupId)` aux 4 sites ; `readGroupId` à la connexion et à
+  chaque rafraîchissement (≈ 1 lecture / 50 min, contre 13 par chargement).
+
+Résultat : `GET /finance/expenses/real?group=true` passe de **4 allers-retours en
+série à 1**.
+
+### 9.2 La sérialisation en deux vagues
+
+`components/dashboard/DashboardDataPrefetch.tsx` — composant sans rendu, monté
+dans le layout (qui n'est pas gaté sur le profil), qui appelle les 6 hooks de
+contenu. TanStack Query dédoublonnant par `queryKey`, le sous-arbre rejoint
+ensuite les requêtes déjà en vol : aucun appel supplémentaire.
+
+Deux détails qui font la correction :
+
+- **`period` vient de `usePeriodParam`**, pas du défaut `'month'` : amorcer
+  `['progress-data', ctx, 'month']` quand l'URL demande la semaine remplirait la
+  mauvaise entrée de cache et laisserait la vraie requête partir en 2e vague.
+- **Composant dédié** plutôt qu'appels dans le layout : ne rendant rien, ses
+  re-rendus (un par requête résolue) n'entraînent pas l'arbre du dashboard.
+
+Le rendu n'est pas touché — pas de risque de régression du garde-fou
+anti-flicker (sprint Fix-Auth-Flicker).
+
+### 9.3 Garde-fous
+
+- `lib/api/__tests__/with-auth-and-group.test.ts` (4 cas) — zéro lecture avec
+  jeton porteur, `null` ≠ `undefined`, repli legacy, 401 sans lecture.
+- `lib/__tests__/session-group.test.ts` (4 cas) — aller-retour JWT, `null`
+  préservé, forme legacy → `undefined`, **jeton forgé avec une autre clé
+  rejeté** (le groupe devient une donnée d'autorisation).
+- `components/dashboard/__tests__/DashboardDataPrefetch.test.tsx` (4 cas) — les
+  6 hooks amorcés, contexte propagé, période de l'URL respectée, rendu vide.
+- `list-routes-query-plan.test.ts` resserré : les routes de liste doivent faire
+  **exactement une** requête.
+
+### 9.4 Reste ouvert
+
+Le coût structurel restant est le **nombre d'appels** (13), pas leur contenu.
+Le réduire demande de regrouper des endpoints — refonte d'API, à décider sur
+mesure réelle. `GET /api/finance/rav` reste sans consommateur (candidate Path B).

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { loadGroupMembersRav } from '@/lib/finance'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 
 /**
@@ -21,13 +21,13 @@ import { logger } from '@/lib/logger'
  * l'appelant est un composant partagé perso/groupe, et un tableau vide est
  * exactement ce qu'il doit afficher.
  */
-export const GET = withAuthAndProfile(async (_request: NextRequest, { profile }) => {
+export const GET = withAuthAndGroup(async (_request: NextRequest, { groupId }) => {
   try {
-    if (!profile.group_id) {
+    if (!groupId) {
       return NextResponse.json({ data: [] })
     }
 
-    return NextResponse.json({ data: await loadGroupMembersRav(profile.group_id) })
+    return NextResponse.json({ data: await loadGroupMembersRav(groupId) })
   } catch (error) {
     logger.error('Erreur dans GET /api/finance/group-members-rav:', error)
     return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 })

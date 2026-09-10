@@ -31,6 +31,8 @@ const PROBE = { fromCalls: [] as string[], exactCounts: 0 }
 vi.mock('@/lib/api/with-auth', () => {
   type AnyHandler = (...args: unknown[]) => Promise<unknown>
   return {
+    withAuthAndGroup: (handler: AnyHandler) => async (request: NextRequest, rc?: unknown) =>
+      handler(request, { userId: 'user-1', groupId: 'group-1' }, rc),
     withAuth: (handler: AnyHandler) => async (request: NextRequest) =>
       handler(request, { userId: 'user-1' }),
     withAuthAndProfile: (handler: AnyHandler) => async (request: NextRequest) =>
@@ -138,9 +140,11 @@ describe('routes de liste — plan de requêtes', () => {
     const body = (await (res as Response).json()) as Record<string, unknown>
 
     expect(PROBE.exactCounts).toBe(0)
-    // Contexte groupe : 1 lecture `profiles` (le group_id) + 1 lecture des
-    // dépenses. Avant : 4 requêtes, dont un 2e `profiles` identique.
-    expect(PROBE.fromCalls).toEqual(['real_expenses', 'profiles'])
+    // UNE seule requête, même en contexte groupe. Avant ce sprint : 4, en série
+    // — lecture `profiles`, requête principale, relecture identique de
+    // `profiles`, puis le COUNT. Le `group_id` vient désormais du jeton de
+    // session (`withAuthAndGroup`), donc plus aucune lecture `profiles` ici.
+    expect(PROBE.fromCalls).toEqual(['real_expenses'])
     expect(body.real_expenses).toHaveLength(1)
     // `total` a disparu de la réponse — personne ne le lisait.
     expect(body).not.toHaveProperty('total')
@@ -154,7 +158,7 @@ describe('routes de liste — plan de requêtes', () => {
     const body = (await (res as Response).json()) as Record<string, unknown>
 
     expect(PROBE.exactCounts).toBe(0)
-    expect(PROBE.fromCalls).toEqual(['real_income_entries', 'profiles'])
+    expect(PROBE.fromCalls).toEqual(['real_income_entries'])
     expect(body).not.toHaveProperty('total')
   })
 

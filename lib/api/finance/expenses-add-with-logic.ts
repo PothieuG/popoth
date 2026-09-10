@@ -10,7 +10,7 @@ import {
 } from '@/lib/finance/expenses'
 import type { ContextFilter as FinanceContextFilter } from '@/lib/finance/context'
 import type { Database } from '@/lib/database.types'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { addExpenseWithLogicBodySchema } from '@/lib/schemas/expense'
 import { logger } from '@/lib/logger'
@@ -60,7 +60,7 @@ export interface ExpenseBreakdown {
  * failure rolls back all three operations together — no partial
  * state, no compensating action needed.
  */
-export const POST = withAuth(async (request: NextRequest, { userId }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const body = await parseBody(request, addExpenseWithLogicBodySchema)
     const { amount, description, expense_date, estimated_budget_id, use_savings, month, year } =
@@ -76,19 +76,13 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     let group_id: string | undefined = undefined
 
     if (is_for_group) {
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des dépenses de groupe' },
           { status: 400 },
         )
       }
-      group_id = profile.group_id
+      group_id = groupId
     } else {
       profile_id = userId
     }

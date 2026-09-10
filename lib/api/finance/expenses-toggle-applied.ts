@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleAppliedBodySchema } from '@/lib/schemas/applied-balance'
 import {
@@ -26,7 +26,7 @@ import { logger } from '@/lib/logger'
  * Response 403: row exists but not owned by the auth user / their group
  * Response 404: row not found
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { id, apply } = await parseBody(request, toggleAppliedBodySchema)
 
@@ -51,8 +51,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     const ownsAsProfile = row.profile_id != null && row.profile_id === userId
-    const ownsAsGroup =
-      row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
+    const ownsAsGroup = row.group_id != null && groupId != null && row.group_id === groupId
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Dépense non autorisée' }, { status: 403 })
     }
@@ -111,7 +110,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     // cas brand-new user qui n'a jamais set son solde via le crayon).
     const balanceFilter: ContextFilter = ownsAsProfile
       ? { profile_id: userId }
-      : { group_id: profile.group_id! }
+      : { group_id: groupId! }
     try {
       await ensureBankBalanceRow(balanceFilter)
     } catch (ensureError) {

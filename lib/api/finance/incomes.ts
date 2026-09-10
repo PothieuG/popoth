@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createIncomeBodySchema, updateIncomeBodySchema } from '@/lib/schemas/income'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger'
  * - POST: Crée un nouveau revenu estimé
  */
 
-export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
@@ -24,12 +24,12 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     // Construire la requête selon le contexte demandé
     let query
-    if (context === 'group' && profile.group_id) {
+    if (context === 'group' && groupId) {
       // Récupérer seulement les revenus du groupe
       query = supabase
         .from('estimated_incomes')
         .select('*')
-        .eq('group_id', profile.group_id)
+        .eq('group_id', groupId)
         .is('profile_id', null)
     } else {
       // Récupérer seulement les revenus personnels
@@ -53,7 +53,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
   }
 })
 
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     // Récupérer le paramètre de contexte depuis l'URL
     const { searchParams } = new URL(request.url)
@@ -64,7 +64,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     const supabase = supabaseServer
 
     // Vérifier le contexte et l'appartenance à un groupe
-    if (context === 'group' && !profile.group_id) {
+    if (context === 'group' && !groupId) {
       return NextResponse.json(
         { error: "Vous devez faire partie d'un groupe pour créer un revenu de groupe" },
         { status: 400 },
@@ -78,7 +78,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
         name,
         estimated_amount: estimatedAmount,
         is_monthly_recurring: true,
-        group_id: profile.group_id,
+        group_id: groupId,
         profile_id: null,
       }
     } else {
@@ -106,7 +106,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     // Sauvegarder automatiquement le nouveau reste à vivre
     const snapshotSuccess = await saveRemainingToLiveSnapshot({
       profileId: context === 'group' ? undefined : userId,
-      groupId: context === 'group' ? (profile.group_id ?? undefined) : undefined,
+      groupId: context === 'group' ? (groupId ?? undefined) : undefined,
       reason: 'income_created',
     })
 
@@ -122,7 +122,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
   }
 })
 
-export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const PUT = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { searchParams } = new URL(request.url)
     const incomeId = searchParams.get('id')
@@ -144,8 +144,8 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     // Vérifier d'abord que le revenu appartient à l'utilisateur ou à son groupe
     let ownershipCondition = `profile_id.eq.${userId}`
-    if (profile.group_id) {
-      ownershipCondition += `,group_id.eq.${profile.group_id}`
+    if (groupId) {
+      ownershipCondition += `,group_id.eq.${groupId}`
     }
 
     // Vérifier l'existence et les permissions
@@ -200,7 +200,7 @@ export const PUT = withAuthAndProfile(async (request: NextRequest, { userId, pro
   }
 })
 
-export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const DELETE = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { id: incomeId } = parseQuery(request, deleteByIdQuerySchema)
 
@@ -208,8 +208,8 @@ export const DELETE = withAuthAndProfile(async (request: NextRequest, { userId, 
 
     // Vérifier d'abord que le revenu appartient à l'utilisateur ou à son groupe
     let ownershipCondition = `profile_id.eq.${userId}`
-    if (profile.group_id) {
-      ownershipCondition += `,group_id.eq.${profile.group_id}`
+    if (groupId) {
+      ownershipCondition += `,group_id.eq.${groupId}`
     }
 
     // Vérifier l'existence et les permissions

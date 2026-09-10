@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleAppliedBodySchema } from '@/lib/schemas/applied-balance'
 import {
@@ -20,7 +20,7 @@ import { logger } from '@/lib/logger'
  * expenses-toggle-applied for real_income_entries. Credit/debit sign is
  * inverted (apply income → balance += amount).
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { id, apply } = await parseBody(request, toggleAppliedBodySchema)
 
@@ -39,8 +39,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     const ownsAsProfile = row.profile_id != null && row.profile_id === userId
-    const ownsAsGroup =
-      row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
+    const ownsAsGroup = row.group_id != null && groupId != null && row.group_id === groupId
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Revenu non autorisé' }, { status: 403 })
     }
@@ -107,7 +106,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     // composite RPC. Cf. miroir dans expenses-toggle-applied.ts.
     const balanceFilter: ContextFilter = ownsAsProfile
       ? { profile_id: userId }
-      : { group_id: profile.group_id! }
+      : { group_id: groupId! }
     try {
       await ensureBankBalanceRow(balanceFilter)
     } catch (ensureError) {

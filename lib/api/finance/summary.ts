@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getProfileFinancialData, getGroupFinancialData, type FinancialData } from '@/lib/finance'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { summaryQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
@@ -20,14 +20,14 @@ import { logger } from '@/lib/logger'
  * for backward compat with existing callers that may still pass it.
  */
 
-export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { context: forceContext } = parseQuery(request, summaryQuerySchema)
 
     // Déterminer le contexte à utiliser
     let context: 'profile' | 'group'
 
-    if (forceContext === 'group' && profile.group_id) {
+    if (forceContext === 'group' && groupId) {
       context = 'group'
     } else {
       context = 'profile'
@@ -35,7 +35,7 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
 
     let financialData: FinancialData
     if (context === 'group') {
-      financialData = await getGroupFinancialData(profile.group_id!)
+      financialData = await getGroupFinancialData(groupId!)
     } else {
       financialData = await getProfileFinancialData(userId)
     }

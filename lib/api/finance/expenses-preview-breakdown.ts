@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
 import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
@@ -42,7 +42,7 @@ export interface ExpenseBreakdownPreview {
  *     restaurées dans les pools courants, lecture via expense_savings_sources
  *     ou fallback colonnes consolidées si pas de trace).
  */
-export const GET = withAuth(async (request: NextRequest, { userId }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const {
       amount,
@@ -57,16 +57,10 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
     let contextFilter: { group_id: string } | { profile_id: string }
 
     if (isGroup) {
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json({ error: 'Groupe non trouvé' }, { status: 404 })
       }
-      contextFilter = { group_id: profile.group_id }
+      contextFilter = { group_id: groupId }
     } else {
       contextFilter = { profile_id: userId }
     }

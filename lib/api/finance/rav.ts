@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { getRavFromDatabase } from '@/lib/finance'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { contextOnlyQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
@@ -13,7 +13,7 @@ import { logger } from '@/lib/logger'
  * Query params:
  * - context: 'profile' | 'group' (optional, defaults to profile)
  */
-export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { context: forceContext } = parseQuery(request, contextOnlyQuerySchema)
 
@@ -21,9 +21,9 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
     let context: 'profile' | 'group'
     let contextId: string
 
-    if (forceContext === 'group' && profile.group_id) {
+    if (forceContext === 'group' && groupId) {
       context = 'group'
-      contextId = profile.group_id
+      contextId = groupId
     } else {
       context = 'profile'
       contextId = userId

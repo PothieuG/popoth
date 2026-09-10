@@ -12,8 +12,12 @@ import { logger } from './logger'
  * Creates a new session cookie with the provided user data
  * Sets secure HTTP-only cookie with 1-hour expiration
  */
-export async function createSession(userId: string, email: string): Promise<void> {
-  const sessionToken = await createSessionToken(userId, email)
+export async function createSession(
+  userId: string,
+  email: string,
+  groupId: string | null,
+): Promise<void> {
+  const sessionToken = await createSessionToken(userId, email, groupId)
   const cookieStore = await cookies()
 
   // Set secure HTTP-only cookie
@@ -30,8 +34,12 @@ export async function createSession(userId: string, email: string): Promise<void
  * Updates an existing session by creating a new token with extended expiration
  * Refreshes the session cookie to maintain authentication
  */
-export async function updateSession(userId: string, email: string): Promise<void> {
-  const sessionToken = await createSessionToken(userId, email)
+export async function updateSession(
+  userId: string,
+  email: string,
+  groupId: string | null,
+): Promise<void> {
+  const sessionToken = await createSessionToken(userId, email, groupId)
   const cookieStore = await cookies()
 
   // Update the session cookie
@@ -42,6 +50,29 @@ export async function updateSession(userId: string, email: string): Promise<void
     maxAge: SESSION_EXPIRATION_SECONDS,
     path: '/',
   })
+}
+
+/**
+ * Ré-émet le jeton de session courant avec un nouveau groupe.
+ *
+ * Sprint Perf-Waterfall (2026-09-10) — à appeler depuis TOUTE route qui modifie
+ * `profiles.group_id`, sinon le `groupId` embarqué dans le jeton périme et les
+ * routes API continuent de servir l'ancien groupe jusqu'au prochain
+ * rafraîchissement (≤ 50 min).
+ *
+ * Les 4 sites concernés sont tous des actions de l'utilisateur sur lui-même —
+ * créer un groupe, le rejoindre, le quitter, le supprimer — donc la ré-émission
+ * atteint toujours la bonne session. Il n'existe pas de fonction « exclure un
+ * membre » ; si elle était ajoutée un jour, ce mécanisme ne suffirait plus et
+ * il faudrait invalider la session de la personne exclue côté serveur.
+ *
+ * Sans session active (cas théorique : le cookie vient d'expirer pendant la
+ * requête), on ne fait rien — le prochain appel ré-authentifiera.
+ */
+export async function updateSessionGroup(groupId: string | null): Promise<void> {
+  const current = await getSession()
+  if (!current) return
+  await updateSession(current.userId, current.email, groupId)
 }
 
 /**

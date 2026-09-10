@@ -29,6 +29,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/api/with-auth', () => {
   type AnyHandler = (...args: unknown[]) => Promise<unknown>
   return {
+    withAuthAndGroup: (handler: AnyHandler) => async (request: NextRequest, rc?: unknown) =>
+      handler(request, { userId: 'user-1', groupId: null }, rc),
     withAuthAndProfile: (handler: AnyHandler) => async (request: NextRequest) =>
       handler(request, {
         userId: 'user-1',

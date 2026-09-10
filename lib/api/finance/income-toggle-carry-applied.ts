@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleCarryAppliedBodySchema } from '@/lib/schemas/carry-over'
 import { CarryOverToggleNoOpError, toggleCarryOverAndApplyIncome } from '@/lib/finance/carry-over'
@@ -16,7 +16,7 @@ import { logger } from '@/lib/logger'
  * expenses-toggle-carry-applied for real_income_entries. Credit/debit sign
  * is inverted (validate income → balance += amount).
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { id, validate } = await parseBody(request, toggleCarryAppliedBodySchema)
 
@@ -35,8 +35,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     const ownsAsProfile = row.profile_id != null && row.profile_id === userId
-    const ownsAsGroup =
-      row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
+    const ownsAsGroup = row.group_id != null && groupId != null && row.group_id === groupId
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Revenu non autorisé' }, { status: 403 })
     }
@@ -50,7 +49,7 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
 
     const balanceFilter: ContextFilter = ownsAsProfile
       ? { profile_id: userId }
-      : { group_id: profile.group_id! }
+      : { group_id: groupId! }
     try {
       await ensureBankBalanceRow(balanceFilter)
     } catch (ensureError) {

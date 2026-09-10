@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { toggleCarryAppliedBodySchema } from '@/lib/schemas/carry-over'
 import { CarryOverToggleNoOpError, toggleCarryOverAndApply } from '@/lib/finance/carry-over'
@@ -27,7 +27,7 @@ import { logger } from '@/lib/logger'
  * Response 403: row exists but not owned by the auth user / their group
  * Response 404: row not found
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { id, validate } = await parseBody(request, toggleCarryAppliedBodySchema)
 
@@ -49,15 +49,14 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
     }
 
     const ownsAsProfile = row.profile_id != null && row.profile_id === userId
-    const ownsAsGroup =
-      row.group_id != null && profile.group_id != null && row.group_id === profile.group_id
+    const ownsAsGroup = row.group_id != null && groupId != null && row.group_id === groupId
     if (!ownsAsProfile && !ownsAsGroup) {
       return NextResponse.json({ error: 'Dépense non autorisée' }, { status: 403 })
     }
 
     const balanceFilter: ContextFilter = ownsAsProfile
       ? { profile_id: userId }
-      : { group_id: profile.group_id! }
+      : { group_id: groupId! }
     try {
       await ensureBankBalanceRow(balanceFilter)
     } catch (ensureError) {

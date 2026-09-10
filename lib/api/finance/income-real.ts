@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
 import type { Database } from '@/lib/database.types'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createRealIncomeBodySchema, updateRealIncomeBodySchema } from '@/lib/schemas/income'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
@@ -45,9 +45,9 @@ export interface CreateRealIncomeEntryRequest {
  * GET /api/finance/income/real - Récupère les entrées réelles d'argent
  * Retourne les entrées d'argent de l'utilisateur ou de son groupe
  */
-export const GET = withAuth(async (request: NextRequest, { userId }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
-    logger.debug('[GET /api/finance/income/real] Session validated', { userId })
+    logger.debug('[GET /api/finance/income/real] Session validated', { userId, groupId })
 
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
@@ -68,18 +68,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .range(offset, offset + limit - 1)
 
     if (forGroup) {
-      // Get user's group first
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json({ real_income_entries: [] })
       }
 
-      query = query.eq('group_id', profile.group_id)
+      query = query.eq('group_id', groupId)
     } else {
       query = query.eq('profile_id', userId)
     }
@@ -115,7 +108,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * POST /api/finance/income/real - Crée une nouvelle entrée réelle d'argent
  */
-export const POST = withAuth(async (request: NextRequest, { userId }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const body = await parseBody(request, createRealIncomeBodySchema)
     const { amount, description, entry_date, estimated_income_id } = body
@@ -144,13 +137,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
       // Check ownership
       if (is_for_group) {
-        const { data: profile } = await supabaseServer
-          .from('profiles')
-          .select('group_id')
-          .eq('id', userId)
-          .single()
-
-        if (!profile?.group_id || estimatedIncome.group_id !== profile.group_id) {
+        if (!groupId || estimatedIncome.group_id !== groupId) {
           return NextResponse.json(
             { error: 'Revenu estimé non autorisé pour ce groupe' },
             { status: 403 },
@@ -169,21 +156,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     if (is_for_group) {
-      // Get user's group
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des entrées de groupe' },
           { status: 400 },
         )
       }
 
-      insertData.group_id = profile.group_id
+      insertData.group_id = groupId
     } else {
       insertData.profile_id = userId
     }
@@ -239,7 +219,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * PUT /api/finance/income/real - Met à jour une entrée réelle d'argent
  */
-export const PUT = withAuth(async (request: NextRequest) => {
+export const PUT = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const body = await parseBody(request, updateRealIncomeBodySchema)
     const { id, amount, description, entry_date, estimated_income_id } = body
@@ -328,7 +308,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 /**
  * DELETE /api/finance/income/real - Supprime une entrée réelle d'argent
  */
-export const DELETE = withAuth(async (request: NextRequest) => {
+export const DELETE = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const { id } = parseQuery(request, deleteByIdQuerySchema)
 

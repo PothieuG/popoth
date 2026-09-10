@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
+import { updateSessionGroup } from '@/lib/session-server'
 
 interface RouteParams {
   id: string
@@ -112,6 +113,11 @@ export const POST = withAuthAndProfile<RouteParams>(async (_request, { profile }
       return NextResponse.json({ error: "Erreur lors de l'adhésion au groupe" }, { status: 500 })
     }
 
+    // Voir `updateSessionGroup` : le groupe embarqué dans le jeton doit suivre
+    // toute mutation d'appartenance, sinon les routes API servent l'ancien
+    // groupe jusqu'au prochain rafraîchissement (≤ 50 min).
+    await updateSessionGroup(groupId)
+
     return NextResponse.json({
       message: `Vous avez rejoint le groupe "${group.name}" avec succès`,
     })
@@ -182,6 +188,11 @@ export const DELETE = withAuthAndProfile<RouteParams>(
         logger.error('Error leaving group:', leaveError)
         return NextResponse.json({ error: 'Erreur lors de la sortie du groupe' }, { status: 500 })
       }
+
+      // Voir `updateSessionGroup` : le groupe embarqué dans le jeton doit suivre
+      // toute mutation d'appartenance, sinon les routes API servent l'ancien
+      // groupe jusqu'au prochain rafraîchissement (≤ 50 min).
+      await updateSessionGroup(null)
 
       return NextResponse.json({
         message: `Vous avez quitté le groupe "${group.name}" avec succès`,

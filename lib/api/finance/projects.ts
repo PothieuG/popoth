@@ -8,7 +8,7 @@ import {
   listSavingsProjects,
   updateSavingsProject,
 } from '@/lib/finance/projects'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { createProjectBodySchema, updateProjectBodySchema } from '@/lib/schemas/projects'
 import { contextSchema, estimatedListQuerySchema, uuidSchema } from '@/lib/schemas/common'
@@ -26,17 +26,17 @@ interface RouteParams {
  * `estimatedListQuerySchema` (`?group=true|false` coerce → boolean) est
  * réutilisée pour l'UI de l'onglet "Projet" (sprint 04+).
  */
-export const GET = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { group: forGroup } = estimatedListQuerySchema.parse(
       Object.fromEntries(new URL(request.url).searchParams.entries()),
     )
 
     if (forGroup) {
-      if (!profile.group_id) {
+      if (!groupId) {
         return NextResponse.json({ projects: [] })
       }
-      const projects = await listSavingsProjects({ group_id: profile.group_id })
+      const projects = await listSavingsProjects({ group_id: groupId })
       return NextResponse.json({ projects })
     }
 
@@ -58,21 +58,21 @@ export const GET = withAuthAndProfile(async (request: NextRequest, { userId, pro
  * groupe si `context=group`, puis délègue à la RPC atomique
  * `create_savings_project` via le helper TS.
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId, profile }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const contextRaw = new URL(request.url).searchParams.get('context')
     const context = contextSchema.parse(contextRaw ?? 'profile')
 
     const body = await parseBody(request, createProjectBodySchema)
 
-    if (context === 'group' && !profile.group_id) {
+    if (context === 'group' && !groupId) {
       return NextResponse.json(
         { error: "Vous devez faire partie d'un groupe pour créer un projet de groupe" },
         { status: 400 },
       )
     }
 
-    const filter = context === 'group' ? { group_id: profile.group_id! } : { profile_id: userId }
+    const filter = context === 'group' ? { group_id: groupId! } : { profile_id: userId }
 
     const project = await createSavingsProject(filter, {
       name: body.name,
@@ -98,11 +98,11 @@ export const POST = withAuthAndProfile(async (request: NextRequest, { userId, pr
  *
  * Ownership : ON résout le owner (profile_id|group_id) depuis la row
  * SELECT verrouillée par `.or(ownershipCondition)` (profile_id=userId OU
- * group_id=profile.group_id quand applicable) — pattern miroir budgets
+ * group_id=groupId quand applicable) — pattern miroir budgets
  * PUT. La RPC re-check ensuite l'ownership via son WHERE clause.
  */
-export const PUT = withAuthAndProfile<RouteParams>(
-  async (request: NextRequest, { userId, profile }, routeContext) => {
+export const PUT = withAuthAndGroup<RouteParams>(
+  async (request: NextRequest, { userId, groupId }, routeContext) => {
     try {
       const { id } = await routeContext.params
       const projectId = uuidSchema.parse(id)
@@ -110,8 +110,8 @@ export const PUT = withAuthAndProfile<RouteParams>(
       const body = await parseBody(request, updateProjectBodySchema)
 
       let ownershipCondition = `profile_id.eq.${userId}`
-      if (profile.group_id) {
-        ownershipCondition += `,group_id.eq.${profile.group_id}`
+      if (groupId) {
+        ownershipCondition += `,group_id.eq.${groupId}`
       }
 
       const { data: existingProject } = await supabaseServer
@@ -159,15 +159,15 @@ export const PUT = withAuthAndProfile<RouteParams>(
  *
  * Ownership lookup identique à PUT (filter résolu depuis la row).
  */
-export const DELETE = withAuthAndProfile<RouteParams>(
-  async (_request: NextRequest, { userId, profile }, routeContext) => {
+export const DELETE = withAuthAndGroup<RouteParams>(
+  async (_request: NextRequest, { userId, groupId }, routeContext) => {
     try {
       const { id } = await routeContext.params
       const projectId = uuidSchema.parse(id)
 
       let ownershipCondition = `profile_id.eq.${userId}`
-      if (profile.group_id) {
-        ownershipCondition += `,group_id.eq.${profile.group_id}`
+      if (groupId) {
+        ownershipCondition += `,group_id.eq.${groupId}`
       }
 
       const { data: existingProject } = await supabaseServer

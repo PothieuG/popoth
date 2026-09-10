@@ -4,6 +4,7 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { createGroupBodySchema } from '@/lib/schemas/groups'
 import { logger } from '@/lib/logger'
+import { updateSessionGroup } from '@/lib/session-server'
 
 // Group data types
 export interface GroupData {
@@ -136,6 +137,12 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
         { status: 500 },
       )
     }
+
+    // Le groupe est embarqué dans le jeton de session (il évite une lecture
+    // `profiles` par appel d'API, soit 13 par chargement de dashboard). Il DOIT
+    // être ré-émis ici, sinon les routes continuent de servir l'ancien groupe
+    // jusqu'au prochain rafraîchissement (≤ 50 min).
+    await updateSessionGroup(group.id)
 
     // Return the created group with additional info
     const groupData: GroupData = {

@@ -9,7 +9,7 @@ import {
 } from '@/lib/finance/expenses'
 import { calculateBreakdownWithAutoCascade } from '@/lib/expense-breakdown'
 import type { Database } from '@/lib/database.types'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createRealExpenseBodySchema, updateRealExpenseBodySchema } from '@/lib/schemas/expense'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
@@ -64,7 +64,7 @@ export interface CreateRealExpenseRequest {
  * GET /api/finance/expenses/real - Récupère les dépenses réelles
  * Retourne les dépenses de l'utilisateur ou de son groupe
  */
-export const GET = withAuth(async (request: NextRequest, { userId }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const url = new URL(request.url)
     const forGroup = url.searchParams.get('group') === 'true'
@@ -87,18 +87,11 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       .range(offset, offset + limit - 1)
 
     if (forGroup) {
-      // Get user's group first
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json({ real_expenses: [] })
       }
 
-      query = query.eq('group_id', profile.group_id)
+      query = query.eq('group_id', groupId)
     } else {
       query = query.eq('profile_id', userId)
     }
@@ -145,7 +138,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * POST /api/finance/expenses/real - Crée une nouvelle dépense réelle
  */
-export const POST = withAuth(async (request: NextRequest, { userId }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const body = await parseBody(request, createRealExpenseBodySchema)
     const { amount, description, expense_date, estimated_budget_id } = body
@@ -174,13 +167,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 
       // Check ownership
       if (is_for_group) {
-        const { data: profile } = await supabaseServer
-          .from('profiles')
-          .select('group_id')
-          .eq('id', userId)
-          .single()
-
-        if (!profile?.group_id || estimatedBudget.group_id !== profile.group_id) {
+        if (!groupId || estimatedBudget.group_id !== groupId) {
           return NextResponse.json(
             { error: 'Budget estimé non autorisé pour ce groupe' },
             { status: 403 },
@@ -199,21 +186,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     if (is_for_group) {
-      // Get user's group
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des dépenses de groupe' },
           { status: 400 },
         )
       }
 
-      insertData.group_id = profile.group_id
+      insertData.group_id = groupId
     } else {
       insertData.profile_id = userId
     }
@@ -266,7 +246,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * PUT /api/finance/expenses/real - Met à jour une dépense réelle
  */
-export const PUT = withAuth(async (request: NextRequest) => {
+export const PUT = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const body = await parseBody(request, updateRealExpenseBodySchema)
     const { id, amount, description, expense_date, estimated_budget_id, month, year } = body
@@ -528,7 +508,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 /**
  * DELETE /api/finance/expenses/real - Supprime une dépense réelle
  */
-export const DELETE = withAuth(async (request: NextRequest) => {
+export const DELETE = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const { id } = parseQuery(request, deleteByIdQuerySchema)
 

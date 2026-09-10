@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { progressQuerySchema } from '@/lib/schemas/common'
 import { computePeriodDateRange } from '@/lib/finance/period'
@@ -33,7 +33,7 @@ type ExpenseForProgress = {
  * `spentAmount` reflète uniquement la sous-période ; le `estimatedAmount`
  * reste le budget mensuel (= compare consommation de la période vs cap mensuel).
  */
-export const GET = withAuth(async (request: NextRequest, { userId }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { context, period } = parseQuery(request, progressQuerySchema)
     const dateRange = computePeriodDateRange(period)
@@ -68,14 +68,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 
       expenses = expensesData || []
     } else {
-      // Récupérer les informations du groupe de l'utilisateur
-      const { data: profileData } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profileData?.group_id) {
+      if (!groupId) {
         return NextResponse.json(
           { error: "Utilisateur ne fait partie d'aucun groupe" },
           { status: 404 },
@@ -86,7 +79,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       const { data: budgetsData } = await supabaseServer
         .from('estimated_budgets')
         .select('id, name, estimated_amount, cumulated_savings, carryover_spent_amount')
-        .eq('group_id', profileData.group_id)
+        .eq('group_id', groupId)
 
       budgets = budgetsData || []
 
@@ -96,7 +89,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .select(
           'amount, estimated_budget_id, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
         )
-        .eq('group_id', profileData.group_id)
+        .eq('group_id', groupId)
         .is('carried_from_recap_id', null)
         .not('estimated_budget_id', 'is', null)
       if (dateRange) {

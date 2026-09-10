@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 import { handleBadRequest, parseBody } from '@/lib/api/parse-body'
-import { withAuthAndProfile } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { ensureBankBalanceRow } from '@/lib/finance/bank-balance'
 import { logger } from '@/lib/logger'
 import { validateSalaryBodySchema } from '@/lib/schemas/income'
@@ -34,7 +34,7 @@ import { supabaseServer } from '@/lib/supabase-server'
  *
  * Retourne `{ data: { delta, exceptionalKind?, exceptionalId?, balance } }`.
  */
-export const POST = withAuthAndProfile(async (request: NextRequest, { userId }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId }) => {
   try {
     const body = await parseBody(request, validateSalaryBodySchema)
 

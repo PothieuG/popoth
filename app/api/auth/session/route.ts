@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSession, updateSession, deleteSession, getSession } from '@/lib/session-server'
 import { supabase } from '@/lib/supabase-client'
+import { supabaseServer } from '@/lib/supabase-server'
 import { parseBody, BadRequestError } from '@/lib/api/parse-body'
 import { sessionActionBodySchema } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
@@ -9,6 +10,30 @@ import { logger } from '@/lib/logger'
  * API route for session management
  * Handles login, logout, refresh, and session status
  */
+
+/**
+ * Groupe courant de l'utilisateur, embarqué dans le jeton de session.
+ *
+ * Sprint Perf-Waterfall (2026-09-10) — une lecture ici (à la connexion, puis
+ * une fois par rafraîchissement, soit ~1/50 min) remplace les 13 lectures que
+ * `withAuthAndProfile` faisait à chaque chargement de dashboard.
+ *
+ * Fail-soft : en cas d'erreur on renvoie `null`. Conséquence : l'utilisateur est
+ * vu comme sans groupe jusqu'au prochain rafraîchissement — dégradation
+ * d'affichage, jamais un accès indu.
+ */
+async function readGroupId(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseServer
+    .from('profiles')
+    .select('group_id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (error) {
+    logger.error('Lecture du group_id pour la session impossible', { userId, error })
+    return null
+  }
+  return data?.group_id ?? null
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,7 +64,7 @@ export async function POST(request: NextRequest) {
         if (data.user) {
           try {
             // Create server-side session
-            await createSession(data.user.id, data.user.email!)
+            await createSession(data.user.id, data.user.email!, await readGroupId(data.user.id))
 
             return NextResponse.json({
               success: true,
@@ -73,8 +98,15 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        // Update session with new expiration
-        await updateSession(currentSession.userId, currentSession.email)
+        // Rafraîchissement = bon moment pour re-synchroniser le groupe embarqué :
+        // c'est le filet si une mutation d'appartenance a échoué à ré-émettre le
+        // jeton, et c'est ce qui fait migrer les jetons legacy (`groupId`
+        // absent) vers le chemin rapide.
+        await updateSession(
+          currentSession.userId,
+          currentSession.email,
+          await readGroupId(currentSession.userId),
+        )
 
         return NextResponse.json({
           success: true,

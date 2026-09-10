@@ -38,33 +38,33 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 
 ## 3. Commandes
 
-| Commande                                   | Effet                                                                                                              |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `pnpm dev`                                 | Serveur dev Next.js (webpack)                                                                                      |
-| `pnpm build`                               | Build prod (Turbopack)                                                                                             |
-| `pnpm start`                               | Serveur prod                                                                                                       |
-| `pnpm typecheck`                           | `tsc --noEmit` (BLOQUANT en CI)                                                                                    |
-| `pnpm lint:check`                          | ESLint sans `--fix` — **BLOQUANT** CI. Baseline `0/0`.                                                             |
-| `pnpm lint` / `pnpm lint:fix`              | ESLint avec `--fix` (alias)                                                                                        |
-| `pnpm format`                              | Prettier `--write` (idempotent)                                                                                    |
-| `pnpm format:check`                        | Prettier `--check` — **BLOQUANT** CI                                                                               |
-| `pnpm ci`                                  | `typecheck + lint:check + format:check + test:run + build`                                                         |
-| `pnpm test` / `pnpm test:run`              | Vitest watch / single run                                                                                          |
-| `pnpm test:coverage`                       | Vitest avec coverage v8                                                                                            |
-| `pnpm db:types`                            | Régénère `lib/database.types.ts` depuis prod.                                                                      |
-| `pnpm db:check-drift`                      | Compare prod ↔ baseline. Exit 0/1 si drift                                                                         |
-| `pnpm db:check-rls`                        | Vérifie la RLS active sur toutes les tables publiques (linter 0013)                                                |
-| `pnpm db:check-rpcs`                       | Vérifie les **28 RPCs pinnées** dans `pg_proc`                                                                     |
-| `pnpm db:check-functions`                  | Vérifie les 5 fonctions trigger custom                                                                             |
-| `pnpm db:check-types-fresh`                | Vérifie `database.types.ts` ↔ prod                                                                                 |
-| `pnpm db:audit-functions`                  | Audit `pg_proc` ↔ migrations (post-changement fonction PL/pgSQL)                                                   |
-| `pnpm db:audit-objects`                    | Audit étendu (functions, types, enums, domains, operators)                                                         |
-| `pnpm verify`                              | **Sanity sweep** typecheck + format + test + 7 db:\* checks. ~36s local.                                           |
-| `pnpm pwa:assets`                          | Régénère apple-icon + icons manifest + splash iPhone (sharp).                                                      |
-| `pnpm supabase ...`                        | Supabase CLI (lié à `jzmppreybwabaeycvasz`)                                                                        |
-| `node scripts/export-schema.mjs <out.sql>` | Snapshot schéma prod via API Management                                                                            |
-| `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management (apply / SELECT lecture)                                                |
-| `node scripts/seed-recap/<key>.mjs`        | Seede dev DB pour scénario Monthly Recap V3 (37 keys). Doc → [seed-recap/README.md](scripts/seed-recap/README.md). |
+| Commande                                   | Effet                                                                              |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `pnpm dev`                                 | Serveur dev Next.js (webpack)                                                      |
+| `pnpm build`                               | Build prod (Turbopack)                                                             |
+| `pnpm start`                               | Serveur prod                                                                       |
+| `pnpm typecheck`                           | `tsc --noEmit` (BLOQUANT en CI)                                                    |
+| `pnpm lint:check`                          | ESLint sans `--fix` — **BLOQUANT** CI. Baseline `0/0`.                             |
+| `pnpm lint` / `pnpm lint:fix`              | ESLint avec `--fix` (alias)                                                        |
+| `pnpm format`                              | Prettier `--write` (idempotent)                                                    |
+| `pnpm format:check`                        | Prettier `--check` — **BLOQUANT** CI                                               |
+| `pnpm ci`                                  | `typecheck + lint:check + format:check + test:run + build`                         |
+| `pnpm test` / `pnpm test:run`              | Vitest watch / single run                                                          |
+| `pnpm test:coverage`                       | Vitest avec coverage v8                                                            |
+| `pnpm db:types`                            | Régénère `lib/database.types.ts` depuis prod.                                      |
+| `pnpm db:check-drift`                      | Compare prod ↔ baseline. Exit 0/1 si drift                                         |
+| `pnpm db:check-rls`                        | Vérifie la RLS active sur toutes les tables publiques (linter 0013)                |
+| `pnpm db:check-rpcs`                       | Vérifie les **28 RPCs pinnées** dans `pg_proc`                                     |
+| `pnpm db:check-functions`                  | Vérifie les 5 fonctions trigger custom                                             |
+| `pnpm db:check-types-fresh`                | Vérifie `database.types.ts` ↔ prod                                                 |
+| `pnpm db:audit-functions`                  | Audit `pg_proc` ↔ migrations (post-changement fonction PL/pgSQL)                   |
+| `pnpm db:audit-objects`                    | Audit étendu (functions, types, enums, domains, operators)                         |
+| `pnpm verify`                              | **Sanity sweep** typecheck + format + test + 7 db:\* checks. ~36s local.           |
+| `pnpm pwa:assets`                          | Régénère apple-icon + icons manifest + splash iPhone (sharp).                      |
+| `pnpm supabase ...`                        | Supabase CLI (lié à `jzmppreybwabaeycvasz`)                                        |
+| `node scripts/export-schema.mjs <out.sql>` | Snapshot schéma prod via API Management                                            |
+| `node scripts/apply-sql.mjs <file.sql>`    | Applique un fichier SQL via API Management (apply / SELECT lecture)                |
+| `node scripts/seed-recap/<key>.mjs`        | Seede dev DB, 37 scénarios Recap V3. Doc → [README](scripts/seed-recap/README.md). |
 
 ### Hooks Git (Husky)
 
@@ -116,7 +116,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **942**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **954**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **46**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
@@ -134,7 +134,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - Auth invalide : `401` + `{ error: 'Session invalide' }`
 - Debug-route en prod : `404` (pas 403, pour ne pas révéler l'existence)
 - **Pattern obligatoire** (routes `/api/debug/*` uniquement) : `blockInProduction()` en première instruction → `validateSessionToken(request)` + 401 si invalide → try/catch + 500 fallback. Exemple complet dans `git-workflow.md` ou voir route existante.
-- Handlers non-debug : wrapper `withAuth(handler)` / `withAuthAndProfile(handler)` ([lib/api/with-auth.ts](lib/api/with-auth.ts), 34 modules). Le second fetch `select('id, group_id, first_name, last_name')` et passe `{ userId, profile }`. Routes dynamiques : `withAuth<TParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })`.
+- Handlers non-debug : `withAuthAndGroup` **par défaut** — `{ userId, groupId }` lu dans le jeton, **0 lecture DB** ([Part 42](.claude/history/roadmap-detailed-42-perf-group-dashboard.md)). `withAuthAndProfile` (fetch `profiles`) uniquement si prénom/nom requis ou si la route arbitre l'appartenance (`app/api/groups/**`). `withAuth` si l'identité suffit. Routes dynamiques : `withAuth<TParams>(async (req, ctx, routeContext) => { const { id } = await routeContext.params })`.
 - **Hors scope wrapper** : `app/api/debug/**` (blockInProduction wrap d'abord), `app/api/auth/**` (créent la session).
 
 ### Validation Zod
@@ -216,7 +216,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Composant auth** : `useAuthUser()` / `useAuthActions()` / hooks composés `useRequireGuest`/`useLogin`/`useLogoutAndRedirect`. Pas de `useAuth()` aggregator (supprimé v5).
 - **Magic numbers** (TTL, intervalle, tolérance) : déclarer dans [lib/constants/](lib/constants/) avant usage.
 - **Nouvelle route API finance** : handler dans `lib/api/finance/<route>.ts` + `route.ts` ré-exporte.
-- **Nouveau handler API** : `withAuth(handler)` / `withAuthAndProfile(handler)` (cf. §6).
+- **Nouveau handler API** : `withAuthAndGroup` par défaut, `withAuthAndProfile` si prénom/nom (cf. §6).
 - **Middleware / Edge runtime** : pas de `fetch` self-call HTTP. Extraire en lib pure + import direct. Vérifier transitifs Edge-safe.
 - **Fetch composant** : **TanStack Query** (`useQuery`/`useMutation`). Cross-domain → `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts). Mutations changeant `profile.group_id` invalident aussi `['profile']` + `['groups']`.
 - **Modal forms mirror prop** : `key={editing.id}` + `useState(() => ...editing.foo)` lazy + parent `{isOpen && editing && <Modal ... />}` (Sprint 1.5 standard).
@@ -246,6 +246,8 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Cascade-aggressive piggy→savings→budget** dans `calculateBreakdown`. P4 strict = budget priorité 1, savings cascade uniquement si overflow, **piggy JAMAIS auto-débitée**. Toggle P5 opt-in.
 - **Wizard single-step `AddTransactionModal`** — 2-step requis pour P6.
 - **Travail par membre dans `_loadFinancialData`** — N+1 payé à chaque chargement du dashboard groupe. RAV par membre lazy : `loadGroupMembersRav` + route dédiée, fetché par `PlanningDrawer` à l'ouverture. Pinné par `financial-data-query-plan.test.ts` — coût groupe = coût perso, quel que soit le nombre de membres ([Part 42](.claude/history/roadmap-detailed-42-perf-group-dashboard.md)).
+
+- **Muter `profiles.group_id` sans `updateSessionGroup(...)`** — le groupe vit dans le jeton ; sans ré-émission les routes servent l'ancien groupe ≤ 50 min. 4 sites (créer/rejoindre/quitter/supprimer). Une fonction « exclure un membre » casserait ce mécanisme.
 
 **Patterns DB non-atomiques (composite RPCs requis)**
 
@@ -330,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 942/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel + cascade d'appels.
+**État global** : Score ~100. Lint 0/0. Tests 954/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel, groupe dans le jeton, préfetch.
 
 **Historique** — 41 parts (153 sprints) :
 

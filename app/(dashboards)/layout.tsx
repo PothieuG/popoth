@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
@@ -14,6 +14,7 @@ import { PullToRefresh } from '@/components/ui/PullToRefresh'
 import BottomNav from '@/components/dashboard/BottomNav'
 import DashboardHeader from '@/components/dashboard/DashboardHeader'
 import SettingsDrawer from '@/components/settings/SettingsDrawer'
+import DashboardDataPrefetch from '@/components/dashboard/DashboardDataPrefetch'
 
 const AddTransactionModal = dynamic(() => import('@/components/dashboard/AddTransactionModal'), {
   ssr: false,
@@ -89,6 +90,14 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
 
   return (
     <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
+      {/* Amorce les requêtes de contenu en parallèle de `GET /api/profile` : les
+          pages sortent tôt tant que le profil charge, donc sans ça leur
+          sous-arbre — et ses 6 requêtes — n'était monté qu'après. Ne rend rien.
+          Sous <Suspense> car il lit `?period=` via useSearchParams. */}
+      <Suspense fallback={null}>
+        <DashboardDataPrefetch context={context} />
+      </Suspense>
+
       {/* Pull-to-refresh enveloppe le header + main → c'est toute la page qui
           suit le doigt et la roue apparaît tout en haut (au-dessus du header).
           La BottomNav reste fixe (hors wrapper) et passe au-dessus du contenu

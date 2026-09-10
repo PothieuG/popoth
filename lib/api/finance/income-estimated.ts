@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import type { Database } from '@/lib/database.types'
-import { withAuth } from '@/lib/api/with-auth'
+import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import {
   createEstimatedIncomeBodySchema,
@@ -18,21 +18,14 @@ type EstimatedIncomeUpdate = Database['public']['Tables']['estimated_incomes']['
  * GET /api/finance/income/estimated - Récupère les revenus estimés
  * Retourne les revenus estimés de l'utilisateur ou de son groupe
  */
-export const GET = withAuth(async (request: NextRequest, { userId }) => {
+export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const { group: forGroup } = parseQuery(request, estimatedListQuerySchema)
 
     let data, error
 
     if (forGroup) {
-      // Get user's group first
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json({ estimated_incomes: [] })
       }
 
@@ -40,7 +33,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       const result = await supabaseServer
         .from('estimated_incomes')
         .select('*')
-        .eq('group_id', profile.group_id)
+        .eq('group_id', groupId)
         .order('created_at', { ascending: false })
 
       data = result.data
@@ -76,7 +69,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * POST /api/finance/income/estimated - Crée un nouveau revenu estimé
  */
-export const POST = withAuth(async (request: NextRequest, { userId }) => {
+export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
     const body = await parseBody(request, createEstimatedIncomeBodySchema)
     const { name, estimated_amount, is_monthly_recurring = true, is_for_group = false } = body
@@ -88,21 +81,14 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
     }
 
     if (is_for_group) {
-      // Get user's group
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (!profile?.group_id) {
+      if (!groupId) {
         return NextResponse.json(
           { error: 'Vous devez appartenir à un groupe pour ajouter des revenus de groupe' },
           { status: 400 },
         )
       }
 
-      insertData.group_id = profile.group_id
+      insertData.group_id = groupId
     } else {
       insertData.profile_id = userId
     }
@@ -136,7 +122,7 @@ export const POST = withAuth(async (request: NextRequest, { userId }) => {
 /**
  * PUT /api/finance/income/estimated - Met à jour un revenu estimé
  */
-export const PUT = withAuth(async (request: NextRequest) => {
+export const PUT = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const body = await parseBody(request, updateEstimatedIncomeBodySchema)
     const { id, name, estimated_amount, is_monthly_recurring } = body
@@ -185,7 +171,7 @@ export const PUT = withAuth(async (request: NextRequest) => {
 /**
  * DELETE /api/finance/income/estimated - Supprime un revenu estimé
  */
-export const DELETE = withAuth(async (request: NextRequest) => {
+export const DELETE = withAuthAndGroup(async (request: NextRequest) => {
   try {
     const { id } = parseQuery(request, deleteByIdQuerySchema)
 

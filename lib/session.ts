@@ -9,6 +9,28 @@ const key = new TextEncoder().encode(secretKey)
 export interface SessionPayload {
   userId: string
   email: string
+  /**
+   * Groupe de l'utilisateur au moment où le jeton a été émis.
+   *
+   * Sprint Perf-Waterfall (2026-09-10) — embarqué ici pour que les routes API
+   * n'aient plus à relire `profiles` avant chaque handler. Un chargement de
+   * dashboard déclenche 13 appels, donc 13 lectures bloquantes pour un champ
+   * qui ne change qu'aux rares moments où l'on rejoint ou quitte un groupe.
+   *
+   * Trois états, à ne pas confondre :
+   *   - `string`    → l'utilisateur est dans ce groupe
+   *   - `null`      → l'utilisateur n'est dans aucun groupe
+   *   - `undefined` → jeton émis AVANT ce sprint : l'information est inconnue,
+   *                   il faut retomber sur une lecture en base. Sans ce
+   *                   troisième état, tous les utilisateurs déjà connectés
+   *                   seraient vus comme « sans groupe » au déploiement.
+   *
+   * La valeur est ré-émise à chaque mutation d'appartenance (cf.
+   * `updateSessionGroup`), donc elle ne périme pas : rejoindre, créer, quitter
+   * et supprimer un groupe sont tous des actions de l'utilisateur sur
+   * lui-même — il n'existe pas de fonction « exclure un membre ».
+   */
+  groupId?: string | null
   createdAt: number
   expiresAt: number
 }
@@ -47,13 +69,18 @@ export async function decrypt(session: string | undefined = ''): Promise<Session
  * Creates a session token for the provided user data
  * Returns the encrypted JWT token string
  */
-export async function createSessionToken(userId: string, email: string): Promise<string> {
+export async function createSessionToken(
+  userId: string,
+  email: string,
+  groupId: string | null,
+): Promise<string> {
   const currentTime = Math.floor(Date.now() / 1000)
   const expiresAt = currentTime + SESSION_EXPIRATION_SECONDS
 
   const sessionPayload: SessionPayload = {
     userId,
     email,
+    groupId,
     createdAt: currentTime,
     expiresAt,
   }
