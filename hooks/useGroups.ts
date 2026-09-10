@@ -59,6 +59,9 @@ export function useGroups() {
     onSuccess: (newGroup) => {
       queryClient.setQueryData<GroupData[]>(['groups'], (prev = []) => [...prev, newGroup])
       queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // La liste des membres (`useGroupMembers`) ne change qu'ici : créer /
+      // rejoindre / quitter / supprimer (Sprint Perf-Toggle-Targeted-Refresh).
+      queryClient.invalidateQueries({ queryKey: ['group-members'] })
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
@@ -113,6 +116,9 @@ export function useGroups() {
         prev.filter((g) => g.id !== groupId),
       )
       queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // La liste des membres (`useGroupMembers`) ne change qu'ici : créer /
+      // rejoindre / quitter / supprimer (Sprint Perf-Toggle-Targeted-Refresh).
+      queryClient.invalidateQueries({ queryKey: ['group-members'] })
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
@@ -134,6 +140,9 @@ export function useGroups() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groups'] })
       queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // La liste des membres (`useGroupMembers`) ne change qu'ici : créer /
+      // rejoindre / quitter / supprimer (Sprint Perf-Toggle-Targeted-Refresh).
+      queryClient.invalidateQueries({ queryKey: ['group-members'] })
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
@@ -160,6 +169,9 @@ export function useGroups() {
         prev.filter((g) => g.id !== groupId),
       )
       queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // La liste des membres (`useGroupMembers`) ne change qu'ici : créer /
+      // rejoindre / quitter / supprimer (Sprint Perf-Toggle-Targeted-Refresh).
+      queryClient.invalidateQueries({ queryKey: ['group-members'] })
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {

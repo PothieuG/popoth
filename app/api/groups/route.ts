@@ -35,23 +35,22 @@ export const GET = withAuthAndProfile(async (_request, { userId, profile }) => {
       return NextResponse.json({ groups: [] })
     }
 
-    // Get the group details
-    const { data: group, error: groupError } = await supabase
-      .from('groups')
-      .select('*')
-      .eq('id', profile.group_id)
-      .single()
+    // Détails du groupe + nombre de membres en parallèle : les 2 ne dépendent
+    // que de `profile.group_id` (1 aller-retour au lieu de 2 en série — Sprint
+    // Perf-Toggle-Targeted-Refresh 2026-09-10). `head: true` : on ne veut que
+    // le COUNT, pas les lignes des profils.
+    const [{ data: group, error: groupError }, { count }] = await Promise.all([
+      supabase.from('groups').select('*').eq('id', profile.group_id).single(),
+      supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('group_id', profile.group_id),
+    ])
 
     if (groupError || !group) {
       logger.error('Error fetching group details:', groupError)
       return NextResponse.json({ groups: [] })
     }
-
-    // Get member count for the group
-    const { count } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact' })
-      .eq('group_id', group.id)
 
     const groupData: GroupData = {
       id: group.id,

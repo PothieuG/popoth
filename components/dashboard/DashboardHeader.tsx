@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useGroupMembers } from '@/hooks/useGroupMembers'
@@ -21,9 +20,11 @@ interface DashboardHeaderProps {
  *
  * Les hooks `useProfile`/`useGroupContributions`/`useGroupMembers` sont
  * dédupliqués par TanStack Query — appeler les mêmes hooks dans les pages
- * enfants n'engage pas de re-fetch. `useGroupMembers` reste legacy
- * useState (pas TanStack), donc on lui passe le groupId via useEffect ;
- * il refetch quand le profile groupId change.
+ * enfants n'engage pas de re-fetch. Les membres ne sont chargés qu'en
+ * contexte groupe (`enabled`), et servis depuis le cache à la bascule
+ * perso → groupe suivante (Sprint Perf-Toggle-Targeted-Refresh 2026-09-10 :
+ * avant, le hook legacy refetchait à chaque bascule et repassait l'en-tête
+ * en skeleton).
  */
 export default function DashboardHeader({ context, onOpenMenu }: DashboardHeaderProps) {
   const { profile } = useProfile()
@@ -32,16 +33,9 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
     groupInfo,
     isFetching: contributionsFetching,
   } = useGroupContributions()
-  const { members, fetchGroupMembers, isLoading: membersLoading } = useGroupMembers()
-
-  // Hydrate les membres uniquement en context group, dès que le profile a un group_id.
-  // useGroupMembers est legacy (useState + useEffect) ; cet useEffect couvre le cas
-  // où l'utilisateur navigue vers le group-dashboard depuis le profile-dashboard.
-  useEffect(() => {
-    if (context === 'group' && profile?.group_id) {
-      fetchGroupMembers(profile.group_id)
-    }
-  }, [context, profile?.group_id, fetchGroupMembers])
+  const { members, isLoading: membersLoading } = useGroupMembers(profile?.group_id, {
+    enabled: context === 'group',
+  })
 
   return (
     <nav className="pt-safe sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">

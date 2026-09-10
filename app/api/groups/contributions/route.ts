@@ -42,31 +42,35 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
       return NextResponse.json({ error: "Vous n'appartenez à aucun groupe" }, { status: 400 })
     }
 
-    // Get group information
-    const { data: group, error: groupError } = await supabase
-      .from('groups')
-      .select('id, name, monthly_budget_estimate')
-      .eq('id', profile.group_id)
-      .single()
-
-    if (groupError || !group) {
-      return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
-    }
-
-    // Get all contributions for the group with profile information
-    const { data: contributions, error: contributionsError } = await supabase
-      .from('group_contributions')
-      .select(
-        `
+    // Les 2 lectures ne dépendent que de `profile.group_id` : en parallèle,
+    // 1 aller-retour au lieu de 2 en série (Sprint Perf-Toggle-Targeted-Refresh
+    // 2026-09-10 — cette route est appelée par l'en-tête des 2 dashboards et
+    // relancée par chaque mutation via `invalidateFinancialRefreshes`).
+    const [{ data: group, error: groupError }, { data: contributions, error: contributionsError }] =
+      await Promise.all([
+        supabase
+          .from('groups')
+          .select('id, name, monthly_budget_estimate')
+          .eq('id', profile.group_id)
+          .single(),
+        supabase
+          .from('group_contributions')
+          .select(
+            `
         *,
         profiles:profile_id (
           first_name,
           last_name
         )
       `,
-      )
-      .eq('group_id', profile.group_id)
-      .order('contribution_amount', { ascending: false })
+          )
+          .eq('group_id', profile.group_id)
+          .order('contribution_amount', { ascending: false }),
+      ])
+
+    if (groupError || !group) {
+      return NextResponse.json({ error: 'Groupe introuvable' }, { status: 404 })
+    }
 
     if (contributionsError) {
       logger.error('Error fetching contributions:', contributionsError)

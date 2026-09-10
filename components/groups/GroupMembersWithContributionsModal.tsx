@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { cn } from '@/lib/utils'
@@ -51,29 +50,23 @@ export default function GroupMembersWithContributionsModal({
   isOpen,
   onClose,
 }: GroupMembersWithContributionsModalProps) {
+  // Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — `useGroupMembers` est
+  // désormais TanStack Query : `enabled: isOpen` charge à l'ouverture (cache
+  // partagé avec l'en-tête du dashboard groupe, donc souvent déjà là), plus
+  // de fetch impératif ni de `clearMembers` à la fermeture. Les contributions
+  // sont déjà observées par `DashboardHeader` et invalidées par les mutations.
   const {
     members,
     isLoading: membersLoading,
     error: membersError,
-    fetchGroupMembers,
-    clearMembers,
-  } = useGroupMembers()
+    refetch: refetchMembers,
+  } = useGroupMembers(group.id, { enabled: isOpen })
   const {
     contributions,
     isLoading: contributionsLoading,
     error: contributionsError,
     fetchContributions,
   } = useGroupContributions()
-
-  // Fetch data when modal opens
-  useEffect(() => {
-    if (isOpen && group.id) {
-      fetchGroupMembers(group.id)
-      fetchContributions()
-    } else if (!isOpen) {
-      clearMembers()
-    }
-  }, [isOpen, group.id, fetchGroupMembers, fetchContributions, clearMembers])
 
   /**
    * Formats currency amount for display
@@ -157,8 +150,8 @@ export default function GroupMembersWithContributionsModal({
               <p className="mb-3 text-gray-600">{error}</p>
               <Button
                 onClick={() => {
-                  fetchGroupMembers(group.id)
-                  fetchContributions()
+                  void refetchMembers()
+                  void fetchContributions()
                 }}
                 className="bg-linear-to-r from-blue-600 to-purple-600 text-white"
               >

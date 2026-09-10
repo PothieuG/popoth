@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
-import { logger } from '@/lib/logger'
+'use client'
+
+import { useQuery } from '@tanstack/react-query'
 
 export interface GroupMember {
   id: string
@@ -9,65 +10,69 @@ export interface GroupMember {
   joined_at: string
 }
 
+interface UseGroupMembersOptions {
+  /** `false` = ne pas charger (drawer fermé, contexte perso…). Défaut `true`. */
+  enabled?: boolean
+}
+
+const NO_MEMBERS: GroupMember[] = []
+
 /**
- * Custom hook for managing group members
- * Provides methods to fetch group members
+ * Membres du groupe — TanStack Query, key `['group-members', groupId]`.
+ *
+ * Sprint Perf-Toggle-Targeted-Refresh (2026-09-10). Dernier hook fetcher
+ * encore en `useState` + fetch impératif (`fetchGroupMembers(groupId)` appelé
+ * depuis un `useEffect` des consommateurs). Conséquence : aucun cache — chaque
+ * bascule perso → groupe relançait `GET /api/groups/[id]/members` et repassait
+ * l'en-tête du dashboard groupe en skeleton, alors que la liste des membres
+ * ne change qu'aux rares moments où quelqu'un rejoint ou quitte le groupe.
+ *
+ * Désormais : servi depuis le cache dans le `staleTime` (30 s), dédoublonné
+ * entre l'en-tête et la modal « Voir les membres », invalidé par les mutations
+ * d'appartenance de `useGroups` (`['group-members']`).
+ *
+ * `enabled` porte le gating : sans `groupId`, ou avec `enabled: false`, la
+ * query reste en attente sans aucun fetch (miroir `useGroupMembersRav`).
  */
-export function useGroupMembers() {
-  const [members, setMembers] = useState<GroupMember[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export function useGroupMembers(
+  groupId: string | null | undefined,
+  options: UseGroupMembersOptions = {},
+) {
+  const enabled = (options.enabled ?? true) && !!groupId
 
-  /**
-   * Fetches all members of a specific group
-   */
-  const fetchGroupMembers = useCallback(async (groupId: string): Promise<boolean> => {
-    if (!groupId) {
-      setError('ID du groupe requis')
-      return false
-    }
-
-    try {
-      setIsLoading(true)
-      setError(null)
-
+  const {
+    data,
+    isLoading,
+    isFetching,
+    error: queryError,
+    refetch,
+  } = useQuery<GroupMember[]>({
+    queryKey: ['group-members', groupId ?? null],
+    enabled,
+    queryFn: async () => {
       const response = await fetch(`/api/groups/${groupId}/members`, {
         method: 'GET',
         credentials: 'include',
       })
-
-      const data = await response.json()
-
+      const body = await response.json().catch(() => null)
       if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la récupération des membres')
+        throw new Error(body?.error || 'Erreur lors de la récupération des membres')
       }
+      return (body?.members ?? []) as GroupMember[]
+    },
+  })
 
-      setMembers(data.members || [])
-      return true
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue'
-      setError(errorMessage)
-      logger.error('Error fetching group members:', err)
-      return false
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
-  /**
-   * Clears the members list and error state
-   */
-  const clearMembers = useCallback(() => {
-    setMembers([])
-    setError(null)
-  }, [])
+  const members = data ?? NO_MEMBERS
 
   return {
     members,
     isLoading,
-    error,
-    fetchGroupMembers,
-    clearMembers,
+    isFetching,
+    error: queryError instanceof Error ? queryError.message : null,
+    /** Relance explicite (bouton « Réessayer » de la modal). */
+    refetch: async (): Promise<void> => {
+      await refetch()
+    },
     // Helpers
     memberCount: members.length,
     hasMembers: members.length > 0,
