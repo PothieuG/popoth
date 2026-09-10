@@ -127,7 +127,6 @@ export default function GroupDashboardPage() {
               context="group"
               isFetching={financialFetching}
               readOnlyIncomes={financialData?.meta?.readOnlyIncomes ?? []}
-              groupMembersRav={financialData?.meta?.groupMembersRav}
             />
           </div>
 

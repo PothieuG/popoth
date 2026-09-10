@@ -49,12 +49,22 @@ function DashboardPeriodSection({
  */
 export default function DashboardPage() {
   const { hasProfile, createProfile, isLoading } = useProfile()
+  // `'profile'` explicite, et non l'appel nu : sans argument la queryKey vaut
+  // `['financial-summary', null]`, alors que tous les autres consommateurs de
+  // la page (`TransactionTabsComponent`, `AddTransactionModal`,
+  // `useExpenseBreakdown`, le layout) passent `'profile'` et partagent
+  // `['financial-summary', 'profile']`. Le dashboard perso déclenchait donc
+  // DEUX `GET /api/finance/summary` par chargement — deux pipelines complets
+  // (9 lectures + 1 écriture RAV chacun) pour le même résultat. L'URL sans
+  // paramètre et `?context=profile` retombent sur la même branche serveur
+  // (`summaryQuerySchema` a `.default('profile')`) : dédoublonner ne change
+  // aucune valeur affichée.
   const {
     financialData,
     isFetching: financialFetching,
     error: financialError,
     refreshFinancialData,
-  } = useFinancialData()
+  } = useFinancialData('profile')
 
   const [isEditTransactionModalOpen, setIsEditTransactionModalOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<EditableTransaction | null>(null)

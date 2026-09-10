@@ -26,7 +26,8 @@ import { useBudgetProgress, type BudgetProgress } from '@/hooks/useBudgetProgres
 import { useIncomeProgress } from '@/hooks/useIncomeProgress'
 import { useProjects, type SavingsProject } from '@/hooks/useProjects'
 import { usePeriodParam } from '@/hooks/usePeriodParam'
-import type { GroupMemberRavDetail, ReadOnlyIncome } from '@/lib/finance'
+import { useGroupMembersRav } from '@/hooks/useGroupMembersRav'
+import type { ReadOnlyIncome } from '@/lib/finance'
 
 interface PlanningDrawerProps {
   isOpen: boolean
@@ -48,13 +49,6 @@ interface PlanningDrawerProps {
    * Modifier/Supprimer, juste cadre + label + montant + cadenas.
    */
   readOnlyIncomes?: ReadOnlyIncome[]
-  /**
-   * Sprint Group-RAV-Recap (groupe uniquement) — détail par membre du RAV
-   * courant. Forwardé aux 4 modals (AddBudget/EditBudget/AddProject/
-   * EditProject) qui calculent la projection RAV par membre en live à chaque
-   * keystroke. Vit dans `FinancialData.meta.groupMembersRav`.
-   */
-  groupMembersRav?: GroupMemberRavDetail[]
 }
 
 type TabType = 'budgets' | 'revenus' | 'projets'
@@ -81,8 +75,16 @@ export default function PlanningDrawer({
   context,
   currentRav,
   readOnlyIncomes = [],
-  groupMembersRav,
 }: PlanningDrawerProps) {
+  // Sprint Group-RAV-Recap (groupe uniquement) — détail par membre du RAV
+  // courant, consommé par les 4 modals (AddBudget/EditBudget/AddProject/
+  // EditProject) qui projettent le RAV de chaque membre à chaque keystroke.
+  //
+  // Sprint Perf-Group-Members-Rav-Lazy (2026-09-10) — arrivait auparavant en
+  // prop depuis `FinancialData.meta`, ce qui faisait recalculer le RAV de tous
+  // les membres à chaque chargement du dashboard groupe. Le drawer le charge
+  // désormais lui-même, et seulement une fois ouvert.
+  const { groupMembersRav } = useGroupMembersRav(isOpen && context === 'group')
   const [activeTab, setActiveTab] = useState<TabType>('budgets')
   const [isAddBudgetOpen, setIsAddBudgetOpen] = useState(false)
   const [isAddIncomeOpen, setIsAddIncomeOpen] = useState(false)

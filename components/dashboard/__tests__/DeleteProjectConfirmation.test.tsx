@@ -124,6 +124,14 @@ vi.mock('@/hooks/useProjects', () => ({
   }),
 }))
 
+// Sprint Perf-Group-Members-Rav-Lazy (2026-09-10) — le drawer charge lui-même
+// le RAV par membre (il n'arrive plus en prop depuis `FinancialData.meta`).
+// Ces suites montent le drawer sans QueryClientProvider : on neutralise le
+// hook, aucun de ces cas ne porte sur le contexte groupe.
+vi.mock('@/hooks/useGroupMembersRav', () => ({
+  useGroupMembersRav: () => ({ groupMembersRav: undefined, isLoading: false }),
+}))
+
 vi.mock('@/hooks/usePeriodParam', () => ({
   usePeriodParam: () => ({ period: undefined, setPeriod: vi.fn() }),
 }))

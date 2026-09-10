@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { axe } from 'jest-axe'
@@ -126,6 +126,18 @@ vi.mock('@/hooks/useProjects', () => ({
     refreshProjects: vi.fn(),
     totalMonthlyAllocations: projectsState.total,
   }),
+}))
+
+// Sprint Perf-Group-Members-Rav-Lazy (2026-09-10) — le drawer charge lui-même
+// le RAV par membre (il n'arrive plus en prop depuis `FinancialData.meta`).
+// Ces suites montent le drawer sans QueryClientProvider : on neutralise le
+// hook. Le spy sert à vérifier l'argument `enabled`, dont dépend tout le gain
+// de perf (cf. la suite « gating du RAV par membre » plus bas).
+const useGroupMembersRavSpy = vi.fn<
+  (enabled: boolean) => { groupMembersRav: undefined; isLoading: boolean }
+>(() => ({ groupMembersRav: undefined, isLoading: false }))
+vi.mock('@/hooks/useGroupMembersRav', () => ({
+  useGroupMembersRav: (enabled: boolean) => useGroupMembersRavSpy(enabled),
 }))
 
 vi.mock('@/hooks/usePeriodParam', () => ({
@@ -338,5 +350,30 @@ describe('PlanningDrawer — onglet "Projets" (Sprint Projets-Épargne 04)', () 
 
     await user.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('PlanningDrawer — gating du RAV par membre (Sprint Perf-Group-Members-Rav-Lazy)', () => {
+  // Le drawer est monté (fermé) par `<FinancialIndicators>` dès le premier
+  // rendu du dashboard. Si `enabled` valait `true` au montage, le N+1 par
+  // membre serait simplement passé de `/api/finance/summary` à
+  // `/api/finance/group-members-rav` — même coût, même lenteur.
+  beforeEach(() => {
+    useGroupMembersRavSpy.mockClear()
+  })
+
+  it('drawer fermé en contexte groupe → pas de chargement', () => {
+    render(<PlanningDrawer isOpen={false} onClose={() => {}} context="group" />)
+    expect(useGroupMembersRavSpy).toHaveBeenCalledWith(false)
+  })
+
+  it('drawer ouvert en contexte perso → pas de chargement (aucun membre à afficher)', () => {
+    render(<PlanningDrawer isOpen onClose={() => {}} context="profile" />)
+    expect(useGroupMembersRavSpy).toHaveBeenCalledWith(false)
+  })
+
+  it('drawer ouvert en contexte groupe → chargement', () => {
+    render(<PlanningDrawer isOpen onClose={() => {}} context="group" />)
+    expect(useGroupMembersRavSpy).toHaveBeenCalledWith(true)
   })
 })

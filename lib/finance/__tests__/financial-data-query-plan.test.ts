@@ -363,17 +363,53 @@ describe('financial-data — plan de requêtes (perf)', () => {
     // groupe) mais une lecture `group_contributions` → 8 lectures également.
     expect(PROBE.maxInFlight).toBe(8)
     expect(PROBE.fromCalls.get('group_contributions')).toBe(1)
+  })
 
-    // ⚠️ N+1 CONNU, hors périmètre du sprint Perf-Parallel-Financial-Data.
-    // Chaque membre ayant une contribution déclenche un
-    // `getProfileFinancialData(memberId)` complet (§13), donc un second
-    // pipeline entier — d'où une 2e lecture de `estimated_incomes` ici, pour
-    // le membre. La fixture n'a qu'un membre : 1 (groupe) + 1 (membre) = 2.
+  it('le coût du contexte groupe ne dépend plus du nombre de membres', async () => {
+    // Sprint Perf-Group-Members-Rav-Lazy (2026-09-10). AVANT ce sprint, §13
+    // déclenchait un `getProfileFinancialData(memberId)` complet par membre :
+    // le dashboard groupe payait 9 requêtes + 9 par membre, sur 4 allers-
+    // retours au lieu de 2. C'est ce qui rendait la page groupe visiblement
+    // plus lente que la page perso.
     //
-    // Cette assertion PINNE le coût actuel : le jour où le N+1 sera traité
-    // (lecture du snapshot `bank_balances.current_remaining_to_live` au lieu
-    // d'un recalcul complet), ce test tombera et signalera le gain.
-    expect(PROBE.fromCalls.get('estimated_incomes')).toBe(2)
+    // Ce test est le garde-fou : la même fixture à 1 puis 3 membres doit
+    // produire EXACTEMENT le même plan de requêtes. Toute réintroduction d'un
+    // travail par membre dans `_loadFinancialData` le fait tomber.
+    seedGroupFixture()
+    const { getGroupFinancialData } = await import('../financial-data')
+    await getGroupFinancialData(GROUP_ID)
+    const withOneMember = [...PROBE.fromCalls.values()].reduce((a, b) => a + b, 0)
+
+    resetProbe()
+    seedGroupFixture()
+    STATE.value.group_contributions = [
+      ...STATE.value.group_contributions,
+      {
+        group_id: GROUP_ID,
+        profile_id: 'dddd4444-4444-4444-4444-444444444444',
+        contribution_amount: 300,
+        salary: 2000,
+        profiles: { first_name: 'Bob', salary: 2000 },
+      },
+      {
+        group_id: GROUP_ID,
+        profile_id: 'eeee5555-5555-5555-5555-555555555555',
+        contribution_amount: 300,
+        salary: 2500,
+        profiles: { first_name: 'Carol', salary: 2500 },
+      },
+    ]
+    await getGroupFinancialData(GROUP_ID)
+    const withThreeMembers = [...PROBE.fromCalls.values()].reduce((a, b) => a + b, 0)
+
+    // 8 lectures parallèles + 1 écriture RAV — le même total que pour un
+    // profil, et surtout le même à 1 membre qu'à 3.
+    expect(withOneMember).toBe(9)
+    expect(withThreeMembers).toBe(9)
+
+    // Aucune table n'est lue deux fois : plus aucun second pipeline par membre.
+    expect(PROBE.fromCalls.get('estimated_incomes')).toBe(1)
+    expect(PROBE.fromCalls.get('real_expenses')).toBe(1)
   })
 })
 

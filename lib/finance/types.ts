@@ -19,9 +19,11 @@ export interface ReadOnlyIncome {
 // être négatif si le membre est déjà en déficit perso (revenus < dépenses
 // + budgets + contribution). `salary` est utilisé par
 // `computeGroupMembersRavPreview` pour calculer la quote-part prorata du
-// delta de contribution. `groupMembersPersonalRavTotal` reste l'agrégat
-// `sum(max(0, currentRav))` (capacité collective utilisée comme plafond
-// validation projets — un membre en déficit ne pénalise pas les autres).
+// delta de contribution.
+//
+// Sprint Perf-Group-Members-Rav-Lazy (2026-09-10) — ne vit plus dans
+// `FinancialData.meta` : servi à la demande par `GET /api/finance/group-
+// members-rav` (cf. lib/finance/group-members-rav.ts).
 export interface GroupMemberRavDetail {
   profileId: string
   firstName: string
@@ -90,16 +92,6 @@ export interface FinancialData {
   meta?: {
     readOnlyIncomes: ReadOnlyIncome[]
     groupSalaryTotal?: number
-    // Sprint PÉ-12 — somme des RAV perso de chaque membre du groupe :
-    // sum(salary_i − budgets_perso_i − contribution_i). Utilisé comme plafond
-    // de validation pour "Ajouter / Modifier un projet" en contexte groupe.
-    // Distinct de groupSalaryTotal (qui ignore les budgets perso des membres).
-    groupMembersPersonalRavTotal?: number
-    // Détail par membre — alimente le recap "RAV actuel → projeté" des
-    // modals AddBudget/EditBudget/AddProject/EditProject en contexte groupe.
-    // Présent uniquement en groupe (undefined en perso). Tri stable par
-    // firstName (cohérent avec readOnlyIncomes).
-    groupMembersRav?: GroupMemberRavDetail[]
     // Sprint Fix-Group-Recap-RavEstime — somme des contributions auto-synchronisées
     // des membres du groupe (mirror de `groups.monthly_budget_estimate` via trigger).
     // Présent uniquement en groupe (undefined en perso). Utilisé par

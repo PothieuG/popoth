@@ -13,7 +13,7 @@ export function createQueryClient() {
 }
 
 /**
- * Invalidate the 10 cross-domain financial-refresh keys.
+ * Invalidate the 11 cross-domain financial-refresh keys.
  *
  * Returns a Promise that resolves once the active refetches settle — a caller
  * that needs to await the refresh (e.g. pull-to-refresh spinner timing) can
@@ -54,6 +54,12 @@ export function createQueryClient() {
  * voient instantanément l'effet d'un nouveau budget sur la capacité à
  * créer un nouveau projet.
  *
+ * `group-members-rav` was added by Sprint Perf-Group-Members-Rav-Lazy
+ * (2026-09-10) — le RAV par membre a quitté `financial-summary` pour sa propre
+ * route paresseuse. Sans cette key, une mutation sur un budget groupe (qui
+ * recalcule les contributions, donc le RAV perso de chaque membre) laissait
+ * l'encart « RAV actuel → projeté » des modals sur des chiffres périmés.
+ *
  * `real-incomes` was added by Sprint Contribution-Income-Mirror + Salary-Auto
  * (2026-06-05) — le revenu miroir contribution côté groupe + le revenu salaire
  * auto-créé à la finalisation du recap. Toute mutation sur budgets groupe
@@ -67,6 +73,7 @@ export function invalidateFinancialRefreshes(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ['progress-data'] }),
     qc.invalidateQueries({ queryKey: ['budgets'] }),
     qc.invalidateQueries({ queryKey: ['group-contributions'] }),
+    qc.invalidateQueries({ queryKey: ['group-members-rav'] }),
     qc.invalidateQueries({ queryKey: ['savings-data'] }),
     qc.invalidateQueries({ queryKey: ['real-expenses'] }),
     qc.invalidateQueries({ queryKey: ['real-incomes'] }),

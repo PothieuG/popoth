@@ -21,6 +21,7 @@ describe.skipIf(!ENABLED)(
     let admin: SupabaseClient<Database>
     let getProfileFinancialData: FinCalcMod['getProfileFinancialData']
     let getGroupFinancialData: FinCalcMod['getGroupFinancialData']
+    let loadGroupMembersRav: FinCalcMod['loadGroupMembersRav']
 
     const stamp = Date.now()
     const testEmail = `finance-fixture-${stamp}@popoth.test`
@@ -129,6 +130,7 @@ describe.skipIf(!ENABLED)(
       })
 
       const finCalcMod = await import('@/lib/finance')
+      loadGroupMembersRav = finCalcMod.loadGroupMembersRav
       getProfileFinancialData = finCalcMod.getProfileFinancialData
       getGroupFinancialData = finCalcMod.getGroupFinancialData
 
@@ -387,23 +389,36 @@ describe.skipIf(!ENABLED)(
       // et Sprint Fix-Group-Recap-RavEstime — précédemment absents de
       // GOLDEN_GROUP, le test passait silencieusement parce que ces fields
       // étaient ajoutés tard et le harness gated rarement re-run.
+      //
+      // Sprint Perf-Group-Members-Rav-Lazy (2026-09-10) — `groupMembersRav` et
+      // `groupMembersPersonalRavTotal` ne sont plus hydratés ici : le RAV par
+      // membre coûtait un pipeline complet par membre à chaque chargement du
+      // dashboard groupe. Il est servi à la demande (cas 2.bis ci-dessous).
       const GOLDEN_GROUP_WITH_DYNAMIC = {
         ...GOLDEN_GROUP,
         meta: {
           ...GOLDEN_GROUP.meta,
           totalGroupContributions: 0,
-          groupMembersRav: [
-            {
-              profileId: testUserId,
-              firstName: 'Finance',
-              salary: 1500,
-              currentRav: 1970,
-            },
-          ],
-          groupMembersPersonalRavTotal: 1970,
         },
       }
       expect(data).toEqual(GOLDEN_GROUP_WITH_DYNAMIC)
+    }, 30_000)
+
+    it('case 2.bis — loadGroupMembersRav sert le même RAV authoritatif par membre', async () => {
+      // Le calcul a changé de porte d'entrée, pas de formule : la valeur doit
+      // rester rigoureusement celle du dashboard perso du membre.
+      const membersRav = await loadGroupMembersRav(testGroupId)
+      const soloRav = (await getProfileFinancialData(testUserId)).remainingToLive
+
+      expect(membersRav).toEqual([
+        {
+          profileId: testUserId,
+          firstName: 'Finance',
+          salary: 1500,
+          currentRav: 1970,
+        },
+      ])
+      expect(membersRav[0]?.currentRav).toBe(soloRav)
     }, 30_000)
 
     it('case 6 — saveRavToDatabase persists remainingToLive matching the returned value', async () => {

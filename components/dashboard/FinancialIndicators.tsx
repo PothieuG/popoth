@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import SavingsDrawer from './SavingsDrawer'
-import type { GroupMemberRavDetail, ReadOnlyIncome } from '@/lib/finance'
+import type { ReadOnlyIncome } from '@/lib/finance'
 
 const PlanningDrawer = dynamic(() => import('./PlanningDrawer'), { ssr: false })
 
@@ -29,13 +29,6 @@ interface FinancialIndicatorsProps {
    * source backend `FinancialData.meta.readOnlyIncomes`.
    */
   readOnlyIncomes?: ReadOnlyIncome[]
-  /**
-   * Sprint Group-RAV-Recap (groupe uniquement) — détail par membre du RAV
-   * courant, forwardé au drawer Planification qui le passe aux 4 modals
-   * (AddBudget/EditBudget/AddProject/EditProject) pour le recap par-membre.
-   * Source backend `FinancialData.meta.groupMembersRav`.
-   */
-  groupMembersRav?: GroupMemberRavDetail[]
 }
 
 /**
@@ -52,7 +45,6 @@ export default function FinancialIndicators({
   context,
   isFetching = false,
   readOnlyIncomes,
-  groupMembersRav,
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
@@ -283,7 +275,6 @@ export default function FinancialIndicators({
         context={context}
         currentRav={remainingToLive}
         readOnlyIncomes={readOnlyIncomes}
-        groupMembersRav={groupMembersRav}
       />
 
       {/* Savings Drawer */}

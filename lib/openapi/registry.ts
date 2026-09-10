@@ -442,6 +442,13 @@ export const routes: RouteDef[] = [
     requiresAuth: true,
   },
   {
+    path: '/api/finance/group-members-rav',
+    method: 'get',
+    tag: 'finance',
+    summary: "Reste-à-Vivre courant de chaque membre du groupe de l'utilisateur",
+    requiresAuth: true,
+  },
+  {
     path: '/api/finance/summary',
     method: 'get',
     tag: 'finance',
