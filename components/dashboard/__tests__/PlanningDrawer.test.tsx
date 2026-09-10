@@ -11,6 +11,16 @@ import type { ReadOnlyIncome } from '@/lib/finance'
 
 // ─── Mocks (hoisted) ─────────────────────────────────────────────────────
 
+// Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — spies hoistés : ouvrir le
+// drawer ne doit relancer AUCUN `refetch()` impératif (cf. suite dédiée).
+const refreshSpies = vi.hoisted(() => ({
+  refreshBudgets: vi.fn(),
+  refreshIncomes: vi.fn(),
+  refreshBudgetProgress: vi.fn(),
+  refreshIncomeProgress: vi.fn(),
+  refreshProjects: vi.fn(),
+}))
+
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 const INCOME_UUID = '22222222-2222-4222-8222-222222222222'
 
@@ -25,7 +35,7 @@ vi.mock('@/hooks/useBudgets', () => ({
     addBudget: vi.fn(async () => true),
     updateBudget: vi.fn(async () => true),
     deleteBudget: vi.fn(async () => ({ success: true, transferredAmount: 0 })),
-    refreshBudgets: vi.fn(),
+    refreshBudgets: refreshSpies.refreshBudgets,
     totalBudgets: 500,
   }),
 }))
@@ -49,7 +59,7 @@ vi.mock('@/hooks/useIncomes', () => ({
     addIncome: vi.fn(async () => true),
     updateIncome: vi.fn(async () => true),
     deleteIncome: vi.fn(async () => true),
-    refreshIncomes: vi.fn(),
+    refreshIncomes: refreshSpies.refreshIncomes,
     totalIncomes: incomesState.total,
   }),
 }))
@@ -69,7 +79,7 @@ vi.mock('@/hooks/useBudgetProgress', () => ({
     loading: false,
     isFetching: false,
     error: null,
-    refreshProgress: vi.fn(),
+    refreshProgress: refreshSpies.refreshBudgetProgress,
   }),
 }))
 
@@ -86,7 +96,7 @@ vi.mock('@/hooks/useIncomeProgress', () => ({
     loading: false,
     isFetching: false,
     error: null,
-    refreshProgress: vi.fn(),
+    refreshProgress: refreshSpies.refreshIncomeProgress,
   }),
 }))
 
@@ -123,7 +133,7 @@ vi.mock('@/hooks/useProjects', () => ({
     addProject: vi.fn(async () => true),
     updateProject: vi.fn(async () => true),
     deleteProject: vi.fn(async () => ({ success: true })),
-    refreshProjects: vi.fn(),
+    refreshProjects: refreshSpies.refreshProjects,
     totalMonthlyAllocations: projectsState.total,
   }),
 }))
@@ -375,5 +385,23 @@ describe('PlanningDrawer — gating du RAV par membre (Sprint Perf-Group-Members
   it('drawer ouvert en contexte groupe → chargement', () => {
     render(<PlanningDrawer isOpen onClose={() => {}} context="group" />)
     expect(useGroupMembersRavSpy).toHaveBeenCalledWith(true)
+  })
+})
+
+describe('PlanningDrawer — ouverture sans refetch forcé (Sprint Perf-Toggle-Targeted-Refresh)', () => {
+  beforeEach(() => {
+    for (const spy of Object.values(refreshSpies)) spy.mockClear()
+  })
+
+  it('ouvrir le drawer ne relance aucun refetch impératif', async () => {
+    // Avant : un `useEffect(isOpen)` appelait les 5 `refresh*()` — dont ceux
+    // des 2 listes de transactions — à CHAQUE ouverture, cache frais ou pas.
+    // Le drawer sert le cache ; les mutations invalident déjà ces keys.
+    render(<PlanningDrawer isOpen onClose={() => {}} readOnlyIncomes={[SALARY_ROW]} />)
+    await screen.findByText('Alimentation')
+
+    for (const [name, spy] of Object.entries(refreshSpies)) {
+      expect(spy, name).not.toHaveBeenCalled()
+    }
   })
 })

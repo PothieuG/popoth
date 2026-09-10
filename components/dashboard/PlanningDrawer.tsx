@@ -149,7 +149,6 @@ export default function PlanningDrawer({
     addBudget,
     updateBudget,
     deleteBudget,
-    refreshBudgets,
     totalBudgets,
   } = useBudgets(context)
 
@@ -161,7 +160,6 @@ export default function PlanningDrawer({
     addIncome,
     updateIncome,
     deleteIncome,
-    refreshIncomes,
     totalIncomes,
   } = useIncomes(context)
 
@@ -177,7 +175,6 @@ export default function PlanningDrawer({
     addProject,
     updateProject,
     deleteProject,
-    refreshProjects,
     totalMonthlyAllocations,
   } = useProjects(context)
 
@@ -250,23 +247,15 @@ export default function PlanningDrawer({
   // En perso : undefined (le panel preview groupe ne s'affiche pas).
   const currentGroupIncomeTotal = isGroupContext ? totalIncomes : undefined
 
-  // Refresh des données quand le drawer s'ouvre
-  useEffect(() => {
-    if (isOpen) {
-      refreshBudgets()
-      refreshIncomes()
-      refreshBudgetProgress()
-      refreshIncomeProgress()
-      refreshProjects()
-    }
-  }, [
-    isOpen,
-    refreshBudgets,
-    refreshIncomes,
-    refreshBudgetProgress,
-    refreshIncomeProgress,
-    refreshProjects,
-  ])
+  // Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — plus de refetch force a
+  // l'ouverture. Un `useEffect(isOpen)` relancait ici 5 `refetch()` imperatifs
+  // (budgets, revenus, projets, ET les 2 listes de transactions qui nourrissent
+  // les barres de progression), en court-circuitant le `staleTime` : chaque
+  // ouverture remplacait les budgets par un skeleton — et la liste des
+  // transactions derriere le drawer avec eux. Ces donnees sont deja
+  // invalidees par toute mutation (`invalidateFinancialRefreshes`) et par le
+  // tire-pour-rafraichir ; le drawer sert le cache et TanStack refetch de
+  // lui-meme si l'entree est perimee (> 30 s).
 
   // Auto-dismiss snackbar after 3s (Pattern §8 ✅ feedback transient).
   // Dépend du `kind` plutôt que de la référence d'objet pour ne pas reset

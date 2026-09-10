@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
@@ -120,16 +120,12 @@ export default function SavingsDistributionDrawer({
     </div>
   )
 
-  // Refetch on every open — surface fresh piggy_bank + cumulated_savings
-  // even if a sibling mutation (e.g. budget delete) committed while the
-  // drawer was closed. Mirror of PlanningDrawer.tsx's refresh-on-isOpen
-  // pattern. The `enabled: isOpen` above guarantees the query is mounted
-  // and refetchable at this point.
-  useEffect(() => {
-    if (isOpen) {
-      void refetch()
-    }
-  }, [isOpen, refetch])
+  // Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — plus de `refetch()`
+  // force a l'ouverture : `enabled: isOpen` suffit (TanStack fetch a la 1re
+  // ouverture, puis refetch seul si l'entree est perimee), et toute mutation
+  // qui touche la tirelire ou les economies invalide `['savings-data']` via
+  // `invalidateFinancialRefreshes`. Le refetch impose doublait le travail et
+  // rejouait le skeleton a chaque ouverture, cache frais ou pas.
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
