@@ -315,3 +315,135 @@ anti-flicker (sprint Fix-Auth-Flicker).
 Le coût structurel restant est le **nombre d'appels** (13), pas leur contenu.
 Le réduire demande de regrouper des endpoints — refonte d'API, à décider sur
 mesure réelle. `GET /api/finance/rav` reste sans consommateur (candidate Path B).
+
+---
+
+## 10. Quatrième passe — l'après-geste (même jour, sprint Perf-Toggle-Targeted-Refresh)
+
+Retour utilisateur après les 3 passes : « toutes mes interactions avec la
+partie perso sont rapides, mais absolument pas avec la partie groupe — quand
+les budgets se rechargent, quand je valide une dépense (appui long)… quasiment
+tout est long ».
+
+### 10.1 Ce qui a été vérifié symétrique (et ne sera donc pas la cause)
+
+Relecture exhaustive du chemin groupe, côté serveur et côté client, en
+cherchant une asymétrie perso ↔ groupe :
+
+- **Serveur** : les 13 routes d'un chargement de dashboard ont le même plan
+  de requêtes dans les deux contextes (`_loadFinancialData` : 9 lectures + 1
+  écriture ; listes : 1 requête ; progress : 2). Seule différence groupe :
+  la lecture `group_contributions` jointe aux profils, et
+  `GET /api/groups/[id]/members` (1 requête).
+- **Base** : index partiels `group_id` présents sur toutes les tables
+  financières ; la cascade de triggers (`estimated_budgets` → `groups` →
+  `calculate_group_contributions` → miroirs `real_expenses` /
+  `real_income_entries`) ne se déclenche que sur écriture des budgets /
+  revenus estimés / projets / profils, jamais sur lecture ni sur toggle ; les
+  RPCs `toggle_*` font 1 SELECT FOR UPDATE + 2 UPDATE.
+- **Proxy** : 2 lectures max, cookie 5 min, `/api` exclu.
+- **Client** : mêmes hooks, mêmes keys, pas de polling, pas de realtime, pas
+  de refetch-on-focus. Le service worker ignore `/api`.
+
+Conclusion honnête : **le code ne contient pas de coût propre au groupe**
+qui explique « perso rapide, groupe lent ». Ce qui reste asymétrique est
+soit dans les données (volume, avatars), soit dans l'environnement — et
+**aucune mesure en millisecondes n'existait** (cf. §8.1). D'où le script
+`scripts/perf-probe.mjs` (§10.4).
+
+### 10.2 Ce qui a été trouvé — et qui frappe les deux contextes
+
+Trois mécanismes rendent _chaque interaction_ lente, dans les deux contextes,
+et sont exactement les gestes cités :
+
+1. **Le long-press déclenchait une tempête d'invalidations.** `onSettled`
+   des 4 mutations toggle (dépense / revenu × appliquer / valider un report)
+   appelait `invalidateFinancialRefreshes` : 11 keys → ~12 appels d'API en
+   parallèle (~35 requêtes Supabase, dont le pipeline complet du résumé avec
+   son écriture RAV) — pour un geste qui ne change **que**
+   `bank_balances.balance`. Aucun calcul ne lit `applied_to_balance_at`
+   (`_loadFinancialData`, `budgets-estimated`, `expenses-progress`,
+   `planner-emptiness`). Pire : `['real-expenses']` / `['real-incomes']` sont
+   dans ces 11 keys depuis le 2026-05-28 (Contribution-au-groupe), donc la
+   liste elle-même était refetchée et remplacée par un skeleton jusqu'au
+   retour de tout le lot. La règle ❌ du sprint Long-Press (« pas
+   d'invalidation de la liste dans `onSettled` ») était contournée depuis
+   3 mois. Le geste est instantané (optimistic) ; **c'est l'après-geste qui
+   était long.**
+2. **Ouvrir le planificateur relançait 5 `refetch()` forcés** (`useEffect(isOpen)`
+   du `PlanningDrawer`) : budgets, revenus, projets ET les 2 listes de
+   transactions (via `refreshBudgetProgress` / `refreshIncomeProgress`).
+   Un `refetch()` impératif ignore le `staleTime` : cache frais ou pas, les
+   budgets repassaient en skeleton — et la liste des transactions derrière le
+   drawer avec eux. Même pattern sur `SavingsDistributionDrawer`.
+3. **Les membres du groupe n'avaient pas de cache** (`useGroupMembers` en
+   `useState` + fetch impératif) : chaque bascule perso → groupe relançait
+   `GET /api/groups/[id]/members` et repassait l'en-tête en skeleton.
+   Propre au groupe, mais léger.
+
+### 10.3 Correctifs
+
+- **Toggle → écriture directe du solde.** La RPC renvoie le nouveau solde ;
+  `applyBankBalanceToCache` l'écrit dans `['bank-balance', ctx]` et
+  `['financial-summary', ctx].availableBalance` (= `bank_balances.balance`
+  pur depuis Long-Press). Miroir contribution : `applyContributionPairToCache`
+  patche les DEUX contextes + la ligne miroir de l'autre liste, et
+  `last_applied_amount` suit la RPC (= amount à l'apply, NULL sinon — c'est
+  lui qui pilote le warning « à re-valider »). Zéro requête après le POST
+  sur le chemin nominal ; en 409 / erreur, `invalidateBalanceViews` (2 keys)
+  - la liste. Règle mise à jour dans
+    [applied-balance-toggle.md](../conventions/applied-balance-toggle.md).
+- **Drawers : plus de refetch forcé à l'ouverture.** Le cache est servi ;
+  les mutations et le tire-pour-rafraîchir invalident déjà ces keys.
+- **`useGroupMembers` → TanStack Query** (`['group-members', groupId]`,
+  `enabled` = contexte groupe / modal ouverte), invalidé par les 4 mutations
+  d'appartenance de `useGroups`.
+- **`GET /api/groups` et `/api/groups/contributions`** : 2 lectures en série
+  → `Promise.all` (1 aller-retour), COUNT en `head: true`. Toujours sur
+  `withAuthAndProfile` (§9.1 : la lecture arbitre l'appartenance).
+
+### 10.4 Mesurer, enfin : `scripts/perf-probe.mjs`
+
+```
+POPOTH_SESSION_COOKIE='<cookie session>' node scripts/perf-probe.mjs --base=https://<déploiement> --runs=5
+```
+
+Chronomètre les 12-13 appels d'un chargement de dashboard pour les 2
+contextes (médiane / max, tri du plus lent au plus rapide), puis la « vague »
+(tout en parallèle, comme le dashboard = temps d'attente réel), et affiche la
+**région Vercel** qui a répondu (`x-vercel-id`). Deux lectures possibles :
+vague groupe ≫ vague perso → le coupable est en tête du tableau groupe
+(données) ; vagues proches mais longues → coût structurel (13 appels, région,
+pooler). Ne jamais coller le cookie dans le chat.
+
+⚠️ Au moment de ce sprint, `origin/main` ne contient **aucune** des passes
+de la Part 42 (ni `vercel.json` → région `fra1`, ni le groupe dans le jeton,
+ni les correctifs ci-dessus) : elles vivent sur la branche
+`claude/popoth-groupe-performance-3mrdgd`. Si le test se fait sur la prod
+déployée depuis `main`, la sonde affichera `iad1` et les 3 passes n'ont pas
+pu être ressenties. À vérifier avant toute autre conclusion.
+
+### 10.5 Garde-fous
+
+- `hooks/__tests__/useReal{Expenses,Incomes}.toggle.test.tsx` (10 cas) —
+  « exactement 1 `fetch` sur le chemin nominal », solde écrit en cache, RAV
+  intact, miroir contribution sur les 2 contextes, côté inchangé (solde
+  `null`) non écrasé, 409 / erreur → convergence ciblée.
+- `PlanningDrawer.test.tsx` (+1) — spies hoistés : aucun `refresh*` à
+  l'ouverture.
+- `hooks/__tests__/useGroupMembers.test.tsx` (4 cas) — cache entre montages,
+  gating `enabled` / sans groupe, erreur API.
+- `app/api/groups/__tests__/groups-query-plan.test.ts` (2 cas) — « 2 requêtes
+  en vol simultanément », mesure déterministe sans chrono.
+
+### 10.6 Reste ouvert
+
+- **L'asymétrie perso ↔ groupe elle-même** n'est pas expliquée par le code :
+  à trancher avec la sonde sur le déploiement réel (données, région).
+- Les autres mutations (ajout / édition / suppression) gardent
+  `invalidateFinancialRefreshes` — légitime, elles changent RAV, budgets et
+  progression. Avec les skeletons « remplace » du sprint Skeleton-Refetch-
+  Loaders, chaque mutation vide encore les listes le temps de la vague ;
+  passer à « données visibles + indicateur » pendant un refetch background
+  est une décision produit, pas prise ici.
+- Le nombre d'appels par chargement (13) reste le coût structurel (§9.4).

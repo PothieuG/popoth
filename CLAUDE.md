@@ -116,7 +116,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **954**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **971**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **46**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
@@ -218,7 +218,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Nouvelle route API finance** : handler dans `lib/api/finance/<route>.ts` + `route.ts` ré-exporte.
 - **Nouveau handler API** : `withAuthAndGroup` par défaut, `withAuthAndProfile` si prénom/nom (cf. §6).
 - **Middleware / Edge runtime** : pas de `fetch` self-call HTTP. Extraire en lib pure + import direct. Vérifier transitifs Edge-safe.
-- **Fetch composant** : **TanStack Query** (`useQuery`/`useMutation`). Cross-domain → `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts). Mutations changeant `profile.group_id` invalident aussi `['profile']` + `['groups']`.
+- **Fetch composant** : **TanStack Query** (`useQuery`/`useMutation`). Cross-domain → `invalidateFinancialRefreshes` depuis [@/lib/query-client](lib/query-client.ts). Mutations changeant `profile.group_id` invalident aussi `['profile']` + `['groups']` + `['group-members']`. **Toggle solde** (long-press) : `applyBankBalanceToCache`, jamais les 11 keys ; **pas de `refetch()` forcé à l'ouverture d'un drawer** (Part 42 §10).
 - **Modal forms mirror prop** : `key={editing.id}` + `useState(() => ...editing.foo)` lazy + parent `{isOpen && editing && <Modal ... />}` (Sprint 1.5 standard).
 - **`useReducer`** : extraire reducer + types module dédié sans `'use client'` (pattern [contexts/auth-reducer.ts](contexts/auth-reducer.ts)). Context value via useReducer → wrapper `useMemo` slice-by-slice.
 - **Nouvelle route `/api/debug/*`** : `blockInProduction()` en première instruction.
@@ -332,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 954/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel, groupe dans le jeton, préfetch.
+**État global** : Score ~100. Lint 0/0. Tests 971/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel, groupe dans le jeton, préfetch, toggle ciblé + `perf-probe.mjs`.
 
 **Historique** — 41 parts (153 sprints) :
 
