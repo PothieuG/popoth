@@ -70,42 +70,64 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       )
     }
 
-    // Calculate spent amount this month for each budget
-    const budgetsWithSpending = await Promise.all(
-      (data || []).map(async (budget: EstimatedBudgetRow) => {
-        const currentDate = new Date()
-        const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-        const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+    // Dépensé du mois par budget.
+    //
+    // Sprint Perf-Waterfall (2026-09-10) — c'était un N+1 : une requête
+    // `real_expenses` PAR budget (`.eq('estimated_budget_id', budget.id)`),
+    // lancées en parallèle mais qui saturaient quand même le pool pour un
+    // résultat qu'une seule requête `.in(...)` produit. 12 budgets = 12
+    // requêtes ; désormais 1, quel que soit leur nombre.
+    //
+    // Le regroupement se fait en mémoire : les lignes sont déjà bornées au mois
+    // courant et aux budgets de l'appelant, donc le volume est celui d'un
+    // écran, pas d'un historique.
+    const budgets = data || []
+    const currentDate = new Date()
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+    const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
 
-        const { data: expenses } = await supabaseServer
-          .from('real_expenses')
-          .select('amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget')
-          .eq('estimated_budget_id', budget.id)
-          .is('carried_from_recap_id', null)
-          .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0])
-          .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0])
+    const spentByBudgetId = new Map<string, number>()
+    if (budgets.length > 0) {
+      const { data: expenses } = await supabaseServer
+        .from('real_expenses')
+        .select(
+          'estimated_budget_id, amount, amount_from_piggy_bank, amount_from_budget_savings, amount_from_budget',
+        )
+        .in(
+          'estimated_budget_id',
+          budgets.map((b: EstimatedBudgetRow) => b.id),
+        )
+        .is('carried_from_recap_id', null)
+        .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0] as string)
+        .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0] as string)
 
-        const actualSpent =
-          expenses?.reduce((sum, expense) => {
-            // Use amount_from_budget if available, otherwise use amount (backward compatibility)
-            const amountFromBudget =
-              expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
-                ? parseFloat(expense.amount_from_budget.toString())
-                : parseFloat(expense.amount.toString())
-            return sum + (isNaN(amountFromBudget) ? 0 : amountFromBudget)
-          }, 0) || 0
+      for (const expense of expenses ?? []) {
+        if (!expense.estimated_budget_id) continue
+        // `amount_from_budget` fait foi quand il est renseigné ; repli sur
+        // `amount` pour les lignes antérieures à la ventilation (inchangé).
+        const amountFromBudget =
+          expense.amount_from_budget !== null && expense.amount_from_budget !== undefined
+            ? parseFloat(expense.amount_from_budget.toString())
+            : parseFloat(expense.amount.toString())
+        if (isNaN(amountFromBudget)) continue
+        spentByBudgetId.set(
+          expense.estimated_budget_id,
+          (spentByBudgetId.get(expense.estimated_budget_id) ?? 0) + amountFromBudget,
+        )
+      }
+    }
 
-        // Inclure le carryover (déficit reporté du mois précédent) dans le montant dépensé
-        // Cela affiche le déficit dans l'écran budget sans créer de dépense visible
-        const carryover = parseFloat((budget.carryover_spent_amount || 0).toString())
-        const spentThisMonth = (isNaN(carryover) ? 0 : carryover) + actualSpent
-
-        return {
-          ...budget,
-          spent_this_month: spentThisMonth,
-        }
-      }),
-    )
+    const budgetsWithSpending = budgets.map((budget: EstimatedBudgetRow) => {
+      // Inclure le carryover (déficit reporté du mois précédent) dans le montant
+      // dépensé : affiche le déficit dans l'écran budget sans créer de dépense
+      // visible.
+      const carryover = parseFloat((budget.carryover_spent_amount || 0).toString())
+      const actualSpent = spentByBudgetId.get(budget.id) ?? 0
+      return {
+        ...budget,
+        spent_this_month: (isNaN(carryover) ? 0 : carryover) + actualSpent,
+      }
+    })
 
     return NextResponse.json({ estimated_budgets: budgetsWithSpending })
   } catch (error) {

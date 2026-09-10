@@ -116,7 +116,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **937**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **942**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **46**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
@@ -330,7 +330,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 937/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf dashboard groupe.
+**État global** : Score ~100. Lint 0/0. Tests 942/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel + cascade d'appels.
 
 **Historique** — 41 parts (153 sprints) :
 

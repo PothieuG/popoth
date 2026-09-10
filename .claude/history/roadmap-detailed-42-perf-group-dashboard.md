@@ -1,4 +1,4 @@
-# Part 42 — Perf-Group-Members-Rav-Lazy (2026-09-10)
+# Part 42 — Perf dashboard : RAV par membre, région Vercel, cascade d'appels (2026-09-10)
 
 > 1 sprint. Le dashboard groupe s'affichait visiblement plus lentement que le
 > dashboard perso. Cause : un N+1 par membre dans `GET /api/finance/summary`,
@@ -147,3 +147,81 @@ au passage.
   `useIncomeProgress`, `useProjects` fetchent au montage du dashboard). Coût
   identique en perso et en groupe.
 - **`GET /api/finance/rav`** : route sans consommateur, candidate Path B.
+
+---
+
+## 8. Deuxième passe — la vraie cause (même jour)
+
+Le correctif §4 n'a **rien changé de perceptible en prod**. Retour utilisateur :
+« c'est toujours très lent, j'ai presque l'impression que c'est plus lent ».
+
+### 8.1 L'erreur de méthode
+
+Le §2 mesurait un **nombre de requêtes dans un mock**, pas des millisecondes en
+prod. Or le sprint supprimait ~18 requêtes sur plus de 60, et surtout sur **1
+appel d'API sur les 13** qu'un chargement de dashboard déclenche. Il réduisait
+le _nombre_ de requêtes, jamais leur _latence unitaire_ ni le nombre d'appels —
+les deux termes qui dominaient.
+
+Leçon : un plan de requêtes est un proxy de la performance, pas une mesure. Tant
+qu'on n'a pas le profil de latence réel, on optimise ce qu'on sait compter.
+
+### 8.2 La cause dominante : la région
+
+Le repo n'avait **pas de `vercel.json`**. Vercel place alors les fonctions sur
+`iad1` (Washington DC) par défaut, ce choix visant les bases hébergées sur la
+côte est américaine. La base Supabase de prod est en **`eu-central-1`
+(Francfort)**.
+
+Chaque requête Supabase était donc un aller-retour transatlantique (~80-120 ms
+contre ~10-25 ms en intra-européen), et chaque appel d'API en enchaîne
+plusieurs en série. Fix : `vercel.json` → `"regions": ["fra1"]`. Le plan Free
+autorise une région unique, ce qui suffit.
+
+### 8.3 La forme du problème, au-delà d'une route
+
+Un chargement de dashboard, c'est :
+
+- **13 appels d'API distincts**, donc 13 fonctions serverless indépendantes ;
+- chacune relit `profiles` via `withAuthAndProfile` **avant** d'exécuter son
+  handler (aller-retour bloquant) ;
+- puis fait ses propres requêtes.
+
+Deux gaspillages purs, corrigés ici :
+
+1. **`GET /finance/expenses/real` et `/finance/income/real`** enchaînaient
+   **4 allers-retours en série** en contexte groupe : lecture `profiles`, requête
+   principale, **relecture strictement identique de `profiles`**, puis un
+   `count: 'exact'` (COUNT complet côté Postgres). Les deux derniers alimentaient
+   un champ `total` que le client **n'a jamais lu** — `useRealExpenses` ne retient
+   que `data.real_expenses`, et son `totalExpenses` est une somme de montants,
+   pas un nombre de lignes. Supprimés : 4 allers-retours → 2.
+
+2. **`GET /finance/budgets/estimated`** faisait une requête `real_expenses` **par
+   budget** (`.eq('estimated_budget_id', budget.id)` dans un `Promise.all`).
+   Remplacé par un unique `.in(...)` + regroupement en mémoire : le coût ne
+   dépend plus du nombre de budgets.
+
+### 8.4 Identifié, délibérément NON corrigé
+
+- **`withAuthAndProfile` relit `profiles` avant chaque handler** (13 lectures
+  par chargement). La correction tentante — porter `group_id` dans le JWT —
+  est une **régression de sécurité** : le jeton vit 1 h et se rafraîchit toutes
+  les 50 min, donc un membre qui quitte un groupe garderait un accès en lecture
+  aux données de ce groupe jusqu'à ~50 min. À traiter, si besoin, avec une
+  ré-émission de session sur changement d'appartenance.
+- **Sérialisation en deux vagues** : les deux pages sortent tôt sur `isLoading`
+  de `useProfile`, donc l'arbre enfant n'est monté qu'ensuite et ses 8 requêtes
+  de contenu partent **derrière** `GET /api/profile`. C'est exactement le
+  symptôme rapporté (« la page s'affiche puis les chiffres arrivent »). Non
+  corrigé faute de mesure post-région : à ~15 ms l'aller-retour, cette vague
+  peut être devenue négligeable, et le correctif (lever le gate ou préfetcher au
+  niveau du layout) touche le flux d'onboarding et le garde-fou anti-flicker du
+  sprint Fix-Auth-Flicker. À décider sur données.
+
+### 8.5 Garde-fous
+
+`lib/api/finance/__tests__/list-routes-query-plan.test.ts` (5 cas) : absence de
+`count: 'exact'`, absence de double lecture `profiles`, coût de
+`budgets/estimated` indépendant du nombre de budgets, ventilation du dépensé par
+budget, et report du mois précédent toujours additionné.

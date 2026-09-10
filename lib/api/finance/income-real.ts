@@ -76,7 +76,7 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
         .single()
 
       if (!profile?.group_id) {
-        return NextResponse.json({ real_income_entries: [], total: 0 })
+        return NextResponse.json({ real_income_entries: [] })
       }
 
       query = query.eq('group_id', profile.group_id)
@@ -94,30 +94,16 @@ export const GET = withAuth(async (request: NextRequest, { userId }) => {
       )
     }
 
-    // Get total count for pagination
-    let countQuery = supabaseServer
-      .from('real_income_entries')
-      .select('*', { count: 'exact', head: true })
-
-    if (forGroup) {
-      const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('group_id')
-        .eq('id', userId)
-        .single()
-
-      if (profile?.group_id) {
-        countQuery = countQuery.eq('group_id', profile.group_id)
-      }
-    } else {
-      countQuery = countQuery.eq('profile_id', userId)
-    }
-
-    const { count } = await countQuery
+    // Le COUNT de pagination a ete retiré (Sprint Perf-Waterfall 2026-09-10).
+    // Il coûtait deux allers-retours SERIE de plus par appel : une relecture
+    // strictement identique de `profiles` (le `group_id` etait deja en main
+    // quelques lignes plus haut) puis un `count: 'exact'`, qui force Postgres a
+    // compter toutes les lignes correspondantes. Le client n'a jamais lu ce
+    // `total` : `useRealIncomes` ne retient que `data.real_income_entries`, et son
+    // `totalIncomes` est une somme des montants recus, pas un nombre de lignes.
 
     return NextResponse.json({
       real_income_entries: data || [],
-      total: count || 0,
       limit,
       offset,
     })
