@@ -416,12 +416,12 @@ vague groupe ≫ vague perso → le coupable est en tête du tableau groupe
 (données) ; vagues proches mais longues → coût structurel (13 appels, région,
 pooler). Ne jamais coller le cookie dans le chat.
 
-⚠️ Au moment de ce sprint, `origin/main` ne contient **aucune** des passes
-de la Part 42 (ni `vercel.json` → région `fra1`, ni le groupe dans le jeton,
-ni les correctifs ci-dessus) : elles vivent sur la branche
-`claude/popoth-groupe-performance-3mrdgd`. Si le test se fait sur la prod
-déployée depuis `main`, la sonde affichera `iad1` et les 3 passes n'ont pas
-pu être ressenties. À vérifier avant toute autre conclusion.
+Vérifié après fetch : `main` et `dev` sont à `ae24e7b`, donc les passes §4,
+§8 et §9 (région `fra1`, groupe dans le jeton, préfétch) **sont déployées**.
+Le retour « toujours lent » a été fait AVEC elles en place — ce qui renforce
+le diagnostic de cette passe : le coût ressenti n'était pas dans le
+chargement mais dans l'après-geste (§10.2). Il reste à mesurer avec la sonde
+pour trancher l'asymétrie perso ↔ groupe (données, pooler).
 
 ### 10.5 Garde-fous
 
