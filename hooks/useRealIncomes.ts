@@ -3,7 +3,14 @@
 import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
-import { invalidateFinancialRefreshes } from '@/lib/query-client'
+import {
+  applyBankBalanceToCache,
+  applyContributionPairToCache,
+  invalidateBalanceViews,
+  invalidateFinancialRefreshes,
+  type ContributionPairToggle,
+  type FinancialContext,
+} from '@/lib/query-client'
 
 /**
  * Sprint Salary-Auto-At-Recap-Complete (2026-06-05). Réponse du RPC
@@ -241,15 +248,21 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     },
   })
 
-  /** Cf. useRealExpenses.toggleAppliedMutation — miroir pour revenus. */
+  /**
+   * Cf. useRealExpenses.toggleAppliedMutation — miroir pour revenus.
+   *
+   * Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — plus d'
+   * `invalidateFinancialRefreshes` : le solde renvoyé par la RPC est écrit
+   * directement dans `['bank-balance']` + `['financial-summary']`, la liste
+   * n'est refetchée qu'en 409 / erreur (justification dans lib/query-client.ts).
+   */
+  const balanceContext: FinancialContext = context === 'group' ? 'group' : 'profile'
   type ToggleVars = { id: string; apply: boolean }
   type ToggleContext = { previous: RealIncome[] | undefined }
-  const toggleAppliedMutation = useMutation<
-    { ok: true; balance: number; appliedAt: string | null } | { ok: false; status: number },
-    Error,
-    ToggleVars,
-    ToggleContext
-  >({
+  type ToggleResult =
+    | { ok: true; balance: number; appliedAt: string | null; pair: ContributionPairToggle | null }
+    | { ok: false; status: number }
+  const toggleAppliedMutation = useMutation<ToggleResult, Error, ToggleVars, ToggleContext>({
     mutationFn: async ({ id, apply }) => {
       const response = await fetch('/api/finance/income/real/toggle-applied', {
         method: 'POST',
@@ -263,7 +276,12 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         throw new Error(errorData?.error || `Erreur ${response.status}`)
       }
       const json = await response.json()
-      return { ok: true, balance: json.data.balance, appliedAt: json.data.appliedToBalanceAt }
+      return {
+        ok: true,
+        balance: json.data.balance,
+        appliedAt: json.data.appliedToBalanceAt,
+        pair: json.data.pair ?? null,
+      }
     },
     onMutate: async ({ id, apply }) => {
       await queryClient.cancelQueries({ queryKey })
@@ -277,21 +295,33 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
       )
       return { previous }
     },
-    onSuccess: (result, { id }) => {
+    onSuccess: (result, { id, apply }) => {
       if (!result.ok) return
       queryClient.setQueryData<RealIncome[]>(queryKey, (prev = []) =>
-        prev.map((i) => (i.id === id ? { ...i, applied_to_balance_at: result.appliedAt } : i)),
+        prev.map((i) =>
+          i.id === id
+            ? {
+                ...i,
+                applied_to_balance_at: result.appliedAt,
+                last_applied_amount: apply ? i.amount : null,
+              }
+            : i,
+        ),
       )
+      if (result.pair) {
+        applyContributionPairToCache(queryClient, result.pair, result.appliedAt)
+      } else {
+        applyBankBalanceToCache(queryClient, balanceContext, result.balance)
+      }
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
       logger.error('❌ [useRealIncomes] Error in toggleApplied:', err)
     },
-    // ⚠️ Pas d'invalidateQueries(['real-incomes']) — cf. useRealExpenses
-    // pour la justification (UX skeleton "vide" la liste pendant ~300ms).
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
-      invalidateFinancialRefreshes(queryClient)
+    onSettled: (result) => {
+      if (result?.ok) return
+      queryClient.invalidateQueries({ queryKey })
+      invalidateBalanceViews(queryClient, balanceContext)
     },
   })
 
@@ -357,14 +387,16 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
             : i,
         ),
       )
+      applyBankBalanceToCache(queryClient, balanceContext, result.balance)
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
       logger.error('❌ [useRealIncomes] Error in toggleCarryApplied:', err)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
-      invalidateFinancialRefreshes(queryClient)
+    onSettled: (result) => {
+      if (result?.ok) return
+      queryClient.invalidateQueries({ queryKey })
+      invalidateBalanceViews(queryClient, balanceContext)
     },
   })
 

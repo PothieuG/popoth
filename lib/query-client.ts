@@ -82,3 +82,121 @@ export function invalidateFinancialRefreshes(qc: QueryClient): Promise<void> {
     qc.invalidateQueries({ queryKey: ['projects'] }),
   ]).then(() => {})
 }
+
+// ─── Toggle « appliqué au solde » — rafraîchissement ciblé ─────────────────
+//
+// Sprint Perf-Toggle-Targeted-Refresh (2026-09-10). Un long-press ne change
+// que `bank_balances.balance` et le flag de la ligne (déjà posé en optimiste
+// par le hook). Ni le RAV, ni les budgets, ni la progression, ni les
+// contributions, ni le verrou salaire n'en dépendent — vérifié sur
+// `_loadFinancialData`, `budgets-estimated`, `expenses-progress`,
+// `planner-emptiness` : aucun ne lit `applied_to_balance_at`.
+//
+// Appeler `invalidateFinancialRefreshes` après un toggle relançait donc les
+// 11 keys pour rien : ~12 appels d'API et ~35 requêtes en parallèle, dont le
+// refetch de la liste elle-même — qui la remplaçait par un skeleton le temps
+// que tout revienne. C'était le « c'est long quand je valide une dépense ».
+//
+// La RPC renvoie le nouveau solde : c'est exactement ce que `useBankBalance`
+// et `FinancialData.availableBalance` (= `bank_balances.balance`, pur depuis
+// Sprint Long-Press) afficheraient après refetch. On l'écrit directement.
+
+export type FinancialContext = 'profile' | 'group'
+
+/** Shape minimale du cache `['bank-balance', ctx]` (cf. useBankBalance). */
+interface BankBalanceCache {
+  balance: number
+  graceful_default?: boolean
+}
+
+/** Shape minimale du cache `['financial-summary', ctx]` (cf. useFinancialData). */
+interface FinancialSummaryCache {
+  data: { availableBalance: number }
+}
+
+/** Champs d'une ligne de liste (dépense ou revenu) touchés par un toggle. */
+interface AppliedRowCache {
+  id: string
+  amount: number
+  applied_to_balance_at?: string | null
+  last_applied_amount?: number | null
+}
+
+/**
+ * Résultat de la RPC `toggle_contribution_pair_applied`, tel que renvoyé par
+ * les routes `toggle-applied` sous `data.pair` quand la ligne est un miroir de
+ * contribution (dépense perso ↔ revenu groupe).
+ */
+export interface ContributionPairToggle {
+  expenseId: string
+  incomeId: string
+  expenseChanged: boolean
+  incomeChanged: boolean
+  /** `null` quand ce côté était déjà dans l'état cible (pas de mouvement). */
+  expenseBalance: number | null
+  incomeBalance: number | null
+  applied: boolean
+}
+
+/**
+ * Écrit le solde renvoyé par un toggle dans les deux caches qui l'affichent
+ * (ligne de solde du drawer + carte « Solde disponible ») — sans refetch.
+ */
+export function applyBankBalanceToCache(
+  qc: QueryClient,
+  context: FinancialContext,
+  balance: number,
+): void {
+  qc.setQueryData<BankBalanceCache>(['bank-balance', context], (prev) => ({ ...prev, balance }))
+  // Pas d'entrée en cache → rien à patcher : on ne fabrique pas un résumé
+  // partiel, le prochain montage le chargera entier.
+  qc.setQueryData<FinancialSummaryCache>(['financial-summary', context], (prev) =>
+    prev ? { ...prev, data: { ...prev.data, availableBalance: balance } } : prev,
+  )
+}
+
+/**
+ * Répercute un toggle de paire contribution sur les DEUX contextes : la
+ * dépense miroir vit dans `['real-expenses', 'profile']`, le revenu miroir
+ * dans `['real-incomes', 'group']`, et chaque côté a son propre solde.
+ *
+ * `last_applied_amount` suit la RPC : `= amount` à l'apply, `NULL` à l'un-apply.
+ * Sans ce champ, l'encart « contribution à re-valider » (drift) resterait
+ * affiché jusqu'au prochain refetch — c'est lui, pas le flag, qui pilote le
+ * warning de `TransactionListItem`.
+ */
+export function applyContributionPairToCache(
+  qc: QueryClient,
+  pair: ContributionPairToggle,
+  appliedAt: string | null,
+): void {
+  const patchRow = <T extends AppliedRowCache>(rows: T[] | undefined, id: string) =>
+    rows?.map((row) =>
+      row.id === id
+        ? {
+            ...row,
+            applied_to_balance_at: appliedAt,
+            last_applied_amount: pair.applied ? row.amount : null,
+          }
+        : row,
+    )
+  qc.setQueryData<AppliedRowCache[]>(['real-expenses', 'profile'], (prev) =>
+    patchRow(prev, pair.expenseId),
+  )
+  qc.setQueryData<AppliedRowCache[]>(['real-incomes', 'group'], (prev) =>
+    patchRow(prev, pair.incomeId),
+  )
+  if (pair.expenseBalance != null) applyBankBalanceToCache(qc, 'profile', pair.expenseBalance)
+  if (pair.incomeBalance != null) applyBankBalanceToCache(qc, 'group', pair.incomeBalance)
+}
+
+/**
+ * Convergence quand le toggle n'a PAS renvoyé de solde (409 « déjà dans
+ * l'état cible », erreur réseau) : les 2 keys qui affichent le solde, pas 11.
+ */
+export function invalidateBalanceViews(qc: QueryClient, context: FinancialContext): Promise<void> {
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ['bank-balance', context] }),
+    qc.invalidateQueries({ queryKey: ['financial-summary', context] }),
+  ]).then(() => {})
+}

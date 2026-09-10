@@ -3,7 +3,14 @@
 import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
-import { invalidateFinancialRefreshes } from '@/lib/query-client'
+import {
+  applyBankBalanceToCache,
+  applyContributionPairToCache,
+  invalidateBalanceViews,
+  invalidateFinancialRefreshes,
+  type ContributionPairToggle,
+  type FinancialContext,
+} from '@/lib/query-client'
 
 export interface RealExpense {
   id: string
@@ -265,25 +272,26 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
    * the previous list, mutates the row locally, then issues the POST.
    *
    * 200 → setQueryData remplace l'ISO optimiste par le timestamp
-   *       server-authoritative (precision PG NOW()).
-   * 409 → no-op (concurrent mutation already in target state, optimistic
-   *       value matches truth — nothing to do).
-   * Other errors → rollback to snapshot.
+   *       server-authoritative (precision PG NOW()) et écrit le solde renvoyé
+   *       par la RPC dans `['bank-balance']` + `['financial-summary']`.
+   * 409 → no-op (concurrent mutation already in target state) : on refetch la
+   *       liste + les 2 vues du solde pour converger.
+   * Other errors → rollback to snapshot, même convergence.
    *
-   * ⚠️ Pas d'invalidateQueries(['real-expenses']) ici (sinon refetch =
-   * skeleton "vide" la liste pendant ~300ms post-long-press, UX cassée).
-   * L'optimistic + setQueryData onSuccess donnent un état déjà convergé
-   * avec le serveur. Le bank-balance + financial-summary sont invalidés
-   * pour rafraîchir le drawer + le solde dashboard.
+   * Sprint Perf-Toggle-Targeted-Refresh (2026-09-10) — plus AUCUN
+   * `invalidateFinancialRefreshes` ici. Un toggle ne change que le solde
+   * (cf. lib/query-client.ts) ; relancer les 11 keys coûtait ~12 appels d'API
+   * en parallèle et remplaçait la liste par un skeleton jusqu'à leur retour.
+   * Le solde arrive dans la réponse : zéro requête de plus sur le chemin
+   * nominal.
    */
+  const balanceContext: FinancialContext = context === 'group' ? 'group' : 'profile'
   type ToggleVars = { id: string; apply: boolean }
   type ToggleContext = { previous: RealExpense[] | undefined }
-  const toggleAppliedMutation = useMutation<
-    { ok: true; balance: number; appliedAt: string | null } | { ok: false; status: number },
-    Error,
-    ToggleVars,
-    ToggleContext
-  >({
+  type ToggleResult =
+    | { ok: true; balance: number; appliedAt: string | null; pair: ContributionPairToggle | null }
+    | { ok: false; status: number }
+  const toggleAppliedMutation = useMutation<ToggleResult, Error, ToggleVars, ToggleContext>({
     mutationFn: async ({ id, apply }) => {
       const response = await fetch('/api/finance/expenses/real/toggle-applied', {
         method: 'POST',
@@ -297,7 +305,12 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
         throw new Error(errorData?.error || `Erreur ${response.status}`)
       }
       const json = await response.json()
-      return { ok: true, balance: json.data.balance, appliedAt: json.data.appliedToBalanceAt }
+      return {
+        ok: true,
+        balance: json.data.balance,
+        appliedAt: json.data.appliedToBalanceAt,
+        pair: json.data.pair ?? null,
+      }
     },
     onMutate: async ({ id, apply }) => {
       await queryClient.cancelQueries({ queryKey })
@@ -311,19 +324,39 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       )
       return { previous }
     },
-    onSuccess: (result, { id }) => {
+    onSuccess: (result, { id, apply }) => {
       if (!result.ok) return
+      // `last_applied_amount` suit la RPC (= amount à l'apply, NULL sinon) :
+      // c'est lui qui pilote le warning « à re-valider » des lignes contribution.
       queryClient.setQueryData<RealExpense[]>(queryKey, (prev = []) =>
-        prev.map((e) => (e.id === id ? { ...e, applied_to_balance_at: result.appliedAt } : e)),
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                applied_to_balance_at: result.appliedAt,
+                last_applied_amount: apply ? e.amount : null,
+              }
+            : e,
+        ),
       )
+      if (result.pair) {
+        // Miroir contribution : la dépense perso ET le revenu groupe ont
+        // basculé ensemble, chacun avec son solde.
+        applyContributionPairToCache(queryClient, result.pair, result.appliedAt)
+      } else {
+        applyBankBalanceToCache(queryClient, balanceContext, result.balance)
+      }
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
       logger.error('❌ [useRealExpenses] Error in toggleApplied:', err)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
-      invalidateFinancialRefreshes(queryClient)
+    onSettled: (result) => {
+      // Chemin nominal : tout est déjà en cache, rien à relancer. Sans solde
+      // renvoyé (409 / erreur), on refetch la liste et les 2 vues du solde.
+      if (result?.ok) return
+      queryClient.invalidateQueries({ queryKey })
+      invalidateBalanceViews(queryClient, balanceContext)
     },
   })
 
@@ -393,14 +426,19 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
             : e,
         ),
       )
+      // Valider un report ne touche que le solde : `carried_from_recap_id`
+      // (la mémoire) est conservé, donc RAV / budgets / progression, qui
+      // filtrent dessus, ne bougent pas (Part 35).
+      applyBankBalanceToCache(queryClient, balanceContext, result.balance)
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous)
       logger.error('❌ [useRealExpenses] Error in toggleCarryApplied:', err)
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['bank-balance'] })
-      invalidateFinancialRefreshes(queryClient)
+    onSettled: (result) => {
+      if (result?.ok) return
+      queryClient.invalidateQueries({ queryKey })
+      invalidateBalanceViews(queryClient, balanceContext)
     },
   })
 
