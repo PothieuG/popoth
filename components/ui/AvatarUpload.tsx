@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react'
 import type { ProfileData } from '@/app/api/profile/route'
 import { logger } from '@/lib/logger'
+import { shrinkImageToDataUrl } from '@/lib/avatar-image'
+import { AVATAR_SOURCE_MAX_BYTES } from '@/lib/constants/avatar'
 import UserAvatar from './UserAvatar'
 
 interface AvatarUploadProps {
@@ -34,18 +36,6 @@ export default function AvatarUpload({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   /**
-   * Convert file to base64 data URL for avatar storage
-   */
-  const convertFileToDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-  }
-
-  /**
    * Handle file selection and upload
    */
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,15 +48,20 @@ export default function AvatarUpload({
       return
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert("L'image doit faire moins de 5 MB")
+    // Borne sur le fichier SOURCE : il est redimensionné à 256 px avant
+    // stockage, donc une photo de téléphone de 8 Mo passe très bien.
+    if (file.size > AVATAR_SOURCE_MAX_BYTES) {
+      alert("L'image doit faire moins de 15 Mo")
       return
     }
 
     setIsProcessing(true)
     try {
-      const dataUrl = await convertFileToDataUrl(file)
+      // Sprint Fix-Avatar-Payload (2026-09-11) — l'ancien `readAsDataURL`
+      // stockait la photo brute (3,7 Mo de base64 pour un membre), rejouée
+      // ensuite dans chaque ligne de transaction du groupe. On stocke un
+      // JPEG ≤ 256 px (10-30 Ko).
+      const dataUrl = await shrinkImageToDataUrl(file)
       await onAvatarUpdate(dataUrl)
     } catch (error) {
       logger.error('Error uploading avatar:', error)

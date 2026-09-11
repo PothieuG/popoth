@@ -26,7 +26,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = Record<string, unknown>
 
 const STATE: { value: Record<string, Row[]> } = { value: {} }
-const PROBE = { fromCalls: [] as string[], exactCounts: 0 }
+const PROBE = { fromCalls: [] as string[], exactCounts: 0, selects: [] as string[] }
 
 vi.mock('@/lib/api/with-auth', () => {
   type AnyHandler = (...args: unknown[]) => Promise<unknown>
@@ -57,8 +57,9 @@ vi.mock('@/lib/supabase-server', () => {
         filters.every((f) => f.values.includes(row[f.key])),
       )
 
-    builder.select = (_cols?: string, opts?: { count?: string }) => {
+    builder.select = (cols?: string, opts?: { count?: string }) => {
       if (opts?.count === 'exact') PROBE.exactCounts += 1
+      if (cols) PROBE.selects.push(cols)
       return builder
     }
     builder.eq = (key: string, value: unknown) => {
@@ -125,6 +126,7 @@ beforeEach(() => {
   STATE.value = { profiles: [{ id: 'user-1', group_id: 'group-1' }] }
   PROBE.fromCalls = []
   PROBE.exactCounts = 0
+  PROBE.selects = []
 })
 
 afterEach(() => {
@@ -210,5 +212,35 @@ describe('routes de liste — plan de requêtes', () => {
     }
 
     expect(body.estimated_budgets[0]?.spent_this_month).toBe(70)
+  })
+})
+
+// Sprint Fix-Avatar-Payload (2026-09-11). HAR prod : `GET /finance/expenses/real
+// ?group=true` répondait 500 après 14,7 s parce que la jointure `created_by`
+// embarquait `profiles.avatar_url` — une photo brute de 3,7 Mo en base64 —
+// dans CHAQUE ligne. L'avatar du créateur est désormais résolu côté client
+// depuis la liste des membres (1 requête, en cache).
+describe('routes de liste — la jointure created_by ne porte plus la photo', () => {
+  it('expenses/real : created_by = id, prénom, nom — jamais avatar_url', async () => {
+    STATE.value.real_expenses = [expense('b1', 40)]
+    const { GET } = await import('../expenses-real')
+
+    await GET(req('http://x/api/finance/expenses/real?group=true'))
+
+    const joined = PROBE.selects.find((c) => c.includes('created_by:profiles'))
+    expect(joined).toBeDefined()
+    expect(joined).toContain('(id, first_name, last_name)')
+    expect(joined).not.toContain('avatar_url')
+  })
+
+  it('income/real : même contrat', async () => {
+    STATE.value.real_income_entries = [{ group_id: 'group-1', amount: 10 }]
+    const { GET } = await import('../income-real')
+
+    await GET(req('http://x/api/finance/income/real?group=true'))
+
+    const joined = PROBE.selects.find((c) => c.includes('created_by:profiles'))
+    expect(joined).toBeDefined()
+    expect(joined).not.toContain('avatar_url')
   })
 })

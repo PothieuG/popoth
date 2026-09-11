@@ -128,7 +128,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
             `
             *,
             estimated_budget:estimated_budgets(name),
-            created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+            created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
           `,
           )
           .eq('id', expenseId)
@@ -172,7 +172,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
           `
           *,
           estimated_budget:estimated_budgets(name),
-          created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+          created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
         `,
         )
         .single()
@@ -367,7 +367,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
         `
         *,
         estimated_budget:estimated_budgets(name),
-        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
       `,
       )
       .eq('id', expenseId)

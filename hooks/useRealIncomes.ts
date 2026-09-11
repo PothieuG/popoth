@@ -91,7 +91,9 @@ export interface RealIncome {
     id: string
     first_name: string | null
     last_name: string | null
-    avatar_url: string | null
+    /** Absent des réponses de liste (Sprint Fix-Avatar-Payload) — l'avatar du
+     * créateur est résolu côté client depuis `useGroupMembers`. */
+    avatar_url?: string | null
   } | null
 }
 

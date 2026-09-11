@@ -26,6 +26,7 @@ const LONG_PRESS_DELAY_MS = 800
  */
 function toCreatorProfile(
   createdBy: NonNullable<RealExpense['created_by'] | RealIncome['created_by']> | null | undefined,
+  creatorAvatarUrl: string | null | undefined,
 ): ProfileData | null {
   if (!createdBy) return null
   return {
@@ -35,7 +36,11 @@ function toCreatorProfile(
     salary: 0,
     group_id: null,
     group_name: null,
-    avatar_url: createdBy.avatar_url,
+    // Sprint Fix-Avatar-Payload (2026-09-11) : l'avatar n'est plus joint aux
+    // lignes (une photo brute de 3,7 Mo y était répétée à chaque ligne) — le
+    // parent le résout depuis la liste des membres. Le champ de la ligne reste
+    // un repli pour les appelants qui le fournissent encore.
+    avatar_url: creatorAvatarUrl ?? createdBy.avatar_url ?? null,
     created_at: null,
     updated_at: null,
   }
@@ -147,6 +152,13 @@ interface TransactionListItemProps {
    */
   readOnly?: boolean
   className?: string
+  /**
+   * Sprint Fix-Avatar-Payload (2026-09-11). Avatar du créateur, résolu par le
+   * parent depuis `useGroupMembers` (contexte groupe). Les réponses de liste
+   * ne portent plus `created_by.avatar_url`. `undefined` = inconnu → repli
+   * sur la ligne, puis initiales.
+   */
+  creatorAvatarUrl?: string | null
 }
 
 /**
@@ -167,8 +179,9 @@ export default function TransactionListItem({
   piggyBankAmount = null,
   readOnly = false,
   className,
+  creatorAvatarUrl,
 }: TransactionListItemProps) {
-  const creatorProfile = toCreatorProfile(transaction.created_by)
+  const creatorProfile = toCreatorProfile(transaction.created_by, creatorAvatarUrl)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isPressing, setIsPressing] = useState(false)

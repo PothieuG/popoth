@@ -6,6 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import { useRealExpenses, type RealExpense } from '@/hooks/useRealExpenses'
 import { useRealIncomes, type RealIncome } from '@/hooks/useRealIncomes'
+import { useProfile } from '@/hooks/useProfile'
+import { useGroupMembers } from '@/hooks/useGroupMembers'
 import { useIncomes } from '@/hooks/useIncomes'
 import { useBudgets } from '@/hooks/useBudgets'
 import { useFinancialData } from '@/hooks/useFinancialData'
@@ -119,6 +121,18 @@ export default function TransactionTabsComponent({
   const { financialData } = useFinancialData(context)
   const { expenseProgress } = useProgressData(context, period)
   const currentRemainingToLive = financialData?.remainingToLive ?? null
+
+  // Sprint Fix-Avatar-Payload (2026-09-11) — l'avatar du créateur de chaque
+  // ligne vient de la liste des membres (1 requête, en cache, partagée avec
+  // l'en-tête), plus de la jointure `created_by` des listes : une photo brute
+  // de 3,7 Mo y était répétée à CHAQUE ligne, jusqu'au 500 après 14,7 s de
+  // `GET /api/finance/expenses/real?group=true` (HAR prod du 2026-09-11).
+  const { profile } = useProfile()
+  const { members } = useGroupMembers(profile?.group_id, { enabled: context === 'group' })
+  const avatarById = useMemo(
+    () => new Map(members.map((m) => [m.id, m.avatar_url] as const)),
+    [members],
+  )
 
   // Sprint P1 — filter CSR by period. Range null = no filter applied.
   // Sprint Complete-Month-Step (2026-05-29) — `dateRangeOverride` prop takes
@@ -449,6 +463,7 @@ export default function TransactionTabsComponent({
                 transaction={expense}
                 type="expense"
                 context={context}
+                creatorAvatarUrl={avatarById.get(expense.created_by?.id ?? '')}
                 currentRemainingToLive={currentRemainingToLive}
                 budgetSnapshot={budgetSnapshot}
                 piggyBankAmount={financialData?.piggyBank ?? null}
@@ -487,6 +502,7 @@ export default function TransactionTabsComponent({
                 transaction={income}
                 type="income"
                 context={context}
+                creatorAvatarUrl={avatarById.get(income.created_by?.id ?? '')}
                 incomeSourceContext={ctx}
                 currentRemainingToLive={currentRemainingToLive}
                 readOnly={readOnly}

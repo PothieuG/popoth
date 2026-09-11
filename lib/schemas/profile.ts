@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { hasAtMostTwoDecimals } from './common'
+import { AVATAR_URL_MAX_CHARS } from '@/lib/constants/avatar'
 
 /**
  * Profile salary range: 0 < salary <= 999999.99, at most 2 decimals.
@@ -17,11 +18,23 @@ const salarySchema = z
 
 const nameSchema = z.string().trim().min(1, 'Ne peut pas être vide')
 
+/**
+ * Sprint Fix-Avatar-Payload (2026-09-11). `z.string().url()` accepte les data
+ * URL (`data:image/jpeg;base64,…`) — c'est voulu, l'avatar est stocké inline.
+ * La borne de longueur est la garde serveur contre une photo brute : le client
+ * redimensionne (`lib/avatar-image.ts`), mais un appel direct à l'API ne doit
+ * pas pouvoir remettre 3,7 Mo dans `profiles.avatar_url`.
+ */
+const avatarUrlSchema = z
+  .string()
+  .url('URL invalide')
+  .max(AVATAR_URL_MAX_CHARS, 'Photo trop lourde : elle doit être redimensionnée avant envoi')
+
 export const createProfileBodySchema = z.object({
   first_name: nameSchema,
   last_name: nameSchema,
   salary: salarySchema.optional(),
-  avatar_url: z.string().url('URL invalide').nullable().optional(),
+  avatar_url: avatarUrlSchema.nullable().optional(),
 })
 
 /**
@@ -34,7 +47,7 @@ export const updateProfileBodySchema = z
     first_name: nameSchema.optional(),
     last_name: nameSchema.optional(),
     salary: salarySchema.optional(),
-    avatar_url: z.string().url('URL invalide').nullable().optional(),
+    avatar_url: avatarUrlSchema.nullable().optional(),
   })
   .refine(
     (data) =>

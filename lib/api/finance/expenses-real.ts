@@ -35,7 +35,8 @@ export interface RealExpenseData {
     id: string
     first_name: string | null
     last_name: string | null
-    avatar_url: string | null
+    /** Plus jointe côté API (Sprint Fix-Avatar-Payload) : résolue côté client. */
+    avatar_url?: string | null
   } | null
   /**
    * Feature "Contribution au groupe" (2026-05-28) — non-null = row auto-managée
@@ -79,7 +80,7 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
         `
         *,
         estimated_budget:estimated_budgets(name),
-        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
       `,
       )
       .order('expense_date', { ascending: false })
@@ -206,7 +207,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
         `
         *,
         estimated_budget:estimated_budgets(name),
-        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+        created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
       `,
       )
       .single()
@@ -468,7 +469,7 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
     const selectClause = `
       *,
       estimated_budget:estimated_budgets(name),
-      created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name, avatar_url)
+      created_by:profiles!real_expenses_created_by_profile_id_fkey(id, first_name, last_name)
     `
     const { data, error } = skipFinalUpdate
       ? await supabaseServer.from('real_expenses').select(selectClause).eq('id', id).single()
