@@ -116,7 +116,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **971**                   | `pnpm test:run`                                                                                                          |
+| Tests non-gated passants               | **988**                   | `pnpm test:run`                                                                                                          |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
 | Routes API                             | **46**                    | `pnpm build`                                                                                                             |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
@@ -247,6 +247,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Wizard single-step `AddTransactionModal`** — 2-step requis pour P6.
 - **Travail par membre dans `_loadFinancialData`** — N+1 payé à chaque chargement du dashboard groupe. RAV par membre lazy : `loadGroupMembersRav` + route dédiée, fetché par `PlanningDrawer` à l'ouverture. Pinné par `financial-data-query-plan.test.ts` — coût groupe = coût perso, quel que soit le nombre de membres ([Part 42](.claude/history/roadmap-detailed-42-perf-group-dashboard.md)).
 
+- **Photo brute dans `profiles.avatar_url` / `avatar_url` dans un JOIN de liste** — cause réelle du « groupe lent » (500 après 14,7 s, HAR 2026-09-11). Client `shrinkImageToDataUrl` 256 px, Zod `AVATAR_URL_MAX_CHARS`, avatar créateur via `useGroupMembers` ([Part 42 §11](.claude/history/roadmap-detailed-42-perf-group-dashboard.md)).
 - **Muter `profiles.group_id` sans `updateSessionGroup(...)`** — le groupe vit dans le jeton ; sans ré-émission les routes servent l'ancien groupe ≤ 50 min. 4 sites (créer/rejoindre/quitter/supprimer). Une fonction « exclure un membre » casserait ce mécanisme.
 
 **Patterns DB non-atomiques (composite RPCs requis)**
@@ -332,7 +333,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 971/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région Vercel, groupe dans le jeton, préfetch, toggle ciblé + `perf-probe.mjs`.
+**État global** : Score ~100. Lint 0/0. Tests 988/254. 46 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : perf — région, jeton, préfetch, toggle ciblé, avatars 256 px.
 
 **Historique** — 41 parts (153 sprints) :
 

@@ -447,3 +447,78 @@ pour trancher l'asymétrie perso ↔ groupe (données, pooler).
   passer à « données visibles + indicateur » pendant un refetch background
   est une décision produit, pas prise ici.
 - Le nombre d'appels par chargement (13) reste le coût structurel (§9.4).
+
+---
+
+## 11. Cinquième passe — la cause réelle, enfin mesurée (2026-09-11, sprint Fix-Avatar-Payload)
+
+L'utilisateur a fourni un HAR de la bascule vers l'onglet Groupe, enregistré en
+prod après le déploiement de la 4e passe. Douze requêtes, région `fra1`
+confirmée, et une lecture sans ambiguïté :
+
+| Requête                                               | HTTP    | Attente       |
+| ----------------------------------------------------- | ------- | ------------- |
+| `/api/finance/summary?context=group`                  | 200     | 377 ms        |
+| `/api/finance/budgets/estimated?group=true`           | 200     | 247 ms        |
+| 6 autres appels API                                   | 200     | 150-190 ms    |
+| **`/api/finance/expenses/real?group=true&limit=100`** | **500** | **14 674 ms** |
+| `data:image/jpeg;base64,…` (3 679 044 octets)         | —       | image inline  |
+
+Tout répond en moins de 400 ms, sauf la liste des dépenses du groupe qui tombe
+en 500 après 14,7 s, avec le corps `{"error":"Erreur lors de la récupération
+des dépenses"}` — le `catch` de la route, donc une erreur Supabase. Avec
+`retry: 1`, le client réessaie une fois : ~30 s de skeleton, puis erreur. Et
+comme `useBudgetProgress` (planificateur) consomme la même query, les budgets
+« se rechargent » indéfiniment. Chaque mutation relançait cette même requête.
+
+### 11.1 La cause
+
+La 12e entrée du HAR est une image `data:` de **3,7 Mo** : la photo de profil
+d'un membre. `AvatarUpload` stockait le fichier brut du téléphone en base64
+dans `profiles.avatar_url` (`readAsDataURL`, aucun redimensionnement), et
+`z.string().url()` accepte une data URL de n'importe quelle taille.
+
+Les routes de liste joignaient `created_by:profiles(id, first_name,
+last_name, avatar_url)` : **3,7 Mo répétés dans chaque ligne créée par ce
+membre**. 50 lignes = 185 Mo de JSON à sérialiser côté Postgres et à
+transporter — d'où l'échec. En perso, les lignes sont créées par l'utilisateur
+lui-même (avatar petit ou absent) et l'avatar n'est même pas rendu : d'où
+« perso rapide, groupe lent ». `summary`, `progress`, `budgets` ne joignent
+pas l'avatar : rapides dans les deux contextes. Le code était bien symétrique
+(§10.1) ; la donnée ne l'était pas.
+
+### 11.2 Correctifs
+
+- **Lists sans photo.** Les 8 JOIN `created_by` (3 `expenses-real`, 3
+  `income-real`, 2 `expenses-add-with-logic`) ne sélectionnent plus
+  `avatar_url`. `TransactionTabsComponent` résout l'avatar du créateur depuis
+  `useGroupMembers` (1 requête, en cache, partagée avec l'en-tête) et le passe
+  en prop `creatorAvatarUrl` à `TransactionListItem`. Une liste de 100 lignes
+  redevient ~50 Ko.
+- **Redimensionnement client** : `lib/avatar-image.ts` → JPEG ≤ 256 px q0.82
+  (10-30 Ko), orientation EXIF respectée via `createImageBitmap`.
+- **Garde serveur** : `avatar_url` borné à `AVATAR_URL_MAX_CHARS` (120 000)
+  dans les schémas Zod create/update — une photo brute ne peut plus revenir
+  par un appel direct à l'API.
+- **Données existantes** : `scripts/shrink-avatars.mjs` (sharp, dry-run par
+  défaut, `--apply` pour écrire) ramène les avatars déjà stockés à 256 px.
+  À lancer sur prod : c'est ce qui rend les 3,7 Mo inoffensifs partout où ils
+  restent servis (`/api/profile`, `/api/groups/[id]/members`).
+
+### 11.3 Garde-fous
+
+- `list-routes-query-plan.test.ts` (+2) — le JOIN `created_by` des 2 routes de
+  liste ne contient jamais `avatar_url`.
+- `lib/schemas/__tests__/profile.test.ts` (+4) — data URL > borne refusée avec
+  message métier, ≤ borne acceptée, `null` accepté.
+- `lib/__tests__/avatar-image.test.ts` (7) — `fitWithin` (portrait, paysage,
+  jamais agrandi) et la borne exacte.
+- `TransactionListItem.avatar.test.tsx` (4) — avatar fourni par le parent,
+  initiales sans avatar, repli sur la ligne, rien en perso.
+
+### 11.4 Leçon
+
+Trois passes ont optimisé un plan de requêtes symétrique sans jamais voir
+qu'une seule requête échouait. Le HAR l'a montré en une ligne. Toute prochaine
+plainte de performance commence par `scripts/perf-probe.mjs` ou un HAR, pas
+par le code.
