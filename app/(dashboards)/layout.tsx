@@ -51,8 +51,15 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
   const pullEnabled = pathname.startsWith('/dashboard') || pathname.startsWith('/group-dashboard')
   // Tire-pour-rafraîchir : invalide les 10 keys financières (couvre perso ET
   // groupe) et attend la fin des refetch actifs pour la durée de la roue.
+  // `['notes']` s'y ajoute : c'est le geste pour voir les notes qu'un autre
+  // membre du groupe vient d'écrire (elles ne sont pas une donnée financière,
+  // donc hors `invalidateFinancialRefreshes`).
   const handlePullRefresh = useCallback(
-    () => invalidateFinancialRefreshes(queryClient),
+    () =>
+      Promise.all([
+        invalidateFinancialRefreshes(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['notes'] }),
+      ]).then(() => {}),
     [queryClient],
   )
 
@@ -92,7 +99,7 @@ export default function DashboardsLayout({ children }: { children: React.ReactNo
     <div className="pl-safe pr-safe fixed inset-0 flex flex-col bg-blue-50/50">
       {/* Amorce les requêtes de contenu en parallèle de `GET /api/profile` : les
           pages sortent tôt tant que le profil charge, donc sans ça leur
-          sous-arbre — et ses 6 requêtes — n'était monté qu'après. Ne rend rien.
+          sous-arbre — et ses 7 requêtes — n'était monté qu'après. Ne rend rien.
           Sous <Suspense> car il lit `?period=` via useSearchParams. */}
       <Suspense fallback={null}>
         <DashboardDataPrefetch context={context} />

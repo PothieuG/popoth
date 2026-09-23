@@ -5,9 +5,11 @@ import dynamic from 'next/dynamic'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import SavingsDrawer from './SavingsDrawer'
+import { useNotes } from '@/hooks/useNotes'
 import type { ReadOnlyIncome } from '@/lib/finance'
 
 const PlanningDrawer = dynamic(() => import('./PlanningDrawer'), { ssr: false })
+const NotesDrawer = dynamic(() => import('./NotesDrawer'), { ssr: false })
 
 interface FinancialIndicatorsProps {
   availableBalance: number
@@ -48,6 +50,10 @@ export default function FinancialIndicators({
 }: FinancialIndicatorsProps) {
   const [isPlanningOpen, setIsPlanningOpen] = useState(false)
   const [isSavingsOpen, setIsSavingsOpen] = useState(false)
+  const [isNotesOpen, setIsNotesOpen] = useState(false)
+  const notesContext = context ?? 'profile'
+  // Compteur de la demi-ligne Notes — même query que le drawer (dédoublonnée).
+  const { notes } = useNotes(notesContext)
 
   /**
    * Get color class based on amount value
@@ -192,14 +198,21 @@ export default function FinancialIndicators({
         </div>
       </div>
 
-      {/* Total Savings Card */}
-      <button
-        onClick={() => setIsSavingsOpen(true)}
-        className="hover:to-purple-150 w-full cursor-pointer rounded-xl border border-purple-200 bg-linear-to-r from-purple-50 to-purple-100 p-2 shadow-xs transition-all duration-200 hover:from-purple-100"
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            {/* Information Icon */}
+      {/* Économies | Notes — une ligne partagée en deux (Sprint Notes-Pense-Betes
+          2026-09-23) : l'entrée Notes n'ajoute aucune hauteur au-dessus de la
+          liste des transactions. Notes prend la largeur de son contenu et
+          Économies le reste : en deux moitiés égales, le montant était tronqué
+          dès 375 px (« Économies (1 234,… »). Au-delà de ~100 000 €, le libellé
+          tronque (+ `title`) plutôt que de pousser la grille. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <button
+          type="button"
+          onClick={() => setIsSavingsOpen(true)}
+          title={isFetching ? undefined : `Économies (${formatAmount(totalSavings)})`}
+          className="hover:to-purple-150 min-w-0 cursor-pointer rounded-xl border border-purple-200 bg-linear-to-r from-purple-50 to-purple-100 p-2 shadow-xs transition-all duration-200 hover:from-purple-100"
+        >
+          <div className="flex min-w-0 items-center space-x-1.5">
+            {/* Piggy/Information Icon */}
             <div className="shrink-0">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-600">
                 <svg
@@ -207,6 +220,7 @@ export default function FinancialIndicators({
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     strokeLinecap="round"
@@ -218,18 +232,58 @@ export default function FinancialIndicators({
               </div>
             </div>
 
-            {/* Content */}
-            <div className="flex items-center gap-1.5">
-              <p className="text-sm font-medium text-purple-800">Montant total de vos économies:</p>
-              {isFetching ? (
-                <Skeleton className="h-4 w-16 bg-purple-200/70" />
-              ) : (
-                <p className="text-sm font-medium text-purple-800">{formatAmount(totalSavings)}</p>
-              )}
-            </div>
+            {isFetching ? (
+              <div className="flex min-w-0 items-center gap-1">
+                <p className="text-sm font-medium text-purple-800">Économies</p>
+                <Skeleton className="h-4 w-14 bg-purple-200/70" />
+              </div>
+            ) : (
+              <p className="min-w-0 truncate text-sm font-medium text-purple-800">
+                Économies ({formatAmount(totalSavings)})
+              </p>
+            )}
           </div>
-        </div>
-      </button>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsNotesOpen(true)}
+          aria-label={notes.length > 0 ? `Notes (${notes.length})` : 'Notes'}
+          className="cursor-pointer rounded-xl border border-slate-200 bg-linear-to-r from-slate-50 to-slate-100 py-2 pr-3 pl-2 shadow-xs transition-all duration-200 hover:from-slate-100"
+        >
+          <div className="flex items-center space-x-1.5">
+            {/* Notepad Icon */}
+            <div className="shrink-0">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-600">
+                <svg
+                  className="h-3 w-3 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <p className="text-sm font-medium text-slate-800">Notes</p>
+            {notes.length > 0 && (
+              <span
+                aria-hidden="true"
+                className="shrink-0 rounded-full bg-slate-600 px-1.5 text-xs leading-5 font-medium text-white"
+              >
+                {notes.length}
+              </span>
+            )}
+          </div>
+        </button>
+      </div>
 
       {/* Planning Button Card */}
       <button
@@ -283,6 +337,13 @@ export default function FinancialIndicators({
         onClose={() => setIsSavingsOpen(false)}
         context={context}
         onSavingsChange={onPlanningChange}
+      />
+
+      {/* Notes Drawer */}
+      <NotesDrawer
+        isOpen={isNotesOpen}
+        onClose={() => setIsNotesOpen(false)}
+        context={notesContext}
       />
     </div>
   )

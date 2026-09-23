@@ -1,0 +1,313 @@
+/**
+ * Sprint Notes-Pense-Betes (2026-09-23) — `<NotesDrawer>`.
+ *
+ * Contrats pinnés :
+ *   - l'avatar de l'auteur précède chaque note, résolu depuis le profil courant
+ *     ou la liste des membres (jamais depuis la note elle-même) ;
+ *   - ajout / modification / suppression passent par `useNotes` avec le contenu
+ *     trimé, et une note vide est refusée côté client ;
+ *   - perso vs groupe : seul le libellé change, le composant est le même.
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { axe } from 'jest-axe'
+import type { Note } from '@/hooks/useNotes'
+import type { GroupMember } from '@/hooks/useGroupMembers'
+import type { ProfileData } from '@/app/api/profile/route'
+import { expectEscClose } from '@/components/__tests__/a11y-helpers'
+
+const ME_ID = '11111111-1111-4111-8111-111111111111'
+const PARTNER_ID = '22222222-2222-4222-8222-222222222222'
+const GONE_ID = '33333333-3333-4333-8333-333333333333'
+const GROUP_ID = '44444444-4444-4444-8444-444444444444'
+
+const { state, spies } = vi.hoisted(() => ({
+  state: {
+    notes: [] as Note[],
+    loading: false,
+    isFetching: false,
+    error: null as string | null,
+    members: [] as GroupMember[],
+  },
+  spies: {
+    addNote: vi.fn(async (_content: string) => true),
+    updateNote: vi.fn(async (_id: string, _content: string) => true),
+    deleteNote: vi.fn(async (_id: string) => true),
+    useGroupMembers: vi.fn(),
+  },
+}))
+
+const ME: ProfileData = {
+  id: ME_ID,
+  first_name: 'Guillaume',
+  last_name: 'Martin',
+  salary: 0,
+  group_id: GROUP_ID,
+  group_name: 'Maison',
+  avatar_url: 'data:image/jpeg;base64,moi',
+  created_at: null,
+  updated_at: null,
+}
+
+vi.mock('@/hooks/useNotes', () => ({
+  useNotes: () => ({
+    notes: state.notes,
+    loading: state.loading,
+    isFetching: state.isFetching,
+    error: state.error,
+    addNote: spies.addNote,
+    updateNote: spies.updateNote,
+    deleteNote: spies.deleteNote,
+  }),
+}))
+
+vi.mock('@/hooks/useProfile', () => ({
+  useProfile: () => ({ profile: ME }),
+}))
+
+vi.mock('@/hooks/useGroupMembers', () => ({
+  useGroupMembers: (...args: unknown[]) => {
+    spies.useGroupMembers(...args)
+    return { members: state.members }
+  },
+}))
+
+vi.mock('@/components/ui/ConfirmationDialog', () => ({
+  default: ({
+    title,
+    onConfirm,
+    onClose,
+  }: {
+    title: string
+    onConfirm: () => void
+    onClose: () => void
+  }) => (
+    <div data-testid="confirm-dialog">
+      <p>{title}</p>
+      <button type="button" onClick={onConfirm}>
+        Confirmer la suppression
+      </button>
+      <button type="button" onClick={onClose}>
+        Annuler la suppression
+      </button>
+    </div>
+  ),
+}))
+
+import NotesDrawer, { formatNoteDate, resolveNoteAuthor } from '../NotesDrawer'
+
+function buildNote(overrides: Partial<Note> = {}): Note {
+  return {
+    id: '55555555-5555-4555-8555-555555555555',
+    profile_id: null,
+    group_id: GROUP_ID,
+    created_by_profile_id: ME_ID,
+    content: 'Payer la cantine',
+    created_at: '2026-09-20T10:00:00Z',
+    updated_at: '2026-09-20T10:00:00Z',
+    created_by: { id: ME_ID, first_name: 'Guillaume', last_name: 'Martin' },
+    ...overrides,
+  }
+}
+
+const PARTNER: GroupMember = {
+  id: PARTNER_ID,
+  first_name: 'Claire',
+  last_name: 'Martin',
+  avatar_url: 'data:image/jpeg;base64,claire',
+  joined_at: '2026-01-01T00:00:00Z',
+}
+
+beforeEach(() => {
+  state.notes = []
+  state.loading = false
+  state.isFetching = false
+  state.error = null
+  state.members = []
+})
+
+afterEach(() => {
+  vi.resetAllMocks()
+})
+
+describe('NotesDrawer — liste et auteurs', () => {
+  it('précède chaque note de l’avatar de son auteur (moi, un membre, un ancien membre)', () => {
+    state.members = [PARTNER]
+    state.notes = [
+      buildNote({ id: 'a', content: 'Ma note' }),
+      buildNote({
+        id: 'b',
+        content: 'Note de Claire',
+        created_by_profile_id: PARTNER_ID,
+        created_by: { id: PARTNER_ID, first_name: 'Claire', last_name: 'Martin' },
+      }),
+      buildNote({
+        id: 'c',
+        content: 'Note d’un ancien membre',
+        created_by_profile_id: GONE_ID,
+        created_by: { id: GONE_ID, first_name: 'Paul', last_name: 'Durand' },
+      }),
+    ]
+
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    const items = screen.getAllByRole('listitem')
+    expect(items).toHaveLength(3)
+
+    const [mine, partner, gone] = items as [HTMLElement, HTMLElement, HTMLElement]
+    expect(within(mine).getByText('Vous')).toBeInTheDocument()
+    expect(within(mine).getByRole('img')).toHaveAttribute('src', ME.avatar_url)
+
+    expect(within(partner).getByText('Claire')).toBeInTheDocument()
+    expect(within(partner).getByRole('img')).toHaveAttribute('src', PARTNER.avatar_url)
+
+    // Plus membre : pas d'avatar connu → initiales depuis le JOIN de la note.
+    expect(within(gone).getByText('Paul')).toBeInTheDocument()
+    expect(within(gone).queryByRole('img')).toBeNull()
+    expect(within(gone).getByText('PD')).toBeInTheDocument()
+  })
+
+  it('ne charge les membres qu’en contexte groupe', () => {
+    render(<NotesDrawer isOpen onClose={() => {}} context="profile" />)
+
+    expect(spies.useGroupMembers).toHaveBeenCalledWith(GROUP_ID, { enabled: false })
+    expect(screen.getByText('Visibles par vous seul')).toBeInTheDocument()
+  })
+
+  it('annonce le partage en contexte groupe, y compris dans l’état vide', () => {
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    expect(screen.getByText('Partagées avec votre groupe')).toBeInTheDocument()
+    expect(screen.getByText("Aucune note pour l'instant")).toBeInTheDocument()
+    expect(
+      screen.getByText('Les notes ajoutées ici sont visibles par tous les membres du groupe.'),
+    ).toBeInTheDocument()
+  })
+
+  it('remplace la liste par des skeletons pendant un chargement', () => {
+    state.isFetching = true
+    state.notes = [buildNote()]
+
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    expect(screen.queryByRole('listitem')).toBeNull()
+  })
+
+  it('signale une erreur de chargement', () => {
+    state.error = 'boom'
+
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Impossible de charger les notes')
+  })
+})
+
+describe('NotesDrawer — ajout', () => {
+  it('ajoute une note trimée puis vide le champ', async () => {
+    const user = userEvent.setup()
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    const field = screen.getByLabelText('Contenu de la note')
+    await user.type(field, '  Rappeler le plombier  ')
+    await user.click(screen.getByRole('button', { name: 'Ajouter' }))
+
+    await waitFor(() => expect(spies.addNote).toHaveBeenCalledWith('Rappeler le plombier'))
+    await waitFor(() => expect(field).toHaveValue(''))
+  })
+
+  it('refuse une note vide sans appeler l’API', async () => {
+    const user = userEvent.setup()
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    await user.type(screen.getByLabelText('Contenu de la note'), '   ')
+    await user.click(screen.getByRole('button', { name: 'Ajouter' }))
+
+    expect(await screen.findByText('La note ne peut pas être vide')).toBeInTheDocument()
+    expect(screen.getByLabelText('Contenu de la note')).toHaveAttribute(
+      'aria-describedby',
+      'new-note-content-error',
+    )
+    expect(spies.addNote).not.toHaveBeenCalled()
+  })
+
+  it('garde le texte et affiche une erreur si l’enregistrement échoue', async () => {
+    spies.addNote.mockResolvedValueOnce(false)
+    const user = userEvent.setup()
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    const field = screen.getByLabelText('Contenu de la note')
+    await user.type(field, 'Courses')
+    await user.click(screen.getByRole('button', { name: 'Ajouter' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("n'a pas pu être enregistrée")
+    expect(field).toHaveValue('Courses')
+  })
+})
+
+describe('NotesDrawer — modification et suppression', () => {
+  it('modifie une note en place', async () => {
+    state.notes = [buildNote({ id: 'n1', content: 'Ancien texte' })]
+    const user = userEvent.setup()
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    await user.click(screen.getByRole('button', { name: 'Options' }))
+    await user.click(await screen.findByText('Modifier'))
+
+    const field = screen.getByLabelText('Contenu de la note', { selector: '#edit-note-n1-content' })
+    expect(field).toHaveValue('Ancien texte')
+    await user.clear(field)
+    await user.type(field, 'Nouveau texte')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(spies.updateNote).toHaveBeenCalledWith('n1', 'Nouveau texte'))
+  })
+
+  it('supprime une note après confirmation', async () => {
+    state.notes = [buildNote({ id: 'n1' })]
+    const user = userEvent.setup()
+    render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    await user.click(screen.getByRole('button', { name: 'Options' }))
+    await user.click(await screen.findByText('Supprimer'))
+    expect(screen.getByText('Supprimer cette note ?')).toBeInTheDocument()
+    expect(spies.deleteNote).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: 'Confirmer la suppression' }))
+
+    await waitFor(() => expect(spies.deleteNote).toHaveBeenCalledWith('n1'))
+  })
+})
+
+describe('NotesDrawer — accessibilité', () => {
+  it('se ferme avec Échap', async () => {
+    const onClose = vi.fn()
+    await expectEscClose(
+      <NotesDrawer isOpen onClose={onClose} context="profile" />,
+      onClose,
+      'Notes',
+    )
+  })
+
+  it('n’a aucune violation axe', async () => {
+    state.notes = [buildNote()]
+    const { baseElement } = render(<NotesDrawer isOpen onClose={() => {}} context="group" />)
+
+    expect((await axe(baseElement)).violations).toEqual([])
+  })
+})
+
+describe('helpers', () => {
+  it('formatNoteDate omet l’année en cours et l’affiche sinon', () => {
+    const now = new Date('2026-09-23T12:00:00Z')
+    expect(formatNoteDate('2026-09-20T10:00:00Z', now)).toBe('20 sept.')
+    expect(formatNoteDate('2025-12-24T10:00:00Z', now)).toBe('24 déc. 2025')
+  })
+
+  it('resolveNoteAuthor renvoie null sans auteur connu', () => {
+    expect(
+      resolveNoteAuthor({ created_by_profile_id: null, created_by: null }, ME, [PARTNER]),
+    ).toBeNull()
+  })
+})

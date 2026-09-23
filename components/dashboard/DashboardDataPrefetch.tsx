@@ -2,6 +2,7 @@
 
 import { useBudgets } from '@/hooks/useBudgets'
 import { useIncomes } from '@/hooks/useIncomes'
+import { useNotes } from '@/hooks/useNotes'
 import { useProjects } from '@/hooks/useProjects'
 import { useRealExpenses } from '@/hooks/useRealExpenses'
 import { useRealIncomes } from '@/hooks/useRealIncomes'
@@ -47,6 +48,7 @@ export default function DashboardDataPrefetch({ context }: { context: 'profile' 
   useRealExpenses(context)
   useRealIncomes(context)
   useProgressData(context, period)
+  useNotes(context)
 
   return null
 }

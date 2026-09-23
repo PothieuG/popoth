@@ -34,6 +34,7 @@ vi.mock('@/hooks/useProjects', () => ({ useProjects: record('useProjects') }))
 vi.mock('@/hooks/useRealExpenses', () => ({ useRealExpenses: record('useRealExpenses') }))
 vi.mock('@/hooks/useRealIncomes', () => ({ useRealIncomes: record('useRealIncomes') }))
 vi.mock('@/hooks/useProgressData', () => ({ useProgressData: record('useProgressData') }))
+vi.mock('@/hooks/useNotes', () => ({ useNotes: record('useNotes') }))
 vi.mock('@/hooks/usePeriodParam', () => ({
   usePeriodParam: () => ({ period: 'week', setPeriod: () => {} }),
 }))
@@ -49,7 +50,7 @@ afterEach(() => {
 })
 
 describe('DashboardDataPrefetch', () => {
-  it('amorce les 6 requêtes de contenu dès le montage', () => {
+  it('amorce les 7 requêtes de contenu dès le montage', () => {
     render(<DashboardDataPrefetch context="group" />)
 
     expect(CALLS.map((c) => c.hook)).toEqual([
@@ -59,6 +60,7 @@ describe('DashboardDataPrefetch', () => {
       'useRealExpenses',
       'useRealIncomes',
       'useProgressData',
+      'useNotes',
     ])
   })
 
