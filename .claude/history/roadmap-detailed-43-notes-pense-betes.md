@@ -121,3 +121,26 @@ Le conteneur de développement n'avait ni `SUPABASE_ACCESS_TOKEN` ni accès rés
 3. Tant que la table n'existe pas, `GET /api/notes` répond 500 : la demi-ligne
    Notes s'affiche sans compteur et le drawer montre « Impossible de charger les
    notes » — le reste du dashboard n'est pas affecté.
+
+### 6.1 Effectué le 2026-09-27 (session locale)
+
+- **Dev = prod vérifié avant migration** : `export-schema` identique, et empreinte md5
+  identique des 43 fonctions `public` (corps + droits), 16 triggers, 30 policies,
+  6 extensions. Seul écart : l'event trigger plateforme `issue_pg_graphql_access`
+  (tag `CREATE FUNCTION` en prod, `CREATE EXTENSION` en dev) — posé par Supabase selon
+  l'âge du projet, sans lien avec l'app, laissé tel quel.
+- **Dev** : migration via `apply-sql.mjs` (HTTP 201), vérifiée (RLS on, 0 policy,
+  7 contraintes, 2 index, trigger `updated_at`). Bloc `notes` écrit à la main
+  identique à `supabase gen types`.
+- **Prod** : tracker à 70/71, seule `20260923000000` manquante. Pas de
+  `SUPABASE_DB_PASSWORD` sur le poste → migration + `INSERT` dans
+  `supabase_migrations.schema_migrations (version, name)` en **une seule** requête
+  `apply-sql.mjs` (atomique), comme les `20260901*`. `db:check-rls` / `rpcs` /
+  `functions` OK.
+- `pnpm db:types` : bloc `notes` inchangé ; seul diff = parenthèses autour des
+  conditionnels des helpers `Tables`/`TablesInsert`/`TablesUpdate`/`Enums`/
+  `CompositeTypes` — nouveau format du générateur Supabase (prod et dev identiques),
+  sans effet sur le typage. Baseline re-exportée ; `db:check-types-fresh` +
+  `db:check-drift` OK.
+- Mise en ligne : `dev` (Vercel-dev) puis `main` en fast-forward, sur feu vert de
+  l'utilisateur. Handoff `.claude/handoff/notes-finalisation.md` retiré.
