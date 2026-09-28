@@ -25,9 +25,11 @@
     "db:check-types-fresh": "node scripts/check-types-fresh.mjs",
     "db:audit-functions": "node scripts/audit-functions.mjs",
     "db:audit-objects": "node scripts/audit-db-objects.mjs",
+    "db:check-snapshots": "node scripts/check-snapshots.mjs",
+    "db:snapshot": "node scripts/db-snapshot.mjs",
     "check:md-size": "node scripts/check-md-size.mjs",
     "pwa:assets": "node scripts/generate-pwa-assets.mjs",
-    "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rls && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects",
+    "verify": "pnpm typecheck && pnpm format:check && pnpm test:run && pnpm check:md-size && pnpm db:check-drift && pnpm db:check-rls && pnpm db:check-rpcs && pnpm db:check-functions && pnpm db:check-types-fresh && pnpm db:audit-functions && pnpm db:audit-objects && pnpm db:check-snapshots",
     "ci": "pnpm typecheck && pnpm lint:check && pnpm format:check && pnpm test:run && pnpm build",
     "prepare": "husky"
   },
