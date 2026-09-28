@@ -172,6 +172,8 @@ scripts/                   # Sprint DB outils API Management (sans Docker)
   apply-sql.mjs            # applique un .sql via API Management (drift recovery, SELECT, ou clone-data.mjs base)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
+  check-snapshots.mjs      # ✅ Part 44 — pnpm db:check-snapshots : fonctions snapshots.*, job pg_cron, tables couvertes, snapshot du mois écoulé
+  db-snapshot{,-lib}.mjs   # ✅ Part 44 — pnpm db:snapshot list|status|take|preview|restore (restauration globale, confirmée au clavier). Helpers purs testés
   shrink-avatars.mjs       # ✅ Part 42 §11 — ramène les `profiles.avatar_url` base64 > 120k chars à 256 px (sharp). Dry-run défaut, `--apply` écrit. Projet = NEXT_PUBLIC_SUPABASE_URL du .env.local
   perf-probe.mjs           # ✅ Part 42 §10 — latence réelle des 12-13 appels d'un chargement de dashboard, perso vs groupe (médiane/max + « vague » parallèle + région `x-vercel-id`). Env POPOTH_SESSION_COOKIE, jamais affiché
   list-triggers.sql        # ✅ Sprint Polish T5 — SELECT pg_trigger pour inventaire
@@ -200,7 +202,6 @@ supabase/
     20260520120000_create_delete_budget_with_savings_transfer_rpc.sql # ✅ Sprint Delete-Budget-Savings-Transfer (2026-05-20) — RPC composite delete_budget_with_savings_transfer (SELECT FOR UPDATE cumulated_savings + UPSERT piggy si > 0 via partial unique index + DELETE budget en 1 tx). FK cascades : real_expenses SET NULL, budget_transfers CASCADE
     20260601000000_create_savings_projects.sql # ✅ Sprint PÉ 01 — table + 4 RPCs CRUD + apply_recap_projects_snapshot + RLS
     20260602000000_add_project_snapshot_to_monthly_recaps.sql # ✅ Sprint PÉ 08 — ALTER ADD COLUMN project_snapshot_data jsonb
-docs/audit/                # Audit complet 2026-04 — `00-executive-summary.md` + `06-action-plan.md` + `RLS-FINDINGS.md` (closes) + `POST-MORTEM-C3-DRIFT.md` + `07-deep-dive-*.md` (historique livré, refs via git show pour les archivés cf §17 note).
-docs/db/SCHEMA.md          # Sprint DB / D11 + inventaire triggers Sprint Polish T5 — carte tables/RPC/indexes/FK/hot path/triggers.
-prompts/                   # 6 prompts historiques `prompt-00-executive-summary{,-v2..v6}.md` (sprints 0/DB/Refactor/Hardening/Polish/Audit-Triggers, livrés sauf v6).
+    20260928000000_create_monthly_db_snapshots.sql # ✅ Part 44 — schéma `snapshots` hors API, pg_cron fin de mois 23h45 Paris, preview/restore
+doc2/                      # db/SCHEMA.md (carte tables/RPC/triggers) + api/README.md + features/ (docs/audit + prompts archivés, cf. note l.17)
 ```
