@@ -187,6 +187,51 @@ refusé sans terminal, annulé sur mauvais mot, confirmé → aperçu vide ensui
    (Integrations → Cron) puis ré-appliquer la migration (idempotente,
    `cron.schedule` avec un nom existant met le job à jour).
 
+### 6.1 Effectué le 2026-09-29 (session locale)
+
+- **Dev = prod avant migration** : `db:check-drift` sur dev, seul écart la ligne
+  `-- Project:` de l'en-tête.
+- **Dev** : migration via `apply-sql.mjs` (HTTP 201). `CREATE EXTENSION pg_cron`
+  accepté tel quel (1.6.4), aucune activation dashboard. Job
+  `45 21,22 28-31 * *` actif, exécuté par `postgres` ; schéma, tables et fonctions
+  `snapshots` et tables publiques à `postgres` ; aucun droit (schéma, tables,
+  `restore_db_snapshot`) pour `anon` / `authenticated` / `service_role` ;
+  `uncovered_tables()` vide ; `cron.timezone` = `GMT`.
+- **Déclencheur (dev)** : `take_month_end_snapshot('2026-08-31 22:45+00')` → NULL,
+  `21:45+00` → month_end 08/2026, rejeu → NULL. `db:check-snapshots` OK sans INFO.
+- **Restauration réelle (dev)** : snapshot manuel S, puis modifications en SQL
+  direct — salaire d'un membre, budget de groupe ajouté (triggers : estimation
+  4104 → 4354, contributions et lignes miroir recalculées), 2 dépenses + 1 revenu
+  ajoutés, 1 revenu miroir supprimé, 1 dépense validée, 2 soldes, 2 tirelires,
+  économies d'un budget, récap d'août rouvert. Aperçu exact (7 transactions,
+  5 soldes, 1 récap, 1 salaire). `restore S` (lancé par le user, `RESTAURER`
+  tapé) → aperçu vide, 16 triggers à `O`, aucun à `D`, estimation 4104 et
+  contributions revenues ; budget de groupe inséré ensuite → estimation,
+  contributions et miroirs recalculés (triggers opérationnels). `restore P`
+  (pre_restore) → état modifié revenu à l'identique ; `restore S` final → dev
+  propre. 5 snapshots ≈ 9 Ko stockés chacun.
+- **Écart constaté** : l'aperçu ne liste pas `groups.monthly_budget_estimate` /
+  `monthly_income_estimate` (seulement les groupes créés depuis) ; la restauration
+  les remet bien (4354 → 4104 vérifié).
+- **Jeton** : un terminal ouvert avant `SetEnvironmentVariable(..., 'User')` ne
+  voit pas le jeton (Windows Terminal, même en nouvel onglet). Le charger dans la
+  commande : `$env:SUPABASE_ACCESS_TOKEN = [Environment]::GetEnvironmentVariable('SUPABASE_ACCESS_TOKEN','User')`.
+- **Prod** (plan gratuit) : base 20 Mo avant migration. Tracker 71/72, seule
+  `20260928000000` manquante ; `db push --dry-run` idem. `supabase link` +
+  `db push` : pg_cron créé par la migration (1.6), aucune activation dashboard.
+  Mêmes vérifications qu'en dev, toutes conformes (`cron.timezone` = `GMT`).
+  `db:check-snapshots` (OK + INFO), `check-rpcs` (28), `check-rls`,
+  `check-functions`, `audit-functions`, `check-types-fresh` OK — types non
+  régénérés. Baseline : seul ajout `CREATE EXTENSION IF NOT EXISTS "pg_cron";`
+  (+ date) ; `db:check-drift` OK. `pnpm verify` exit 0.
+- **Premier snapshot prod** : manuel `4059dd6b-71fe-4ed2-ac3f-b4eb4179decf`
+  (29/09/2026 16:47 Paris) — 95 dépenses, 14 revenus, 33 budgets, 3 récaps,
+  44 lignes `remaining_to_live_snapshots` ; 28 Ko stockés, aperçu vide.
+- **Écarts vs §6** : le point 3 (activer Cron au dashboard) n'a servi ni en dev ni
+  en prod. Restauration testée en SQL direct plutôt que dans l'appli : pas de
+  `.env.local` sur le poste, et aucun récap jouable ce jour-là (août terminé,
+  septembre ouvert le 1er octobre).
+
 ## 7. ❌ À ne pas faire
 
 - ❌ Ajouter une table publique sans la déclarer dans `restorable_tables()` (à
