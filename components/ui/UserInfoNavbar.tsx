@@ -3,17 +3,18 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileData } from '@/app/api/profile/route'
 import type { GroupContributionData } from '@/app/api/groups/contributions/route'
+import { AMOUNT_TO_FUND_TOOLTIP } from '@/lib/contribution-calculator'
 
 interface UserInfoNavbarProps {
   profile: ProfileData | null
   userContribution: GroupContributionData | null
   /**
-   * Budget total estimé du groupe — utilisé pour calculer le % de
-   * participation au budget. Lu depuis `groupInfo.monthly_budget_estimate`
-   * (auto-syncé via le trigger DB depuis SUM(estimated_budgets) — cf. Sprint
-   * Group-Budget-Auto-Sync 2026-05-19).
+   * Reste à financer par les membres du groupe (budget − revenus estimés du
+   * groupe, cf. `calculateAmountToFund`) — base du % "du reste à financer".
+   * Les parts de tous les membres totalisent 100 %, même quand un revenu de
+   * groupe (ex. CAF) couvre une partie du budget.
    */
-  groupBudget?: number | null
+  amountToFund?: number | null
   /**
    * True dès que les contributions sont en cours de refetch (post-mutation
    * budget ou switch de contexte). Remplace le montant + les % par skeletons
@@ -29,13 +30,13 @@ interface UserInfoNavbarProps {
  * Layout (3 lignes mobile-first ≤ 430 px) :
  *   1. "Bonjour <prénom> !"
  *   2. "Contribution au groupe <nom> : <montant>"
- *   3. (si contribution > 0) "<X%> de votre salaire · <Y%> du budget" — petits
- *      caractères, chiffres en gras pour scanning rapide.
+ *   3. (si contribution > 0) "<X%> de votre salaire · <Y%> du reste à financer" —
+ *      petits caractères, chiffres en gras pour scanning rapide.
  */
 export default function UserInfoNavbar({
   profile,
   userContribution,
-  groupBudget,
+  amountToFund,
   isFetching = false,
 }: UserInfoNavbarProps) {
   if (!profile) {
@@ -58,20 +59,22 @@ export default function UserInfoNavbar({
     userContribution && profile.salary > 0
       ? Math.round((userContribution.contribution_amount / profile.salary) * 100)
       : null
-  const budgetPercent =
-    userContribution && groupBudget && groupBudget > 0
-      ? Math.round((userContribution.contribution_amount / groupBudget) * 100)
+  const fundedSharePercent =
+    userContribution && amountToFund && amountToFund > 0
+      ? Math.round((userContribution.contribution_amount / amountToFund) * 100)
       : null
   const hasPercentRow =
     hasPositiveContribution &&
-    ((salaryPercent != null && salaryPercent > 0) || (budgetPercent != null && budgetPercent > 0))
+    ((salaryPercent != null && salaryPercent > 0) ||
+      (fundedSharePercent != null && fundedSharePercent > 0))
 
   // Business rule explained when contribution = 0 despite being in a group:
-  // contribution = (mon salaire / Σ salaires positifs du groupe) × budget mensuel du groupe.
-  // Le résultat tombe à 0 si le budget du groupe n'est pas renseigné, ou si le salaire
-  // de l'utilisateur est à 0 alors qu'un autre membre en a un.
+  // contribution = (mon salaire / Σ salaires positifs du groupe) × (budget − revenus du groupe).
+  // Le résultat tombe à 0 si le budget du groupe n'est pas renseigné, si les revenus du
+  // groupe couvrent tout le budget, ou si le salaire de l'utilisateur est à 0 alors
+  // qu'un autre membre en a un.
   const emptyContributionTooltip =
-    'Votre contribution est calculée au prorata de votre salaire sur le budget mensuel du groupe. Vérifiez que le budget du groupe et votre salaire sont bien renseignés.'
+    'Votre contribution est calculée au prorata de votre salaire sur le reste à financer du groupe (budget mensuel moins les revenus du groupe). Vérifiez que le budget du groupe et votre salaire sont bien renseignés.'
 
   return (
     <div className="flex flex-col">
@@ -114,7 +117,7 @@ export default function UserInfoNavbar({
       </div>
 
       {/* Third line: percentages (small, with bold numbers). Hidden if both are
-          unavailable (e.g. salary missing AND budget missing). */}
+          unavailable (e.g. salary missing AND nothing left to fund). */}
       {isFetching && profile.group_name ? (
         <div className="mt-0.5 flex items-center gap-x-1.5">
           <Skeleton className="h-2.5 w-20" />
@@ -131,11 +134,12 @@ export default function UserInfoNavbar({
             )}
             {salaryPercent != null &&
               salaryPercent > 0 &&
-              budgetPercent != null &&
-              budgetPercent > 0 && <span className="text-gray-300">·</span>}
-            {budgetPercent != null && budgetPercent > 0 && (
-              <span className="whitespace-nowrap">
-                <strong className="font-semibold text-gray-700">{budgetPercent}%</strong> du budget
+              fundedSharePercent != null &&
+              fundedSharePercent > 0 && <span className="text-gray-300">·</span>}
+            {fundedSharePercent != null && fundedSharePercent > 0 && (
+              <span className="whitespace-nowrap" title={AMOUNT_TO_FUND_TOOLTIP}>
+                <strong className="font-semibold text-gray-700">{fundedSharePercent}%</strong> du
+                reste à financer
               </span>
             )}
           </div>

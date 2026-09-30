@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { ProfileData } from '@/app/api/profile/route'
 import type { GroupMember } from '@/hooks/useGroupMembers'
 import type { GroupContributionData } from '@/app/api/groups/contributions/route'
+import { AMOUNT_TO_FUND_TOOLTIP } from '@/lib/contribution-calculator'
 
 interface GroupInfoNavbarProps {
   profile: ProfileData | null
@@ -15,12 +16,11 @@ interface GroupInfoNavbarProps {
    */
   userContribution?: GroupContributionData | null
   /**
-   * Budget mensuel total du groupe — base du % "part du budget" affiché
-   * entre parenthèses. Lu depuis `groupInfo.monthly_budget_estimate`
-   * (auto-syncé via trigger DB depuis SUM(estimated_budgets), cf. Sprint
-   * Group-Budget-Auto-Sync 2026-05-19).
+   * Reste à financer par les membres du groupe (budget − revenus estimés du
+   * groupe, cf. `calculateAmountToFund`) — base du % affiché entre
+   * parenthèses. Les parts de tous les membres totalisent 100 %.
    */
-  groupBudget?: number | null
+  amountToFund?: number | null
   /**
    * True dès que la liste des membres est en cours de fetch (initial ou
    * refetch post-switch context). Remplace la liste par un skeleton.
@@ -41,14 +41,15 @@ interface GroupInfoNavbarProps {
  * que les deux navbars de dashboard soient visuellement de même hauteur) :
  *   1. "Bonjour <nom du groupe> !"
  *   2. "Membres : <liste>"
- *   3. "Ma contribution : <montant>€ (<%> du budget)" — montant en violet,
- *      pourcentage en gras entre parenthèses (sprint Group-Dashboard-Navbar-Contribution).
+ *   3. "Ma contribution : <montant>€ (<%> du reste à financer)" — montant en
+ *      violet, pourcentage en gras entre parenthèses (sprint
+ *      Group-Dashboard-Navbar-Contribution), libellé complet en infobulle.
  */
 export default function GroupInfoNavbar({
   profile,
   members,
   userContribution,
-  groupBudget,
+  amountToFund,
   isFetching = false,
   isFetchingContribution = false,
 }: GroupInfoNavbarProps) {
@@ -85,9 +86,9 @@ export default function GroupInfoNavbar({
 
   const contributionAmount = userContribution?.contribution_amount ?? 0
   const hasPositiveContribution = userContribution != null && contributionAmount > 0
-  const budgetPercent =
-    userContribution && groupBudget && groupBudget > 0
-      ? Math.round((userContribution.contribution_amount / groupBudget) * 100)
+  const fundedSharePercent =
+    userContribution && amountToFund && amountToFund > 0
+      ? Math.round((userContribution.contribution_amount / amountToFund) * 100)
       : null
 
   return (
@@ -117,10 +118,10 @@ export default function GroupInfoNavbar({
             <span className="font-semibold text-purple-600">
               {formatContribution(contributionAmount)}
             </span>
-            {budgetPercent != null && budgetPercent > 0 && (
-              <span className="text-gray-600">
+            {fundedSharePercent != null && fundedSharePercent > 0 && (
+              <span className="text-gray-600" title={AMOUNT_TO_FUND_TOOLTIP}>
                 {' '}
-                (<strong className="font-semibold">{budgetPercent}%</strong>)
+                (<strong className="font-semibold">{fundedSharePercent}%</strong>)
               </span>
             )}
           </div>

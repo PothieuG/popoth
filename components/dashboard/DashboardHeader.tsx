@@ -6,6 +6,7 @@ import { useGroupMembers } from '@/hooks/useGroupMembers'
 import UserInfoNavbar from '@/components/ui/UserInfoNavbar'
 import GroupInfoNavbar from '@/components/ui/GroupInfoNavbar'
 import UserAvatar from '@/components/ui/UserAvatar'
+import { calculateAmountToFund } from '@/lib/contribution-calculator'
 
 interface DashboardHeaderProps {
   context: 'profile' | 'group'
@@ -36,6 +37,12 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
   const { members, isLoading: membersLoading } = useGroupMembers(profile?.group_id, {
     enabled: context === 'group',
   })
+  // Base du % affiché dans l'en-tête : le reste à financer par les membres
+  // (budget − revenus du groupe), pas le budget brut — sinon les parts des
+  // membres ne totalisent pas 100 % dès que le groupe a un revenu (ex. CAF).
+  const amountToFund = groupInfo
+    ? calculateAmountToFund(groupInfo.monthly_budget_estimate, groupInfo.monthly_income_estimate)
+    : null
 
   return (
     <nav className="pt-safe sticky top-0 z-40 border-b border-gray-200 bg-white shadow-xs">
@@ -44,7 +51,7 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
           <UserInfoNavbar
             profile={profile}
             userContribution={profile?.id ? getUserContribution(profile.id) : null}
-            groupBudget={groupInfo?.monthly_budget_estimate ?? null}
+            amountToFund={amountToFund}
             isFetching={contributionsFetching}
           />
         ) : (
@@ -52,7 +59,7 @@ export default function DashboardHeader({ context, onOpenMenu }: DashboardHeader
             profile={profile}
             members={members}
             userContribution={profile?.id ? getUserContribution(profile.id) : null}
-            groupBudget={groupInfo?.monthly_budget_estimate ?? null}
+            amountToFund={amountToFund}
             isFetching={membersLoading}
             isFetchingContribution={contributionsFetching}
           />
