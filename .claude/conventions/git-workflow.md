@@ -4,8 +4,11 @@
 
 ## 1. Branches
 
-- **Default branch GitHub : `cleanup`** depuis Sprint Hygiene-CI / E3 (`main` n'avait jamais reçu les workflows YAML, donc le cron weekly ne fired pas en mode `schedule` ni `workflow_dispatch`). `main` reste figé à 3 commits derrière les sprints livrés.
-- Branches feature depuis `cleanup` (la default actuelle).
+- **`main` = prod, `dev` = staging** (chacune avec son Vercel + Supabase, cf. [multi-env.md](multi-env.md)). **Default branch GitHub : `main`**.
+- Branches feature depuis `dev`.
+- CI [code-checks.yml](../../.github/workflows/code-checks.yml) : sur PR + sur `push` vers `dev` et `main` (filtres `paths` : code, config, deps).
+- **Historique** : `cleanup` a été la default branch à partir de Sprint Hygiene-CI / E3 (`main` n'avait pas reçu les workflows YAML, donc le cron weekly ne se déclenchait pas), puis a été mergée dans `main` (PR #33, 2026-05-21) et supprimée. Le trigger `push: branches: [cleanup]` de `code-checks.yml` n'a pas suivi : du 2026-05-18 (dernier run push) au 2026-09-30, la CI n'a tourné que sur les PRs — les pushes directs sur `dev`/`main` n'étaient plus validés. Même dérive sur `target-branch: cleanup` de [.github/dependabot.yml](../../.github/dependabot.yml) (PRs version-updates coupées sans bruit), retargeté `dev` le 2026-09-30 (8d4c63f).
+- **Renommer / supprimer une branche** → mettre à jour dans le même commit `on.push.branches` des workflows ([.github/workflows/](../../.github/workflows/)) + `target-branch` de `dependabot.yml`. `grep -rn <branche> .github/` avant de supprimer.
 
 ## 2. Conventional Commits
 
@@ -128,8 +131,8 @@ Le PR-time gate exécute aussi `db:check-types-fresh` sur tout PR touchant `lib/
 
 Quand une PR Dependabot est mergée (workflow appris au follow-up Sprint DX-Verify, 2026-05-07 ; filet CI fermé Sprint Stabilize-Deps / S2) :
 
-1. `git pull origin cleanup` puis `pnpm install` pour aligner les modules locaux sur le nouveau lockfile.
-2. **`pnpm verify`** (Sprint DX-Verify / G1) — exit 0 attendu. Depuis Sprint Stabilize-Deps / S2, [.github/workflows/code-checks.yml](../../.github/workflows/code-checks.yml) re-tourne aussi sur `push: branches: [cleanup]`.
+1. `git pull origin <branche cible de la PR>` puis `pnpm install` pour aligner les modules locaux sur le nouveau lockfile. Cible = `dev` pour les version updates (`target-branch` de [.github/dependabot.yml](../../.github/dependabot.yml)), `main` pour les security updates (toujours ouvertes sur la default branch). ⚠️ `dependabot.yml` n'est lu que depuis la default branch : une modif n'agit qu'une fois mergée dans `main`.
+2. **`pnpm verify`** (Sprint DX-Verify / G1) — exit 0 attendu. Depuis Sprint Stabilize-Deps / S2, [.github/workflows/code-checks.yml](../../.github/workflows/code-checks.yml) re-tourne aussi sur `push` (branches `dev` + `main` depuis 2026-09-30, `cleanup` avant — cf. §1).
 3. **Démarrer `pnpm dev`** et hit `curl http://localhost:3000/` au moins une fois — le typecheck + tests ne couvrent pas les régressions runtime/compile-CSS qui ne se voient qu'au premier render.
 4. **Si une PR Dependabot a cassé quelque chose** : préférer le **fix-forward** (`pnpm update <pkg>@<version>` + commit `revert: re-pin <pkg> to <version>`) plutôt que `git revert -m 1 <merge>`. Les merges Dependabot enchaînés touchent presque toujours le même lockfile → conflits sur `git revert -m 1` quasi-garantis. Pattern appliqué pour react (7989ed2) et supabase (3e37015) au follow-up DX-Verify.
 5. **Au moindre doute sur un major bump qui re-cassera au prochain scan** : ajouter un `ignore` dans [.github/dependabot.yml](../../.github/dependabot.yml) :

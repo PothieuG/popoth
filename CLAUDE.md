@@ -179,7 +179,7 @@ ESLint global `'no-console': ['error', { allow: ['warn', 'error'] }]` (Sprint Cl
 
 ### Git
 
-- **Branches** : `main` = prod, `dev` = staging (chacune avec son Vercel + Supabase, cf. multi-env.md). Default GitHub : `cleanup` (legacy).
+- **Branches** : `main` = prod, `dev` = staging (chacune avec son Vercel + Supabase, cf. multi-env.md). Default GitHub : `main`. CI `code-checks` : PR + push `dev`/`main`.
 - Branches feature depuis `dev`
 - **Conventional Commits** enforced via `commit-msg` hook (Sprint Commitlint chantier 24) : 11 types allowlist (`feat`, `fix`, `chore`, `docs`, `perf`, `test`, `refactor`, `style`, `revert`, `build`, `ci`). Config relaxée : `subject-case` OFF, `header-max-length 100`, `body-max-line-length` OFF.
 - **Un commit par item** dans les sprints multi-items
