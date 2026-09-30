@@ -168,20 +168,25 @@ Sprint Zod-Rollout v4 dans [components/ui/DecimalFormInput.tsx](../../components
 
 ### setFocus on invalid submit (Sprint v6)
 
-Pour tout form `react-hook-form`, wrapper le submit handler avec un 2ᵉ argument `onInvalidSubmit` qui focus le premier champ erroné. Mirror sur les 14 forms du repo (4 auth + 10 client) :
+Pour tout form `react-hook-form`, wrapper le submit handler avec un 2ᵉ argument `onInvalidSubmit` qui focus le premier champ erroné — **toujours via [useFocusAfterSubmit](../../hooks/useFocusAfterSubmit.ts)** (18 forms, 2026-09-30) :
 
 ```tsx
 import { type FieldErrors, type FieldPath } from 'react-hook-form'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
+
+const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount) // juste après useForm
 
 const onInvalidSubmit = (errors: FieldErrors<FormType>) => {
   const firstErrorKey = Object.keys(errors)[0]
   if (firstErrorKey) {
-    form.setFocus(firstErrorKey as FieldPath<FormType>)
+    focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<FormType>))
   }
 }
 
 <form onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}>
 ```
+
+**Pourquoi pas `form.setFocus` direct** (fix 2026-09-30) : RHF ne repasse `isSubmitting` à false qu'APRÈS `onInvalid`, donc un champ `disabled={isSubmitting}` est encore désactivé quand `onInvalidSubmit` s'exécute. Un `.focus()` direct y échoue toujours (cas redirect `…-project-duration` des dialogs Projets, jamais fonctionnel) ; `form.setFocus` focus dans un `setTimeout` qui course le rendu React réactivant le champ → focus perdu par intermittence (tests `toHaveFocus` AddBudget/EditIncome ~1/6 runs). Le hook exécute l'action dans le layout effect du rendu `submitCount + 1` (même mise à jour que `isSubmitting: false`). Côté test : `await waitFor(() => expect(field).toHaveFocus())` — `setFocus` reste asynchrone (timer RHF), un `waitFor` seul ne corrigeait PAS le flake (le focus n'arrivait jamais).
 
 **Discriminated union edge case** (AddTransactionModal + EditTransactionModal) : `Object.keys(errors)[0]` peut retourner une clé absente du type (e.g. `'expense_date'` côté income). Le cast permissif `as FieldPath<FormType>` est fine — RHF résout le ref au runtime depuis la branche active. **DecimalFormInput dependency** : si le champ ciblé est un `<DecimalFormInput>`, vérifier que le composant propage `ref={field.ref}` au `<Input>` interne (Sprint v6 a corrigé ce gap). Sans cette propagation, `setFocus` saute le champ silencieusement.
 

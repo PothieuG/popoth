@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
 import { signupBodySchema, type SignupBody } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 
 /**
  * Registration page allowing users to create a new account with email and password
@@ -30,6 +31,7 @@ export default function InscriptionPage() {
     defaultValues: { email: '', password: '', confirmPassword: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async ({ email, password }: SignupBody) => {
     setServerError('')
@@ -88,7 +90,7 @@ export default function InscriptionPage() {
   const onInvalidSubmit = (errors: FieldErrors<SignupBody>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<SignupBody>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<SignupBody>))
     }
   }
 

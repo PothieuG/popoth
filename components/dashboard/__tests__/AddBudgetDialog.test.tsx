@@ -66,7 +66,9 @@ describe('AddBudgetDialog', () => {
     expect(nameInput).toHaveAttribute('aria-invalid', 'true')
     const errorBox = document.getElementById('add-budget-name-error')
     expect(errorBox).toHaveTextContent(/Le nom du budget est requis/)
-    // Axe 2 setFocus assertion : focus moved to first faulty field
-    expect(nameInput).toHaveFocus()
+    // Axe 2 setFocus assertion : focus moved to first faulty field. RHF's
+    // setFocus focuses in a setTimeout (queued via useFocusAfterSubmit once
+    // the field is re-enabled), hence waitFor.
+    await waitFor(() => expect(nameInput).toHaveFocus())
   })
 })

@@ -20,6 +20,7 @@ import { useGroupMembers, type GroupMember } from '@/hooks/useGroupMembers'
 import { createNoteBodySchema } from '@/lib/schemas/notes'
 import { NOTE_CONTENT_MAX_CHARS } from '@/lib/constants/notes'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import type { ProfileData } from '@/app/api/profile/route'
 
 const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
@@ -104,6 +105,7 @@ function NoteForm({
     resolver: zodResolver(createNoteBodySchema),
     defaultValues: { content: defaultContent },
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
   const { isSubmitting, errors } = form.formState
   const fieldId = `${idPrefix}-content`
   const errorId = `${idPrefix}-content-error`
@@ -119,7 +121,7 @@ function NoteForm({
   }
 
   const onInvalidSubmit = (formErrors: FieldErrors<NoteFormInput>) => {
-    if (formErrors.content) form.setFocus('content')
+    if (formErrors.content) focusAfterSubmit(() => form.setFocus('content'))
   }
 
   return (

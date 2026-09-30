@@ -73,7 +73,9 @@ describe('EditIncomeDialog', () => {
     })
     const errorBox = document.getElementById('edit-income-name-error')
     expect(errorBox).toHaveTextContent(/Le nom du revenu est requis/)
-    // Axe 2 setFocus assertion : focus moved to first faulty field
-    expect(nameInput).toHaveFocus()
+    // Axe 2 setFocus assertion : focus moved to first faulty field. RHF's
+    // setFocus focuses in a setTimeout (queued via useFocusAfterSubmit once
+    // the field is re-enabled), hence waitFor.
+    await waitFor(() => expect(nameInput).toHaveFocus())
   })
 })

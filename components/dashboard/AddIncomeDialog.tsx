@@ -12,6 +12,7 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { createIncomeFormSchema, type CreateIncomeForm } from '@/lib/schemas/income'
 import {
   computeGroupMembersContributionsPreview,
@@ -71,6 +72,7 @@ export default function AddIncomeDialog({
     defaultValues: { name: '', estimatedAmount: 0 },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = (data: CreateIncomeForm) => {
     onSave({ name: data.name, estimatedAmount: data.estimatedAmount })
@@ -86,7 +88,7 @@ export default function AddIncomeDialog({
   const onInvalidSubmit = (errors: FieldErrors<CreateIncomeFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<CreateIncomeFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<CreateIncomeFormInput>))
     }
   }
 

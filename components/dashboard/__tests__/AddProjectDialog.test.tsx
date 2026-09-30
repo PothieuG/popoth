@@ -41,6 +41,26 @@ describe('AddProjectDialog', () => {
     expect(arg?.deadlineDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
+  // Fix 2026-09-30 : en mode A, l'erreur sur le mensuel dérivé (champ non
+  // monté) redirige le focus vers l'input durée — désactivé pendant la
+  // soumission comme les autres champs, le focus direct n'aboutissait jamais.
+  it('a11y — mode A : mensuel dérivé invalide → focus sur l’input durée', async () => {
+    const onSave = makeSaveMock()
+    const user = userEvent.setup()
+    render(<AddProjectDialog isOpen onClose={vi.fn()} onSave={onSave} currentRav={1500} />)
+
+    await user.type(screen.getByPlaceholderText(/voyage au japon/i), 'Voyage')
+    // Durée vidée AVANT la cible : le mensuel n'est jamais dérivé (reste 0).
+    const duration = screen.getByLabelText(/durée \(mois\)/i)
+    await user.clear(duration)
+    await user.type(screen.getByPlaceholderText('0.00'), '1200')
+
+    await user.click(screen.getByRole('button', { name: /créer le projet/i }))
+
+    await waitFor(() => expect(duration).toHaveFocus())
+    expect(onSave).not.toHaveBeenCalled()
+  })
+
   it('mode B (monthly) — calcule la durée dérivée et submit avec les bons champs', async () => {
     const onSave = makeSaveMock()
     const user = userEvent.setup()

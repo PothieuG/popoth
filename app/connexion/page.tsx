@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useLogin, useRequireGuest } from '@/hooks/useAuth'
 import { loginFormSchema, type LoginFormBody } from '@/lib/schemas/auth'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 
 /**
  * Login page allowing users to authenticate with email and password
@@ -31,6 +32,7 @@ export default function ConnexionPage() {
     defaultValues: { email: '', password: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async ({ email, password }: LoginFormBody) => {
     await handleLogin(email, password)
@@ -39,7 +41,7 @@ export default function ConnexionPage() {
   const onInvalidSubmit = (errors: FieldErrors<LoginFormBody>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<LoginFormBody>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<LoginFormBody>))
     }
   }
 

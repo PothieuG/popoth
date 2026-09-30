@@ -330,8 +330,10 @@ describe('AddTransactionModal — submit flows', () => {
     })
     const errorBox = document.getElementById('add-transaction-description-error')
     expect(errorBox).toBeTruthy()
-    // Axe 2 setFocus assertion : focus moved to the first faulty field
-    expect(descInput).toHaveFocus()
+    // Axe 2 setFocus assertion : focus moved to the first faulty field. RHF's
+    // setFocus focuses in a setTimeout (queued via useFocusAfterSubmit), hence
+    // waitFor.
+    await waitFor(() => expect(descInput).toHaveFocus())
     expect(addExpense).not.toHaveBeenCalled()
   })
 })

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase-client'
 import { resetPasswordFormSchema, type ResetPasswordForm } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 
 export default function NouveauMotDePassePage() {
   return (
@@ -48,6 +49,7 @@ function NouveauMotDePasseContent() {
     defaultValues: { password: '', confirmPassword: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   /**
    * Validates the reset token from the URL parameters on component mount.
@@ -133,7 +135,7 @@ function NouveauMotDePasseContent() {
   const onInvalidSubmit = (errors: FieldErrors<ResetPasswordForm>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<ResetPasswordForm>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<ResetPasswordForm>))
     }
   }
 

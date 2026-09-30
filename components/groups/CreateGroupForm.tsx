@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import {
   createGroupFormSchema,
   type CreateGroupForm as CreateGroupFormOutput,
@@ -36,6 +37,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
     defaultValues: { name: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async (data: CreateGroupFormOutput) => {
     setServerError(null)
@@ -52,7 +54,7 @@ export default function CreateGroupForm({ onSubmit, onCancel }: CreateGroupFormP
   const onInvalidSubmit = (errors: FieldErrors<CreateGroupFormOutput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<CreateGroupFormOutput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<CreateGroupFormOutput>))
     }
   }
 
