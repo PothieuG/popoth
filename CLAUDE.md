@@ -25,16 +25,16 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 
 ## 2. Stack
 
-- **Next.js 16.2.12** App Router, Turbopack en build, **webpack en dev** (`pnpm dev` → `next dev --webpack`)
+- **Next.js 16.3.3** App Router, Turbopack en build, **webpack en dev** (`pnpm dev` → `next dev --webpack`)
 - **React 19.1.1** + **TanStack Query 5.100.9** pour le data-fetching (provider dans [app/layout.tsx](app/layout.tsx))
 - **TypeScript 5** strict + `noUncheckedIndexedAccess` + `verbatimModuleSyntax` (imports type-only obligatoires)
 - **Tailwind 4** (CSS-first config dans [app/globals.css](app/globals.css) `@theme {}` block, plus de `tailwind.config.ts` ; `@tailwindcss/postcss` + `tw-animate-css` pour animations Radix Dialog/Drawer)
 - **shadcn/ui** (variant new-york) + **Radix UI Dialog** pour modals (Sprint Zod-Rollout v8 — 12 surfaces avec focus trap natif)
 - **Supabase** (`@supabase/supabase-js@^2.105.4`) — PostgreSQL + Auth
 - **pnpm 9.15.5** (verrouillé via `packageManager` + `engines.pnpm >=9.0.0`), Node ≥ 20.10.0 (`engines.node` + [.nvmrc](.nvmrc) pinned `20` LTS major)
-- **Vitest 4.1.6** pour tests unitaires + RTL (jsdom 25 + @testing-library) — `test.projects` split env=node `*.test.ts` / env=jsdom `*.test.tsx`
+- **Vitest 4.1.11** pour tests unitaires + RTL (jsdom 25 + @testing-library) — `test.projects` split env=node `*.test.ts` / env=jsdom `*.test.tsx`
 - **Zod 4.4.3** pour validation API + client forms (`parseBody`/`parseQuery` + `react-hook-form` + `zodResolver`)
-- **eslint-config-next 16.2.12** + **eslint 9.39.4** (flat configs natifs, pas de FlatCompat). Voir [eslint.config.mjs](eslint.config.mjs).
+- **eslint-config-next 16.3.3** + **eslint 9.39.4** (flat configs natifs, pas de FlatCompat). Voir [eslint.config.mjs](eslint.config.mjs).
 
 ## 3. Commandes
 
@@ -64,7 +64,7 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 
 ### Hooks Git (Husky)
 
-3 hooks installés : **pre-commit** (`pnpm lint-staged`), **pre-push** (`pnpm lint:check && pnpm typecheck` fail-fast), **commit-msg** (`pnpm exec commitlint`). Bypass `--no-verify` à éviter (cf. §8 ❌). Si hooks ne firent pas après fresh clone : `pnpm exec husky` manuellement.
+3 hooks installés : **pre-commit** (`pnpm lint-staged`), **pre-push** (`pnpm lint:check && pnpm typecheck` fail-fast), **commit-msg** (`pnpm exec commitlint`). Bypass `--no-verify` à éviter (cf. §8 ❌). Si hooks ne firent pas après fresh clone : `pnpm exec husky` manuellement. `.claude/worktrees/**` (worktrees Claude Code) exclu d'ESLint et Vitest.
 
 **Détails workflows Husky + capture-then-drop + DROP + push gate + Dependabot triage** → [@.claude/conventions/git-workflow.md](.claude/conventions/git-workflow.md).
 
@@ -106,18 +106,18 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 
 ## 5.5 Invariants actuels
 
-| Invariant                              | Valeur                    | Source / Vérification                                                                                                    |
-| -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `EXPECTED_RPCS`                        | **28**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)                                                                         |
-| Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase                                                                     |
-| Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                                                                                        |
-| Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase                                                                                   |
-| Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                                                                                        |
-| Tests non-gated passants               | **1049**                  | `pnpm test:run`                                                                                                          |
-| Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                                                                                     |
-| Routes API                             | **48**                    | `pnpm build`                                                                                                             |
-| Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                                                                                                |
-| Score audit estimé                     | **~100**                  | Voir [.claude/history/score-evolution-part-1-47-to-99.md](.claude/history/score-evolution-part-1-47-to-99.md) (+ part-2) |
+| Invariant                              | Valeur                    | Source / Vérification                                |
+| -------------------------------------- | ------------------------- | ---------------------------------------------------- |
+| `EXPECTED_RPCS`                        | **28**                    | [scripts/check-rpcs.mjs](scripts/check-rpcs.mjs)     |
+| Counter `as unknown as SupabaseClient` | **0**                     | `Grep "as unknown as SupabaseClient"` cross-codebase |
+| Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
+| Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
+| Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
+| Tests non-gated passants               | **1049**                  | `pnpm test:run`                                      |
+| Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
+| Routes API                             | **48**                    | `pnpm build`                                         |
+| Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                            |
+| Score audit estimé                     | **~100**                  | Voir §1 (score-evolution)                            |
 
 ## 6. Conventions
 
@@ -224,7 +224,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Feedback transient post-mutation** : snackbar fixed bottom `z-[60]` (au-dessus drawer z-50) + `animate-in slide-in-from-bottom-4` + auto-dismiss 3s + `role="status"`. Mobile-safe `w-[calc(100%-2rem)] max-w-sm`. Pas de bandeau in-flow. Cf. [ProfileSettingsCard.tsx](components/profile/ProfileSettingsCard.tsx).
 - **DB ops** : Nouvelle RPC = `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public` + `NOTIFY pgrst`. Migration fonction → `pnpm db:audit-functions`. CREATE TYPE/DOMAIN → `db:audit-objects`. DROP / capture rétroactive prod → workflow strict ([git-workflow.md](.claude/conventions/git-workflow.md) §5-6). **NE PAS** `supabase db push` pour capture rétroactive.
 - **Push gate prod** : `db push --dry-run` → STOP → `db push` → re-audit → commit. Régénérer types `pnpm db:types` + `db:check-types-fresh`. Migration non-triviale → `db:check-drift`, si exit 1 re-exporter baseline.
-- **PR Dependabot mergée** : `git pull` + `pnpm install` + `pnpm verify` + `pnpm dev` smoke. Fix-forward plutôt que `git revert -m 1` ([git-workflow.md](.claude/conventions/git-workflow.md) §9).
+- **PR Dependabot mergée** (version → `dev`, sécurité → `main`) : `git pull` + `pnpm install` + `pnpm verify` + `pnpm dev` smoke. Fix-forward plutôt que `git revert -m 1` ([git-workflow.md](.claude/conventions/git-workflow.md) §9).
 
 ### ❌ À ne pas faire
 
@@ -232,6 +232,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 
 - **Modal/drawer raw** `<div className="fixed inset-0 ...">` → `<Dialog>` + `<DialogContent>` Radix (v8). Pas de raw button + SVG `M6 18L18 6M6 6l12 12` → `<ModalCloseX>` (v10).
 - **`window.location.reload()` après mutation TanStack Query**. `onSuccess` fait `setQueryData(key, newData)` → les consumers re-render. Le reload casse le drawer/modal/state UX (cas vu sur avatar update 2026-05-18).
+- **`router.push` à la place du reload complet du logout** ([AuthContext.tsx](contexts/AuthContext.tsx)) : seul mécanisme qui vide le cache TanStack Query de l'utilisateur précédent. Directives `no-location-assign-relative-destination` justifiées, idem `auth/confirm` ([Part 45](.claude/history/roadmap-detailed-45-dependabot-triage.md)).
 - **`await request.json()` direct** sans `parseBody` dans les routes Zod-migrated. Pas de `if (typeof X !== 'number' || X <= 0)` après parseBody.
 - **Réintroduire `lib/financial-calculations.ts`** (splitté en 8 modules `lib/finance/` au Refactor-I4).
 - **Exports supprimés Dead-Code-Purge** ou **server route `/auth/confirm` / auto-`verifyOtp()` / `{{ .ConfirmationURL }}` Supabase** (cf. [operational-rules.md](.claude/conventions/operational-rules.md) §1+§7).
@@ -267,7 +268,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 
 ## 9. Tests
 
-- **Vitest 4.1.6** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml).
+- **Vitest 4.1.11** avec `test.projects` split env=node (`*.test.ts`) / env=jsdom (`*.test.tsx`) — évite régression perf x23. Tests à côté du code (`.test.ts`/`.test.tsx` ou `__tests__/`). CI auto-run via [code-checks.yml](.github/workflows/code-checks.yml).
 
 ### Tests gated DB (env var requise)
 
@@ -287,6 +288,7 @@ Couverture par dossier : inventaire détaillé et à jour dans [.claude/referenc
 - **Gated tests** : `await import(...)` dans `beforeAll` (load lazy), `chunked` helper pour batch 10× appels (pool undici), cleanup cascade obligatoire dans `afterAll` (FK → profiles sans CASCADE).
 - **Timeouts** : `testTimeout`/`hookTimeout` 30s ([vitest.config.mts](vitest.config.mts)) — le défaut 5s coupait l'`await import()` à froid sous charge, et le test abandonné vidait la file `once` des suivants. `afterEach` → `vi.resetAllMocks()` (jamais `clearAllMocks` seul, qui ne purge pas les `*Once`). ⚠️ `chain.then` doit rester une fonction simple, pas un `vi.fn()`.
 - **RTL** : mock-per-site inline `vi.mock(...)`. UUIDs valides obligatoires dans fixtures FK. CustomDropdown mocké en `<select>`.
+- **Tests purs sans env** : `pnpm test:run` passe sans `.env.local` (CI). Importer le module pur (`@/lib/recap/state`), jamais le barrel `@/lib/recap` (→ `supabase-server`, throw au load) ; module serveur → `vi.mock('@/lib/supabase-server')`.
 - **a11y regression-guards** : `toHaveAttribute('aria-describedby', 'X')` + `toHaveFocus()` ; `axe(container).violations.toEqual([])` direct (pivot vitest 4.x).
 
 ### Sanity sweep
@@ -330,10 +332,10 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1049/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : Snapshot fin de mois.
+**État global** : Score ~100. Lint 0/0. Tests 1049/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
 
-**Historique** — 44 parts (155 sprints) :
+**Historique** — 45 parts (156 sprints) :
 
 - [Part 01](.claude/history/roadmap-detailed-01-sprint-0-to-architecture-v5.md) Sprint 0 → Refactor-Architecture-v5 (24) | [Part 02](.claude/history/roadmap-detailed-02-sprint-1-to-cleanup-lot-1.md) Sprint 1 → Lot 1 (11) | [Part 03](.claude/history/roadmap-detailed-03-lot-3-to-refactor-i5-followup-v2.md) Lot 3 → Refactor-I5-followup-v2 (8) | [Part 04](.claude/history/roadmap-detailed-04-followup-v3-to-atomicity-savings-v2.md) Refactor-I5-followup-v3 → Atomicity-Savings v2 (5)
 - [Part 05](.claude/history/roadmap-detailed-05-dead-code-to-lot-4b.md) Dead-Code-Purge → Lot 4b (6) | [Part 06](.claude/history/roadmap-detailed-06-lot-4c-to-lot-5d.md) Lot 4c → Lot 5d (7) | [Part 07](.claude/history/roadmap-detailed-07-audit-c2-to-zod-v3.md) Audit-Closeout C2 → Zod v3 (6) | [Part 08](.claude/history/roadmap-detailed-08-zod-v4-to-zod-v8.md) Zod v4 → v8 (5)
-- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) CAS3-TestFix → Password-OTP (7) | [Part 13](.claude/history/roadmap-detailed-13-fix-empty-recap-tirelire.md) Fix-Empty-Recap → Drawer-Slide-Fix (6) | [Part 14](.claude/history/roadmap-detailed-14-modal-uniformize-polish-dropdown.md) Modal → Navbar-Switch (6) | [Part 15](.claude/history/roadmap-detailed-15-skeleton-refetch-loaders.md) Skeleton-Refetch → Cache fix (3) | [Part 16](.claude/history/roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md) Expense-Preview → Recap-Compact (4) | [Part 17](.claude/history/roadmap-detailed-17-delete-header-income-polish.md) Delete-Header → Auth-Flicker (4) | [Part 18](.claude/history/roadmap-detailed-18-modal-enter-block.md) Modal-Block-Enter → Calc-V3 (5) | [Part 19](.claude/history/roadmap-detailed-19-endpoints-start-status.md) START-STATUS-V3 → Negative-Flow-V3 (3) | [Part 20](.claude/history/roadmap-detailed-20-salary-finalize.md) Salary-Finalize-V3 → Wizard-Shell-V3 (3) | [Part 21](.claude/history/roadmap-detailed-21-screens-welcome-summary.md) Welcome-Summary-V3 → Bilan-Positive-V3 (3) | [Part 22](.claude/history/roadmap-detailed-22-screen-bilan-negative.md) 13-14 V3 (2) | [Part 23](.claude/history/roadmap-detailed-23-carry-over.md) 15 carry-over (1) | [Part 24](.claude/history/roadmap-detailed-24-contribution.md) Contribution (8) | [Part 25](.claude/history/roadmap-detailed-25-salary-edit-gating.md) Salary-Edit-Gating (1) | [Part 26](.claude/history/roadmap-detailed-26-wizard-flicker-fix.md) Wizard-Flicker → Welcome-Skip (2) | [Part 27](.claude/history/roadmap-detailed-27-recap-positive-consume-surplus.md) Consume (1) | [Part 28](.claude/history/roadmap-detailed-28-auto-cascade-piggy.md) Auto-Cascade (1) | [Part 29](.claude/history/roadmap-detailed-29-projets-epargne.md) PÉ 01-04 + [Part 30](.claude/history/roadmap-detailed-30-projets-epargne-modals.md) PÉ modals→refloat (5) + [Part 31](.claude/history/roadmap-detailed-31-projets-epargne-finalize.md) finalize (5) | [Part 32](.claude/history/roadmap-detailed-32-group-rav-recap.md) Group-RAV (1) | [Part 33](.claude/history/roadmap-detailed-33-pwa-standalone-polish.md) PWA (1) | [Part 34](.claude/history/roadmap-detailed-34-allow-negative-rav-and-deficit-bug.md) Negative-RAV (8) | [Part 35](.claude/history/roadmap-detailed-35-carryover-validated-exclude-from-rav.md) Carry-Validated (1) | [Part 36](.claude/history/roadmap-detailed-36-salary-contribution-income-mirror.md) Salary-Auto + Mirror-Income (2) | [Part 37](.claude/history/roadmap-detailed-37-group-income-cascade.md) Group-Income-Cascade (1) | [Part 38](.claude/history/roadmap-detailed-38-planner-rav-color.md) Planner-RAV-Color (1) | [Part 39](.claude/history/roadmap-detailed-39-exceptional-piggy.md) Exceptional-Piggy (1) | [Part 40](.claude/history/roadmap-detailed-40-security-rls-monthly-recaps.md) Security-RLS (1) | [Part 41](.claude/history/roadmap-detailed-41-abandoned-recap-recovery.md) Abandoned-Recap (1) | [Part 42](.claude/history/roadmap-detailed-42-perf-group-dashboard.md) Perf-Group-Dashboard (1) | [Part 43](.claude/history/roadmap-detailed-43-notes-pense-betes.md) Notes (1) | [Part 44](.claude/history/roadmap-detailed-44-monthly-db-snapshot.md) Snapshot (1)
+- [Part 09](.claude/history/roadmap-detailed-09-zod-v9-to-tailwind-v4.md) Zod v9 → Tailwind-v4 (5) | [Part 10](.claude/history/roadmap-detailed-10-p10-to-auto-balance-atomic.md) P10 → Auto-Balance-Atomic (7) | [Part 11](.claude/history/roadmap-detailed-11-phase-b-to-commitlint.md) Phase-B → Commitlint (6) | [Part 12](.claude/history/roadmap-detailed-12-cas3-to-refactor-recover.md) CAS3-TestFix → Password-OTP (7) | [Part 13](.claude/history/roadmap-detailed-13-fix-empty-recap-tirelire.md) Fix-Empty-Recap → Drawer-Slide-Fix (6) | [Part 14](.claude/history/roadmap-detailed-14-modal-uniformize-polish-dropdown.md) Modal → Navbar-Switch (6) | [Part 15](.claude/history/roadmap-detailed-15-skeleton-refetch-loaders.md) Skeleton-Refetch → Cache fix (3) | [Part 16](.claude/history/roadmap-detailed-16-expense-preview-pose-and-preserve-caps.md) Expense-Preview → Recap-Compact (4) | [Part 17](.claude/history/roadmap-detailed-17-delete-header-income-polish.md) Delete-Header → Auth-Flicker (4) | [Part 18](.claude/history/roadmap-detailed-18-modal-enter-block.md) Modal-Block-Enter → Calc-V3 (5) | [Part 19](.claude/history/roadmap-detailed-19-endpoints-start-status.md) START-STATUS-V3 → Negative-Flow-V3 (3) | [Part 20](.claude/history/roadmap-detailed-20-salary-finalize.md) Salary-Finalize-V3 → Wizard-Shell-V3 (3) | [Part 21](.claude/history/roadmap-detailed-21-screens-welcome-summary.md) Welcome-Summary-V3 → Bilan-Positive-V3 (3) | [Part 22](.claude/history/roadmap-detailed-22-screen-bilan-negative.md) 13-14 V3 (2) | [Part 23](.claude/history/roadmap-detailed-23-carry-over.md) 15 carry-over (1) | [Part 24](.claude/history/roadmap-detailed-24-contribution.md) Contribution (8) | [Part 25](.claude/history/roadmap-detailed-25-salary-edit-gating.md) Salary-Edit-Gating (1) | [Part 26](.claude/history/roadmap-detailed-26-wizard-flicker-fix.md) Wizard-Flicker → Welcome-Skip (2) | [Part 27](.claude/history/roadmap-detailed-27-recap-positive-consume-surplus.md) Consume (1) | [Part 28](.claude/history/roadmap-detailed-28-auto-cascade-piggy.md) Auto-Cascade (1) | [Part 29](.claude/history/roadmap-detailed-29-projets-epargne.md) PÉ 01-04 + [Part 30](.claude/history/roadmap-detailed-30-projets-epargne-modals.md) PÉ modals→refloat (5) + [Part 31](.claude/history/roadmap-detailed-31-projets-epargne-finalize.md) finalize (5) | [Part 32](.claude/history/roadmap-detailed-32-group-rav-recap.md) Group-RAV (1) | [Part 33](.claude/history/roadmap-detailed-33-pwa-standalone-polish.md) PWA (1) | [Part 34](.claude/history/roadmap-detailed-34-allow-negative-rav-and-deficit-bug.md) Negative-RAV (8) | [Part 35](.claude/history/roadmap-detailed-35-carryover-validated-exclude-from-rav.md) Carry-Validated (1) | [Part 36](.claude/history/roadmap-detailed-36-salary-contribution-income-mirror.md) Salary-Auto + Mirror-Income (2) | [Part 37](.claude/history/roadmap-detailed-37-group-income-cascade.md) Group-Income-Cascade (1) | [Part 38](.claude/history/roadmap-detailed-38-planner-rav-color.md) Planner-RAV-Color (1) | [Part 39](.claude/history/roadmap-detailed-39-exceptional-piggy.md) Exceptional-Piggy (1) | [Part 40](.claude/history/roadmap-detailed-40-security-rls-monthly-recaps.md) Security-RLS (1) | [Part 41](.claude/history/roadmap-detailed-41-abandoned-recap-recovery.md) Abandoned-Recap (1) | [Part 42](.claude/history/roadmap-detailed-42-perf-group-dashboard.md) Perf-Group-Dashboard (1) | [Part 43](.claude/history/roadmap-detailed-43-notes-pense-betes.md) Notes (1) | [Part 44](.claude/history/roadmap-detailed-44-monthly-db-snapshot.md) Snapshot (1) | [Part 45](.claude/history/roadmap-detailed-45-dependabot-triage.md) Dependabot-Triage (1)
