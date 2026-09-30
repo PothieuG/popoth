@@ -66,7 +66,7 @@ jobs:
       # both are set, even on match). Lesson Sprint Cleanup-Legacy / C3.
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
