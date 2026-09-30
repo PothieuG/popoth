@@ -113,7 +113,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
-| Tests non-gated passants               | **1049**                  | `pnpm test:run`                                      |
+| Tests non-gated passants               | **1054**                  | `pnpm test:run`                                      |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
 | Routes API                             | **48**                    | `pnpm build`                                         |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                            |
@@ -219,7 +219,7 @@ Historique détaillé des 15 sprints sécurité (Sprint 0 → Refactor-Architect
 - **Modal forms mirror prop** : `key={editing.id}` + `useState(() => ...editing.foo)` lazy + parent `{isOpen && editing && <Modal ... />}` (Sprint 1.5 standard).
 - **`useReducer`** : extraire reducer + types module dédié sans `'use client'` (pattern [contexts/auth-reducer.ts](contexts/auth-reducer.ts)). Context value via useReducer → wrapper `useMemo` slice-by-slice.
 - **Nouvelle route `/api/debug/*`** : `blockInProduction()` en première instruction.
-- **Form client a11y** : `aria-describedby` + `id` sur erreur (id-prefix par form) ; `role="alert"` sur serverError ; `onInvalidSubmit` → `form.setFocus(Object.keys(errors)[0])` ; close X svg-only → `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur `<svg>`.
+- **Form client a11y** : `aria-describedby` + `id` sur erreur (id-prefix par form) ; `role="alert"` sur serverError ; `onInvalidSubmit` → `focusAfterSubmit(() => form.setFocus(...))` (`useFocusAfterSubmit`, zod-patterns §7) ; close X svg-only → `type="button"` + `aria-label="Fermer"` + `aria-hidden="true"` sur `<svg>`.
 - **Modal Radix-migré** : close X via `<ModalCloseX onClose variant="circle"|"ghost" />` (v10). Drawer fullscreen → `DRAWER_CONTENT_CLASSES` (v9). Test focus-trap → helper `expectEscClose()` (v10).
 - **Feedback transient post-mutation** : snackbar fixed bottom `z-[60]` (au-dessus drawer z-50) + `animate-in slide-in-from-bottom-4` + auto-dismiss 3s + `role="status"`. Mobile-safe `w-[calc(100%-2rem)] max-w-sm`. Pas de bandeau in-flow. Cf. [ProfileSettingsCard.tsx](components/profile/ProfileSettingsCard.tsx).
 - **DB ops** : Nouvelle RPC = `SECURITY DEFINER` + `REVOKE ALL FROM PUBLIC` + `GRANT EXECUTE TO service_role` + `SET search_path = public` + `NOTIFY pgrst`. Migration fonction → `pnpm db:audit-functions`. CREATE TYPE/DOMAIN → `db:audit-objects`. DROP / capture rétroactive prod → workflow strict ([git-workflow.md](.claude/conventions/git-workflow.md) §5-6). **NE PAS** `supabase db push` pour capture rétroactive.
@@ -332,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1049/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
+**État global** : Score ~100. Lint 0/0. Tests 1054/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
 
 **Historique** — 45 parts (156 sprints) :
 
