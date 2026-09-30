@@ -59,7 +59,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # Version is read from package.json#packageManager — explicit
       # `with: version` would conflict (action-setup@v4 errors out when
