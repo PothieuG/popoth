@@ -115,7 +115,7 @@ lib/
     __tests__/actions-salary.test.ts   # ✅ Sprint 08 V3 — 6 cas non-gated avec mock chainable supabaseServer (profile happy + 2 rejets validation + group happy + group outsider rejet + RPC recalc fail-soft).
     __tests__/actions-finalize.test.ts # ✅ Sprint 08 V3 — 5 cas non-gated avec mock supabaseServer.rpc (empty snapshot skip + non-empty chain + apply_snapshot fail-soft + process_tx fail-soft + final UPDATE throws).
   schemas/                 # ✅ Sprint Refactor-I5 — Zod schemas API
-    # NOTE: recap.ts ajouté Sprint State-Lock-Schemas-V3 (sub-task 03/17, 2026-05-24) — 8 schémas (start, transferSurpluses, refloatFromPiggy, refloatFromSavings, saveBudgetSnapshot, updateSalaries, complete, statusQuery) réutilisant contextSchema/uuidSchema/nonNegativeMoneySchema de common.ts. Tests : __tests__/recap.test.ts ≥40 cas non-gated. Barrel index.ts étendu (`export * from './recap'`).
+    # NOTE: recap.ts ajouté Sprint State-Lock-Schemas-V3 (2026-05-24) — 8 schémas (start, transferSurpluses, refloatFromPiggy, refloatFromSavings, saveBudgetSnapshot, updateSalaries, complete, statusQuery) réutilisant les primitives de common.ts. Tests : __tests__/recap.test.ts ≥40 cas non-gated. Barrel index.ts étendu (`export * from './recap'`).
   api/                     # ✅ Sprint Refactor-Architecture v1+v2 — handlers extraits, ré-exportés par app/api/finance/**/route.ts
     parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest(error). Validation Zod centralisée pour les handlers
     notes.ts               # ✅ Part 43 — handlers /api/notes, accès filtré dans l'UPDATE/DELETE (0 ligne ⇒ 404)
@@ -169,13 +169,14 @@ lib/
     generate.ts            # `generateOpenAPI()` — transforme le registry en OpenAPI 3.1 JSON via `z.toJSONSchema()` natif Zod 4 (zéro dep externe). Cache module-level. Refines droppés (limite JSON Schema), transforms → `{}` via `unrepresentable: 'any'`.
 scripts/                   # Sprint DB outils API Management (sans Docker)
   export-schema.mjs        # snapshot prod schema → SQL baseline (⚠️ filtre trigger buggy, cf. Sprint Audit-Triggers v6)
-  apply-sql.mjs            # applique un .sql via API Management (drift recovery, SELECT, ou clone-data.mjs base)
+  apply-sql.mjs            # applique un .sql via API Management (drift recovery, SELECT)
   check-drift.mjs          # backend de pnpm db:check-drift
   check-rpcs.mjs           # backend de pnpm db:check-rpcs
   check-snapshots.mjs      # ✅ Part 44 — pnpm db:check-snapshots : fonctions snapshots.*, job pg_cron, tables couvertes, snapshot du mois écoulé
   db-snapshot{,-lib}.mjs   # ✅ Part 44 — pnpm db:snapshot list|status|take|preview|restore (restauration globale, confirmée au clavier). Helpers purs testés
+  db-clone{,-lib}.mjs      # pnpm db:clone : dev = copie exacte de prod (lue en lecture seule)
   shrink-avatars.mjs       # ✅ Part 42 §11 — ramène les `profiles.avatar_url` base64 > 120k chars à 256 px (sharp). Dry-run défaut, `--apply` écrit. Projet = NEXT_PUBLIC_SUPABASE_URL du .env.local
-  perf-probe.mjs           # ✅ Part 42 §10 — latence réelle des 12-13 appels d'un chargement de dashboard, perso vs groupe (médiane/max + « vague » parallèle + région `x-vercel-id`). Env POPOTH_SESSION_COOKIE, jamais affiché
+  perf-probe.mjs           # ✅ Part 42 §10 — latence réelle des 12-13 appels d'un chargement de dashboard, perso vs groupe (médiane/max, vague parallèle, région). Env POPOTH_SESSION_COOKIE, jamais affiché
   list-triggers.sql        # ✅ Sprint Polish T5 — SELECT pg_trigger pour inventaire
   seed-recap/              # ✅ Sprint 09 Monthly Recap V3 (2026-05-23) — 28 scripts CLI dev-only, 1 = 1 scénario QA (+1 Sprint PÉ 11)
     _lib.mjs               # client Supabase dev-only (anti-prod guard URL + JWT payload check + env SUPABASE_DEV_SERVICE_ROLE_KEY), 15 helpers : cleanupCurrentMonth, ensureGroupMembership, insert{Profile,Group}{Budgets,Expenses,Incomes,RealIncomes}, setPiggy/Bank/ProfileSalary, seedRecapRow, printPostSeedInstructions, runScenario

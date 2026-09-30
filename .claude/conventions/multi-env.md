@@ -123,7 +123,7 @@ Si la DB dev est vide / fresh : copier la baseline prod via `supabase db push --
 >
 > - `supabase migration list` / `db push` contre dev **ne marchent pas tels quels** : un `db push` créerait le tracker puis tenterait d'appliquer **toutes** les migrations locales — or la plupart existent déjà sur dev → collisions (`relation already exists`, `type already exists`…). Le bloc PowerShell ci-dessus (link + `db push`) est donc **théorique** tant que le tracker dev n'est pas initialisé.
 > - Il n'y a donc **rien à enregistrer** dans `schema_migrations` côté dev (aucun risque « db push ré-applique »). Pour migrer dev aujourd'hui : `apply-sql.mjs` (idempotent via `CREATE OR REPLACE` ; un `CREATE TABLE`/`CREATE TYPE` neuf passe une fois).
-> - Initialiser un vrai tracker dev = créer `supabase_migrations.schema_migrations` + **backfiller toutes** les versions historiques (~100) pour matcher les fichiers locaux. Tâche séparée, non faite.
+> - Initialiser un vrai tracker dev = créer `supabase_migrations.schema_migrations` + **backfiller toutes** les versions historiques (~100) pour matcher les fichiers locaux. C'est ce que fait `pnpm db:clone apply` (§8) : il recopie le tracker de la prod, valable tant que la structure de dev est celle de la prod — l'aperçu la compare objet par objet et signale tout écart (dev en avance d'une migration passée par `apply-sql.mjs` → `db push` la rejouerait). Structure identique → `supabase db push` sur dev redevient utilisable.
 >
 > Côté **prod** (`jzmppreybwabaeycvasz`), au contraire, `schema_migrations` **existe et fait foi**. Toute migration appliquée hors `db push` (ex. `20260608000000_create_add_exceptional_expense_with_piggy_rpc`, poussée via `apply-sql.mjs` le 2026-05-29) **doit y être enregistrée** — `INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES (…)` (équivalent de `migration repair --status applied <version>`), sinon un futur `db push` la re-tente (inoffensif si idempotente, mais tracker désynchronisé). Enregistrement faisable via `apply-sql.mjs` (Management API + `SUPABASE_ACCESS_TOKEN`) quand le `SUPABASE_DB_PASSWORD` du shell est ambigu (bloc `.env.local` basculé prod↔dev).
 
@@ -136,3 +136,24 @@ Test de présence binaire autorisé :
 ```powershell
 if (Test-Path .env.local) { 'OK' } else { 'MISSING' }
 ```
+
+## 8. Copier la prod dans dev (`pnpm db:clone`)
+
+> Installé 2026-09-30. Remplace `scripts/clone-data.mjs` (copie partielle : 11 des 15 tables publiques, ni snapshots ni identités, triggers actifs, lignes dev conservées via `ON CONFLICT DO NOTHING`).
+
+[scripts/db-clone.mjs](../../scripts/db-clone.mjs) fait de dev une copie **exacte** de la prod : toutes les tables `public` + `snapshots`, les comptes de connexion (`auth.users` + `auth.identities`, mots de passe compris) et l'historique des migrations (`supabase_migrations`, créé sur dev s'il manque).
+
+```powershell
+pnpm db:clone preview            # comparatif prod / dev (lignes, comptes, structure) — rien n'est écrit
+pnpm db:clone apply --dry-run    # simulation complète sur dev, annulée à la fin
+pnpm db:clone apply              # ECRASER au clavier → sauvegarde dev → copie → vérification
+pnpm db:clone restore tmp/db-clone/dev-backup-<date>.json   # revenir à l'état sauvegardé
+```
+
+- **Prod jamais écrite** : chaque requête prod part avec `read_only: true` (Postgres l'exécute sous `supabase_read_only_user`, toute écriture refusée) et le client prod n'a pas de méthode d'écriture (pinné par [db-clone-lib.test.ts](../../scripts/__tests__/db-clone-lib.test.ts)). Refs prod/dev codées en dur, `SUPABASE_PROJECT_REF` ignoré.
+- **Dev remplacée en une transaction** (tout ou rien) : `TRUNCATE` public + snapshots, `DELETE FROM auth.users` (cascade sessions/identités), puis chargement sous `session_replication_role = replica` → aucun trigger ne rejoue (revenu miroir, recalcul des contributions…), les lignes arrivent telles quelles. Transit par le schéma `zz_db_clone_staging` (la Management API refuse les requêtes > ~2 Mo), supprimé dans la même transaction.
+- **Vérification** : nombre de lignes + empreinte md5 par table, source vs dev après chargement. Sans clavier (agent, CI) : `--confirm=ECRASER`.
+- **Sauvegarde** de dev juste avant, dans `tmp/db-clone/` (gitignored — hashs de mots de passe, ne jamais partager).
+- **Après un clone** : se reconnecter sur dev avec le mot de passe **prod**. Les scripts [seed-recap](../../scripts/seed-recap/README.md) codent en dur les identifiants A/B/groupe de dev : `preview` indique combien de comptes prod existent déjà en dev avec le même identifiant.
+- **Hors copie** : `storage` (vide des deux côtés), sessions et jetons auth, réglages projet (URLs de redirection, modèles d'email, version Postgres 17.4 prod / 17.6 dev).
+- Une table publique présente en prod mais absente de dev **bloque** `apply` : passer la migration sur dev d'abord.

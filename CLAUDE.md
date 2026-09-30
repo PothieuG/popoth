@@ -21,7 +21,7 @@ Tous les `.md` du contexte (CLAUDE.md + références sous `.claude/`) doivent re
 
 **Popoth** : PWA francophone **mobile-first** de gestion financière personnelle et en groupe. **Toute UI doit être pensée mobile uniquement** (cible iPhone Safari/Chrome, viewport ≤ 430 px). Domaines clés : budgets estimés, dépenses réelles, économies cumulées, tirelire commune, récap mensuel, transferts inter-budgets.
 
-Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) — workflow par défaut côté dev ; `scripts/db-*.mjs` ciblent prod par défaut (fallback hardcodé), override `$env:SUPABASE_PROJECT_REF` pour dev (cf. `feedback_supabase_project_target` memory). Dev sans tracker `schema_migrations` (schéma ad-hoc `apply-sql.mjs`, cf. multi-env.md §6). **Score audit ~100/100** (baseline 47/100). Évolution → [score-evolution-1](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
+Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) — workflow par défaut côté dev ; `scripts/db-*.mjs` ciblent prod par défaut (fallback hardcodé), override `$env:SUPABASE_PROJECT_REF` pour dev (cf. `feedback_supabase_project_target` memory). Dev sans tracker `schema_migrations` (ad-hoc `apply-sql.mjs`, multi-env.md §6) ; `pnpm db:clone` copie prod → dev à l'identique, tracker compris (§8). **Score audit ~100/100** (baseline 47/100). Évolution → [score-evolution-1](.claude/history/score-evolution-part-1-47-to-99.md) (+ [part-2](.claude/history/score-evolution-part-2-99-to-100.md)).
 
 ## 2. Stack
 
@@ -113,7 +113,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
-| Tests non-gated passants               | **1049**                  | `pnpm test:run`                                      |
+| Tests non-gated passants               | **1077**                  | `pnpm test:run`                                      |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
 | Routes API                             | **48**                    | `pnpm build`                                         |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                            |
@@ -332,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1049/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
+**État global** : Score ~100. Lint 0/0. Tests 1077/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
 
 **Historique** — 45 parts (156 sprints) :
 
