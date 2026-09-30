@@ -14,7 +14,11 @@ updates:
       time: '08:00'
       timezone: 'Europe/Paris'
     open-pull-requests-limit: 5
-    target-branch: cleanup
+    # `dev` = branche de staging où atterrissent les features (cf.
+    # .claude/conventions/multi-env.md). L'ancienne cible `cleanup` a été
+    # supprimée, ce qui avait coupé ces PRs sans bruit. Les PRs de sécurité,
+    # elles, visent toujours la branche par défaut (`main`).
+    target-branch: dev
     commit-message:
       prefix: chore
       include: scope
@@ -47,17 +51,6 @@ updates:
           - 'react-dom'
           - '@types/react'
           - '@types/react-dom'
-    ignore:
-      # Tailwind v4 migration completed Sprint Tailwind-v4 (2026-05-14)
-      # via `npx @tailwindcss/upgrade` + tw-animate-css for Radix animations.
-      # The 2026-05-07 follow-up ignore rule is now obsolete — Dependabot
-      # can resume normal version updates on tailwindcss + @tailwindcss/postcss.
-      #
-      # eslint-config-next 16+ — pinned to 15.0.0 (CLAUDE.md §2). v16
-      # requires ESLint 9 + flat config migration (Sprint 1 territory).
-      - dependency-name: 'eslint-config-next'
-        versions:
-          - '>=16.0.0'
 
   - package-ecosystem: github-actions
     directory: /
@@ -67,7 +60,7 @@ updates:
       time: '08:00'
       timezone: 'Europe/Paris'
     open-pull-requests-limit: 5
-    target-branch: cleanup
+    target-branch: dev
     commit-message:
       prefix: chore
       include: scope
