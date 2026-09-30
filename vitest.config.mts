@@ -33,9 +33,14 @@ function loadDotEnv(file: string): Record<string, string> {
 }
 const env = loadDotEnv(path.resolve(rootDir, '.env.local'))
 
+// Globs relatifs à la racine : sans l'entrée `.claude/worktrees/**`, un run
+// depuis le checkout principal collectait aussi les tests des worktrees Claude
+// Code (gitignored), y compris ceux des paquets de leur propre `node_modules`.
+const testExclude = ['node_modules/**', '.next/**', 'dist/**', '.claude/worktrees/**']
+
 export default defineConfig({
   test: {
-    exclude: ['node_modules/**', '.next/**', 'dist/**'],
+    exclude: testExclude,
     env,
     // Le défaut Vitest (5 s) est trop court pour cette suite : la plupart des
     // tests de routes importent le module sous test DANS le premier `it`
@@ -57,7 +62,7 @@ export default defineConfig({
           name: 'unit',
           environment: 'node',
           include: ['**/*.test.ts'],
-          exclude: ['node_modules/**', '.next/**', 'dist/**'],
+          exclude: testExclude,
         },
       },
       {
@@ -66,7 +71,7 @@ export default defineConfig({
           name: 'client',
           environment: 'jsdom',
           include: ['**/*.test.tsx'],
-          exclude: ['node_modules/**', '.next/**', 'dist/**'],
+          exclude: testExclude,
           setupFiles: ['./vitest.setup.ts'],
         },
       },
