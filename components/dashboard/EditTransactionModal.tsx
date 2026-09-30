@@ -23,6 +23,7 @@ import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePrevie
 import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import {
   editTransactionFormSchema,
   type EditTransactionFormInput,
@@ -119,6 +120,7 @@ export default function EditTransactionModal({
           },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles.
   // Ne compte QUE amount_from_budget (pas tirelire ni savings) — mirror AddTransactionModal.
@@ -300,7 +302,7 @@ export default function EditTransactionModal({
   const onInvalidSubmit = (errors: FieldErrors<EditTransactionFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<EditTransactionFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<EditTransactionFormInput>))
     }
   }
 

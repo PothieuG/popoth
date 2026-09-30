@@ -23,6 +23,7 @@ import { useProgressData } from '@/hooks/useProgressData'
 import { calculateBreakdown } from '@/lib/expense-breakdown'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import {
   addTransactionFormSchema,
   type AddTransactionFormInput,
@@ -156,6 +157,7 @@ export default function AddTransactionModal({
     },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   // Watch reactive fields for previews + RAV validation
   const watchedType = useWatch({ control: form.control, name: 'transactionType' })
@@ -409,7 +411,7 @@ export default function AddTransactionModal({
   const onInvalidSubmit = (errors: FieldErrors<AddTransactionFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<AddTransactionFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<AddTransactionFormInput>))
     }
   }
 

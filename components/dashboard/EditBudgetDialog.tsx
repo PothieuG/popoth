@@ -9,6 +9,7 @@ import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { makeBudgetClientSchema } from '@/lib/schemas/budget'
 import {
   computeGroupMembersRavPreview,
@@ -79,6 +80,7 @@ export default function EditBudgetDialog({
     },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async (data: FormOutput) => {
     const success = await onSave({
@@ -94,7 +96,7 @@ export default function EditBudgetDialog({
   const onInvalidSubmit = (errors: FieldErrors<FormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<FormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<FormInput>))
     }
   }
 

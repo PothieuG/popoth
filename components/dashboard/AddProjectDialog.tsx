@@ -12,6 +12,7 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { makeProjectClientSchema } from '@/lib/schemas/projects'
 import { computeDeadlineFromDuration, formatDeadline } from '@/lib/finance/projects-meta'
 import {
@@ -93,6 +94,7 @@ export default function AddProjectDialog({
     },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const [mode, setMode] = useState<Mode>('duration')
   // `durationInputA` est l'état d'édition utilisateur de l'input "Durée (mois)"
@@ -212,10 +214,10 @@ export default function AddProjectDialog({
     // setFocus tomberait dans le vide. Redirige vers l'input duration (qui
     // est la source contrôlable de l'erreur dérivée).
     if (firstErrorKey === 'monthlyAllocation' && mode === 'duration') {
-      document.getElementById('add-project-duration')?.focus()
+      focusAfterSubmit(() => document.getElementById('add-project-duration')?.focus())
       return
     }
-    form.setFocus(firstErrorKey as FieldPath<FormInput>)
+    focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<FormInput>))
   }
 
   const fieldErrors = form.formState.errors

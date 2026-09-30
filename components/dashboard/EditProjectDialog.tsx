@@ -12,6 +12,7 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { makeProjectClientSchema } from '@/lib/schemas/projects'
 import {
   computeDeadlineFromDuration,
@@ -110,6 +111,7 @@ export default function EditProjectDialog({
     },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const [mode, setMode] = useState<Mode>('monthly')
   const [durationInputA, setDurationInputA] = useState<number>(initialDuration)
@@ -207,10 +209,10 @@ export default function EditProjectDialog({
     // En mode A, le DecimalFormInput de monthlyAllocation n'est pas monté
     // → setFocus tomberait dans le vide. Redirige vers l'input duration.
     if (firstErrorKey === 'monthlyAllocation' && mode === 'duration') {
-      document.getElementById('edit-project-duration')?.focus()
+      focusAfterSubmit(() => document.getElementById('edit-project-duration')?.focus())
       return
     }
-    form.setFocus(firstErrorKey as FieldPath<FormInput>)
+    focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<FormInput>))
   }
 
   const fieldErrors = form.formState.errors

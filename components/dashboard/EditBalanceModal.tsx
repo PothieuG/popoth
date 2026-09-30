@@ -11,6 +11,7 @@ import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { Label } from '@/components/ui/label'
 import { editBalanceFormSchema, type EditBalanceForm } from '@/lib/schemas/bank-balance'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { logger } from '@/lib/logger'
 
 interface EditBalanceModalProps {
@@ -40,6 +41,7 @@ export default function EditBalanceModal({
     defaultValues: { balance: currentBalance },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const handleValidSubmit = async (data: EditBalanceForm) => {
     setServerError(null)
@@ -60,7 +62,7 @@ export default function EditBalanceModal({
   const onInvalidSubmit = (errors: FieldErrors<EditBalanceFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<EditBalanceFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<EditBalanceFormInput>))
     }
   }
 

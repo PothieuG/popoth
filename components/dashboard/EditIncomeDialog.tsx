@@ -9,6 +9,7 @@ import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
 import {
   computeGroupMembersContributionsPreview,
@@ -83,6 +84,7 @@ export default function EditIncomeDialog({
     },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async (data: UpdateIncomeForm) => {
     const success = await onSave({
@@ -98,7 +100,7 @@ export default function EditIncomeDialog({
   const onInvalidSubmit = (errors: FieldErrors<UpdateIncomeFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<UpdateIncomeFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<UpdateIncomeFormInput>))
     }
   }
 

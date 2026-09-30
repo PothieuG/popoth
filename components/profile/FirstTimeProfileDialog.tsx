@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2, User } from 'lucide-react'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { profileNameFormFieldsSchema, type ProfileNameFormFields } from '@/lib/schemas/profile'
 
 interface FirstTimeProfileDialogProps {
@@ -40,6 +41,7 @@ export default function FirstTimeProfileDialog({
     defaultValues: { first_name: '', last_name: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async ({ first_name, last_name }: ProfileNameFormFields) => {
     setServerError(null)
@@ -60,7 +62,7 @@ export default function FirstTimeProfileDialog({
   const onInvalidSubmit = (errors: FieldErrors<ProfileNameFormFields>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<ProfileNameFormFields>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<ProfileNameFormFields>))
     }
   }
 

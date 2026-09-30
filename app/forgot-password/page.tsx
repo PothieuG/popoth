@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase-client'
 import { forgotPasswordFormSchema, type ForgotPasswordForm } from '@/lib/schemas/auth'
 import { logger } from '@/lib/logger'
 import { getSiteUrl } from '@/lib/site-url'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 
 /**
  * Forgot password page allowing users to request a password reset email.
@@ -29,6 +30,7 @@ export default function MotDePasseOubliePage() {
     defaultValues: { email: '' },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const onValidSubmit = async ({ email }: ForgotPasswordForm) => {
     setServerError('')
@@ -70,7 +72,7 @@ export default function MotDePasseOubliePage() {
   const onInvalidSubmit = (errors: FieldErrors<ForgotPasswordForm>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<ForgotPasswordForm>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<ForgotPasswordForm>))
     }
   }
 

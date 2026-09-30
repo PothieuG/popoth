@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { useFocusAfterSubmit } from '@/hooks/useFocusAfterSubmit'
 import { logger } from '@/lib/logger'
 import { validateSalaryFormSchema, type ValidateSalaryForm } from '@/lib/schemas/income'
 
@@ -64,6 +65,7 @@ export default function SalaryValidationModal({
     defaultValues: { realAmount: defaultAmount },
     mode: 'onSubmit',
   })
+  const focusAfterSubmit = useFocusAfterSubmit(form.formState.submitCount)
 
   const handleValidSubmit = async (data: ValidateSalaryForm) => {
     setServerError(null)
@@ -100,7 +102,7 @@ export default function SalaryValidationModal({
   const onInvalidSubmit = (errors: FieldErrors<SalaryValidationFormInput>) => {
     const firstErrorKey = Object.keys(errors)[0]
     if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<SalaryValidationFormInput>)
+      focusAfterSubmit(() => form.setFocus(firstErrorKey as FieldPath<SalaryValidationFormInput>))
     }
   }
 
