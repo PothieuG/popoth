@@ -1,20 +1,28 @@
 name: Code checks (PR + post-merge)
 
-# Runs typecheck + tests on PRs that touch source code so we don't merge
-# a TypeScript regression or a broken test, AND on push to cleanup so
-# the post-merge state is also validated. Companion to
-# .github/workflows/db-drift-pr.yml (DB-side checks).
+# Runs typecheck + lint + format + tests on PRs that touch source code so
+# we don't merge a TypeScript regression or a broken test, AND on push to
+# `dev` (staging) and `main` (prod) so the post-merge state is also
+# validated. Companion to .github/workflows/db-drift-pr.yml (DB-side
+# checks).
 #
 # Path filter keeps Actions minutes low — only fires when source code,
 # config, or dependencies change.
 #
-# Why both pull_request AND push: branches: [cleanup]?
-# When a Dependabot PR is merged via GitHub UI, the merge commit fast-
-# forwards the default branch but does NOT re-trigger pull_request
-# workflows (PR is closed). Without push:, nothing validates the post-
-# merge state — the user discovered the @supabase/supabase-js wave
-# break by running `pnpm verify` locally, not via CI. Sprint
-# Stabilize-Deps / S2 closes this gap.
+# Why both pull_request AND push: branches: [dev, main]?
+# When a PR (e.g. Dependabot) is merged via GitHub UI, the merge commit
+# lands on the base branch but does NOT re-trigger pull_request workflows
+# (PR is closed). And most work reaches `dev` / `main` by a direct push,
+# with no PR at all (cf. .claude/conventions/multi-env.md). Without push:,
+# nothing validates the post-merge state — the user discovered the
+# @supabase/supabase-js wave break by running `pnpm verify` locally, not
+# via CI. Sprint Stabilize-Deps / S2 closes this gap.
+#
+# The push trigger used to list `cleanup`, the former default branch. It
+# was merged into `main` then deleted, but the trigger was not updated:
+# from 2026-05-18 (last push run) to 2026-09-30, CI only ran on PRs.
+# Renaming or deleting a branch => update `branches:` below (and
+# `target-branch` in .github/dependabot.yml).
 #
 # Sprint Code-CI / F1, extended Sprint Stabilize-Deps / S2.
 
@@ -33,7 +41,8 @@ on:
       - '.github/workflows/code-checks.yml'
   push:
     branches:
-      - cleanup
+      - dev
+      - main
     paths:
       - '**/*.ts'
       - '**/*.tsx'
