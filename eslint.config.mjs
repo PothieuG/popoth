@@ -16,6 +16,9 @@ const eslintConfig = [
       '*.config.js',
       '*.config.mjs',
       'next-env.d.ts',
+      // Worktrees Claude Code (gitignored) : copies complètes du repo, sur
+      // lesquelles les overrides par chemin (`scripts/**`…) ne matchent pas.
+      '.claude/worktrees/**',
     ],
   },
   ...nextCoreWebVitals,
