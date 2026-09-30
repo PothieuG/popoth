@@ -6,7 +6,13 @@
  * client-side (sprint 13 live deficit counter).
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+// Ce fichier pinne volontairement la ré-export back-compat depuis
+// `actions-negative.ts` (module serveur). Son import charge `supabase-server`,
+// qui throw au load sans env Supabase (CI) : stub vide, les helpers purs
+// testés ici n'y touchent jamais.
+vi.mock('@/lib/supabase-server', () => ({ supabaseServer: {} }))
 
 import { computeDeficitRemaining, sumSnapshotValues } from '../actions-negative'
 

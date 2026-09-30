@@ -9,7 +9,9 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseRecoveryData } from '@/lib/recap'
+// Module pur importé directement : le barrel `@/lib/recap` charge
+// `supabase-server`, qui throw au load sans env Supabase (CI).
+import { parseRecoveryData } from '@/lib/recap/recovery'
 
 describe('parseRecoveryData', () => {
   it('returns null on null / undefined', () => {

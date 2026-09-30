@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { isAdvanceAllowed, nextRequiredStep, RECAP_STEP_ORDER, type RecapStep } from '@/lib/recap'
+// Module pur importé directement : le barrel `@/lib/recap` charge
+// `supabase-server`, qui throw au load sans env Supabase (CI).
+import {
+  isAdvanceAllowed,
+  nextRequiredStep,
+  RECAP_STEP_ORDER,
+  type RecapStep,
+} from '@/lib/recap/state'
 
 describe('RECAP_STEP_ORDER', () => {
   it('lists the seven wizard steps in canonical order', () => {

@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
+// Import direct du module pur, pas du barrel `@/lib/recap` : le barrel
+// ré-exporte `check-status` / `load-summary`, qui chargent `supabase-server`
+// (throw au load sans env Supabase — cas de la CI).
 import {
   computeBudgetSurplus,
   computeProportionalBudgetSnapshot,
   computeProportionalProjectsRefloat,
   computeProportionalSavingsRefloat,
   computeRecapSummary,
-  type RecapSummary,
-} from '@/lib/recap'
+} from '@/lib/recap/calculations'
+import type { RecapSummary } from '@/lib/recap/types'
 
 describe('computeBudgetSurplus', () => {
   it('returns positive surplus when estimated > spent', () => {
