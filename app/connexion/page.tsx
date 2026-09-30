@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors, type FieldPath } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,7 @@ import { loginFormSchema, type LoginFormBody } from '@/lib/schemas/auth'
  * error on each handleLogin() call (matches original UX).
  */
 export default function ConnexionPage() {
+  const router = useRouter()
   const { handleLogin, isSubmitting, error } = useLogin()
 
   // Ensure only guests can access this page
@@ -141,7 +143,7 @@ export default function ConnexionPage() {
           <div className="mt-6 space-y-3">
             <div className="text-center">
               <button
-                onClick={() => (window.location.href = '/forgot-password')}
+                onClick={() => router.push('/forgot-password')}
                 className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-800"
               >
                 Mot de passe oublié ?
@@ -151,7 +153,7 @@ export default function ConnexionPage() {
             <div className="text-center text-sm text-gray-600">
               Pas encore de compte ?{' '}
               <button
-                onClick={() => (window.location.href = '/inscription')}
+                onClick={() => router.push('/inscription')}
                 className="font-semibold text-purple-600 transition-colors hover:text-purple-800"
               >
                 Créer un compte

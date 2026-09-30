@@ -102,6 +102,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await signOut()
       dispatch({ type: 'LOGOUT' })
       if (typeof window !== 'undefined') {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full page load on purpose: wipes in-memory state (TanStack Query cache holding the previous user's financial data), which a client-side router.push would keep
         window.location.href = '/connexion'
       }
     } catch (err) {
@@ -110,6 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       stopAuthCheck()
       dispatch({ type: 'LOGOUT' })
       if (typeof window !== 'undefined') {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- same as above: full page load to wipe the previous user's in-memory state
         window.location.href = '/connexion'
       }
     }

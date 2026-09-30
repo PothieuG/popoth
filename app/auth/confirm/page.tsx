@@ -75,12 +75,14 @@ function AuthConfirmContent() {
       if (error) {
         logger.error('verifyOtp failed:', error)
         const code = error.message.toLowerCase().includes('expired') ? 'expired' : 'invalid'
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- same full-page navigation as the success path below (behaviour pinned by page.test.tsx)
         window.location.href = `/auth/auth-code-error?error=${code}`
         return
       }
       window.location.href = next
     } catch (error) {
       logger.error('verifyOtp threw:', error)
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- same full-page navigation as the success path above (behaviour pinned by page.test.tsx)
       window.location.href = '/auth/auth-code-error?error=server'
     }
   }
