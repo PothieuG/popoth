@@ -102,7 +102,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **Allocation dépenses** : local = savings dest puis budget. **Dépassement** > 0 : cascade auto tirelire → savings autres budgets proportionnel (Sprint Auto-Cascade-Piggy 2026-05-25). Reste = déficit dest. Module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (`calculateBreakdown` legacy + `calculateBreakdownWithAutoCascade` ADD). RPC `add_expense_with_cross_budget_cascade` si piggy>0 ou cross non vide.
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile` (Sprint Refactor-Architecture v3-v5).
 - **Snapshot fin de mois** ([Part 44](.claude/history/roadmap-detailed-44-monthly-db-snapshot.md)) : pg_cron, dernier jour 23h45 Paris → schéma `snapshots` (hors API). `pnpm db:snapshot restore AAAA-MM` rembobine **toute l'appli** (snapshot `pre_restore` pour annuler). ⚠️ Nouvelle table publique → `snapshots.restorable_tables()` (ordre FK) ou exclusion, sinon `db:check-snapshots` rouge.
-- **Distinction calculs finance** : [contribution-calculator.ts](lib/contribution-calculator.ts) (pur, consumer `ProfileSettingsCard`) ≠ [finance/income-compensation.ts](lib/finance/income-compensation.ts) (async, alimente RAV). Noms voisins, orthogonaux.
+- **Distinction calculs finance** : [contribution-calculator.ts](lib/contribution-calculator.ts) (pur, consumers `ProfileSettingsCard` + `DashboardHeader`) ≠ [finance/income-compensation.ts](lib/finance/income-compensation.ts) (async, alimente RAV). Noms voisins, orthogonaux.
 
 ## 5.5 Invariants actuels
 
@@ -113,7 +113,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
-| Tests non-gated passants               | **1049**                  | `pnpm test:run`                                      |
+| Tests non-gated passants               | **1060**                  | `pnpm test:run`                                      |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
 | Routes API                             | **48**                    | `pnpm build`                                         |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                            |
@@ -332,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1049/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
+**État global** : Score ~100. Lint 0/0. Tests 1060/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
 
 **Historique** — 45 parts (156 sprints) :
 

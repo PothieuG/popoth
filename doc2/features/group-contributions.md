@@ -372,6 +372,7 @@ Tous en `LANGUAGE plpgsql` `SECURITY DEFINER`, capturés en migration le Sprint 
     id: string
     name: string
     monthly_budget_estimate: number
+    monthly_income_estimate: number // revenus estimés du groupe (ex. CAF), déduits avant répartition
     total_salaries: number          // recalculé côté API depuis les rows
     total_contributions: number     // idem
   }
@@ -406,13 +407,13 @@ Pour les cas où le trigger aurait silencieusement échoué (ex. avant Sprint Au
 
 ### 8.1 Composants
 
-| Composant                            | Localisation                                                                         | Rôle                                                                                                                                                                                                                                                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ProfileSettingsCard`                | [components/profile/](../../components/profile/ProfileSettingsCard.tsx)              | Form profil — édition nom, prénom, **salaire**. Affiche la contribution preview. Validation bloquante.                                                                                                                                                                                                           |
-| `UserContributionCard`               | [components/contributions/](../../components/contributions/UserContributionCard.tsx) | Carte dashboard détaillée (budget groupe, contribution €/%, stats, "Actualiser").                                                                                                                                                                                                                                |
-| `UserInfoNavbar`                     | [components/ui/](../../components/ui/UserInfoNavbar.tsx)                             | Navbar — 3 lignes mobile-first : (1) "Bonjour <prénom> !", (2) "Contribution au groupe <nom> : <montant>", (3) en `text-[10px]` "<X%> de votre salaire · <Y%> du budget" (chiffres en gras). Le % budget vient de `groupInfo.monthly_budget_estimate` (auto-syncé). État empty avec tooltip si contribution = 0. |
-| `GroupMembersWithContributionsModal` | [components/groups/](../../components/groups/GroupMembersWithContributionsModal.tsx) | Modal Radix Dialog — liste membres + contribution individuelle. Empty state si salaire non défini.                                                                                                                                                                                                               |
-| `GroupManagementPanel`               | [components/settings/](../../components/settings/GroupManagementPanel.tsx)           | Panneau settings — créer/rejoindre/quitter groupe, voir membres, badge "Créateur".                                                                                                                                                                                                                               |
+| Composant                            | Localisation                                                                         | Rôle                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProfileSettingsCard`                | [components/profile/](../../components/profile/ProfileSettingsCard.tsx)              | Form profil — édition nom, prénom, **salaire**. Affiche la contribution preview (calculée sur le reste à financer = budget − revenus du groupe) et sa part de ce reste. Validation bloquante.                                                                                                                                                                                                                           |
+| `UserContributionCard`               | [components/contributions/](../../components/contributions/UserContributionCard.tsx) | Carte dashboard détaillée (budget groupe, contribution €/%, stats, "Actualiser").                                                                                                                                                                                                                                                                                                                                       |
+| `UserInfoNavbar`                     | [components/ui/](../../components/ui/UserInfoNavbar.tsx)                             | Navbar — 3 lignes mobile-first : (1) "Bonjour <prénom> !", (2) "Contribution au groupe <nom> : <montant>", (3) en `text-[10px]` "<X%> de votre salaire · <Y%> du reste à financer" (chiffres en gras). Base du % = `calculateAmountToFund(budget, revenus du groupe)`, calculée par `DashboardHeader` (miroir `GroupInfoNavbar`) : les parts des membres totalisent 100 %. État empty avec tooltip si contribution = 0. |
+| `GroupMembersWithContributionsModal` | [components/groups/](../../components/groups/GroupMembersWithContributionsModal.tsx) | Modal Radix Dialog — liste membres + contribution individuelle. Empty state si salaire non défini.                                                                                                                                                                                                                                                                                                                      |
+| `GroupManagementPanel`               | [components/settings/](../../components/settings/GroupManagementPanel.tsx)           | Panneau settings — créer/rejoindre/quitter groupe, voir membres, badge "Créateur".                                                                                                                                                                                                                                                                                                                                      |
 
 ### 8.2 Hook `useGroupContributions`
 
@@ -424,7 +425,7 @@ Pour les cas où le trigger aurait silencieusement échoué (ex. avant Sprint Au
 const {
   // Data
   contributions, // GroupContributionData[]
-  groupInfo, // { id, name, monthly_budget_estimate, total_salaries, total_contributions } | null
+  groupInfo, // { id, name, monthly_budget_estimate, monthly_income_estimate, total_salaries, total_contributions } | null
 
   // Loading states
   isLoading, // boolean
@@ -458,9 +459,15 @@ calculateUserContribution(
   userSalary: number,
   groupBudget: number,
   otherMembers: GroupMember[] = [],
+  groupIncome = 0,
 ): ContributionCalculation
 // → { userContribution, userPercentage, isValid, errorMessage?, suggestions? }
+
+calculateAmountToFund(groupBudget: number, groupIncome = 0): number
+// → max(0, groupBudget − groupIncome), miroir de `contribution_base` dans la RPC
 ```
+
+Comme la RPC (Sprint Group-Income-Cascade), les revenus estimés du groupe sont retirés du budget avant la répartition au prorata des salaires. Oublier `groupIncome` fait diverger le preview du montant réellement dû (cas prod 2026-09-30 : 1 743 € affichés pour 1 682 € dus).
 
 À **ne pas confondre** avec `calculateIncomeCompensation` ([lib/finance/income-compensation.ts](../../lib/finance/income-compensation.ts)) qui agrège les revenus pour le RAV — domaines orthogonaux malgré la proximité du naming (cf. CLAUDE.md §5 "Distinction calculs finance").
 
@@ -470,7 +477,7 @@ calculateUserContribution(
 
 ### 9.1 Tests unitaires non-gated
 
-[lib/\_\_tests\_\_/contribution-calculator.test.ts](../../lib/__tests__/contribution-calculator.test.ts) — 6 cas :
+[lib/\_\_tests\_\_/contribution-calculator.test.ts](../../lib/__tests__/contribution-calculator.test.ts) — 12 cas de calcul :
 
 1. Happy path proportionnel (3 membres, salaires non-nuls)
 2. `totalGroupSalaries === 0` → fallback equal-split
@@ -478,6 +485,12 @@ calculateUserContribution(
 4. `groupBudget === 0` → invalide
 5. `contribution > salary` (single-member) → 3 suggestions
 6. `contribution > salary` (multi-member) → marge 90 % dans suggestions[1]
+7. `calculateAmountToFund` = budget − revenus
+8. `calculateAmountToFund` clampé à 0
+9. Revenus déduits, valeurs de la RPC en prod (2 501,72 € / 1 681,71 €, 90,9 % du salaire chacun)
+10. Revenus ≥ budget → contribution 0
+11. Equal-split appliqué au reste à financer
+12. Budget max suggéré = salaires + revenus du groupe
 
 ### 9.2 Tests gated `SUPABASE_TRIGGER_TESTS=1`
 
