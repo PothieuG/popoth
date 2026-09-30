@@ -44,7 +44,7 @@ Prod sur Supabase (`jzmppreybwabaeycvasz`), dev sur (`ddehmjucyfgyppfkbddr`) —
 | `pnpm typecheck`                           | `tsc --noEmit` (BLOQUANT en CI)                                                    |
 | `pnpm lint:check` / `lint` / `lint:fix`    | ESLint sans / avec `--fix` — check **BLOQUANT** CI. Baseline `0/0`.                |
 | `pnpm format` / `format:check`             | Prettier `--write` / `--check` — check **BLOQUANT** CI                             |
-| `pnpm ci`                                  | `typecheck + lint:check + format:check + test:run + build`                         |
+| `pnpm run ci`                              | `typecheck + lint:check + format:check + test:run + build` (pas `pnpm ci`)         |
 | `pnpm test` / `test:run` / `test:coverage` | Vitest watch / single run / coverage v8                                            |
 | `pnpm db:types`                            | Régénère `lib/database.types.ts` depuis prod.                                      |
 | `pnpm db:check-drift`                      | Compare prod ↔ baseline. Exit 0/1 si drift                                         |
