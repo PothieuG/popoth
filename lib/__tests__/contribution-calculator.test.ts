@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  calculateAmountToFund,
   calculateUserContribution,
   formatCurrency,
   formatPercentage,
@@ -66,6 +67,66 @@ describe('calculateUserContribution', () => {
     expect(result.isValid).toBe(false)
     expect(result.suggestions).toHaveLength(3)
     expect(result.suggestions?.[1]).toMatch(/270/) // 90% safety margin path (line 100)
+  })
+})
+
+describe('calculateAmountToFund', () => {
+  it('budget − revenus du groupe, miroir de contribution_base dans la RPC', () => {
+    expect(calculateAmountToFund(4335.43, 152)).toBeCloseTo(4183.43, 2)
+    expect(calculateAmountToFund(1200)).toBe(1200) // revenus absents → 0
+  })
+
+  it('clampé à 0 quand les revenus couvrent tout le budget (personne ne cotise)', () => {
+    expect(calculateAmountToFund(500, 800)).toBe(0)
+  })
+})
+
+describe('calculateUserContribution — revenus du groupe déduits', () => {
+  // Cas prod 2026-09-30 : budget 4 335,43 €, CAF 152 €, salaires 2 752,08 / 1 850.
+  // Montants attendus = ceux écrits par la RPC dans group_contributions.
+  const budget = 4335.43
+  const income = 152
+
+  it('répartit le reste à financer au prorata des salaires (valeurs de la RPC)', () => {
+    const gilles = calculateUserContribution(2752.08, budget, [{ id: 'b', salary: 1850 }], income)
+    const berengere = calculateUserContribution(
+      1850,
+      budget,
+      [{ id: 'g', salary: 2752.08 }],
+      income,
+    )
+
+    expect(gilles.userContribution).toBeCloseTo(2501.72, 2)
+    expect(berengere.userContribution).toBeCloseTo(1681.71, 2)
+    // Même effort relatif pour chacun : 90,9 % du salaire.
+    expect(gilles.userPercentage).toBeCloseTo(90.9, 1)
+    expect(berengere.userPercentage).toBeCloseTo(90.9, 1)
+    // Les contributions financent exactement budget − revenus.
+    expect(gilles.userContribution + berengere.userContribution).toBeCloseTo(budget - income, 2)
+  })
+
+  it('revenus ≥ budget → contribution 0, valide', () => {
+    const result = calculateUserContribution(1000, 300, [{ id: 'b', salary: 1000 }], 400)
+    expect(result.userContribution).toBe(0)
+    expect(result.isValid).toBe(true)
+  })
+
+  it('partage égal (aucun salaire) appliqué au reste à financer', () => {
+    const result = calculateUserContribution(0, 300, [{ id: 'b', salary: 0 }], 100)
+    expect(result.userContribution).toBe(100)
+  })
+
+  it('budget max suggéré = salaires + revenus du groupe', () => {
+    // Seul membre : 1 400 € à financer > 1 300 € de salaire → budget max 1 300 + 600.
+    const solo = calculateUserContribution(1300, 2000, [], 600)
+    expect(solo.isValid).toBe(false)
+    expect(solo.userContribution).toBe(1400)
+    expect(solo.suggestions?.[1]).toMatch(/1\s*900/)
+
+    // Avec un autre salaire : marge 90 % sur les salaires, revenus ajoutés tels quels.
+    // floor((100 + 200) × 0.9 + 50) = 320.
+    const withOthers = calculateUserContribution(100, 10000, [{ id: 'b', salary: 200 }], 50)
+    expect(withOthers.suggestions?.[1]).toMatch(/320/)
   })
 })
 

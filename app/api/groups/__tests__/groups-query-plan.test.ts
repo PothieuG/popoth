@@ -102,6 +102,7 @@ beforeEach(() => {
         id: 'group-1',
         name: 'Famille',
         monthly_budget_estimate: 1200,
+        monthly_income_estimate: 150,
         creator_id: 'user-1',
         created_at: '2026-01-01',
         updated_at: '2026-01-01',
@@ -165,7 +166,11 @@ describe('routes groupe — plan de requêtes', () => {
     const res = await GET(req('http://x/api/groups/contributions'))
     const body = (await (res as Response).json()) as {
       contributions: { profile_id: string }[]
-      group_info: { total_contributions: number; total_salaries: number }
+      group_info: {
+        total_contributions: number
+        total_salaries: number
+        monthly_income_estimate: number
+      }
     }
 
     expect(PROBE.fromCalls).toEqual(['groups', 'group_contributions'])
@@ -173,5 +178,7 @@ describe('routes groupe — plan de requêtes', () => {
     expect(body.contributions).toHaveLength(2)
     expect(body.group_info.total_contributions).toBe(1200)
     expect(body.group_info.total_salaries).toBe(3000)
+    // Revenus du groupe exposés : base du « reste à financer » côté client.
+    expect(body.group_info.monthly_income_estimate).toBe(150)
   })
 })

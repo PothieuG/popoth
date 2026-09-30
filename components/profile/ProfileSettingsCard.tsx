@@ -13,6 +13,8 @@ import { useGroups } from '@/hooks/useGroups'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useSalaryEditability } from '@/hooks/useSalaryEditability'
 import {
+  AMOUNT_TO_FUND_TOOLTIP,
+  calculateAmountToFund,
   calculateUserContribution,
   formatCurrency,
   formatPercentage,
@@ -64,8 +66,10 @@ interface ProfileSettingsFormProps {
  */
 function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
   const { updateProfile } = useProfile()
-  const { currentGroup, hasGroup } = useGroups()
-  const { contributions } = useGroupContributions()
+  const { hasGroup } = useGroups()
+  // Budget + revenus du groupe lus depuis la même réponse que les salaires des
+  // autres membres : le calcul local reste aligné sur la RPC serveur.
+  const { contributions, groupInfo } = useGroupContributions()
   const { editable: salaryEditable, isLoading: salaryEditabilityLoading } = useSalaryEditability()
   const salaryLocked = !salaryEditable
 
@@ -91,7 +95,7 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
     setContributionWarning(null)
 
     // Only validate if user is in a group and salary is provided
-    if (!hasGroup || !currentGroup || !salaryValue.trim()) {
+    if (!hasGroup || !groupInfo || !salaryValue.trim()) {
       return
     }
 
@@ -111,8 +115,9 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
     // Calculate what the contribution would be
     const calculation = calculateUserContribution(
       salaryNum,
-      currentGroup.monthly_budget_estimate,
+      groupInfo.monthly_budget_estimate,
       otherMembers,
+      groupInfo.monthly_income_estimate,
     )
 
     if (!calculation.isValid && calculation.errorMessage && calculation.suggestions) {
@@ -257,22 +262,26 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
 
   // Pre-compute contribution display (single source of truth for view-mode dl row)
   const contributionDisplay = (() => {
-    if (!hasGroup || !currentGroup || !profile.salary || profile.salary <= 0) return null
+    if (!hasGroup || !groupInfo || !profile.salary || profile.salary <= 0) return null
     const otherMembers = contributions
       .filter((c) => c.profile_id !== profile.id)
       .map((c) => ({ id: c.profile_id, salary: c.salary }))
     const calc = calculateUserContribution(
       profile.salary,
-      currentGroup.monthly_budget_estimate,
+      groupInfo.monthly_budget_estimate,
       otherMembers,
+      groupInfo.monthly_income_estimate,
+    )
+    // Part du reste à financer (budget − revenus du groupe) : la somme des
+    // parts des membres fait 100 %, contrairement à un % du budget brut.
+    const amountToFund = calculateAmountToFund(
+      groupInfo.monthly_budget_estimate,
+      groupInfo.monthly_income_estimate,
     )
     return {
       amount: calc.userContribution,
       percentOfSalary: calc.userPercentage,
-      percentOfBudget:
-        currentGroup.monthly_budget_estimate > 0
-          ? (calc.userContribution / currentGroup.monthly_budget_estimate) * 100
-          : 0,
+      percentOfAmountToFund: amountToFund > 0 ? (calc.userContribution / amountToFund) * 100 : 0,
     }
   })()
 
@@ -346,9 +355,14 @@ function ProfileSettingsForm({ profile, className }: ProfileSettingsFormProps) {
                   <div className="font-semibold text-blue-700">
                     {formatCurrency(contributionDisplay.amount)}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {formatPercentage(contributionDisplay.percentOfSalary)} salaire ·{' '}
-                    {formatPercentage(contributionDisplay.percentOfBudget)} budget
+                  <div className="flex flex-wrap justify-end gap-x-1 text-xs text-gray-500">
+                    <span className="whitespace-nowrap">
+                      {formatPercentage(contributionDisplay.percentOfSalary)} salaire ·
+                    </span>
+                    <span className="whitespace-nowrap" title={AMOUNT_TO_FUND_TOOLTIP}>
+                      {formatPercentage(contributionDisplay.percentOfAmountToFund)} du reste à
+                      financer
+                    </span>
                   </div>
                 </dd>
               </div>

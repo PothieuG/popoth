@@ -24,6 +24,11 @@ export interface GroupContributionsResponse {
     id: string
     name: string
     monthly_budget_estimate: number
+    /**
+     * Revenus estimés du groupe (ex. CAF), retirés du budget avant la
+     * répartition des contributions (Sprint Group-Income-Cascade).
+     */
+    monthly_income_estimate: number
     total_salaries: number
     total_contributions: number
   }
@@ -50,7 +55,7 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
       await Promise.all([
         supabase
           .from('groups')
-          .select('id, name, monthly_budget_estimate')
+          .select('id, name, monthly_budget_estimate, monthly_income_estimate')
           .eq('id', profile.group_id)
           .single(),
         supabase
@@ -104,6 +109,7 @@ export const GET = withAuthAndProfile(async (_request, { profile }) => {
         id: group.id,
         name: group.name,
         monthly_budget_estimate: group.monthly_budget_estimate,
+        monthly_income_estimate: group.monthly_income_estimate,
         total_salaries: totalSalaries,
         total_contributions: totalContributions,
       },
