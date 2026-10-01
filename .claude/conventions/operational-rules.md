@@ -18,7 +18,8 @@ Pour tout candidat de cleanup ou de refactor non-trivial, vérifier d'abord les 
 5. **Sprint UserGroupsList-Cleanup** (2026-05-14) — `components/groups/UserGroupsList.tsx` deleted (157 LOC, 0 consumer applicatif, app/settings/page.tsx rend déjà inline la même UI sur `currentGroup` singular).
 6. **Sprint Audit-Closeout I3** (2026-05-13) — `lib/monthly-recap-calculations.ts` deleted (399 LOC, 8 exports tous orphelins).
 7. **Sprint Zod-Rollout v8** (2026-05-14) — `components/groups/GroupMembersModal.tsx` deleted (175 LOC, 0 consumer).
-8. **Sprint Refactor-Settings-Drawer** (2026-05-18) — `app/settings/page.tsx` deleted (~457 LOC, 0 consumer applicatif hors `dashboard` + `group-dashboard` qui basculent vers `<SettingsDrawer>` swap-horizontal in-place). Le bug intermittent "1 fois sur 2 retour au dashboard" est éliminé mécaniquement (plus de `window.location.href` ni `window.history.back()` fragile sur PWA + middleware `checkRecapStatus`). `/settings` retiré de `protectedRoutes` middleware.ts. Le contenu de la page est extrait dans `components/settings/GroupManagementPanel.tsx` (verbatim sauf : loading overlay full-screen remplacé par snackbar non-bloquante z-[60] + skeleton léger). Aucun deep-link applicatif (PWA install / push notif) à `/settings`.
+8. **Sprint Refactor-Settings-Drawer** (2026-05-18) — `app/settings/page.tsx` deleted (~457 LOC) au profit de `<SettingsDrawer>` in-place (bug « 1 fois sur 2 retour au dashboard » éliminé) ; contenu extrait dans `components/settings/GroupManagementPanel.tsx`.
+9. **Sprint Recap-Manual-Refloat** (2026-10-01) — ancienne cascade négative supprimée (4 routes, 4 `Refloat*Line`, 3 `computeProportional*`).
 
 **Pattern** : (a) `Grep "<exportName>" --glob '**/*.{ts,tsx}'` cross-codebase ; (b) `Grep` dans `app/`, `components/`, `hooks/`, `contexts/`, `lib/`, `proxy.ts`, `__tests__/` (scope MUST inclure tous pour éviter de manquer un consumer — leçon Sprint Lot 5c qui scope-bound à `app/` only et a manqué `contexts/AuthContext.tsx:14` register callback consommant `signUp`).
 
@@ -53,7 +54,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
 | `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings   | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 28` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)).
+`EXPECTED_RPCS = 30` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)), `transfer_recap_surplus_to_savings` + `apply_recap_refloat_plan` ([Part 46](../history/roadmap-detailed-46-recap-manual-refloat.md)).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
@@ -86,6 +87,10 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 - ❌ **NE PAS** utiliser `.single()` sur les tables hybrides à 1-row-par-owner (`piggy_bank`, `bank_balances`) quand la ligne peut ne pas exister — `.single()` RAISE `PGRST116 "Cannot coerce the result to a single JSON object"` et un `if (error) throw` propage le crash jusqu'à l'UI. Utiliser `.maybeSingle()` + défaut `data?.amount ?? 0`. Cas vu Sprint Fix-Empty-Recap-Tirelire (2026-05-19) — un read sur `piggy_bank` crashait pour tout nouveau compte sans ligne. Les fixtures gated `SUPABASE_FINANCE_TESTS=1` créent toujours une ligne piggy, donc le bug n'a pas surfacé en CI — toute nouvelle route lisant `piggy_bank`/`bank_balances` doit être manuellement testée sur un compte fresh.
 - ❌ **NE PAS** appeler directement les RPCs `update_piggy_bank_amount` / `update_bank_balance` quand la ligne peut ne pas exister — les RPCs font un `UPDATE ... WHERE owner = X` qui RAISE explicitement `'piggy_bank row not found for the given context'` si 0 rows. Précéder l'appel d'un `ensurePiggyBankRow(filter)` ([lib/finance/piggy-bank.ts](../../lib/finance/piggy-bank.ts) — INSERT idempotent `amount=0` qui swallow le PG `23505` unique_violation via les partial unique indexes par owner). Pattern miroir disponible pour `bank_balances` si besoin (à ajouter quand un site applicatif similaire surface — pas écrit préemptivement).
 
+### Renflouement manuel du déficit (Part 46 — 2026-10-01)
+
+- ❌ **NE PAS** débiter tirelire/économies avant le finalize (plan différé → `apply_recap_refloat_plan` atomique), ni oublier `surplus_savings_data` dans `loadRecapSummary` (surplus versé 1 fois en économies par `prepare-deficit`). Règles : `lib/recap/refloat-plan.ts`, [Part 46](../history/roadmap-detailed-46-recap-manual-refloat.md).
+
 ### Carry-over UI (Sprint 15 V3 — 2026-05-25, raffiné Part 35 — 2026-05-27)
 
 - ❌ **NE PAS** filtrer les carry-overs sur les GET de listing UI (`GET /api/finance/{expenses,income}/real`) — l'UI doit afficher les carry-overs avec badge "Mois précédent" + actions. Le filtre s'applique uniquement aux SELECT contribuant aux **calculs** current-month (RAV / solde / déficit / économies). **Règle canonique Part 35** : `.is('carried_from_recap_id', null)` — `.eq('is_carried_over', false)` seul (pattern initial Sprint 15) est insuffisant car il laisse passer l'état B (carry-over validé : `is_carried_over=false, carried_from_recap_id != null`), créant un double-comptage cross-mois. Une dépense reportée appartient au mois d'origine, déjà comptée dans son RAV ; la validation post-recap modifie le solde uniquement. Cf. [Part 35](../history/roadmap-detailed-35-carryover-validated-exclude-from-rav.md).
@@ -111,7 +116,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 ### Modals & UI
 
-> Extraite 2026-05-20 (Sprint Drawer-Slide-Fix-And-Header-Harmonize) vers [operational-rules-ui-modals.md](operational-rules-ui-modals.md). **17 règles ❌** (initialement 11, +6 ajoutées Sprints Modal-Uniformize + Modal-Polish + Modal-Dropdown-Portal 2026-05-21) : Dialog/ModalCloseX, drawer swap horizontal, loading patterns, sections iOS, footer destructive, false-affordance, lazy-mount, `tw-animate-css` `!` postfix, **MODAL_CONTENT_CLASSES `bottom-auto!`**, **flex-auto vs flex-1**, **padding `px-6 py-4`**, **back button iOS chevron**, **step animation `stepAnimDir`+`key`**, **dropdown portal + max-h vh−bottom−10vh**.
+> Extraite 2026-05-20 vers [operational-rules-ui-modals.md](operational-rules-ui-modals.md). **17 règles ❌** : Dialog/ModalCloseX, drawer swap horizontal, loading patterns, sections iOS, footer destructive, false-affordance, lazy-mount, `tw-animate-css` `!` postfix, **MODAL_CONTENT_CLASSES `bottom-auto!`**, **flex-auto vs flex-1**, **padding `px-6 py-4`**, **back button iOS chevron**, **step animation `stepAnimDir`+`key`**, **dropdown portal + max-h vh−bottom−10vh**.
 
 ### Mobile UI density baseline
 
