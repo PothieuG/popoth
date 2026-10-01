@@ -226,9 +226,13 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
         isFetching={isFetching || !financialData}
       />
 
+      {/* `scrollable={false}` : c'est `RecapShell` qui défile. Une zone de
+          défilement interne à la liste capturait le glissé du doigt sur
+          téléphone — seul le fond bleu faisait encore défiler l'écran. */}
       <TransactionTabsComponent
         context={context}
         dateRange={dateRange}
+        scrollable={false}
         onEditTransaction={(transaction, type) => setEditing({ transaction, type })}
         className="min-h-[280px]"
       />

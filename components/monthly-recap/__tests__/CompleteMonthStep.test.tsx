@@ -78,11 +78,13 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
   default: ({
     context,
     readOnly,
+    scrollable,
     dateRange,
     onEditTransaction,
   }: {
     context?: string
     readOnly?: boolean
+    scrollable?: boolean
     dateRange?: { startDate: string; endDate: string } | null
     onEditTransaction?: (transaction: { id: string }, type: 'expense' | 'income') => void
   }) => (
@@ -90,6 +92,7 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
       data-testid="transaction-tabs"
       data-context={context}
       data-read-only={readOnly ? 'true' : 'false'}
+      data-scrollable={scrollable === false ? 'false' : 'true'}
       data-range-start={dateRange?.startDate ?? ''}
       data-range-end={dateRange?.endDate ?? ''}
       data-has-edit-handler={onEditTransaction ? 'true' : 'false'}
@@ -171,6 +174,16 @@ describe('CompleteMonthStep', () => {
     expect(tabs).toHaveAttribute('data-range-start', '2026-05-01')
     // May has 31 days
     expect(tabs).toHaveAttribute('data-range-end', '2026-05-31')
+  })
+
+  // Régression 2026-10-01 — la liste gardait sa propre zone de défilement
+  // (pensée pour le dashboard) à l'intérieur de RecapShell, qui défile déjà :
+  // sur téléphone, un glissé commencé sur la liste ne faisait pas défiler
+  // l'écran, seul le fond bleu le permettait.
+  it('lets the recap page scroll instead of the list (scrollable=false)', () => {
+    render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
+
+    expect(screen.getByTestId('transaction-tabs')).toHaveAttribute('data-scrollable', 'false')
   })
 
   // Sprint Fix-Recap-EditPath-Month 2026-08-31 — régression : le kebab

@@ -45,6 +45,16 @@ interface TransactionTabsComponentProps {
    * description + date) — c'est le "design exact" demandé par le sprint.
    */
   readOnly?: boolean
+  /**
+   * `true` (défaut, dashboards) : la liste défile dans sa propre zone, dont
+   * la hauteur est bornée par le parent. `false` : la liste prend la hauteur
+   * de son contenu et c'est la page qui défile — à utiliser dès que le parent
+   * défile lui-même (récap « Compléter le mois », dans `RecapShell`). Une zone
+   * de défilement imbriquée y capture le geste : sur téléphone, un glissé
+   * commencé sur la liste ne faisait plus défiler la page, seul le fond le
+   * pouvait.
+   */
+  scrollable?: boolean
   onEditTransaction?: (transaction: EditableTransaction, type: EditableType) => void
   onTransactionDeleted?: () => void
   className?: string
@@ -80,6 +90,7 @@ export default function TransactionTabsComponent({
   period,
   dateRange: dateRangeOverride,
   readOnly = false,
+  scrollable = true,
   onEditTransaction,
   onTransactionDeleted,
   className,
@@ -573,9 +584,12 @@ export default function TransactionTabsComponent({
         </div>
       </div>
 
-      {/* Tab Content - Scrollable */}
-      <div className="flex-1 overflow-hidden p-3">
-        <div className="h-full overflow-y-auto overscroll-y-contain pb-2">
+      {/* Tab Content - scrollable dans sa zone, ou à la hauteur du contenu.
+          Hors zone, `overflow-x-clip` garde le rognage horizontal du
+          `overflow-hidden` sans créer de conteneur de défilement (`hidden`
+          en est un, `clip` non). */}
+      <div className={cn('flex-1 p-3', scrollable ? 'overflow-hidden' : 'overflow-x-clip')}>
+        <div className={cn('pb-2', scrollable && 'h-full overflow-y-auto overscroll-y-contain')}>
           {renderTransactionsList()}
         </div>
       </div>
