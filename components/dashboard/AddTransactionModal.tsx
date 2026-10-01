@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useWatch, Controller, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { useFocusFirstError } from '@/hooks/useFocusFirstError'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { logger } from '@/lib/logger'
@@ -412,15 +413,11 @@ export default function AddTransactionModal({
     }
   }
 
-  // Discriminated union : the error keys differ between expense/income
-  // branches. setFocus(firstErrorKey) handles this via permissive cast —
-  // RHF resolves the ref at runtime from the active branch.
-  const onInvalidSubmit = (errors: FieldErrors<AddTransactionFormInput>) => {
-    const firstErrorKey = Object.keys(errors)[0]
-    if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<AddTransactionFormInput>)
-    }
-  }
+  // Focus sur le premier champ en erreur après une soumission invalide (les
+  // champs sont désactivés pendant isSubmitting : cf. useFocusFirstError).
+  // Union discriminée : les clés d'erreur diffèrent entre dépense et revenu,
+  // le hook caste la clé et RHF résout la ref de la branche active.
+  useFocusFirstError(form)
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
@@ -727,7 +724,7 @@ export default function AddTransactionModal({
         {wizardStep === 'fields' && (
           <form
             key="step-fields"
-            onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+            onSubmit={form.handleSubmit(onValidSubmit)}
             onKeyDown={preventEnterSubmit}
             className={cn(
               'flex min-h-0 flex-auto flex-col overflow-hidden',

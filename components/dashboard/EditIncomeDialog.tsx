@@ -1,13 +1,14 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useForm, useWatch, type FieldErrors, type FieldPath } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { MODAL_CONTENT_CLASSES } from '@/components/ui/modal-content-classes'
 import { DecimalFormInput } from '@/components/ui/DecimalFormInput'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
+import { useFocusFirstError } from '@/hooks/useFocusFirstError'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import { updateIncomeFormSchema, type UpdateIncomeForm } from '@/lib/schemas/income'
 import {
@@ -95,12 +96,9 @@ export default function EditIncomeDialog({
     }
   }
 
-  const onInvalidSubmit = (errors: FieldErrors<UpdateIncomeFormInput>) => {
-    const firstErrorKey = Object.keys(errors)[0]
-    if (firstErrorKey) {
-      form.setFocus(firstErrorKey as FieldPath<UpdateIncomeFormInput>)
-    }
-  }
+  // Focus sur le premier champ en erreur après une soumission invalide (les
+  // champs sont désactivés pendant isSubmitting : cf. useFocusFirstError).
+  useFocusFirstError(form)
 
   const watchedAmount = useWatch({ control: form.control, name: 'estimatedAmount' })
   const previewAmount =
@@ -194,7 +192,7 @@ export default function EditIncomeDialog({
 
         {/* Form */}
         <form
-          onSubmit={form.handleSubmit(onValidSubmit, onInvalidSubmit)}
+          onSubmit={form.handleSubmit(onValidSubmit)}
           onKeyDown={preventEnterSubmit}
           className="flex min-h-0 flex-auto flex-col overflow-hidden"
           noValidate
