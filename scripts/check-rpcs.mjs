@@ -74,6 +74,10 @@ const EXPECTED_RPCS = [
   // Sprint Exceptional-Expense-Piggy-Funding (2026-05-29) —
   // supabase/migrations/20260608000000_create_add_exceptional_expense_with_piggy_rpc.sql
   'add_exceptional_expense_with_piggy',
+  // Sprint Recap-Manual-Refloat (2026-10-01) —
+  // supabase/migrations/20261001000000_recap_manual_refloat_plan.sql
+  'transfer_recap_surplus_to_savings',
+  'apply_recap_refloat_plan',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'

@@ -364,15 +364,19 @@ export type Database = {
           group_id: string | null
           id: string
           piggy_transfers_data: Json
+          planned_piggy_refloat: number | null
+          planned_savings_refloat: Json | null
           profile_id: string | null
           project_snapshot_data: Json
           recap_month: number
           recap_year: number
           recovery_data: Json
+          refloat_plan_applied_at: string | null
           refloated_from_piggy: number
           refloated_from_savings: number
           started_at: string | null
           started_by_profile_id: string | null
+          surplus_savings_data: Json | null
           updated_at: string
         }
         Insert: {
@@ -384,15 +388,19 @@ export type Database = {
           group_id?: string | null
           id?: string
           piggy_transfers_data?: Json
+          planned_piggy_refloat?: number | null
+          planned_savings_refloat?: Json | null
           profile_id?: string | null
           project_snapshot_data?: Json
           recap_month: number
           recap_year: number
           recovery_data?: Json
+          refloat_plan_applied_at?: string | null
           refloated_from_piggy?: number
           refloated_from_savings?: number
           started_at?: string | null
           started_by_profile_id?: string | null
+          surplus_savings_data?: Json | null
           updated_at?: string
         }
         Update: {
@@ -404,15 +412,19 @@ export type Database = {
           group_id?: string | null
           id?: string
           piggy_transfers_data?: Json
+          planned_piggy_refloat?: number | null
+          planned_savings_refloat?: Json | null
           profile_id?: string | null
           project_snapshot_data?: Json
           recap_month?: number
           recap_year?: number
           recovery_data?: Json
+          refloat_plan_applied_at?: string | null
           refloated_from_piggy?: number
           refloated_from_savings?: number
           started_at?: string | null
           started_by_profile_id?: string | null
+          surplus_savings_data?: Json | null
           updated_at?: string
         }
         Relationships: [
@@ -953,6 +965,10 @@ export type Database = {
         Args: { p_allocations: Json; p_recap_id: string }
         Returns: Json
       }
+      apply_recap_refloat_plan: {
+        Args: { p_recap_id: string }
+        Returns: Json
+      }
       calculate_group_contributions: {
         Args: { group_id_param: string }
         Returns: undefined
@@ -1050,6 +1066,10 @@ export type Database = {
           p_group_id?: string
           p_profile_id?: string
         }
+        Returns: Json
+      }
+      transfer_recap_surplus_to_savings: {
+        Args: { p_allocations: Json; p_recap_id: string }
         Returns: Json
       }
       transfer_savings_between_budgets: {
