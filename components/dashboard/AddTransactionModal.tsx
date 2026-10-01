@@ -25,11 +25,13 @@ import { useProgressData } from '@/hooks/useProgressData'
 import { now, todayIso } from '@/lib/clock'
 import { calculateBreakdown } from '@/lib/expense-breakdown'
 import {
-  nextMonth,
+  defaultSalaryMonthOption,
+  monthName,
   ofMonth,
-  resolveSalaryReceptionState,
+  salaryMonthOptions,
+  toSalaryMonth,
   type MonthRef,
-  type SalaryReceptionState,
+  type SalaryMonthOption,
 } from '@/lib/finance/salary-reception'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
@@ -86,13 +88,20 @@ type TransactionType = 'expense' | 'income'
  */
 type WizardStep = 'select-type' | 'select-kind' | 'fields'
 
-const SALARY_UNAVAILABLE: SalaryReceptionState = { kind: 'unavailable' }
+const NO_SALARY_OPTIONS: SalaryMonthOption[] = []
 
 /** Codes renvoyés par `POST /api/finance/income/real/receive-salary`. */
 const SALARY_ERROR_COPY: Record<string, string> = {
-  'salary-already-received': 'Le salaire du mois prochain est déjà enregistré.',
+  'salary-already-received': 'Le salaire de ce mois est déjà enregistré.',
   'no-salary-declared': 'Renseignez d’abord votre salaire dans les paramètres.',
+  'invalid-salary-month': 'Ce mois ne peut pas être choisi. Rechargez la page.',
 }
+
+/** Montant attendu pour un mois encore à recevoir (`0` s'il est déjà réglé). */
+const expectedFor = (option: SalaryMonthOption | null): number =>
+  option && option.status.kind !== 'received' ? option.status.expected : 0
+
+const capitalize = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1)
 
 /**
  * Modal for adding new transactions (expenses or income).
@@ -138,6 +147,9 @@ export default function AddTransactionModal({
   // description et le rattachement sont imposés, et l'envoi part vers
   // `receiveSalary` au lieu de `addIncome`.
   const [isSalaryKind, setIsSalaryKind] = useState(false)
+  // Mois financé choisi à la main (`AAAA-MM-01`). `null` = suivre la
+  // proposition de l'appli, qui dépend de la date de réception saisie.
+  const [pickedSalaryMonth, setPickedSalaryMonth] = useState<string | null>(null)
   // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
   // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
   // `setWizardStep` so the new step renders with the matching animate-in class.
@@ -170,22 +182,23 @@ export default function AddTransactionModal({
   const { budgets } = useBudgets(context, recapWindow)
   const { incomes } = useIncomes(context)
 
-  // Sprint Salary-Reception — ce que « Réception du salaire » fera pour ce
-  // compte (mois en cours / mois suivant / déjà reçu). Un groupe n'a pas de
-  // salaire : l'option n'existe qu'en perso. Salaire déclaré = ligne virtuelle
-  // « Salaire » du reste à vivre (`meta.readOnlyIncomes`).
+  // Sprint Salary-Reception — une paie finance soit le mois ouvert (payé le 3),
+  // soit le suivant (payé le 28) : l'appli propose, l'utilisateur tranche. Un
+  // groupe n'a pas de salaire : l'option n'existe qu'en perso. Salaire déclaré
+  // = ligne virtuelle « Salaire » du reste à vivre (`meta.readOnlyIncomes`).
   const declaredSalary =
     financialData?.meta?.readOnlyIncomes?.find((income) => income.kind === 'salary')?.amount ?? 0
-  const salaryState: SalaryReceptionState =
-    context === 'group'
-      ? SALARY_UNAVAILABLE
-      : resolveSalaryReceptionState(realIncomes, declaredSalary)
-  // Mois « en cours » pour les libellés : le mois recapé dans le wizard
-  // « Compléter le mois », sinon le mois du jour.
-  const currentMonthRef: MonthRef = recapWindow ?? {
+  // Mois ouvert : le mois recapé dans le wizard « Compléter le mois », sinon le
+  // mois du jour. Même règle côté serveur (`resolveOpenMonth`).
+  const openMonth: MonthRef = recapWindow ?? {
     month: now().getMonth() + 1,
     year: now().getFullYear(),
   }
+  const salaryOptions =
+    context === 'group'
+      ? NO_SALARY_OPTIONS
+      : salaryMonthOptions(realIncomes, declaredSalary, openMonth)
+  const hasSelectableSalaryMonth = salaryOptions.some((option) => option.status.kind !== 'received')
 
   const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
     resolver: zodResolver(addTransactionFormSchema),
@@ -208,6 +221,17 @@ export default function AddTransactionModal({
   const watchedBudgetId = useWatch({ control: form.control, name: 'estimated_budget_id' })
   const watchedIncomeId = useWatch({ control: form.control, name: 'estimated_income_id' })
   const watchedPiggy = useWatch({ control: form.control, name: 'amount_from_piggy_bank' })
+  const watchedEntryDate = useWatch({ control: form.control, name: 'entry_date' })
+
+  // Mois financé retenu : le choix explicite s'il est encore possible, sinon la
+  // proposition (ligne en attente → ce mois ; sinon jusqu'au 15 → mois ouvert,
+  // après → mois suivant). Le jour vient de la date de réception saisie.
+  const receptionDay = Number(String(watchedEntryDate ?? initialDate).slice(8, 10)) || 1
+  const selectedSalaryOption: SalaryMonthOption | null =
+    salaryOptions.find(
+      (option) =>
+        toSalaryMonth(option.month) === pickedSalaryMonth && option.status.kind !== 'received',
+    ) ?? defaultSalaryMonthOption(salaryOptions, receptionDay)
 
   const transactionType = (watchedType ?? 'expense') as TransactionType
   const isExceptional = Boolean(watchedExceptional)
@@ -368,18 +392,34 @@ export default function AddTransactionModal({
 
   /**
    * Step 2 (revenu, espace perso) : « Réception du salaire ». Le montant est
-   * pré-rempli avec le salaire prévu — l'utilisateur corrige s'il a reçu plus
-   * ou moins. `is_exceptional` / `description` ne servent qu'à satisfaire le
-   * schéma du formulaire : l'envoi part vers `receiveSalary`, qui les ignore.
+   * pré-rempli avec le salaire prévu pour le mois proposé — l'utilisateur
+   * corrige s'il a reçu plus ou moins. `is_exceptional` / `description` ne
+   * servent qu'à satisfaire le schéma du formulaire : l'envoi part vers
+   * `receiveSalary`, qui les ignore.
    */
-  const handleSelectSalary = (expected: number) => {
+  const handleSelectSalary = () => {
     setIsSalaryKind(true)
+    setPickedSalaryMonth(null)
     form.setValue('is_exceptional', true)
     form.setValue('estimated_income_id', null)
     form.setValue('description', 'Salaire')
-    form.setValue('amount', expected as never)
+    form.setValue('amount', expectedFor(selectedSalaryOption) as never)
     setStepAnimDir('forward')
     setWizardStep('fields')
+  }
+
+  /**
+   * Choix du mois financé. Si le montant est encore celui proposé (non
+   * retouché), il suit le salaire attendu du nouveau mois — une ligne en
+   * attente peut porter un autre montant que le salaire déclaré du jour.
+   */
+  const handlePickSalaryMonth = (option: SalaryMonthOption) => {
+    if (option.status.kind === 'received') return
+    const amountUntouched = previewSafe === expectedFor(selectedSalaryOption)
+    setPickedSalaryMonth(toSalaryMonth(option.month))
+    if (amountUntouched) {
+      form.setValue('amount', expectedFor(option) as never)
+    }
   }
 
   /**
@@ -435,7 +475,15 @@ export default function AddTransactionModal({
           year: recapYear,
         })
       } else if (isSalaryKind) {
-        const outcome = await receiveSalary({ amount: data.amount, entry_date: data.entry_date })
+        if (!selectedSalaryOption) {
+          setServerError(SALARY_ERROR_COPY['salary-already-received'] ?? null)
+          return
+        }
+        const outcome = await receiveSalary({
+          amount: data.amount,
+          salary_month: toSalaryMonth(selectedSalaryOption.month).slice(0, 7),
+          entry_date: data.entry_date,
+        })
         if (!outcome.ok) {
           setServerError(
             SALARY_ERROR_COPY[outcome.error] ?? "Erreur lors de l'enregistrement du salaire.",
@@ -514,13 +562,6 @@ export default function AddTransactionModal({
           : isSalaryKind
             ? 'Réception du salaire'
             : 'Ajouter un revenu'
-
-  // Encart « Réception du salaire » : seulement quand l'option a été choisie et
-  // qu'elle est applicable (les deux autres états ne mènent pas au formulaire).
-  const salaryPanelMode =
-    isSalaryKind && (salaryState.kind === 'current' || salaryState.kind === 'advance')
-      ? salaryState
-      : null
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -792,25 +833,20 @@ export default function AddTransactionModal({
                   </button>
 
                   {/* Sprint Salary-Reception (2026-10-02) — espace perso avec
-                      un salaire déclaré. Désactivée (avec la raison) quand la
-                      paie du mois suivant est déjà enregistrée. */}
-                  {salaryState.kind !== 'unavailable' && (
+                      un salaire déclaré. Désactivée (avec la raison) quand les
+                      deux mois qu'une paie peut financer sont déjà réglés. */}
+                  {salaryOptions.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => {
-                        if (salaryState.kind === 'already-received') return
-                        handleSelectSalary(salaryState.expected)
-                      }}
-                      disabled={salaryState.kind === 'already-received'}
+                      onClick={handleSelectSalary}
+                      disabled={!hasSelectableSalaryMonth}
                       className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-left transition-all hover:bg-green-100 focus-visible:outline-2 focus-visible:outline-green-500 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:hover:bg-gray-50"
                     >
                       <div className="flex items-center space-x-2">
                         <svg
                           className={cn(
                             'h-6 w-6 shrink-0',
-                            salaryState.kind === 'already-received'
-                              ? 'text-gray-400'
-                              : 'text-green-600',
+                            hasSelectableSalaryMonth ? 'text-green-600' : 'text-gray-400',
                           )}
                           fill="none"
                           stroke="currentColor"
@@ -828,9 +864,7 @@ export default function AddTransactionModal({
                           <p
                             className={cn(
                               'font-medium',
-                              salaryState.kind === 'already-received'
-                                ? 'text-gray-500'
-                                : 'text-green-700',
+                              hasSelectableSalaryMonth ? 'text-green-700' : 'text-gray-500',
                             )}
                           >
                             Réception du salaire
@@ -838,16 +872,12 @@ export default function AddTransactionModal({
                           <p
                             className={cn(
                               'text-xs',
-                              salaryState.kind === 'already-received'
-                                ? 'text-gray-500'
-                                : 'text-green-600',
+                              hasSelectableSalaryMonth ? 'text-green-600' : 'text-gray-500',
                             )}
                           >
-                            {salaryState.kind === 'already-received'
-                              ? `Paie ${ofMonth(nextMonth(currentMonthRef))} déjà enregistrée (${formatEUR(salaryState.received)})`
-                              : salaryState.kind === 'current'
-                                ? `Paie ${ofMonth(currentMonthRef)} : valide la ligne « Salaire » en attente`
-                                : `Paie ${ofMonth(nextMonth(currentMonthRef))} : met le solde à jour, sans gonfler le RAV`}
+                            {hasSelectableSalaryMonth
+                              ? 'Votre paie : met le solde à jour, sans gonfler le RAV'
+                              : `Salaires ${salaryOptions.map((option) => ofMonth(option.month)).join(' et ')} déjà enregistrés`}
                           </p>
                         </div>
                       </div>
@@ -901,6 +931,65 @@ export default function AddTransactionModal({
                   </span>
                 )}
               </div>
+
+              {/* Réception du salaire : quel mois cette paie finance-t-elle ?
+                  Payé le 3 → le mois en cours ; payé le 28 → le mois suivant.
+                  L'appli propose (cf. `defaultSalaryMonthOption`), l'utilisateur
+                  tranche. Un mois déjà réglé reste visible, grisé, avec la raison. */}
+              {isSalaryKind && salaryOptions.length > 0 && (
+                <div className="space-y-1.5">
+                  <p id="salary-month-label" className="text-sm font-medium text-gray-900">
+                    Ce salaire finance
+                  </p>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="salary-month-label"
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {salaryOptions.map((option) => {
+                      const isSelected = option === selectedSalaryOption
+                      const isReceived = option.status.kind === 'received'
+                      return (
+                        <button
+                          key={toSalaryMonth(option.month)}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          disabled={isReceived || isSubmitting}
+                          onClick={() => handlePickSalaryMonth(option)}
+                          className={cn(
+                            'rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-green-500',
+                            isSelected
+                              ? 'border-green-600 bg-green-50'
+                              : 'border-gray-200 bg-white hover:bg-gray-50',
+                            isReceived && 'cursor-not-allowed bg-gray-50 hover:bg-gray-50',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'block text-sm font-medium',
+                              isReceived
+                                ? 'text-gray-500'
+                                : isSelected
+                                  ? 'text-green-800'
+                                  : 'text-gray-900',
+                            )}
+                          >
+                            {capitalize(monthName(option.month))}
+                          </span>
+                          <span className="block text-xs text-gray-500">
+                            {isReceived
+                              ? 'Déjà reçu'
+                              : option.isOpenMonth
+                                ? 'Mois en cours'
+                                : 'Mois prochain'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Budget/Income Selection - Only shown if not exceptional */}
               {!isExceptional && (
@@ -1153,12 +1242,11 @@ export default function AddTransactionModal({
               )}
 
               {/* Réception du salaire : ce que le montant saisi va changer */}
-              {salaryPanelMode && (
+              {isSalaryKind && selectedSalaryOption && (
                 <SalaryReceptionPanel
-                  mode={salaryPanelMode.kind}
-                  expected={salaryPanelMode.expected}
+                  option={selectedSalaryOption}
                   received={previewSafe}
-                  currentMonth={currentMonthRef}
+                  openMonth={openMonth}
                 />
               )}
 

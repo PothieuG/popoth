@@ -161,8 +161,9 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     //   - contribution au groupe : déjà soustraite du RAV via la ligne miroir
     //     de dépense, dont le montant est tenu égal à `contribution_amount`
     //     par le trigger `sync_contribution_real_expense` ;
-    //   - salaire reçu en avance : dans le solde, hors RAV (1 ligne au plus,
-    //     index unique partiel).
+    //   - salaire reçu en avance : la ligne salaire qui finance le mois SUIVANT
+    //     le mois recapé — dans le solde, hors RAV (1 ligne au plus par mois,
+    //     index unique).
     context === 'profile'
       ? supabaseServer
           .from('group_contributions')
@@ -173,9 +174,9 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     context === 'profile'
       ? supabaseServer
           .from('real_income_entries')
-          .select('amount')
+          .select('amount, applied_to_balance_at')
           .eq('profile_id', profileId)
-          .is('salary_reception', true)
+          .eq('salary_month', nextMonthStart)
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
@@ -196,8 +197,10 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
         }
       : undefined
 
+  // Retirée du solde par l'utilisateur → elle n'est plus « dans le solde » :
+  // rien à expliquer, la fin du récap en refera une ligne à valider.
   const salaryReception = buildSalaryReception(
-    receptionRow.data?.amount,
+    receptionRow.data?.applied_to_balance_at != null ? receptionRow.data.amount : null,
     financialData.meta?.readOnlyIncomes?.find((income) => income.kind === 'salary')?.amount ?? 0,
     recapMonth,
     recapYear,

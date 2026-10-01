@@ -12,9 +12,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FinancialData } from '@/lib/finance'
 
-const { single, queried } = vi.hoisted(() => ({
+const { single, queried, filters } = vi.hoisted(() => ({
   single: {} as Record<string, unknown>,
   queried: [] as string[],
+  /** Filtres `.eq(colonne, valeur)` posés, par table. */
+  filters: [] as Array<{ table: string; column: string; value: unknown }>,
 }))
 
 const FINANCIAL_DATA: FinancialData = {
@@ -43,7 +45,10 @@ vi.mock('@/lib/supabase-server', () => ({
       queried.push(table)
       const builder = {
         select: () => builder,
-        eq: () => builder,
+        eq: (column: string, value: unknown) => {
+          filters.push({ table, column, value })
+          return builder
+        },
         is: () => builder,
         gte: () => builder,
         lt: () => builder,
@@ -61,6 +66,7 @@ const GROUP_ID = '92dbf6f2-7aa1-4f63-b31c-b85c57e3657e'
 beforeEach(() => {
   for (const key of Object.keys(single)) delete single[key]
   queried.length = 0
+  filters.length = 0
   single.bank_balances = { balance: 3042.7 }
 })
 
@@ -91,7 +97,7 @@ describe('loadRecapSummary — contribution et salaire reçu en avance (espace p
   })
 
   it('salaire reçu en avance : montant, écart et mois financé (mois recapé + 1)', async () => {
-    single.real_income_entries = { amount: 2760.18 }
+    single.real_income_entries = { amount: 2760.18, applied_to_balance_at: '2026-09-28T07:57:00Z' }
 
     const summary = await load('profile')
 
@@ -101,11 +107,25 @@ describe('loadRecapSummary — contribution et salaire reçu en avance (espace p
       delta: 8.1,
       fundedMonth: { month: 10, year: 2026 },
     })
+    // La ligne cherchée est celle qui finance le mois SUIVANT le mois recapé.
+    expect(filters).toContainEqual({
+      table: 'real_income_entries',
+      column: 'salary_month',
+      value: '2026-10-01',
+    })
+  })
+
+  it('réception retirée du solde : elle n’est plus dans le solde, rien à expliquer', async () => {
+    single.real_income_entries = { amount: 2760.18, applied_to_balance_at: null }
+
+    const summary = await load('profile')
+
+    expect(summary).not.toHaveProperty('salaryReception')
   })
 
   it('aucun des deux n’entre dans le calcul : le bilan reste le reste à vivre effectif', async () => {
     single.group_contributions = { contribution_amount: 2501.72, group: { name: 'F' } }
-    single.real_income_entries = { amount: 2760.18 }
+    single.real_income_entries = { amount: 2760.18, applied_to_balance_at: '2026-09-28T07:57:00Z' }
 
     const summary = await load('profile')
 
@@ -132,7 +152,7 @@ describe('loadRecapSummary — contribution et salaire reçu en avance (espace p
 
   it('espace groupe : aucune des deux lectures n’est faite', async () => {
     single.group_contributions = { contribution_amount: 2501.72, group: { name: 'F' } }
-    single.real_income_entries = { amount: 2760.18 }
+    single.real_income_entries = { amount: 2760.18, applied_to_balance_at: '2026-09-28T07:57:00Z' }
 
     const summary = await load('group')
 

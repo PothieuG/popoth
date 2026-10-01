@@ -524,6 +524,7 @@ export default function TransactionTabsComponent({
                 context={context}
                 creatorAvatarUrl={avatarById.get(income.created_by?.id ?? '')}
                 incomeSourceContext={ctx}
+                openMonth={monthWindow}
                 currentRemainingToLive={currentRemainingToLive}
                 readOnly={readOnly}
                 onEdit={(transaction) => handleEditTransaction(transaction, 'income')}

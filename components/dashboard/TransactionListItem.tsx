@@ -11,6 +11,14 @@ import DropdownMenu from '@/components/ui/DropdownMenu'
 import ConfirmationDialog from '@/components/ui/ConfirmationDialog'
 import UserAvatar from '@/components/ui/UserAvatar'
 import SalaryValidationModal from '@/components/dashboard/SalaryValidationModal'
+import { now } from '@/lib/clock'
+import {
+  isLaterMonth,
+  monthName,
+  ofMonth,
+  parseSalaryMonth,
+  type MonthRef,
+} from '@/lib/finance/salary-reception'
 
 const LONG_PRESS_DELAY_MS = 800
 
@@ -151,6 +159,13 @@ interface TransactionListItemProps {
    * stubs no-op pour préserver la signature.
    */
   readOnly?: boolean
+  /**
+   * Sprint Salary-Reception (2026-10-02). Mois « ouvert » — celui que
+   * l'utilisateur vit (dashboards : mois du jour, valeur par défaut) ou recape
+   * (« Compléter le mois » : le mois recapé). Une ligne salaire qui finance un
+   * mois postérieur affiche le rappel « pas dans le reste à vivre de ce mois ».
+   */
+  openMonth?: MonthRef
   className?: string
   /**
    * Sprint Fix-Avatar-Payload (2026-09-11). Avatar du créateur, résolu par le
@@ -178,6 +193,7 @@ export default function TransactionListItem({
   budgetSnapshot = null,
   piggyBankAmount = null,
   readOnly = false,
+  openMonth,
   className,
   creatorAvatarUrl,
 }: TransactionListItemProps) {
@@ -267,15 +283,24 @@ export default function TransactionListItem({
   const isSalaryAwaitingValidation = isSalaryRow && !isApplied
 
   /**
-   * Sprint Salary-Reception (2026-10-02). Salaire reçu en avance (option
-   * « Réception du salaire ») : appliqué au solde, mais compté pour le mois
-   * SUIVANT — il n'entre pas dans le reste à vivre du mois en cours. Le
-   * prochain récap perso en fait la ligne « Salaire » du nouveau mois
-   * (`isSalaryRow` prend alors le relais). D'ici là : pas de « Modifier »
-   * (409 côté serveur) ; pour corriger, retirer du solde puis supprimer.
+   * Sprint Salary-Reception (2026-10-02). Une ligne salaire porte le mois
+   * qu'elle FINANCE (`salary_month`).
+   *   - `isReceivedSalary` : saisie par « Réception du salaire » (pas encore
+   *     rattachée à un récap). Pas de « Modifier » (409 côté serveur) ; pour
+   *     corriger, retirer du solde puis supprimer.
+   *   - `fundsLaterMonth` : elle finance un mois postérieur au mois ouvert —
+   *     dans le solde, mais hors reste à vivre de ce mois. La fin du récap en
+   *     fera la ligne « Salaire » du nouveau mois (`isSalaryRow`).
    */
-  const isSalaryReception =
-    type === 'income' && (transaction as RealIncome).salary_reception === true
+  const salaryMonth =
+    type === 'income' ? parseSalaryMonth((transaction as RealIncome).salary_month) : null
+  const isReceivedSalary = salaryMonth != null && !isSalaryRow
+  const fundsLaterMonth =
+    salaryMonth != null &&
+    isLaterMonth(
+      salaryMonth,
+      openMonth ?? { month: now().getMonth() + 1, year: now().getFullYear() },
+    )
 
   const runToggle = async () => {
     if (isToggling) return
@@ -379,8 +404,8 @@ export default function TransactionListItem({
 
     // Lignes salaire : ni exceptionnelles ni rattachées à un revenu estimé —
     // sans ce cas, elles retombaient sur « Revenu supprimé ».
-    if (isSalaryReception) {
-      return 'Salaire reçu en avance'
+    if (salaryMonth) {
+      return `Salaire ${ofMonth(salaryMonth)}`
     }
     if (isSalaryRow) {
       return 'Salaire'
@@ -556,12 +581,13 @@ export default function TransactionListItem({
     const income = transaction as RealIncome
     const ravBalance = currentRemainingToLive
 
-    // Un salaire reçu en avance ne pèse pas sur le reste à vivre du mois.
-    if (isSalaryReception) {
+    // Une ligne salaire ne pèse pas sur le reste à vivre (le salaire y entre
+    // déjà automatiquement ; seul l'« Équilibrage salaire » compte).
+    if (isReceivedSalary) {
       return (
         <p className="text-gray-600">
           Votre <span className="font-medium text-blue-600">reste à vivre</span> ne sera pas affecté
-          (ce salaire finance le mois prochain).
+          (le salaire y est déjà compté automatiquement).
         </p>
       )
     }
@@ -685,7 +711,7 @@ export default function TransactionListItem({
     // Idem pour une exceptionnelle financée par tirelire (verrouillée en
     // modification — Sprint Exceptional-Expense-Piggy-Funding) et pour un
     // salaire reçu en avance (Sprint Salary-Reception).
-    ...(isCurrentlyCarried || isPiggyFundedExceptional || isSalaryReception ? [] : [editItem]),
+    ...(isCurrentlyCarried || isPiggyFundedExceptional || isReceivedSalary ? [] : [editItem]),
     {
       label: toggleLabel,
       icon: toggleIcon,
@@ -892,9 +918,10 @@ export default function TransactionListItem({
             salaire reçu en avance : le solde l'a déjà, le reste à vivre du
             mois non. Bleu = code couleur « reste à vivre », ton informatif
             (pas d'action attendue, contrairement au bloc contribution). */}
-        {isSalaryReception && (
+        {fundsLaterMonth && salaryMonth && (
           <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs text-blue-900">
-            Finance le mois prochain : compté dans le solde, pas dans le reste à vivre de ce mois.
+            Finance {monthName(salaryMonth)} : compté dans le solde, pas dans le reste à vivre de ce
+            mois.
           </p>
         )}
 

@@ -5,8 +5,8 @@ import userEvent, { type UserEvent } from '@testing-library/user-event'
 import type { RealIncome, ReceiveSalaryOutcome } from '@/hooks/useRealIncomes'
 
 // Sprint Salary-Reception (2026-10-02) — option « Réception du salaire » du
-// dialogue d'ajout. Montants du cas réel : salaire déclaré 2 752,08 €, paie de
-// 2 760,18 € reçue le 28/09 pour octobre.
+// dialogue d'ajout, avec le choix du mois financé. Montants du cas réel :
+// salaire déclaré 2 752,08 €, paie de 2 760,18 €.
 
 const addIncome = vi.fn(async () => true)
 const receiveSalary = vi.fn<(data: unknown) => Promise<ReceiveSalaryOutcome>>()
@@ -65,7 +65,11 @@ const income = (overrides: Partial<RealIncome>): RealIncome => ({
   ...overrides,
 })
 
-/** Wizard « Compléter le mois » de septembre 2026 : libellés de mois stables. */
+/**
+ * Wizard « Compléter le mois » de septembre 2026 : le mois ouvert est
+ * septembre, les deux mois proposés sont septembre et octobre. `defaultDate`
+ * fixe la date de réception, dont le jour pilote le mois proposé.
+ */
 function renderModal(props: Partial<React.ComponentProps<typeof AddTransactionModal>> = {}) {
   const onClose = vi.fn()
   render(
@@ -86,6 +90,14 @@ async function openIncomeKinds(user: UserEvent) {
 }
 
 const salaryCard = () => screen.queryByRole('button', { name: /Réception du salaire/i })
+const monthRadio = (name: RegExp) => screen.getByRole('radio', { name })
+const amountInput = () => screen.getByLabelText(/Montant reçu/i) as HTMLInputElement
+const panel = () => screen.getByTestId('salary-reception-panel')
+
+async function openSalaryForm(user: UserEvent) {
+  await openIncomeKinds(user)
+  await user.click(salaryCard()!)
+}
 
 beforeEach(() => {
   fixtures.realIncomes = []
@@ -95,24 +107,24 @@ beforeEach(() => {
   receiveSalary.mockResolvedValue({
     ok: true,
     result: {
-      mode: 'advance',
       incomeId: 'income-1',
+      salaryMonth: '2026-10-01',
       expected: 2752.08,
       received: 2760.18,
       delta: 8.1,
+      deltaApplied: false,
       balance: 3042.7,
     },
   })
 })
 
-describe('AddTransactionModal — Réception du salaire', () => {
-  it('espace perso avec salaire déclaré : l’option annonce le mois financé', async () => {
+describe('AddTransactionModal — Réception du salaire : disponibilité', () => {
+  it('espace perso avec salaire déclaré : option proposée', async () => {
     const user = userEvent.setup()
     renderModal()
     await openIncomeKinds(user)
 
     expect(salaryCard()).toBeEnabled()
-    expect(salaryCard()).toHaveTextContent(/Paie d'octobre/)
   })
 
   it('espace groupe : pas d’option (un groupe n’a pas de salaire)', async () => {
@@ -132,88 +144,13 @@ describe('AddTransactionModal — Réception du salaire', () => {
     expect(salaryCard()).toBeNull()
   })
 
-  it('formulaire : montant pré-rempli au salaire prévu, pas de description, pas d’aperçu « + montant »', async () => {
-    const user = userEvent.setup()
-    renderModal()
-    await openIncomeKinds(user)
-    await user.click(salaryCard()!)
-
-    expect(screen.getByRole('heading', { name: 'Réception du salaire' })).toBeInTheDocument()
-    expect(screen.queryByLabelText(/description/i)).toBeNull()
-    expect((screen.getByLabelText(/Montant reçu/i) as HTMLInputElement).value).toBe('2752.08')
-    // Le salaire n'entre jamais en entier dans le reste à vivre.
-    expect(screen.queryByTestId('rav-preview')).toBeNull()
-
-    const panel = screen.getByTestId('salary-reception-panel')
-    expect(panel).toHaveTextContent(/Salaire prévu/)
-    expect(panel).toHaveTextContent(/Ce salaire finance octobre/)
-    expect(panel).toHaveTextContent(/reste à vivre de septembre/)
-  })
-
-  it('reçu plus que prévu : écart annoncé sur le mois financé, envoi vers receiveSalary', async () => {
-    const user = userEvent.setup()
-    const { onClose } = renderModal()
-    await openIncomeKinds(user)
-    await user.click(salaryCard()!)
-
-    const amount = screen.getByLabelText(/Montant reçu/i)
-    await user.clear(amount)
-    await user.type(amount, '2760,18')
-
-    const panel = screen.getByTestId('salary-reception-panel')
-    expect(panel).toHaveTextContent(/\+8,10/)
-    expect(panel).toHaveTextContent(
-      /de plus que prévu s'ajouteront à votre reste à vivre d'octobre/,
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Enregistrer le salaire' }))
-
-    await waitFor(() => expect(receiveSalary).toHaveBeenCalledTimes(1))
-    expect(receiveSalary).toHaveBeenCalledWith({ amount: 2760.18, entry_date: '2026-09-28' })
-    expect(addIncome).not.toHaveBeenCalled()
-    await waitFor(() => expect(onClose).toHaveBeenCalled())
-  })
-
-  it('reçu moins que prévu : écart négatif annoncé', async () => {
-    const user = userEvent.setup()
-    renderModal()
-    await openIncomeKinds(user)
-    await user.click(salaryCard()!)
-
-    const amount = screen.getByLabelText(/Montant reçu/i)
-    await user.clear(amount)
-    await user.type(amount, '2700')
-
-    const panel = screen.getByTestId('salary-reception-panel')
-    expect(panel).toHaveTextContent(/−52,08/)
-    expect(panel).toHaveTextContent(
-      /de moins que prévu seront retirés de votre reste à vivre d'octobre/,
-    )
-  })
-
-  it('ligne salaire du mois encore à valider : la paie est celle du mois en cours', async () => {
+  it('les deux mois déjà réglés : option désactivée, avec la raison', async () => {
     fixtures.realIncomes = [
-      income({ amount: 2700, recap_origin_id: 'recap-aout', applied_to_balance_at: null }),
-    ]
-    const user = userEvent.setup()
-    renderModal()
-    await openIncomeKinds(user)
-
-    expect(salaryCard()).toHaveTextContent(/Paie de septembre/)
-    await user.click(salaryCard()!)
-
-    // Attendu = montant de la ligne en attente, pas le salaire déclaré.
-    expect((screen.getByLabelText(/Montant reçu/i) as HTMLInputElement).value).toBe('2700')
-    expect(screen.getByTestId('salary-reception-panel')).toHaveTextContent(
-      /la ligne « Salaire » en attente sera validée/,
-    )
-  })
-
-  it('paie du mois suivant déjà enregistrée : option désactivée, avec la raison', async () => {
-    fixtures.realIncomes = [
+      income({ salary_month: '2026-09-01', applied_to_balance_at: '2026-09-03T08:00:00Z' }),
       income({
+        id: 'income-2',
         amount: 2760.18,
-        salary_reception: true,
+        salary_month: '2026-10-01',
         applied_to_balance_at: '2026-09-28T07:57:00Z',
       }),
     ]
@@ -222,20 +159,176 @@ describe('AddTransactionModal — Réception du salaire', () => {
     await openIncomeKinds(user)
 
     expect(salaryCard()).toBeDisabled()
-    expect(salaryCard()).toHaveTextContent(/Paie d'octobre déjà enregistrée/)
-    expect(salaryCard()).toHaveTextContent(/2[\s  ]?760,18/)
+    expect(salaryCard()).toHaveTextContent(/Salaires de septembre et d'octobre déjà enregistrés/)
+  })
+})
+
+describe('AddTransactionModal — Réception du salaire : choix du mois', () => {
+  it('formulaire : montant pré-rempli, pas de description, pas d’aperçu « + montant »', async () => {
+    const user = userEvent.setup()
+    renderModal()
+    await openSalaryForm(user)
+
+    expect(screen.getByRole('heading', { name: 'Réception du salaire' })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/description/i)).toBeNull()
+    expect(amountInput().value).toBe('2752.08')
+    // Le salaire n'entre jamais en entier dans le reste à vivre.
+    expect(screen.queryByTestId('rav-preview')).toBeNull()
+    expect(screen.getByRole('radiogroup', { name: 'Ce salaire finance' })).toBeInTheDocument()
   })
 
+  it('payé le 28 : le mois SUIVANT est proposé, écart reporté sur ce mois', async () => {
+    const user = userEvent.setup()
+    renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+
+    expect(monthRadio(/Octobre/)).toHaveAttribute('aria-checked', 'true')
+    expect(monthRadio(/Septembre/)).toHaveAttribute('aria-checked', 'false')
+    expect(monthRadio(/Octobre/)).toHaveTextContent('Mois prochain')
+    expect(panel()).toHaveTextContent(/Ce salaire finance octobre/)
+    expect(panel()).toHaveTextContent(/n'entre pas dans le reste à vivre de septembre/)
+
+    await user.clear(amountInput())
+    await user.type(amountInput(), '2760,18')
+
+    expect(panel()).toHaveTextContent(/\+8,10/)
+    expect(panel()).toHaveTextContent(
+      /de plus que prévu s'ajouteront à votre reste à vivre d'octobre/,
+    )
+  })
+
+  it('payé le 3 : le mois EN COURS est proposé, écart compté tout de suite', async () => {
+    const user = userEvent.setup()
+    renderModal({ defaultDate: '2026-09-03' })
+    await openSalaryForm(user)
+
+    expect(monthRadio(/Septembre/)).toHaveAttribute('aria-checked', 'true')
+    expect(monthRadio(/Septembre/)).toHaveTextContent('Mois en cours')
+    expect(panel()).toHaveTextContent(/C'est le salaire de septembre/)
+
+    await user.clear(amountInput())
+    await user.type(amountInput(), '2700')
+
+    expect(panel()).toHaveTextContent(/−52,08/)
+    expect(panel()).toHaveTextContent(
+      /de moins que prévu sont retirés tout de suite de votre reste à vivre/,
+    )
+  })
+
+  it('l’utilisateur peut contredire la proposition', async () => {
+    const user = userEvent.setup()
+    const { onClose } = renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+
+    await user.click(monthRadio(/Septembre/))
+
+    expect(monthRadio(/Septembre/)).toHaveAttribute('aria-checked', 'true')
+    expect(panel()).toHaveTextContent(/C'est le salaire de septembre/)
+
+    await user.clear(amountInput())
+    await user.type(amountInput(), '2760,18')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le salaire' }))
+
+    await waitFor(() => expect(receiveSalary).toHaveBeenCalledTimes(1))
+    expect(receiveSalary).toHaveBeenCalledWith({
+      amount: 2760.18,
+      salary_month: '2026-09',
+      entry_date: '2026-09-28',
+    })
+    expect(addIncome).not.toHaveBeenCalled()
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+  })
+
+  it('envoi sans toucher au choix : le mois proposé part avec la paie', async () => {
+    const user = userEvent.setup()
+    renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer le salaire' }))
+
+    await waitFor(() => expect(receiveSalary).toHaveBeenCalledTimes(1))
+    expect(receiveSalary).toHaveBeenCalledWith({
+      amount: 2752.08,
+      salary_month: '2026-10',
+      entry_date: '2026-09-28',
+    })
+  })
+
+  it('ligne du récap à valider : ce mois est proposé, au montant de la ligne', async () => {
+    fixtures.realIncomes = [
+      income({
+        amount: 2700,
+        salary_month: '2026-09-01',
+        recap_origin_id: 'recap-aout',
+        applied_to_balance_at: null,
+      }),
+    ]
+    const user = userEvent.setup()
+    // Le 28 désignerait octobre : la ligne en attente l'emporte.
+    renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+
+    expect(monthRadio(/Septembre/)).toHaveAttribute('aria-checked', 'true')
+    expect(amountInput().value).toBe('2700')
+    expect(panel()).toHaveTextContent(/la ligne « Salaire » en attente sera validée/)
+
+    // Changer de mois sans avoir retouché le montant : il suit le salaire prévu.
+    await user.click(monthRadio(/Octobre/))
+    expect(amountInput().value).toBe('2752.08')
+  })
+
+  it('montant déjà saisi : changer de mois ne l’écrase pas', async () => {
+    const user = userEvent.setup()
+    renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+
+    await user.clear(amountInput())
+    await user.type(amountInput(), '2760,18')
+    await user.click(monthRadio(/Septembre/))
+
+    expect(amountInput().value).toBe('2760.18')
+  })
+
+  it('mois déjà réglé : visible, grisé, non sélectionnable — l’autre est proposé', async () => {
+    fixtures.realIncomes = [
+      income({
+        amount: 2760.18,
+        salary_month: '2026-10-01',
+        applied_to_balance_at: '2026-09-28T07:57:00Z',
+      }),
+    ]
+    const user = userEvent.setup()
+    renderModal({ defaultDate: '2026-09-28' })
+    await openSalaryForm(user)
+
+    expect(monthRadio(/Octobre/)).toBeDisabled()
+    expect(monthRadio(/Octobre/)).toHaveTextContent('Déjà reçu')
+    expect(monthRadio(/Septembre/)).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('dashboard (hors récap) : le mois ouvert est le mois du jour', async () => {
+    const today = new Date()
+    const thisMonth = new Intl.DateTimeFormat('fr-FR', { month: 'long' }).format(today)
+    const user = userEvent.setup()
+    renderModal({ recapMonth: undefined, recapYear: undefined, defaultDate: undefined })
+    await openSalaryForm(user)
+
+    const current = screen
+      .getAllByRole('radio')
+      .find((radio) => radio.textContent?.includes('Mois en cours'))
+    expect(current?.textContent?.toLowerCase()).toContain(thisMonth)
+  })
+})
+
+describe('AddTransactionModal — Réception du salaire : erreurs et retour', () => {
   it('refus du serveur : message lisible, le dialogue reste ouvert', async () => {
     receiveSalary.mockResolvedValue({ ok: false, error: 'salary-already-received' })
     const user = userEvent.setup()
     const { onClose } = renderModal()
-    await openIncomeKinds(user)
-    await user.click(salaryCard()!)
+    await openSalaryForm(user)
     await user.click(screen.getByRole('button', { name: 'Enregistrer le salaire' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      /salaire du mois prochain est déjà enregistré/i,
+      /salaire de ce mois est déjà enregistré/i,
     )
     expect(onClose).not.toHaveBeenCalled()
   })
@@ -243,14 +336,14 @@ describe('AddTransactionModal — Réception du salaire', () => {
   it('retour puis « Exceptionnel » : description et montant imposés ne traînent pas', async () => {
     const user = userEvent.setup()
     renderModal()
-    await openIncomeKinds(user)
-    await user.click(salaryCard()!)
+    await openSalaryForm(user)
     await user.click(screen.getByRole('button', { name: /retour à l'étape précédente/i }))
     await user.click(screen.getByRole('button', { name: /Exceptionnel/i }))
 
     expect((screen.getByLabelText(/description/i) as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText(/^Montant/i) as HTMLInputElement).value).toBe('0')
     expect(screen.queryByTestId('salary-reception-panel')).toBeNull()
+    expect(screen.queryByRole('radiogroup')).toBeNull()
     expect(screen.getByRole('button', { name: /Ajouter le revenu/i })).toBeInTheDocument()
   })
 })

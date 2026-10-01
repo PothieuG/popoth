@@ -1,22 +1,19 @@
 import { formatEuro } from '@/lib/format-currency'
 import {
-  nextMonth,
   monthName,
   ofMonth,
   salaryDelta,
   type MonthRef,
+  type SalaryMonthOption,
 } from '@/lib/finance/salary-reception'
 
 interface SalaryReceptionPanelProps {
-  /** `current` : la paie valide la ligne « Salaire » du mois. `advance` : elle
-   *  finance le mois suivant. Cf. `resolveSalaryReceptionState`. */
-  mode: 'current' | 'advance'
-  /** Salaire prévu (ligne en attente, ou salaire déclaré dans les paramètres). */
-  expected: number
+  /** Mois que la paie finance, tel que choisi dans le formulaire. */
+  option: SalaryMonthOption
   /** Montant saisi. */
   received: number
-  /** Mois en cours côté appli (mois recapé dans le wizard « Compléter le mois »). */
-  currentMonth: MonthRef
+  /** Mois ouvert (mois du jour, ou mois recapé dans « Compléter le mois »). */
+  openMonth: MonthRef
 }
 
 /**
@@ -25,16 +22,19 @@ interface SalaryReceptionPanelProps {
  * reste à vivre, et de quel mois) avant de valider. Remplace
  * `RemainingToLivePreview`, qui annoncerait à tort « + montant » sur le reste à
  * vivre du mois : un salaire n'y entre jamais en entier, seul l'écart avec le
- * salaire prévu compte.
+ * salaire prévu compte — tout de suite si la paie finance le mois ouvert, à la
+ * fin du récap si elle finance le mois suivant.
  */
 export default function SalaryReceptionPanel({
-  mode,
-  expected,
+  option,
   received,
-  currentMonth,
+  openMonth,
 }: SalaryReceptionPanelProps) {
+  if (option.status.kind === 'received') return null
+
+  const expected = option.status.expected
   const delta = salaryDelta(received, expected)
-  const funded = mode === 'advance' ? nextMonth(currentMonth) : currentMonth
+  const funded = option.month
 
   return (
     <div
@@ -63,27 +63,32 @@ export default function SalaryReceptionPanel({
         </div>
       </dl>
 
-      {mode === 'advance' ? (
+      {!option.isOpenMonth ? (
         <p className="text-xs leading-snug text-blue-800">
           Votre solde est mis à jour tout de suite. Ce salaire finance {monthName(funded)} : il
-          n&apos;entre pas dans le reste à vivre {ofMonth(currentMonth)}.
+          n&apos;entre pas dans le reste à vivre {ofMonth(openMonth)}.
         </p>
-      ) : (
+      ) : option.status.kind === 'awaiting' ? (
         <p className="text-xs leading-snug text-blue-800">
           C&apos;est le salaire {ofMonth(funded)} : la ligne « Salaire » en attente sera validée et
           votre solde mis à jour.
+        </p>
+      ) : (
+        <p className="text-xs leading-snug text-blue-800">
+          C&apos;est le salaire {ofMonth(funded)} : votre solde est mis à jour tout de suite. Le
+          reste à vivre le compte déjà, seul l&apos;écart le fait bouger.
         </p>
       )}
 
       {delta !== 0 && (
         <p className="text-xs leading-snug font-medium text-blue-900">
           {delta > 0
-            ? mode === 'advance'
-              ? `Les ${formatEuro(delta)} de plus que prévu s'ajouteront à votre reste à vivre ${ofMonth(funded)}.`
-              : `Les ${formatEuro(delta)} de plus que prévu s'ajoutent tout de suite à votre reste à vivre.`
-            : mode === 'advance'
-              ? `Les ${formatEuro(-delta)} de moins que prévu seront retirés de votre reste à vivre ${ofMonth(funded)}.`
-              : `Les ${formatEuro(-delta)} de moins que prévu sont retirés tout de suite de votre reste à vivre.`}
+            ? option.isOpenMonth
+              ? `Les ${formatEuro(delta)} de plus que prévu s'ajoutent tout de suite à votre reste à vivre.`
+              : `Les ${formatEuro(delta)} de plus que prévu s'ajouteront à votre reste à vivre ${ofMonth(funded)}.`
+            : option.isOpenMonth
+              ? `Les ${formatEuro(-delta)} de moins que prévu sont retirés tout de suite de votre reste à vivre.`
+              : `Les ${formatEuro(-delta)} de moins que prévu seront retirés de votre reste à vivre ${ofMonth(funded)}.`}
         </p>
       )}
     </div>

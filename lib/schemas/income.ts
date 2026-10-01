@@ -126,12 +126,15 @@ export type ValidateSalaryForm = z.infer<typeof validateSalaryFormSchema>
  * POST /api/finance/income/real/receive-salary body — option « Réception du
  * salaire » du dialogue d'ajout (espace perso uniquement).
  *
- *   - amount : le montant réellement reçu. Strictement positif (la ligne
- *     créée porte ce montant, et `real_income_entries.amount > 0`).
+ *   - amount : le montant réellement reçu. Strictement positif
+ *     (`real_income_entries.amount > 0`).
+ *   - salary_month : `AAAA-MM`, le mois que cette paie FINANCE — le mois
+ *     ouvert ou le suivant (la route refuse tout autre mois).
  *   - entry_date : date de réception. Absente → date du jour.
  */
 export const receiveSalaryBodySchema = z.object({
   amount: moneySchema,
+  salary_month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois invalide (AAAA-MM attendu)'),
   entry_date: isoDateSchema.optional(),
 })
 export type ReceiveSalaryBody = z.infer<typeof receiveSalaryBodySchema>

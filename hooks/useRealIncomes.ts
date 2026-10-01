@@ -36,6 +36,8 @@ export interface ValidateSalaryRequest {
 /** Sprint Salary-Reception (2026-10-02) — option « Réception du salaire ». */
 export interface ReceiveSalaryRequest {
   amount: number
+  /** `AAAA-MM` — le mois que la paie finance (mois ouvert ou suivant). */
+  salary_month: string
   entry_date?: string
 }
 
@@ -100,15 +102,18 @@ export interface RealIncome {
    */
   contribution_id?: string | null
   /**
-   * Sprint Salary-Reception (2026-10-02). `true` = salaire reçu en avance :
-   * déjà appliqué au solde, compté pour le mois SUIVANT (hors reste à vivre
-   * du mois en cours). Le prochain récap perso l'adopte comme ligne salaire
-   * (`recap_origin_id` posé, ce champ remis à null). Signal pour l'UI :
-   *   - libellé « Salaire reçu en avance » + rappel du mois financé ;
-   *   - « Modifier » retiré (409 côté serveur) — retirer du solde puis
+   * Sprint Salary-Reception (2026-10-02). `AAAA-MM-01` = ligne salaire, et le
+   * mois qu'elle FINANCE (pas sa date de réception). Une ligne salaire ne pèse
+   * jamais sur le reste à vivre (le salaire y entre déjà automatiquement).
+   * Signal pour l'UI :
+   *   - libellé « Salaire d'<mois> » ;
+   *   - mois financé postérieur au mois ouvert → rappel « compté dans le
+   *     solde, pas dans le reste à vivre de ce mois » ;
+   *   - saisie par « Réception du salaire » (`recap_origin_id` nul) :
+   *     « Modifier » retiré (409 côté serveur) — retirer du solde puis
    *     supprimer pour corriger.
    */
-  salary_reception?: boolean | null
+  salary_month?: string | null
   estimated_income?: {
     name: string
   }

@@ -234,16 +234,16 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
     //   - modification d'un revenu miroir contribution (contribution_id != null)
     //     — cycle 100% trigger-piloté (symétrique au guard existant côté
     //     expense Sprint 16 V3) ;
-    //   - modification d'un salaire reçu en avance (Sprint Salary-Reception
-    //     2026-10-02) : la ligne est appliquée au solde pour le montant reçu,
-    //     un changement de montant désynchroniserait le solde. Pour corriger :
-    //     retirer du solde, supprimer, ressaisir.
+    //   - modification d'une ligne salaire saisie par « Réception du salaire »
+    //     (Sprint Salary-Reception 2026-10-02, `salary_month` non nul) : elle
+    //     est appliquée au solde, un changement de montant le désynchroniserait.
+    //     Pour corriger : retirer du solde, supprimer, ressaisir.
     const { data: protectedCheck } = await supabaseServer
       .from('real_income_entries')
-      .select('is_carried_over, recap_origin_id, contribution_id, salary_reception')
+      .select('is_carried_over, recap_origin_id, contribution_id, salary_month')
       .eq('id', id)
       .maybeSingle()
-    if (protectedCheck?.salary_reception) {
+    if (protectedCheck?.salary_month && !protectedCheck.recap_origin_id) {
       return NextResponse.json({ error: 'cannot-edit-salary-reception' }, { status: 409 })
     }
     if (protectedCheck?.is_carried_over) {
