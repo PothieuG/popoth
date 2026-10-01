@@ -139,8 +139,14 @@ export default function AddTransactionModal({
   // RemainingToLivePreview (même queryKey ['financial-summary', context]).
   const { financialData } = useFinancialData(context)
   const piggyBankBalance = financialData?.piggyBank ?? 0
-  // Fallback pour éviter les dropdowns vides
-  const { budgets } = useBudgets(context)
+  // Fallback pour éviter les dropdowns vides. Dans le wizard récap, le
+  // dépensé (`spent_this_month`) doit être celui du mois RECAPÉ : sans la
+  // fenêtre, le menu « Budget associé » affichait celui du mois courant (vide
+  // en début de mois), p.ex. 0,00 €/66,43 € pour un budget entamé en septembre.
+  const { budgets } = useBudgets(
+    context,
+    recapMonth != null && recapYear != null ? { month: recapMonth, year: recapYear } : undefined,
+  )
   const { incomes } = useIncomes(context)
 
   const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({

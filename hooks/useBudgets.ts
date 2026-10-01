@@ -19,7 +19,7 @@ export interface EstimatedBudget {
   carryover_applied_date?: string // Date d'application du carryover par finalize_recap
   cumulated_savings?: number // Économies cumulées
   last_savings_update?: string // Date de dernière mise à jour des économies
-  spent_this_month?: number // carryover_spent_amount + sum(amount_from_budget) du mois courant
+  spent_this_month?: number // carryover_spent_amount + sum(amount_from_budget) du mois courant (ou de `monthWindow`)
 }
 
 interface UseBudgetsReturn {
@@ -44,12 +44,30 @@ interface UseBudgetsReturn {
 }
 
 /**
+ * Mois (1-12) + année dont `spent_this_month` doit refléter le dépensé.
+ * Passé par le wizard récap « Compléter le mois », qui saisit des dépenses du
+ * mois RECAPÉ alors que `now()` est déjà sur le mois suivant. Absent sur les
+ * dashboards → mois courant.
+ */
+export interface BudgetsMonthWindow {
+  month: number
+  year: number
+}
+
+/**
  * Hook pour la gestion des budgets estimés
  * Gère le CRUD complet avec la base de données
  */
-export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
+export function useBudgets(
+  context?: 'profile' | 'group',
+  monthWindow?: BudgetsMonthWindow,
+): UseBudgetsReturn {
   const queryClient = useQueryClient()
-  const queryKey = ['budgets', context ?? null]
+  // Clé distincte par fenêtre (le dépensé diffère), toujours sous le préfixe
+  // `['budgets']` que purge `invalidateFinancialRefreshes`.
+  const queryKey = monthWindow
+    ? ['budgets', context ?? null, monthWindow.year, monthWindow.month]
+    : ['budgets', context ?? null]
 
   const {
     data: budgets = [],
@@ -60,9 +78,14 @@ export function useBudgets(context?: 'profile' | 'group'): UseBudgetsReturn {
   } = useQuery<EstimatedBudget[]>({
     queryKey,
     queryFn: async () => {
-      const url = context
-        ? `/api/finance/budgets/estimated?group=${context === 'group'}`
-        : '/api/finance/budgets/estimated'
+      const params = new URLSearchParams()
+      if (context) params.set('group', String(context === 'group'))
+      if (monthWindow) {
+        params.set('month', String(monthWindow.month))
+        params.set('year', String(monthWindow.year))
+      }
+      const query = params.toString()
+      const url = `/api/finance/budgets/estimated${query ? `?${query}` : ''}`
       const response = await fetch(url, { method: 'GET', credentials: 'include' })
       if (!response.ok) {
         const errorData = await response.json().catch(() => null)

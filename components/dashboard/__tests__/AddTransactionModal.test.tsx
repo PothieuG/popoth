@@ -11,12 +11,25 @@ const addIncome = vi.fn(async () => true)
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 const INCOME_UUID = '22222222-2222-4222-8222-222222222222'
 
+// Arguments reçus par `useBudgets` — épingle la fenêtre du mois recapé. Le
+// dépensé renvoyé en dépend, comme côté serveur (35 € en septembre, 0 € sinon).
+const useBudgetsCalls: unknown[][] = []
 vi.mock('@/hooks/useBudgets', () => ({
-  useBudgets: () => ({
-    budgets: [
-      { id: BUDGET_UUID, name: 'Alimentation', estimated_amount: 500, cumulated_savings: 50 },
-    ],
-  }),
+  useBudgets: (...args: unknown[]) => {
+    useBudgetsCalls.push(args)
+    const monthWindow = args[1] as { month: number; year: number } | undefined
+    return {
+      budgets: [
+        {
+          id: BUDGET_UUID,
+          name: 'Alimentation',
+          estimated_amount: 500,
+          cumulated_savings: 50,
+          spent_this_month: monthWindow?.month === 9 ? 35 : 0,
+        },
+      ],
+    }
+  },
 }))
 vi.mock('@/hooks/useIncomes', () => ({
   useIncomes: () => ({
@@ -47,14 +60,14 @@ vi.mock('@/components/ui/CustomDropdown', () => ({
     value,
     onChange,
   }: {
-    options: Array<{ id: string; name: string }>
+    options: Array<{ id: string; name: string; spentAmount?: number }>
     value: string
     onChange: (v: string) => void
   }) => (
     <select data-testid="fk-dropdown" value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">— select —</option>
       {options.map((o) => (
-        <option key={o.id} value={o.id}>
+        <option key={o.id} value={o.id} data-spent={o.spentAmount}>
           {o.name}
         </option>
       ))}
@@ -333,5 +346,37 @@ describe('AddTransactionModal — submit flows', () => {
     // Axe 2 setFocus assertion : focus moved to the first faulty field
     expect(descInput).toHaveFocus()
     expect(addExpense).not.toHaveBeenCalled()
+  })
+})
+
+// Régression 2026-10-01 — étape 2 du récap : le menu « Budget associé »
+// affichait le dépensé du mois courant (0,00 €/66,43 € pour un budget entamé
+// le mois recapé). La modale transmet désormais le mois recapé à `useBudgets`.
+describe('AddTransactionModal — dépensé du mois recapé dans le menu budget', () => {
+  beforeEach(() => {
+    useBudgetsCalls.length = 0
+  })
+
+  it('wizard récap : useBudgets reçoit le mois recapé et le menu affiche son dépensé', async () => {
+    const user = userEvent.setup()
+    render(
+      <AddTransactionModal onClose={vi.fn()} context="profile" recapMonth={9} recapYear={2026} />,
+    )
+    await navigateToFieldsExpense(user)
+
+    expect(useBudgetsCalls[useBudgetsCalls.length - 1]).toEqual([
+      'profile',
+      { month: 9, year: 2026 },
+    ])
+    expect(screen.getByRole('option', { name: 'Alimentation' })).toHaveAttribute('data-spent', '35')
+  })
+
+  it('dashboard : pas de fenêtre, mois courant inchangé', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} context="profile" />)
+    await navigateToFieldsExpense(user)
+
+    expect(useBudgetsCalls[useBudgetsCalls.length - 1]).toEqual(['profile', undefined])
+    expect(screen.getByRole('option', { name: 'Alimentation' })).toHaveAttribute('data-spent', '0')
   })
 })

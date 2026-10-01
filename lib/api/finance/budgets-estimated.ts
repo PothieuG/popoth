@@ -6,9 +6,10 @@ import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import {
   createEstimatedBudgetBodySchema,
+  estimatedBudgetsListQuerySchema,
   updateEstimatedBudgetBodySchema,
 } from '@/lib/schemas/budget'
-import { deleteByIdQuerySchema, estimatedListQuerySchema } from '@/lib/schemas/common'
+import { deleteByIdQuerySchema } from '@/lib/schemas/common'
 import { logger } from '@/lib/logger'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
@@ -21,7 +22,7 @@ type EstimatedBudgetUpdate = Database['public']['Tables']['estimated_budgets']['
  */
 export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
-    const { group: forGroup } = parseQuery(request, estimatedListQuerySchema)
+    const { group: forGroup, month, year } = parseQuery(request, estimatedBudgetsListQuerySchema)
 
     let data, error
 
@@ -74,10 +75,21 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
     // Le regroupement se fait en mémoire : les lignes sont déjà bornées au mois
     // courant et aux budgets de l'appelant, donc le volume est celui d'un
     // écran, pas d'un historique.
+    //
+    // Fenêtre = mois recapé quand `month`/`year` sont fournis (wizard récap),
+    // sinon mois courant. Sans elle, le récap de septembre fait en octobre
+    // affichait le dépensé d'octobre (vide) dans le menu « Budget associé ».
+    // Bornes construites en chaînes, comme `expenses-preview-breakdown` :
+    // `toISOString()` sur une date locale reculait d'un jour hors UTC.
     const budgets = data || []
-    const currentDate = new Date()
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-    const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+    const useExplicitMonth = month != null && year != null
+    const refYear = useExplicitMonth ? year : new Date().getFullYear()
+    const refMonth0 = useExplicitMonth ? month - 1 : new Date().getMonth()
+    const firstDayOfMonth = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`
+    const lastDayOfMonth = (() => {
+      const d = new Date(refYear, refMonth0 + 1, 0)
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    })()
 
     const spentByBudgetId = new Map<string, number>()
     if (budgets.length > 0) {
@@ -91,8 +103,8 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
           budgets.map((b: EstimatedBudgetRow) => b.id),
         )
         .is('carried_from_recap_id', null)
-        .gte('expense_date', firstDayOfMonth.toISOString().split('T')[0] as string)
-        .lte('expense_date', lastDayOfMonth.toISOString().split('T')[0] as string)
+        .gte('expense_date', firstDayOfMonth)
+        .lte('expense_date', lastDayOfMonth)
 
       for (const expense of expenses ?? []) {
         if (!expense.estimated_budget_id) continue

@@ -7,12 +7,17 @@ const updateIncome = vi.fn(async () => true)
 
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 
+// Arguments reçus par `useBudgets` — épingle la fenêtre du mois recapé.
+const useBudgetsCalls: unknown[][] = []
 vi.mock('@/hooks/useBudgets', () => ({
-  useBudgets: () => ({
-    budgets: [
-      { id: BUDGET_UUID, name: 'Alimentation', estimated_amount: 500, cumulated_savings: 0 },
-    ],
-  }),
+  useBudgets: (...args: unknown[]) => {
+    useBudgetsCalls.push(args)
+    return {
+      budgets: [
+        { id: BUDGET_UUID, name: 'Alimentation', estimated_amount: 500, cumulated_savings: 0 },
+      ],
+    }
+  },
 }))
 vi.mock('@/hooks/useIncomes', () => ({
   useIncomes: () => ({ incomes: [{ id: 'i-1', name: 'Salaire', estimated_amount: 1500 }] }),
@@ -104,5 +109,42 @@ describe('EditTransactionModal', () => {
     })
     expect(onTransactionUpdated).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+// Régression 2026-10-01 — miroir d'AddTransactionModal : dans le wizard récap,
+// le menu « Budget associé » doit afficher le dépensé du mois recapé.
+describe('EditTransactionModal — fenêtre du mois recapé pour le menu budget', () => {
+  beforeEach(() => {
+    useBudgetsCalls.length = 0
+  })
+
+  it('wizard récap : useBudgets reçoit le mois recapé', () => {
+    render(
+      <EditTransactionModal
+        onClose={vi.fn()}
+        transaction={baseExpense}
+        transactionType="expense"
+        context="profile"
+        recapMonth={9}
+        recapYear={2026}
+      />,
+    )
+    expect(useBudgetsCalls[useBudgetsCalls.length - 1]).toEqual([
+      'profile',
+      { month: 9, year: 2026 },
+    ])
+  })
+
+  it('dashboard : pas de fenêtre', () => {
+    render(
+      <EditTransactionModal
+        onClose={vi.fn()}
+        transaction={baseExpense}
+        transactionType="expense"
+        context="profile"
+      />,
+    )
+    expect(useBudgetsCalls[useBudgetsCalls.length - 1]).toEqual(['profile', undefined])
   })
 })

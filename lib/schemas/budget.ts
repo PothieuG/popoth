@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { moneyFormSchema, moneySchema, uuidSchema } from './common'
+import { estimatedListQuerySchema, moneyFormSchema, moneySchema, uuidSchema } from './common'
 
 const budgetNameSchema = z
   .string()
@@ -58,6 +58,18 @@ export const updateEstimatedBudgetBodySchema = z
       d.is_monthly_recurring !== undefined,
     { message: 'Aucune donnée à mettre à jour' },
   )
+
+/**
+ * Query GET /api/finance/budgets/estimated. `month`/`year` fixent la fenêtre
+ * du `spent_this_month` renvoyé : le wizard récap « Compléter le mois » les
+ * passe pour afficher le dépensé du mois RECAPÉ alors que `now()` est déjà sur
+ * le mois suivant. Miroir de `previewBreakdownQuerySchema` : les deux doivent
+ * être présents pour activer la fenêtre, sinon mois courant (dashboards).
+ */
+export const estimatedBudgetsListQuerySchema = estimatedListQuerySchema.extend({
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  year: z.coerce.number().int().min(2000).max(3000).optional(),
+})
 
 export type CreateEstimatedBudgetBody = z.infer<typeof createEstimatedBudgetBodySchema>
 export type UpdateEstimatedBudgetBody = z.infer<typeof updateEstimatedBudgetBodySchema>

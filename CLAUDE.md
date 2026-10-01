@@ -113,7 +113,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
-| Tests non-gated passants               | **1063**                  | `pnpm test:run`                                      |
+| Tests non-gated passants               | **1074**                  | `pnpm test:run`                                      |
 | Tests gated skipped                    | **254**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
 | Routes API                             | **48**                    | `pnpm build`                                         |
 | Functions DB versionnées               | **44/44**                 | `pnpm db:audit-functions`                            |
@@ -332,7 +332,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1063/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
+**État global** : Score ~100. Lint 0/0. Tests 1074/254. 48 routes. 28 RPCs + 43 fn. MRv3+PÉ livrés. Dernier : triage Dependabot (0 alerte).
 
 **Historique** — 45 parts (156 sprints) :
 

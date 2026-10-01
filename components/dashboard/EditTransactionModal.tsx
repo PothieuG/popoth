@@ -89,8 +89,13 @@ export default function EditTransactionModal({
   // Hooks for managing data
   const { updateExpense, expenses: realExpenses } = useRealExpenses(context)
   const { updateIncome, incomes: realIncomes } = useRealIncomes(context)
-  // Fallback pour éviter les dropdowns vides
-  const { budgets } = useBudgets(context)
+  // Fallback pour éviter les dropdowns vides. Fenêtre = mois RECAPÉ dans le
+  // wizard récap (cf. `AddTransactionModal`) : le menu « Budget associé »
+  // affichait sinon le dépensé du mois courant.
+  const { budgets } = useBudgets(
+    context,
+    recapMonth != null && recapYear != null ? { month: recapMonth, year: recapYear } : undefined,
+  )
   const { incomes } = useIncomes(context)
 
   const isOriginallyExceptional = transaction?.is_exceptional ?? false
@@ -222,10 +227,12 @@ export default function EditTransactionModal({
   const editOverflow = editLocalBreakdown?.overflow ?? 0
   // Sprint Fix-Recap-EditPath-Month 2026-08-31 — l'encart local de dépassement
   // ci-dessous s'appuie sur `editSelectedBudget.spent_this_month`, que
-  // `useBudgets` calcule TOUJOURS sur le mois COURANT. Dans le wizard récap, on
-  // édite une transaction du mois RECAPÉ : ce chiffre serait faux. On masque
-  // l'encart et on laisse `ExpenseBreakdownPreview` — qui, lui, reçoit
-  // `month`/`year` — être la seule source affichée de la répartition.
+  // `useBudgets` calculait alors TOUJOURS sur le mois COURANT. Dans le wizard
+  // récap, on édite une transaction du mois RECAPÉ : ce chiffre était faux. On
+  // masque l'encart et on laisse `ExpenseBreakdownPreview` — qui, lui, reçoit
+  // `month`/`year` — être la seule source affichée de la répartition. (Depuis
+  // 2026-10-01, `useBudgets` reçoit la fenêtre du récap ; l'encart reste
+  // masqué, l'aperçu restant la source unique.)
   const usesRecapMonthWindow = recapMonth != null && recapYear != null
   const editAmountChanged =
     editExpense && previewSafe > 0

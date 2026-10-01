@@ -13,6 +13,7 @@ import {
   createRealExpenseBodySchema,
   createRealIncomeBodySchema,
   deleteByIdQuerySchema,
+  estimatedBudgetsListQuerySchema,
   estimatedListQuerySchema,
   previewBreakdownQuerySchema,
   progressQuerySchema,
@@ -277,8 +278,9 @@ export const routes: RouteDef[] = [
     path: '/api/finance/budgets/estimated',
     method: 'get',
     tag: 'finance/budgets',
-    summary: 'List estimated budgets (profile or group via `?group=true`)',
-    querySchema: estimatedListQuerySchema,
+    summary:
+      'List estimated budgets (profile or group via `?group=true`). `spent_this_month` covers `?month=&year=` when both are given (recap wizard), else the current month',
+    querySchema: estimatedBudgetsListQuerySchema,
     requiresAuth: true,
   },
   {
