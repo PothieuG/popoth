@@ -79,8 +79,9 @@ const EXPECTED_RPCS = [
   'transfer_recap_surplus_to_savings',
   'apply_recap_refloat_plan',
   // Sprint Salary-Reception (2026-10-02) —
-  // supabase/migrations/20261002000000_salary_reception_in_advance.sql
-  'receive_salary_in_advance',
+  // supabase/migrations/20261002010000_salary_month.sql (remplace
+  // receive_salary_in_advance de 20261002000000)
+  'receive_salary',
 ]
 
 const MIGRATION_PATH = 'supabase/migrations/20260506000000_create_finance_rpcs.sql'
