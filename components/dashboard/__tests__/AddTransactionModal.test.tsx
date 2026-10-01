@@ -350,7 +350,8 @@ describe('AddTransactionModal — submit flows', () => {
     const errorBox = document.getElementById('add-transaction-description-error')
     expect(errorBox).toBeTruthy()
     // Axe 2 setFocus assertion : focus moved to the first faulty field
-    expect(descInput).toHaveFocus()
+    // waitFor : setFocus suit le rendu de l'erreur (cf. AddBudgetDialog.test.tsx).
+    await waitFor(() => expect(descInput).toHaveFocus())
     expect(addExpense).not.toHaveBeenCalled()
   })
 })
