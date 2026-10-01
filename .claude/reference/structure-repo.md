@@ -61,7 +61,7 @@ components/                # UI (shadcn/ui sous components/ui/)
   monthly-recap/{BilanBlock,SurplusDetailDrawer,SavingsDetailDrawer,SurplusSelectionDrawer,SavingsProjectsDetailDrawer}.tsx + steps/BilanPositiveStep  # ✅ Sprints 11-12 V3 + PÉ 07 — 3 drawers indicatifs RO (orange surplus / violet savings / violet projets) + SurplusSelectionDrawer multi-select violet. BilanPositive : Répartir + Continuer persistents.
   monthly-recap/{DeficitProgressHeader,RefloatSection,RefloatPanels,RefloatSlider,RefloatAmountInput}.tsx + steps/BilanNegativeStep  # ✅ Part 46 — renflouement manuel : bandeau collant « reste à renflouer », 3 sections dépliables (tirelire/budgets/projets), curseur bi-couleur économies→budget + montant saisissable.
 contexts/AuthContext.tsx   # ✅ Sprint Hygiène-Code — split en `AuthUserContext` + `AuthActionsContext` ; hooks `useAuthUser()` / `useAuthActions()`. Sprint 2-followup-v5 — l'aggregator `useAuth()` (qui spread les deux contexts) a été supprimé : 0 consumer en prod. Si jamais un consumer en a besoin, recréer ad-hoc.
-hooks/                     # 20 hooks React (post Clean-Slate-Recap + sprint 10 useMonthlyRecap + Sprint Salary-Edit-Gating useSalaryEditability) — ✅ Sprint 1.5 : hooks fetcher migrés sur TanStack Query (useQuery + useMutation)
+hooks/                     # 21 hooks React (post Clean-Slate-Recap + sprint 10 useMonthlyRecap + Sprint Salary-Edit-Gating useSalaryEditability) — ✅ Sprint 1.5 : hooks fetcher migrés sur TanStack Query (useQuery + useMutation)
   useMonthlyRecap.ts       # ✅ Sprints 10-14 V3 — useQuery ['monthly-recap','status',context] (staleTime 30s) + option `{ enabled }` (sprint 14) + 8 mutations (Start/Advance, positif ×2, Prepare/SaveRefloatPlan Part 46, salary/complete) + `useAdvanceStep.onError` invalidate sur `stale_step` (race auto-advance). Consommé par RecapWizard.
   useBudgetProgress.ts     # ✅ Sprint Refactor-Architecture — dedupe state + sync effect → return useMemo direct
   useFinancialData.ts      # ✅ Sprint 1.5 — useQuery, key `['financial-summary', context]`. ⚠️ TOUJOURS passer le context : l'appel nu crée la key `[..., null]` = 2e GET /summary (Part 42). Invalidation via [`invalidateFinancialRefreshes(qc)`](lib/query-client.ts), 11 keys.
@@ -79,6 +79,7 @@ hooks/                     # 20 hooks React (post Clean-Slate-Recap + sprint 10 
   useGroups.ts             # ✅ Sprint 1.5 — useQuery + 5 useMutation (create/update/delete/join/leave) avec optimistic updates via setQueryData
   useExpenseProgress.ts    # ✅ Sprint 1.5 — useQuery (fetcher pur) ; renvoie Record<budgetId, ExpenseProgress>
   useIncomeProgress.ts     # ✅ Sprint 1.5 — derived state via useMemo direct (pas Query, dépend de useRealIncomes)
+  useFocusFirstError.ts    # ✅ 2026-10-01 — focus 1er champ en erreur après soumission invalide, dans un effet (champs `disabled={isSubmitting}` ré-activés). AddTransactionModal + EditIncomeDialog. Cf. zod-patterns §7
 lib/
 lib/
   query-client.ts          # createQueryClient() + `invalidateFinancialRefreshes(qc)` (11 keys) + helpers toggle ciblé `applyBankBalanceToCache` / `applyContributionPairToCache` / `invalidateBalanceViews` (Part 42 §10).

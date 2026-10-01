@@ -185,6 +185,12 @@ const onInvalidSubmit = (errors: FieldErrors<FormType>) => {
 
 **Discriminated union edge case** (AddTransactionModal + EditTransactionModal) : `Object.keys(errors)[0]` peut retourner une clé absente du type (e.g. `'expense_date'` côté income). Le cast permissif `as FieldPath<FormType>` est fine — RHF résout le ref au runtime depuis la branche active. **DecimalFormInput dependency** : si le champ ciblé est un `<DecimalFormInput>`, vérifier que le composant propage `ref={field.ref}` au `<Input>` interne (Sprint v6 a corrigé ce gap). Sans cette propagation, `setFocus` saute le champ silencieusement.
 
+**⚠️ Champs `disabled={isSubmitting}` (2026-10-01)** : RHF passe `isSubmitting` à `true` dès le début de `handleSubmit`, **validation comprise**. Quand `onInvalidSubmit` s'exécute, ces champs sont souvent encore désactivés → `focus()` ne fait rien ; seul le rattrapage interne de RHF (`setTimeout`) peut réussir, selon l'ordre des rendus (tests rouges aléatoires en CI : `AddBudgetDialog`, `EditIncomeDialog`). Règle :
+
+- **Nouveau form** : `useFocusFirstError(form)` ([hooks/useFocusFirstError.ts](../../hooks/useFocusFirstError.ts)) au lieu de `onInvalidSubmit` — focus dans un effet, après le rendu qui ré-active les champs ; ignore les re-validations pendant la saisie. Branché sur `AddTransactionModal` + `EditIncomeDialog`.
+- **Soumission synchrone** (`onSave` remonte au parent, ex. `AddBudgetDialog`) : ne pas désactiver les champs, `isSubmitting` n'y couvre que la validation.
+- Les autres forms gardent `onInvalidSubmit` (défaut latent, migration à faire au fil de l'eau).
+
 ### Discriminated union narrowing pour les FieldErrors (Sprint v3)
 
 TS ne narrow PAS un objet `FieldErrors<DiscriminatedUnion>` sur une propriété non-discriminator (e.g. `fieldErrors.expense_date` vs `.entry_date`). Pour accéder à un field error dont le nom dépend du discriminator runtime (transactionType prop ou watch), utiliser un index permissif avec un cast minimal :

@@ -141,6 +141,24 @@ l'écran.
   `db:check-drift` OK, `db:audit-functions` / `db:check-rls` /
   `db:check-functions` OK. Code : `dev` avancé puis `main` en fast-forward.
 
+## 4 quater. CI rouge sur `main` après le déploiement (2026-10-01)
+
+- Test `AddBudgetDialog` « setFocus on invalid empty name » rouge en CI (déjà
+  rouge sur `dev` au run 69, sur `5abae49`, avant ce sprint). Le `waitFor` de
+  `6b760c5` ne suffisait pas : ce n'était pas une course d'assertion.
+- **Cause** (sonde sur `focus()`) : RHF passe `isSubmitting` à `true` dès le
+  début de `handleSubmit`, validation comprise. Le champ `disabled={isSubmitting}`
+  est encore désactivé quand `onInvalidSubmit` appelle `setFocus` → rien ; seul
+  le rattrapage `setTimeout` de RHF peut réussir, selon l'ordre des rendus.
+  Dans l'app, même effet possible (curseur pas sur le champ à corriger).
+- `9fa820c` : `AddBudgetDialog` ne désactive plus le champ (soumission
+  synchrone). Run suivant : `main` vert, `dev` rouge sur `EditIncomeDialog`
+  (même cause, soumission asynchrone) → hook `useFocusFirstError` (focus dans
+  un effet, après le rendu qui ré-active les champs) branché sur
+  `EditIncomeDialog` + `AddTransactionModal`, 3 tests dont un qui coupe le
+  rattrapage RHF (`shouldFocusError: false`) et un vérifié par mutation.
+  Les ~15 autres formulaires : tâche de suivi proposée.
+
 ## 5. Leçons
 
 - **Un écran de « cascade » cache facilement un flux d'argent orphelin** : le
@@ -152,5 +170,10 @@ l'écran.
 - **Sur Supabase, `REVOKE … FROM PUBLIC` ne protège pas une RPC** : retirer
   aussi `anon, authenticated` et vérifier `information_schema.routine_privileges`
   après application.
+- **Un `waitFor` qui ne suffit pas n'est pas une course d'assertion** : sonder
+  l'état réel (ici `disabled` au moment de `focus()`) avant de « stabiliser »
+  un test ; un test rouge aléatoirement révèle souvent un défaut de l'app.
+- **`wc -m` sans locale `en_US.UTF-8` installée compte des octets** : mesurer
+  avec `pnpm check:md-size` (points de code), sinon fausse alerte au plafond.
 - **`next dev` (16.3) ajoute un bloc `nextjs-agent-rules` à `CLAUDE.md`** : ne
   pas le commiter (plafond 39,5k), restaurer le fichier après un `pnpm dev`.
