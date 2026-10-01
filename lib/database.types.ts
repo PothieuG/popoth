@@ -707,6 +707,7 @@ export type Database = {
           last_applied_amount: number | null
           profile_id: string | null
           recap_origin_id: string | null
+          salary_reception: boolean | null
         }
         Insert: {
           amount: number
@@ -725,6 +726,7 @@ export type Database = {
           last_applied_amount?: number | null
           profile_id?: string | null
           recap_origin_id?: string | null
+          salary_reception?: boolean | null
         }
         Update: {
           amount?: number
@@ -743,6 +745,7 @@ export type Database = {
           last_applied_amount?: number | null
           profile_id?: string | null
           recap_origin_id?: string | null
+          salary_reception?: boolean | null
         }
         Relationships: [
           {
@@ -1011,6 +1014,10 @@ export type Database = {
       }
       process_recap_transactions: {
         Args: { p_group_id?: string; p_profile_id?: string; p_recap_id: string }
+        Returns: Json
+      }
+      receive_salary_in_advance: {
+        Args: { p_amount: number; p_entry_date?: string; p_profile_id: string }
         Returns: Json
       }
       recompute_group_monthly_budget_estimate: {
