@@ -127,6 +127,20 @@ l'écran.
   (tirelire 100 → 0, économies 210 → 0), 2e application no-op ; économie
   négative refusée. 0 ligne résiduelle vérifiée. `db:check-rpcs` (dev) : 30/30.
 
+## 4 ter. Application en prod (2026-10-01, accord utilisateur)
+
+- Pré-check lecture seule : colonnes/fonctions absentes, tracker 72 lignes
+  (dernière `20260928000000`), 1 récap ouvert (septembre 2026, groupe, étape
+  `complete_month`, aucun renflouement déjà débité → il passera par le nouvel
+  écran sans cas de rétro-compatibilité).
+- `apply-sql.mjs` (HTTP 201) + `INSERT` dans `schema_migrations` (73 lignes).
+  Droits EXECUTE des 2 RPC : `postgres` + `service_role` seuls (REVOKE inclus
+  dans la migration dès le départ).
+- `db:check-rpcs` 30/30, `db:types` (seul écart : mise en forme du générateur),
+  `db:check-types-fresh` OK, baseline ré-exportée (4 colonnes + CHECK) →
+  `db:check-drift` OK, `db:audit-functions` / `db:check-rls` /
+  `db:check-functions` OK. Code : `dev` avancé puis `main` en fast-forward.
+
 ## 5. Leçons
 
 - **Un écran de « cascade » cache facilement un flux d'argent orphelin** : le

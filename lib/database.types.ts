@@ -965,10 +965,7 @@ export type Database = {
         Args: { p_allocations: Json; p_recap_id: string }
         Returns: Json
       }
-      apply_recap_refloat_plan: {
-        Args: { p_recap_id: string }
-        Returns: Json
-      }
+      apply_recap_refloat_plan: { Args: { p_recap_id: string }; Returns: Json }
       calculate_group_contributions: {
         Args: { group_id_param: string }
         Returns: undefined
