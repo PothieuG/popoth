@@ -102,7 +102,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 - **Allocation dépenses** : local = savings dest puis budget. **Dépassement** > 0 : cascade auto tirelire → savings autres budgets proportionnel. Reste = déficit dest. Module pur [lib/expense-breakdown.ts](lib/expense-breakdown.ts) (`calculateBreakdown` legacy + `calculateBreakdownWithAutoCascade` ADD). RPC `add_expense_with_cross_budget_cascade` si piggy>0 ou cross non vide.
 - **Auth** : JWT custom signé via `jose` (pas Supabase Auth direct). Cookie `session` validé par `validateSessionToken(request)` dans chaque route API, encapsulé dans `withAuth` / `withAuthAndProfile`.
 - **Snapshot fin de mois** ([Part 44](.claude/history/roadmap-detailed-44-monthly-db-snapshot.md)) : pg_cron, dernier jour 23h45 Paris → schéma `snapshots` (hors API). `pnpm db:snapshot restore AAAA-MM` rembobine **toute l'appli** (`pre_restore` pour annuler). ⚠️ Nouvelle table publique → `snapshots.restorable_tables()` (ordre FK) ou exclusion, sinon `db:check-snapshots` rouge.
-- **Salaire en avance** (Part 47) : ligne `salary_reception` = dans le solde, hors RAV, adoptée au finalize. Dates métier → `now()` de `lib/clock.ts`, pas `new Date()`.
+- **Salaire** (Part 47) : `salary_month` = mois financé (choisi) ; ligne hors RAV, adoptée au finalize. Dates métier → `now()` de `lib/clock.ts`, pas `new Date()`.
 - **Distinction calculs finance** : [contribution-calculator.ts](lib/contribution-calculator.ts) (pur, consumers `ProfileSettingsCard` + `DashboardHeader`) ≠ [finance/income-compensation.ts](lib/finance/income-compensation.ts) (async, alimente RAV).
 
 ## 5.5 Invariants actuels
@@ -114,7 +114,7 @@ L'inventaire complet annoté (app/, components/, hooks/, lib/, supabase/, script
 | Counter `: any` (hors auto-generated)  | **0**                     | `pnpm lint:check` no-explicit-any                    |
 | Counter `declare global`               | **0**                     | `Grep "declare global"` cross-codebase               |
 | Lint baseline                          | **0 errors / 0 warnings** | `pnpm lint:check`                                    |
-| Tests non-gated passants               | **1154**                  | `pnpm test:run`                                      |
+| Tests non-gated passants               | **1189**                  | `pnpm test:run`                                      |
 | Tests gated skipped                    | **227**                   | idem (`SUPABASE_*_TESTS=1` activent)                 |
 | Routes API                             | **47**                    | `pnpm build`                                         |
 | Functions DB versionnées               | **46/46**                 | `pnpm db:audit-functions`                            |
@@ -333,7 +333,7 @@ Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=...
 
 ## 11. Roadmap
 
-**État global** : Score ~100. Lint 0/0. Tests 1154/227. 47 routes. 31 RPCs + 46 fn. Dernier : Salary-Reception.
+**État global** : Score ~100. Lint 0/0. Tests 1189/227. 47 routes. 31 RPCs + 46 fn. Dernier : Salary-Reception.
 
 **Historique** — 47 parts (158 sprints) :
 

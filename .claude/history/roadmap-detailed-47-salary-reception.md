@@ -1,10 +1,11 @@
 # Part 47 — Réception du salaire + contribution visible au récap + date simulée (2026-10-02)
 
-> 1 sprint. Parti d'une question de l'utilisateur sur son récap de septembre
-> 2026 : « j'ai 2 703 € qui vont partir dans la tirelire alors que la grande
-> partie de cet argent sert à la contribution au groupe ».
-> Migration `20261002000000_salary_reception_in_advance.sql` (1 colonne, 1 index,
-> 1 RPC nouvelle, 2 RPC remplacées). **Appliquée sur dev, PAS encore en prod.**
+> 1 sprint, 2 passes. Parti d'une question de l'utilisateur sur son récap de
+> septembre 2026 : « j'ai 2 703 € qui vont partir dans la tirelire alors que la
+> grande partie de cet argent sert à la contribution au groupe ».
+> Migrations `20261002000000_salary_reception_in_advance.sql` puis
+> `20261002010000_salary_month.sql` (la seconde remplace le booléen de la
+> première par le mois financé). **Appliquées sur dev, PAS encore en prod.**
 
 ## 1. Le constat (lecture seule sur la prod)
 
@@ -37,65 +38,77 @@ Compte perso d'un membre de groupe, septembre 2026 :
 1. Option **« Réception du salaire »** dans le dialogue d'ajout (revenu, espace
    perso) : on saisit le montant réellement reçu.
 2. L'écart avec le salaire des paramètres est ajouté / retiré du reste à vivre
-   — **du mois que la paie finance** (recommandation acceptée).
+   — **du mois que la paie finance**.
 3. Le salaire reçu apparaît dans l'onglet Revenus.
 4. Le récap affiche la contribution au groupe et le salaire reçu en avance.
 5. Pouvoir « revenir virtuellement au 30 septembre » sur l'espace de test.
+6. **(2e passe) Le mois financé se choisit** : une personne payée le 3 finance
+   le mois en cours, une personne payée le 28 le mois suivant. L'appli
+   propose, l'utilisateur tranche.
 
-## 3. Modèle
+## 3. Modèle — une ligne salaire par mois FINANCÉ
 
-Une ligne « Salaire » par mois à financer. Avant : créée non validée à la fin
-du récap. Maintenant, elle peut aussi être créée **plus tôt, déjà validée**.
+`real_income_entries.salary_month` (date, 1er du mois, nullable) : le mois que
+la ligne finance, pas sa date de réception. Index unique
+`(profile_id, salary_month)`. Une ligne salaire ne pèse jamais sur le RAV (le
+salaire y entre déjà via `profiles.salary`) ; seul l'« Équilibrage salaire »
+(écart reçu − déclaré, exceptionnel) compte.
 
-| Moment                | Ce qui se passe                                                                                                                                                                                                                                                |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Réception (ex. 28/09) | `receive_salary_in_advance` : ligne `real_income_entries` (`salary_reception = true`, ni exceptionnelle ni rattachée) + solde crédité du montant reçu, 1 transaction. **Hors RAV** du mois en cours.                                                           |
-| Fin du récap          | `process_recap_transactions` l'épargne ; `create_salary_income_for_recap` l'**adopte** : `recap_origin_id` posé, `salary_reception` → NULL, montant ramené au salaire déclaré, écart → « Équilibrage salaire » exceptionnel déjà appliqué. Solde non retouché. |
-| Mois suivant          | Ligne salaire classique, déjà validée (verrouillée). Seul l'écart pèse sur le RAV.                                                                                                                                                                             |
+Le mois se choisit parmi deux : le **mois ouvert** (celui que l'utilisateur vit ;
+tant que le récap du mois écoulé n'est pas terminé, c'est ce mois écoulé) et le
+**suivant**. Même règle côté serveur (`resolveOpenMonth`) et côté dialogue
+(mois recapé passé par le wizard, sinon mois du jour).
 
-État final identique à « ligne automatique validée au montant réel »
-(`validate_salary_with_delta`) : seul le moment du crédit change.
+| Cas                                   | Ce qui se passe                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Mois ouvert, ligne du récap à valider | `validate_salary_with_delta` (inchangé) : solde crédité, écart tout de suite.                                                                                                                                |
+| Mois ouvert, aucune ligne             | `receive_salary(..., p_apply_delta_now = true)` : ligne au salaire déclaré + écart tout de suite. Même état final que le cas précédent.                                                                      |
+| Mois suivant                          | `receive_salary(..., false)` : ligne au montant reçu, solde crédité, **hors RAV**. À la fin du récap, `create_salary_income_for_recap` l'adopte : montant ramené au déclaré, écart créé, solde non retouché. |
+| Salaire déjà enregistré pour ce mois  | 409 `salary-already-received` (index unique en dernier rempart).                                                                                                                                             |
 
-**Quel mois la paie finance-t-elle ?** Décidé côté serveur
-([income-receive-salary.ts](../../lib/api/finance/income-receive-salary.ts)),
-annoncé côté client par la même règle pure
-([salary-reception.ts](../../lib/finance/salary-reception.ts)) :
+`process_recap_transactions` épargne toute ligne salaire d'un mois postérieur
+au mois recapé ; le salaire du mois recapé suit la règle générale (validé →
+supprimé).
 
-- une ligne salaire automatique attend sa validation → la paie est celle du
-  **mois en cours** : `validate_salary_with_delta` (écart immédiat) ;
-- sinon → **mois suivant** : `receive_salary_in_advance` ;
-- réception déjà en attente → refus (`salary-already-received`, index unique
-  partiel `WHERE salary_reception IS TRUE`) ;
-- pas de salaire déclaré → option masquée (`no-salary-declared` côté API).
+**Proposition par défaut** (`defaultSalaryMonthOption`) : ligne en attente → ce
+mois ; sinon jour de réception ≤ 15 → mois ouvert, après → mois suivant ; si
+le mois proposé est déjà réglé → l'autre.
 
-Cas limites traités dans la RPC d'adoption : réception retirée du solde avant
-le récap → redevient une ligne à valider ; salaire mis à 0 pendant le récap →
-la réception devient un revenu exceptionnel du nouveau mois ; finalize rejoué →
-`already_exists` (vérifié AVANT l'adoption).
+Cas limites de la RPC d'adoption : réception retirée du solde avant le récap →
+redevient une ligne à valider ; salaire mis à 0 pendant le récap → la réception
+devient un revenu exceptionnel du nouveau mois ; finalize rejoué →
+`already_exists` (vérifié AVANT l'adoption). Garde-fou : une ligne « mois
+ouvert » adoptée par erreur donnerait un écart de 0 (montant = déclaré), donc
+pas de double comptage.
 
 ## 4. Implémentation
 
-**DB** — colonne `salary_reception boolean` nullable SANS défaut (même choix que
-Part 46 : pas de faux diff à la restauration d'un snapshot mensuel).
-`receive_salary_in_advance` : verrou `FOR UPDATE` sur le profil (double clic),
-REVOKE `PUBLIC, anon, authenticated`. Les 2 RPC remplacées gardent nom et
-signature ; REVOKE `anon, authenticated` ajouté au passage. `EXPECTED_RPCS`
-30 → 31.
+**DB** — passe 1 : `salary_reception boolean` + `receive_salary_in_advance`.
+Passe 2 : `salary_month` (reprise des lignes existantes via le récap d'origine),
+`receive_salary`, colonne et fonction de la passe 1 supprimées (jamais en
+prod). `receive_salary` : verrou `FOR UPDATE` sur le profil, REVOKE `PUBLIC,
+anon, authenticated`. Les 2 RPC remplacées gardent nom et signature.
+`EXPECTED_RPCS` 30 → 31.
 
 **Serveur** — route `POST /api/finance/income/real/receive-salary`
-(`withAuthAndGroup`, `receiveSalaryBodySchema`). `PUT` d'un revenu : 409
-`cannot-edit-salary-reception`. `loadRecapSummary` (espace perso) expose
-`groupContribution` et `salaryReception` — **explicatifs, hors calcul**.
+(`withAuthAndGroup`, `receiveSalaryBodySchema` : `amount`, `salary_month`
+`AAAA-MM`, `entry_date?`) ; 400 `invalid-salary-month` hors des deux mois
+possibles. `PUT` d'un revenu : 409 `cannot-edit-salary-reception`.
+`loadRecapSummary` (espace perso) expose `groupContribution` et
+`salaryReception` — **explicatifs, hors calcul**.
 
-**UI** — `AddTransactionModal` : 3e carte « Réception du salaire » à l'étape
-« Type de revenu » (perso + salaire déclaré ; grisée avec la raison si déjà
-reçue), montant pré-rempli, `SalaryReceptionPanel` à la place de
-`RemainingToLivePreview`. `TransactionListItem` : catégorie « Salaire reçu en
-avance » + rappel bleu, pas de « Modifier » ; les lignes salaire du récap
-affichent « Salaire » (elles retombaient sur « Revenu supprimé »).
-`SummaryStep` : cartes « Salaire reçu en avance » et « Contribution au groupe …
-(déjà déduite) », note « Avant contribution au groupe » sur le RAV estimé.
-`FinalRecapStep` : « Salaire d'octobre déjà reçu » + écart.
+**UI** — `AddTransactionModal` : 3e carte « Réception du salaire » (perso +
+salaire déclaré ; grisée si les deux mois sont réglés), sélecteur « Ce salaire
+finance » (2 boutons radio, mois réglé grisé « Déjà reçu »), montant pré-rempli
+qui suit le mois tant qu'il n'a pas été retouché, `SalaryReceptionPanel` à la
+place de `RemainingToLivePreview`. `TransactionListItem` : catégorie « Salaire
+d'<mois> », rappel bleu si le mois financé est postérieur au mois ouvert
+(prop `openMonth`, transmise par `TransactionTabsComponent`), pas de
+« Modifier » ; les anciennes lignes salaire affichent « Salaire » (elles
+retombaient sur « Revenu supprimé »). `SummaryStep` : cartes « Salaire reçu en
+avance » et « Contribution au groupe … (déjà déduite) », note « Avant
+contribution au groupe » sur le RAV estimé. `FinalRecapStep` : « Salaire
+d'octobre déjà reçu » + écart.
 
 **Date simulée** — [lib/clock.ts](../../lib/clock.ts) : `now()` remplace
 `new Date()` pour les dates MÉTIER (mois recapé, fenêtres du RAV, date par
@@ -103,44 +116,54 @@ défaut d'une saisie — 15 sites). `NEXT_PUBLIC_DEV_TODAY=AAAA-MM-JJ` n'est
 honorée que si `NEXT_PUBLIC_SUPABASE_URL` désigne la **base de test** : le
 garde-fou porte sur la base, pas sur `NODE_ENV` (le site de test tourne en
 `production`, et un `pnpm dev` local peut viser la prod). Pastille « Date
-simulée » dans le layout. Sur Vercel, la variable s'appelle `DEV_TODAY` (préfixe
-public refusé en type secret) ; `next.config.js` la recopie. Procédure → [multi-env.md §8](../conventions/multi-env.md).
+simulée » dans le layout. Sur Vercel, la variable s'appelle `DEV_TODAY`
+(préfixe public refusé en type secret) ; `next.config.js` la recopie.
+Procédure → [multi-env.md §8](../conventions/multi-env.md).
 
 ## 5. Vérification
 
-- `typecheck` / `lint:check` verts ; `test:run` **1154** passed / 227 skipped
-  (+63) ; `build` OK (env factices), route enregistrée (47).
-- Nouveaux tests : `clock`, `salary-reception`, `income-receive-salary`
-  (aiguillage des 2 RPC, 409, 400), `AddTransactionModal.salary` (10),
-  `TransactionListItem.salary`, `SalaryContext` (SummaryStep + FinalRecapStep),
-  `load-summary-salary-context`.
-- **Dev** : migration appliquée (`apply-sql.mjs`, ref explicite), inscrite au
-  tracker (74). Smoke test SQL dans une transaction annulée : réception +8,10
-  et −52,08, seconde réception refusée, réception épargnée par
-  `process_recap_transactions`, adoption (solde inchangé, écart créé), rejeu
-  `already_exists`, réception retirée du solde → ligne à valider, chemin
-  historique intact. 0 résidu. Droits : `postgres` + `service_role` seuls.
-  `check-rpcs` 31/31, `audit-functions`, `check-rls`, `check-snapshots` OK.
-- Rendu vérifié en 375 × 812 (page d'aperçu temporaire à données figées, non
-  commitée) : dialogue, formulaire, liste, « Récap général », écran final.
-- **Non fait** : aucun test gated (pas de `.env.local` sur le poste) ; pas de
-  parcours réel dans l'appli contre la base de dev.
+- `typecheck` / `lint:check` verts ; `test:run` **1189** passed / 227 skipped
+  (+98) ; `build` OK (env factices), route enregistrée (47).
+- Tests : `clock`, `salary-reception` (options, proposition par défaut),
+  `income-receive-salary` (aiguillage, mois ouvert pendant un récap, 400/409),
+  `AddTransactionModal.salary` (payé le 3 / le 28, choix contredit, mois
+  réglé), `TransactionListItem.salary`, `SalaryContext`,
+  `load-summary-salary-context`. Ils ont attrapé une regex de validation
+  cassée (`\d` perdu par un script de remplacement) avant la mise en ligne.
+- **Dev** : 2 migrations appliquées (`apply-sql.mjs`, ref explicite), tracker 75. Smoke tests SQL en transaction annulée : réception mois suivant +8,10 et
+  −52,08, doublon refusé (23505), ligne épargnée puis adoptée (solde inchangé),
+  salaire du mois recapé supprimé, réception mois ouvert (+10 tout de suite,
+  réadoption sans double écart), réception retirée du solde → ligne à valider,
+  chemin historique. 0 résidu. Droits : `postgres` + `service_role` seuls.
+  `check-rpcs` 31/31, `audit-functions`, `check-snapshots` OK.
+- Parcours réel par l'utilisateur sur le site de test (passe 1) : ancien
+  « Salaire » supprimé, réception de 2 760,18 € enregistrée, solde 3 042,70 €.
+- Rendu vérifié en 390 × 844 (page d'aperçu temporaire à données figées, non
+  commitée).
+- **Non fait** : aucun test gated (pas de `.env.local` sur le poste).
 
 ## 6. Reste à faire
 
-1. **Prod** : push gate habituel, puis `db:types`, baseline, `db:check-drift`.
-   D'ici là `db:check-rpcs` / `db:check-types-fresh` sont rouges sur la prod
-   (`lib/database.types.ts` a été complété à la main : colonne + RPC).
+1. **Prod** : push gate habituel (2 migrations), puis `db:types`, baseline,
+   `db:check-drift`. D'ici là `db:check-rpcs` / `db:check-types-fresh` sont
+   rouges sur la prod (`lib/database.types.ts` complété à la main).
 2. Récap de septembre en prod : à l'étape « Compléter le mois », dévalider puis
    supprimer le « Salaire » du 28/09 saisi à la main, puis le ressaisir via
-   « Réception du salaire ».
+   « Réception du salaire » (mois : octobre).
+3. Vercel `popoth_dev` : la branche de production était `main` (les pushes sur
+   `dev` partaient en « Preview ») — réglage corrigé par l'utilisateur pendant
+   le sprint ; multi-env.md §3 décrivait déjà `dev`.
 
 ## 7. ❌ À ne pas faire
 
-- ❌ Compter une ligne `salary_reception` (ou toute ligne salaire) dans le RAV :
-  le salaire y entre déjà virtuellement. Seul l'« Équilibrage salaire » compte.
-- ❌ Laisser `process_recap_transactions` supprimer ou reporter une réception en
-  attente (`salary_reception IS NOT TRUE` sur les 2 instructions revenus).
+- ❌ Compter une ligne salaire (`salary_month` non nul) dans le RAV : le
+  salaire y entre déjà virtuellement. Seul l'« Équilibrage salaire » compte.
+- ❌ Deviner le mois financé côté serveur : il est choisi par l'utilisateur et
+  borné à [mois ouvert, mois suivant].
+- ❌ Appliquer l'écart tout de suite pour le mois suivant, ou le différer pour
+  le mois ouvert.
+- ❌ Laisser `process_recap_transactions` supprimer ou reporter le salaire d'un
+  mois postérieur au mois recapé.
 - ❌ Créditer le solde à l'adoption : il l'a été à la réception.
 - ❌ `new Date()` pour une date métier → `now()` de `lib/clock`. Les horodatages
   techniques (`updated_at`, `applied_to_balance_at`, session) restent réels.
@@ -154,7 +177,14 @@ public refusé en type secret) ; `next.config.js` la recopie. Procédure → [mu
   toucher à une formule.
 - **Quand l'utilisateur contourne l'appli pour garder un solde juste, il manque
   une saisie** : ici, « j'ai reçu ma paie » n'existait qu'après le récap.
-- **Garder un seul état final pour deux chemins** (validation au 1er vs
-  réception en avance) évite de dupliquer les règles en aval.
+- **Une règle qui devine à la place de l'utilisateur doit être visible et
+  corrigeable** : la passe 1 supposait « paie = mois suivant », faux pour qui
+  est payé le 3. Stocker le choix (`salary_month`) plutôt qu'un drapeau
+  d'état a supprimé la devinette ET simplifié les gardes (un index unique).
+- **Garder un seul état final pour plusieurs chemins** (validation au 1er,
+  réception mois ouvert, réception mois suivant) évite de dupliquer les
+  règles en aval.
+- **Vérifier où pointe réellement l'adresse du site de test** (déploiements
+  GitHub : « Production » vs « Preview ») avant de faire tester.
 - `.next/dev/types` garde la trace des pages supprimées : `rm -rf .next/dev`
   avant `pnpm build` après un aperçu temporaire.

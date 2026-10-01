@@ -146,7 +146,7 @@ lib/
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)
     calc-rtl.ts            # 5 helpers PURS : calculateAvailableCash, calculateRemainingToLive{Profile,Group}, calculateBudgetSavings, calculateBudgetDeficit (no I/O)
     income-compensation.ts # calculateIncomeCompensation(filter: ContextFilter) — unifie les 95%-identiques profile/group
-    salary-reception.ts    # Part 47 — règles pures « Réception du salaire » (mois financé, écart). Route `lib/api/finance/income-receive-salary.ts`.
+    salary-reception.ts    # Part 47 — règles pures « Réception du salaire » (`salary_month` : mois ouvert / suivant, écart). Route `lib/api/finance/income-receive-salary.ts`.
     rav-persistence.ts     # saveRavToDatabase + getRavFromDatabase (lecture/écriture RAV en bank_balances)
     financial-data.ts      # _loadFinancialData(filter, opts) factorisé + 2 wrappers getProfileFinancialData / getGroupFinancialData. ⚠️ Aucun travail par membre ici (cf. group-members-rav.ts)
     group-members-rav.ts   # ✅ Part 42 (2026-09-10) — `loadGroupMembersRav(groupId)` : RAV authoritatif par membre (1 `getProfileFinancialData` chacun). Extrait de `_loadFinancialData` §13 où il coûtait un N+1 à chaque chargement du dashboard groupe ; servi à la demande par GET /api/finance/group-members-rav.
