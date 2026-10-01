@@ -300,7 +300,7 @@ Détails Zod-client (Pattern A-H, useRavValidation, factory refines) → [.claud
 
 ## 10. Variables d'environnement
 
-> 📌 **Multi-env** : `.env.local` contient les blocs prod + dev (l'un commenté). Branche `main` = Vercel-prod + DB prod, `dev` = Vercel-dev + DB dev. Workflow + setup → [@.claude/conventions/multi-env.md](.claude/conventions/multi-env.md).
+> 📌 **Multi-env** : `.env.local` contient les blocs prod + dev (l'un commenté). Branche `main` = prod, `dev` = test (Vercel + DB chacune). Setup → [@.claude/conventions/multi-env.md](.claude/conventions/multi-env.md).
 
 `.env.local` (gitignored) doit contenir :
 
@@ -310,16 +310,17 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<...>
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<...>
 SUPABASE_SERVICE_ROLE_KEY=<...>     # utilisé par lib/supabase-server.ts
 JWT_SECRET_KEY=<...>                 # utilisé par lib/session.ts
-LOG_LEVEL=debug                      # optionnel — error|warn|info|debug, défaut warn en prod / debug en dev
-NEXT_PUBLIC_SITE_URL=<...>           # REQUIS en prod (cf. lib/site-url.ts)
+LOG_LEVEL=debug                      # optionnel — error|warn|info|debug (défaut warn prod / debug dev)
+NEXT_PUBLIC_SITE_URL=<...>           # REQUIS en prod (lib/site-url.ts)
+DEV_TODAY=2026-09-30   # base de test : date simulée (multi-env §8)
 ```
 
 Pour les opérations CLI Supabase :
 
 ```
 SUPABASE_ACCESS_TOKEN=sbp_...        # https://supabase.com/dashboard/account/tokens
-SUPABASE_DB_PASSWORD=...             # Project Settings > Database > Reset password si oublié
-SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr  # optionnel — override default prod pour pointer dev
+SUPABASE_DB_PASSWORD=...             # Project Settings > Database
+SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr  # optionnel — pointe dev (défaut : prod)
 ```
 
 Ces deux derniers sont à passer en variables inline (`SUPABASE_ACCESS_TOKEN=... pnpm supabase ...`) ou persistés au niveau User env (`[Environment]::SetEnvironmentVariable(...)`), **jamais** committés dans un fichier.

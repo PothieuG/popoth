@@ -52,6 +52,7 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 1. **Créer le projet** : [vercel.com/new](https://vercel.com/new) → Import Git Repository → choisir `PothieuG/popoth` (le même repo que le projet prod existant).
 2. **Configurer la production branch** : Project Settings → Git → **Production Branch = `dev`** (au lieu du `main` par défaut). Sans ça, Vercel ne déploie que sur push vers main.
+   - ⚠️ **À vérifier, pas à supposer** (constaté 2026-10-01, Part 47) : le projet de test suivait encore `main`. Un push sur `dev` partait en « Preview » et l'adresse habituelle du site de test servait l'ancien code — invisible tant que `dev` et `main` étaient identiques. Contrôle : `gh api "repos/PothieuG/popoth/deployments?per_page=4" --jq '.[] | "\(.environment) \(.ref[0:7])"'` doit montrer `Production – popoth_dev` pour le commit poussé sur `dev`.
 3. **Renommer le projet** pour le distinguer du prod, e.g. `popoth-dev`.
 4. **Ajouter les variables d'env Production** (Project Settings → Environment Variables, scope = Production) :
    - `NEXT_PUBLIC_SUPABASE_URL` → `https://ddehmjucyfgyppfkbddr.supabase.co`
@@ -160,3 +161,5 @@ Une pastille « Date simulée : … » s'affiche en haut de l'écran tant que la
 **Garde-fou** ([lib/clock.ts](../../lib/clock.ts)) : la variable n'est honorée que si `NEXT_PUBLIC_SUPABASE_URL` désigne la base de test. Posée contre la prod, elle est ignorée — elle y déclencherait un vrai récap. Seules les dates métier sont simulées ; les `CURRENT_DATE` / `NOW()` des fonctions SQL restent réels (une ligne « Salaire » créée par le récap porte la vraie date du jour).
 
 **Sans date simulée** : l'étape « Compléter le mois » du récap permet déjà d'ajouter, valider et supprimer des transactions du mois recapé — suffisant pour tester une saisie de fin de mois sans toucher à la date.
+
+**En prod : pas de date simulée.** Pour corriger un mois après une restauration de snapshot (`pnpm db:snapshot restore AAAA-MM`, prod par défaut — vérifier la ligne `Projet : PROD` et remettre `$env:SUPABASE_PROJECT_REF = $null` si le terminal visait dev), passer par « Compléter le mois » : elle couvre les transactions, pas la planification (budgets, revenus estimés). L'ouverture de la date simulée à la prod a été demandée le 2026-10-01 puis laissée en suspens (assouplissement du garde-fou refusé par le contrôle de sécurité de la session, décision à l'utilisateur).

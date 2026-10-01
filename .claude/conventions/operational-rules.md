@@ -54,7 +54,7 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 | `addExpenseWithCrossBudgetCascade` | `add_expense_with_cross_budget_cascade` | P4-P5-P6                | Cross-budget cascade expense (piggy + local_savings + budget + N cross-budget sources) |
 | `deleteBudgetWithSavingsTransfer`  | `delete_budget_with_savings_transfer`   | Delete-Budget-Savings   | DELETE budget + UPSERT piggy (skip si savings=0)                                       |
 
-`EXPECTED_RPCS = 30` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)), `transfer_recap_surplus_to_savings` + `apply_recap_refloat_plan` ([Part 46](../history/roadmap-detailed-46-recap-manual-refloat.md)).
+`EXPECTED_RPCS = 31` pinnés ([scripts/check-rpcs.mjs](../../scripts/check-rpcs.mjs)). Hors-table : `toggle_real_{expense,income}_applied_to_balance` (Long-Press-Toggle), `start_monthly_recap` (sprint 05 V3), `finalize_recap_apply_snapshot` + `process_recap_transactions` (sprint 08 V3), `create_savings_project` + `update_savings_project` + `delete_savings_project_to_piggy` + `apply_recap_projects_snapshot` (Projets-Épargne 01/10, cf. [Part 29-31](../history/roadmap-detailed-29-projets-epargne.md)), `transfer_recap_surplus_to_savings` + `apply_recap_refloat_plan` ([Part 46](../history/roadmap-detailed-46-recap-manual-refloat.md)), `receive_salary` ([Part 47](../history/roadmap-detailed-47-salary-reception.md)).
 
 ## 5. Patterns ❌ "Ne pas réintroduire X"
 
@@ -90,6 +90,10 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 ### Renflouement manuel du déficit (Part 46 — 2026-10-01)
 
 - ❌ **NE PAS** débiter tirelire/économies avant le finalize (plan différé → `apply_recap_refloat_plan` atomique), ni oublier `surplus_savings_data` dans `loadRecapSummary` (surplus versé 1 fois en économies par `prepare-deficit`). Règles : `lib/recap/refloat-plan.ts`, [Part 46](../history/roadmap-detailed-46-recap-manual-refloat.md).
+
+### Réception du salaire (Part 47 — 2026-10-02)
+
+- ❌ **NE PAS** compter une ligne salaire (`salary_month`) dans le RAV, deviner côté serveur le mois financé (choisi : mois ouvert ou suivant), ni créditer le solde à l'adoption. Dates métier → `now()` de `lib/clock` (garde-fou sur la base). Règles : `lib/finance/salary-reception.ts`, [Part 47](../history/roadmap-detailed-47-salary-reception.md).
 
 ### Carry-over UI (Sprint 15 V3 — 2026-05-25, raffiné Part 35 — 2026-05-27)
 
@@ -196,18 +200,17 @@ Règles ❌ + précédents → [Part 32](../history/roadmap-detailed-32-group-ra
 
 - ❌ **NE PAS** modifier [supabase/migrations/20260506000000_create_finance_rpcs.sql](../../supabase/migrations/20260506000000_create_finance_rpcs.sql). Pour corriger une RPC : `CREATE OR REPLACE` dans une nouvelle migration.
 - ❌ **NE PAS** réactiver `typescript.ignoreBuildErrors`.
-- ❌ **NE PAS** upgrader `eslint-config-next` 15→16 maintenant (Sprint 1 séparé).
 - ❌ **NE PAS** mocker la DB dans les tests d'intégration — utiliser Supabase local ou staging.
-- ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md et les fichiers `.claude/` mis en place pour la refactorisation du CLAUDE.md).
+- ❌ **NE PAS** écrire de docs `.md` sans demande explicite (sauf CLAUDE.md et `.claude/`).
 - ❌ **NE PAS** réintroduire les exports supprimés au Sprint Dead-Code-Purge (cf. §1 ci-dessus).
 - ❌ **NE PAS** réintroduire un fichier `lib/financial-calculations.ts` — le god file (1069 LOC) a été splitté en 8 modules sous [lib/finance/](../../lib/finance/) au Sprint Refactor-I4.
-- ❌ **NE PAS** réintroduire un fichier `middleware.ts` — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Runtime nodejs non-configurable ; pour edge, garder le nom legacy. Migration : `git mv middleware.ts proxy.ts` + rename function + maj log prefixes + maj `eslint.config.mjs` files override.
-- ❌ **NE PAS** lancer `pnpm self-update` sans target version explicite — bumpe silencieusement le pin `packageManager` dans `package.json` (incident 2026-05-20 : `9.15.5 → 11.1.3` + install incomplet `~/AppData/Local/pnpm/.tools/@pnpm+win-x64/<v>/` shims `pnpm.CMD`/`pnpm.ps1` non créés → ENOENT sur toute commande pnpm). Pin actuel **`pnpm@9.15.5`**. Patterns corrects : (a) edit manuel `package.json.packageManager` puis `pnpm install` ; (b) `pnpm self-update <version>` target explicite (e.g. `pnpm self-update 9.15.6` pour patch bump intentionnel).
+- ❌ **NE PAS** réintroduire un fichier `middleware.ts` — renommé `proxy.ts` au Next 16 (Sprint Hygiene-Next-16-Migration 2026-05-20). Runtime nodejs non-configurable ; pour edge, garder le nom legacy.
+- ❌ **NE PAS** lancer `pnpm self-update` sans version explicite — bumpe silencieusement le pin `packageManager` (incident 2026-05-20 : `9.15.5 → 11.1.3`, shims `pnpm.CMD`/`pnpm.ps1` non créés → ENOENT sur toute commande pnpm). Pin actuel **`pnpm@9.15.5`**. Correct : éditer `package.json.packageManager` puis `pnpm install`, ou `pnpm self-update <version>`.
 - ❌ **NE PAS** réintroduire `app/dev/recap/` ni routes `app/api/debug/recap/*` ni `lib/dev/recap-*.ts` — pivot 2026-05-23 a remplacé par 1 script CLI = 1 scénario sous [scripts/seed-recap/](../../scripts/seed-recap/README.md), bypass via INSERT direct dans `monthly_recaps` (helper `seedRecapRow`). Avant toute nouvelle route admin/dev, vérifier qu'un script CLI ne fait pas déjà le job.
 
 ## 6. Précédents Sprint chronologie résumée
 
-> Extraite 2026-05-22 vers [.claude/history/sprint-chronology.md](../history/sprint-chronology.md) (Part 1 gelée 2026-05-22, suite dans [sprint-chronology-part-2.md](../history/sprint-chronology-part-2.md) depuis 2026-05-24 sprint 11 V3). Append-only : 1 ligne par sprint installant un pattern réutilisable. Pour la chronologie complète des 116 sprints, voir CLAUDE.md §11.
+> Extraite 2026-05-22 vers [sprint-chronology.md](../history/sprint-chronology.md) (+ [part-2](../history/sprint-chronology-part-2.md), [part-3](../history/sprint-chronology-part-3.md)). Append-only : 1 ligne par sprint installant un pattern réutilisable. Chronologie complète : CLAUDE.md §11.
 
 ## 7. Supabase Auth click-to-confirm gate — scanner-résistance
 
