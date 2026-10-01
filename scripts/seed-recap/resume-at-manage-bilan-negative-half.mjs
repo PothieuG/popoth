@@ -1,9 +1,12 @@
 // Scénario "resume-at-manage-bilan-negative-half" — recap rouvert à l'étape Manage Bilan
-// avec un bilan négatif PARTIELLEMENT résolu : la tirelire a déjà été débitée de 50€
-// (sur 100€ initialement), mais il reste 150€ à absorber.
+// avec un bilan négatif PARTIELLEMENT résolu : 50€ de tirelire déjà choisis (sur
+// 100€ disponibles), il reste 150€ à renflouer.
 //
-// IMPORTANT : la piggy_bank a été DÉJÀ débitée à 50€ (l'état est cohérent —
-// pas juste "on dit qu'on a refloated 50€ mais la piggy est toujours à 100").
+// Sprint Recap-Manual-Refloat (2026-10-01) : le renflouement est DIFFÉRÉ. Le
+// choix « 50€ de tirelire » est enregistré (planned_piggy_refloat) mais la
+// tirelire n'est débitée qu'à la fin du récap → elle reste à 100€ ici.
+// surplus_savings_data n'est pas posé : l'écran déclenche lui-même le
+// versement surplus → économies à l'ouverture (ici 0€, les budgets débordent).
 
 import {
   cleanupCurrentMonth,
@@ -21,8 +24,8 @@ import {
 runScenario('resume-at-manage-bilan-negative-half', async () => {
   await cleanupCurrentMonth()
   await setProfileSalary(USER_A_ID, 2500)
-  // Tirelire initialement 100€ → 50€ refloated → piggy actuelle 50€.
-  await setPiggy({ profile_id: USER_A_ID }, 50)
+  // Tirelire 100€ : les 50€ choisis ne seront débités qu'à la fin du récap.
+  await setPiggy({ profile_id: USER_A_ID }, 100)
   await setBank({ profile_id: USER_A_ID }, 2450)
 
   const budgets = await insertProfileBudgets(USER_A_ID, [
@@ -40,8 +43,7 @@ runScenario('resume-at-manage-bilan-negative-half', async () => {
     contextId: USER_A_ID,
     currentStep: 'manage_bilan',
     startedByProfileId: USER_A_ID,
-    refloatedFromPiggy: 50,
-    refloatedFromSavings: 0,
+    plannedPiggyRefloat: 50,
   })
 
   printPostSeedInstructions({
@@ -49,15 +51,14 @@ runScenario('resume-at-manage-bilan-negative-half', async () => {
     context: 'profile',
     expectedUrl: '/dashboard',
     expectedBehavior:
-      'Wizard rouvre à Manage Bilan 3B (négatif). Déficit initial -200€, déjà absorbé 50€ via piggy → reste -150€ à éponger via savings (pool 200€ disponible) ou snapshot.',
+      'Wizard rouvre à « Gestion du déficit ». Déficit -200€, 50€ de tirelire déjà choisis → bandeau « Reste à renflouer 150 € ». Section Tirelire : −50 €, disponible 100 €. Section Budgets : économies 100/100 + budgets 200/200.',
     expectedFigures: {
       'Étape attendue': 'manage_bilan',
-      'Variante UI': '3B (négatif)',
       'Bilan initial': -200,
-      'Refloated_from_piggy déjà fait': 50,
-      'Reste à absorber': -150,
-      'Tirelire actuelle': 50,
-      'Pool savings disponible': 200,
+      'Tirelire choisie (non débitée)': 50,
+      'Reste à renflouer': 150,
+      'Tirelire actuelle': 100,
+      'Économies disponibles': 200,
     },
     cookieHint: true,
   })

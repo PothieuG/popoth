@@ -110,6 +110,8 @@ Le proxy gating détectera "no_recap" → redirect /dashboard vers /monthly-reca
 
 ## Catalogue des scénarios
 
+> ⚠️ Depuis le Sprint Recap-Manual-Refloat (2026-10-01), l'écran « Gestion du déficit » n'a plus de cascade automatique : le surplus des budgets est d'abord rangé dans leurs économies, puis l'utilisateur choisit lui-même combien prendre dans la tirelire, chaque budget (économies puis budget du mois suivant) et chaque projet (mensualité). Pour les scénarios « Déficit » ci-dessous, la colonne « UX attendue » décrit donc les **ressources disponibles**, pas un enchaînement imposé. Rien n'est débité avant « Terminer ».
+
 | Catégorie                   | Key                                          | Contexte | UX attendue                                                                                  |
 | --------------------------- | -------------------------------------------- | -------- | -------------------------------------------------------------------------------------------- |
 | **Positive**                | `fresh-no-budgets`                           | profile  | Wizard "rien à faire" : 0 budget, 0 salaire — skip direct au Final                           |
@@ -132,7 +134,7 @@ Le proxy gating détectera "no_recap" → redirect /dashboard vers /monthly-reca
 |                             | `group-mixed-salaries`                       | group    | A=3500€/B=1500€, déficit 200€, recalc proportionnel contributions                            |
 | **Resume mid-flow**         | `resume-at-summary`                          | profile  | Wizard rouvre directement à l'écran 2 Summary                                                |
 |                             | `resume-at-manage-bilan-positive`            | profile  | Wizard rouvre à l'écran 3A (bilan positif)                                                   |
-|                             | `resume-at-manage-bilan-negative-half`       | profile  | Wizard rouvre à 3B avec piggy déjà débitée 50€ (reste -150€)                                 |
+|                             | `resume-at-manage-bilan-negative-half`       | profile  | Wizard rouvre à 3B avec 50€ de tirelire déjà choisis, non débités (reste -150€)              |
 |                             | `resume-at-salary-update`                    | group    | Wizard groupe rouvre à l'écran 4 (snapshot déjà sauvegardé)                                  |
 |                             | `resume-at-final-recap`                      | profile  | Wizard rouvre à l'écran 5 Final (tout est résolu, prêt à finaliser)                          |
 | **Transactions mix**        | `transactions-mixed-validated`               | profile  | 10 dépenses (6 applied / 4 non) + 3 incomes (2/1) — applied DELETE, non-validated carry-over |
@@ -176,7 +178,7 @@ L'appel au RPC après `setProfileSalary` est en `console.warn` (non bloquant). L
 
 ### "Pour les scénarios resume-at-X, le snapshot semble vide ou faux"
 
-Le format `budget_snapshot_data` est `{ [budgetId]: amountToDraw }` (cf. `lib/recap/actions-finalize.ts`). Les scripts `resume-at-salary-update` et `resume-at-final-recap` construisent ce blob depuis le Map des budgets seedés. Si le UI ne reflète pas, vérifier que la spec sprint 07 (save-budget-snapshot) n'a pas évolué.
+Le format `budget_snapshot_data` est `{ [budgetId]: amountToDraw }` (part « budget du mois suivant », cf. `lib/recap/actions-finalize.ts`). Depuis le Sprint Recap-Manual-Refloat, la part « économies » vit dans `planned_savings_refloat` (même format) et la tirelire dans `planned_piggy_refloat` — toutes deux appliquées au « Terminer » par `apply_recap_refloat_plan`. Les scripts `resume-at-salary-update` et `resume-at-final-recap` construisent ces blobs depuis le Map des budgets seedés (`seedRecapRow` accepte `plannedPiggyRefloat`, `plannedSavingsRefloat`, `projectSnapshotData`, `surplusSavingsData`).
 
 ## Architecture
 

@@ -512,6 +512,14 @@ export async function seedRecapRow({
   refloatedFromSavings = 0,
   budgetSnapshotData = {},
   completedAt = null,
+  // Sprint Recap-Manual-Refloat (2026-10-01) — plan de renflouement manuel
+  // (différé : appliqué au finalize). `undefined` = colonne non écrite (NULL).
+  // `surplusSavingsData` : laisser `undefined` pour que l'écran « Gestion du
+  // déficit » déclenche lui-même le versement surplus → économies.
+  plannedPiggyRefloat = undefined,
+  plannedSavingsRefloat = undefined,
+  projectSnapshotData = undefined,
+  surplusSavingsData = undefined,
 }) {
   if (context !== 'profile' && context !== 'group') {
     throw new Error(`seedRecapRow: context must be 'profile' or 'group', got '${context}'`)
@@ -536,6 +544,10 @@ export async function seedRecapRow({
     refloated_from_savings: refloatedFromSavings,
     budget_snapshot_data: budgetSnapshotData,
     completed_at: completedAt,
+    ...(plannedPiggyRefloat !== undefined && { planned_piggy_refloat: plannedPiggyRefloat }),
+    ...(plannedSavingsRefloat !== undefined && { planned_savings_refloat: plannedSavingsRefloat }),
+    ...(projectSnapshotData !== undefined && { project_snapshot_data: projectSnapshotData }),
+    ...(surplusSavingsData !== undefined && { surplus_savings_data: surplusSavingsData }),
   }
 
   const { data, error } = await supabase
