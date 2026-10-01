@@ -103,7 +103,8 @@ défaut d'une saisie — 15 sites). `NEXT_PUBLIC_DEV_TODAY=AAAA-MM-JJ` n'est
 honorée que si `NEXT_PUBLIC_SUPABASE_URL` désigne la **base de test** : le
 garde-fou porte sur la base, pas sur `NODE_ENV` (le site de test tourne en
 `production`, et un `pnpm dev` local peut viser la prod). Pastille « Date
-simulée » dans le layout. Procédure → [multi-env.md §8](../conventions/multi-env.md).
+simulée » dans le layout. Sur Vercel, la variable s'appelle `DEV_TODAY` (préfixe
+public refusé en type secret) ; `next.config.js` la recopie. Procédure → [multi-env.md §8](../conventions/multi-env.md).
 
 ## 5. Vérification
 

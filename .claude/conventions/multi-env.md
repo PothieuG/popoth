@@ -151,8 +151,8 @@ Pour rejouer une fin de mois (saisir sur le dashboard « la veille », puis fair
    $env:SUPABASE_PROJECT_REF = $null
    ```
 
-2. **Simuler la date** : `NEXT_PUBLIC_DEV_TODAY=2026-09-30` (dashboard ouvert, récap d'août déjà fait), puis `2026-10-01` (le récap de septembre se déclenche), puis retirer la variable.
-   - Site de test en ligne (Vercel-dev) : Settings → Environment Variables, puis **Redeploy** à chaque changement (variable `NEXT_PUBLIC_*`, figée à la compilation).
+2. **Simuler la date** : `DEV_TODAY=2026-09-30` (dashboard ouvert, récap d'août déjà fait), puis `2026-10-01` (le récap de septembre se déclenche), puis retirer la variable.
+   - Site de test en ligne (Vercel-dev) : Settings → Environment Variables, puis **Redeploy** à chaque changement (valeur figée à la compilation). Nom **sans** préfixe public : Vercel refuse d'enregistrer en type « secret » une variable `NEXT_PUBLIC_*` ; `next.config.js` recopie `DEV_TODAY` sous le nom `NEXT_PUBLIC_DEV_TODAY` que lit l'appli (les deux noms marchent).
    - En local : une ligne dans `.env.local`, relancer `pnpm dev`.
 
 Une pastille « Date simulée : … » s'affiche en haut de l'écran tant que la variable agit.

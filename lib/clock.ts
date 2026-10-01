@@ -4,7 +4,9 @@
  * Partout sauf sur la base de test : l'heure réelle, sans exception.
  *
  * Sur la base de test (projet Supabase dev) uniquement,
- * `NEXT_PUBLIC_DEV_TODAY=AAAA-MM-JJ` simule une autre date. Sert à rejouer une
+ * `NEXT_PUBLIC_DEV_TODAY=AAAA-MM-JJ` simule une autre date (ou `DEV_TODAY`, sans
+ * préfixe : `next.config.js` la recopie sous ce nom — Vercel refuse le préfixe
+ * public sur une variable de type secret). Sert à rejouer une
  * fin de mois : saisir sur le dashboard « la veille », puis avancer au 1er pour
  * que le récap mensuel se déclenche. Sans ça, le dashboard est inaccessible dès
  * le 1er tant que le récap du mois écoulé n'est pas terminé.
