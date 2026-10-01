@@ -20,6 +20,7 @@
  * qu'un écran d'erreur sur défaillance transitoire.
  */
 
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -282,7 +283,7 @@ async function _loadFinancialData(
     // `carryover_spent_amount` lorsque l'utilisateur finalisera leur recap.
     // Sprint Fix-Recap-Bilan-Month 2026-08-31 — fenêtre explicite quand le
     // caller en fournit une (récap : mois recapé), sinon mois courant.
-    const today = new Date()
+    const today = now()
     const refYear = window ? window.year : today.getFullYear()
     const refMonth0 = window ? window.month - 1 : today.getMonth()
     const firstDayCurrentMonth = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`

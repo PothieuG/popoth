@@ -10,6 +10,7 @@ import {
   updateEstimatedBudgetBodySchema,
 } from '@/lib/schemas/budget'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 
 type EstimatedBudgetRow = Database['public']['Tables']['estimated_budgets']['Row']
@@ -83,8 +84,8 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
     // `toISOString()` sur une date locale reculait d'un jour hors UTC.
     const budgets = data || []
     const useExplicitMonth = month != null && year != null
-    const refYear = useExplicitMonth ? year : new Date().getFullYear()
-    const refMonth0 = useExplicitMonth ? month - 1 : new Date().getMonth()
+    const refYear = useExplicitMonth ? year : now().getFullYear()
+    const refMonth0 = useExplicitMonth ? month - 1 : now().getMonth()
     const firstDayOfMonth = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`
     const lastDayOfMonth = (() => {
       const d = new Date(refYear, refMonth0 + 1, 0)
@@ -236,7 +237,7 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
     }
 
     // Calculate spent this month for response
-    const currentDate = new Date()
+    const currentDate = now()
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
     const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
 

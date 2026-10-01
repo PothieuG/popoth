@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
+import { now } from '@/lib/clock'
 import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
 import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
 
@@ -152,8 +153,8 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
     // (en attente + validée) — une validation post-recap modifie le solde
     // mais pas le `budget_spent_before` du mois courant.
     const useExplicitMonth = month != null && year != null
-    const refYear = useExplicitMonth ? year : new Date().getFullYear()
-    const refMonth0 = useExplicitMonth ? month - 1 : new Date().getMonth()
+    const refYear = useExplicitMonth ? year : now().getFullYear()
+    const refMonth0 = useExplicitMonth ? month - 1 : now().getMonth()
     const firstDayCurrentPreview = `${refYear}-${String(refMonth0 + 1).padStart(2, '0')}-01`
     const lastDayCurrentPreview = (() => {
       const d = new Date(refYear, refMonth0 + 1, 0)

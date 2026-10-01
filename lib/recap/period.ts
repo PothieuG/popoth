@@ -1,3 +1,5 @@
+import { now as clockNow } from '@/lib/clock'
+
 /**
  * Monthly Recap V3 — période recapée.
  *
@@ -6,8 +8,11 @@
  * Fonction pure — seul point de calcul du mois recapé, consommée par
  * `check-status.ts`, `start/route.ts` et `active-recap.ts` pour que les 3
  * s'accordent systématiquement sur la même ligne `monthly_recaps`.
+ *
+ * Défaut = horloge de l'appli (`lib/clock`) : en dev local, une date simulée
+ * permet de faire tomber le récap sur le mois voulu.
  */
-export function getRecapPeriod(now: Date = new Date()): { month: number; year: number } {
+export function getRecapPeriod(now: Date = clockNow()): { month: number; year: number } {
   const currentMonth = now.getMonth() + 1 // 1..12
   const currentYear = now.getFullYear()
   return currentMonth === 1

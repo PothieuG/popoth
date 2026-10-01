@@ -3,6 +3,7 @@ import { Roboto } from 'next/font/google'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { QueryProvider } from '@/components/providers/QueryProvider'
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration'
+import { SimulatedDateBadge } from '@/components/dev/SimulatedDateBadge'
 import type { Metadata, Viewport } from 'next'
 
 const roboto = Roboto({
@@ -97,6 +98,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         suppressHydrationWarning={true}
       >
         <ServiceWorkerRegistration />
+        <SimulatedDateBadge />
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>
         </QueryProvider>

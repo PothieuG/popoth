@@ -10,11 +10,14 @@
  *   - 'week'  → ISO 8601 fr-FR : lundi 00:00 → dimanche 23:59 (inclusive)
  *   - 'day'   → today 00:00 → today 23:59 (inclusive)
  *
- * `now` is injectable for deterministic tests. Default `new Date()`.
+ * `now` is injectable for deterministic tests. Default = horloge de l'appli
+ * (`lib/clock` : l'heure réelle, sauf date simulée en dev local).
  *
  * Usable both server-side (filter Supabase SELECT real_expenses.expense_date)
  * and client-side (filter useRealExpenses CSR via useMemo).
  */
+
+import { now as clockNow } from '@/lib/clock'
 
 export type Period = 'month' | 'week' | 'day'
 
@@ -38,7 +41,7 @@ function todayInParisIso(now: Date): string {
   }).format(now)
 }
 
-export function computePeriodDateRange(period: Period, now: Date = new Date()): DateRange | null {
+export function computePeriodDateRange(period: Period, now: Date = clockNow()): DateRange | null {
   if (period === 'month') return null
 
   const todayIso = todayInParisIso(now)

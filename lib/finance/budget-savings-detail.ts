@@ -10,6 +10,7 @@
  * une liste vide plutôt qu'un crash).
  */
 
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 import { supabaseServer } from '@/lib/supabase-server'
 
@@ -32,7 +33,7 @@ export async function getBudgetSavingsDetail(profileId: string): Promise<BudgetS
     // (2026-05-27) — filtrer aussi par mois calendaire courant pour s'aligner
     // avec l'affichage du budget dashboard et le calcul du déficit dans
     // `financial-data.ts`.
-    const todayDetail = new Date()
+    const todayDetail = now()
     const firstDayCurrentDetail = `${todayDetail.getFullYear()}-${String(todayDetail.getMonth() + 1).padStart(2, '0')}-01`
     const lastDayCurrentDetail = (() => {
       const d = new Date(todayDetail.getFullYear(), todayDetail.getMonth() + 1, 0)

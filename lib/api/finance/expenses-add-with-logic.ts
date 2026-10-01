@@ -13,6 +13,7 @@ import type { Database } from '@/lib/database.types'
 import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, handleBadRequest } from '@/lib/api/parse-body'
 import { addExpenseWithLogicBodySchema } from '@/lib/schemas/expense'
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
@@ -91,7 +92,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
 
     // If exceptional (no budget), create the expense directly.
     if (!estimated_budget_id) {
-      const todayIsoExceptional = new Date().toISOString().split('T')[0] as string
+      const todayIsoExceptional = now().toISOString().split('T')[0] as string
       const expenseDateResolved = expense_date || todayIsoExceptional
 
       // Sprint Exceptional-Expense-Piggy-Funding — financée par tirelire :
@@ -239,8 +240,8 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
     // répartition budget/tirelire/économies persistée est fausse. Fallback
     // `today` pour le Dashboard : comportement inchangé.
     const useExplicitMonthLogic = month != null && year != null
-    const refYearLogic = useExplicitMonthLogic ? year : new Date().getFullYear()
-    const refMonth0Logic = useExplicitMonthLogic ? month - 1 : new Date().getMonth()
+    const refYearLogic = useExplicitMonthLogic ? year : now().getFullYear()
+    const refMonth0Logic = useExplicitMonthLogic ? month - 1 : now().getMonth()
     const firstDayCurrentLogic = `${refYearLogic}-${String(refMonth0Logic + 1).padStart(2, '0')}-01`
     const lastDayCurrentLogic = (() => {
       const d = new Date(refYearLogic, refMonth0Logic + 1, 0)
@@ -314,7 +315,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
     //     `add_expense_with_cross_budget_cascade` (gère piggy + multi-source).
     //   - Sinon → RPC simple `add_expense_with_breakdown` (piggy=0, budget
     //     destination + savings local uniquement).
-    const todayIso = new Date().toISOString().split('T')[0] as string
+    const todayIso = now().toISOString().split('T')[0] as string
     const needsCrossBudgetRpc = fromPiggyBank > 0 || crossBudgetDebits.length > 0
     let expenseId: string
     try {

@@ -13,6 +13,7 @@ import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createRealExpenseBodySchema, updateRealExpenseBodySchema } from '@/lib/schemas/expense'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 
 type RealExpenseInsert = Database['public']['Tables']['real_expenses']['Insert']
@@ -145,7 +146,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
     const { amount, description, expense_date, estimated_budget_id } = body
     const is_for_group = body.is_for_group ?? false
 
-    const todayIso = new Date().toISOString().split('T')[0] as string
+    const todayIso = now().toISOString().split('T')[0] as string
     const insertData: RealExpenseInsert = {
       amount,
       description,
@@ -381,7 +382,7 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
         // explicite ; un seul des deux retombe sur le fallback today (chemin
         // Dashboard, strictement inchangé).
         const useExplicitMonthEdit = month != null && year != null
-        const todayEdit = new Date()
+        const todayEdit = now()
         const refYearEdit = useExplicitMonthEdit ? year : todayEdit.getFullYear()
         const refMonth0Edit = useExplicitMonthEdit ? month - 1 : todayEdit.getMonth()
         const firstDayCurrentEdit = `${refYearEdit}-${String(refMonth0Edit + 1).padStart(2, '0')}-01`
