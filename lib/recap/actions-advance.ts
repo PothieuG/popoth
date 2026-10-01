@@ -4,7 +4,7 @@
  * Used by the wizard's explicit "next" transitions where there is no business
  * action attached (e.g. Welcome → Summary, Summary → Manage_bilan, and any
  * future "skip" transition). The other recap action endpoints
- * (`transform-remaining-surpluses-to-savings`, `save-budget-snapshot`,
+ * (`transform-remaining-surpluses-to-savings`, `update-salaries`,
  * `complete`) embed their own step advance side-effect — they do NOT route
  * through this helper because their advance happens iff the action succeeded.
  *

@@ -1,18 +1,5 @@
 import { z } from 'zod'
-import { contextSchema, hasAtMostTwoDecimals, uuidSchema } from './common'
-
-/**
- * Positive amount with at-most-2-decimals constraint. Mirrors the refine
- * used by `moneySchema` in common.ts but kept local because the refloat
- * inputs come from the wizard (not the standard money forms).
- */
-const positiveAmountSchema = z
-  .number()
-  .finite('Montant invalide')
-  .positive('Le montant doit être positif')
-  .refine(hasAtMostTwoDecimals, {
-    message: 'Au maximum 2 décimales',
-  })
+import { contextSchema, hasAtMostTwoDecimals, nonNegativeMoneySchema, uuidSchema } from './common'
 
 /**
  * Salary update entry — non-negative (a member can declare zero salary
@@ -53,49 +40,48 @@ export const transformRemainingBodySchema = z.object({
 })
 export type TransformRemainingBody = z.infer<typeof transformRemainingBodySchema>
 
-/** Body POST /api/monthly-recap/refloat-from-piggy — debit piggy by `amount`. */
-export const refloatFromPiggyBodySchema = z.object({
+/**
+ * Body POST /api/monthly-recap/prepare-deficit — à l'arrivée sur l'écran
+ * « Gestion du déficit », verse le surplus de chaque budget dans ses
+ * économies (une seule fois par récap). Sprint Recap-Manual-Refloat.
+ */
+export const prepareDeficitBodySchema = z.object({
   context: contextSchema,
-  amount: positiveAmountSchema,
 })
-export type RefloatFromPiggyBody = z.infer<typeof refloatFromPiggyBodySchema>
+export type PrepareDeficitBody = z.infer<typeof prepareDeficitBodySchema>
+
+/** `{ id: montant }` — montants ≥ 0, 2 décimales max. Les 0 sont ignorés. */
+const refloatAllocationsSchema = z.record(uuidSchema, nonNegativeMoneySchema)
 
 /**
- * Body POST /api/monthly-recap/refloat-from-savings — debit savings proportionally
- * across budgets up to the current deficit. The server computes the per-budget
- * allocation via `computeProportionalSavingsRefloat`, so the body carries the
- * context only.
+ * Body POST /api/monthly-recap/save-refloat-plan — enregistre le choix de
+ * l'utilisateur pour UNE source du renflouement (remplace la valeur
+ * précédente de cette source). Rien n'est débité : le plan est appliqué à la
+ * finalisation du récap. Sprint Recap-Manual-Refloat (2026-10-01).
+ *
+ *  - `piggy`    : montant pris dans la tirelire ;
+ *  - `budgets`  : `{ budgetId: montant }` — pris d'abord dans les économies du
+ *                 budget, puis dans son budget du mois suivant ;
+ *  - `projects` : `{ projectId: montant }` — pris sur la mensualité du projet.
  */
-export const refloatFromSavingsBodySchema = z.object({
-  context: contextSchema,
-})
-export type RefloatFromSavingsBody = z.infer<typeof refloatFromSavingsBodySchema>
-
-/**
- * Body POST /api/monthly-recap/refloat-from-projects — virtual refund of
- * each savings project's monthly allocation, proportional to its share of
- * the total pool. The server computes the allocation via
- * `computeProportionalProjectsRefloat` and OVERWRITES
- * `monthly_recaps.project_snapshot_data` (deferred — applied to
- * `savings_projects.amount_saved` + `pending_delay_fraction` at finalize,
- * sprint 10). Sprint Projets-Épargne 08.
- */
-export const refloatFromProjectsBodySchema = z.object({
-  context: contextSchema,
-})
-export type RefloatFromProjectsBody = z.infer<typeof refloatFromProjectsBodySchema>
-
-/**
- * Body POST /api/monthly-recap/save-budget-snapshot — record the per-budget
- * proportional drawdown plan. The server computes the allocation via
- * `computeProportionalBudgetSnapshot` (proportional to `estimated_amount`) and
- * overwrites `monthly_recaps.budget_snapshot_data` JSONB. Application is
- * deferred to finalize (sprint 08), so the body only carries the context.
- */
-export const saveBudgetSnapshotBodySchema = z.object({
-  context: contextSchema,
-})
-export type SaveBudgetSnapshotBody = z.infer<typeof saveBudgetSnapshotBodySchema>
+export const saveRefloatPlanBodySchema = z.discriminatedUnion('source', [
+  z.object({
+    context: contextSchema,
+    source: z.literal('piggy'),
+    amount: nonNegativeMoneySchema,
+  }),
+  z.object({
+    context: contextSchema,
+    source: z.literal('budgets'),
+    allocations: refloatAllocationsSchema,
+  }),
+  z.object({
+    context: contextSchema,
+    source: z.literal('projects'),
+    allocations: refloatAllocationsSchema,
+  }),
+])
+export type SaveRefloatPlanBody = z.infer<typeof saveRefloatPlanBodySchema>
 
 /**
  * Body POST /api/monthly-recap/update-salaries — push salary updates for

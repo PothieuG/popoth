@@ -62,6 +62,9 @@ function makeRecap(overrides: Partial<RecapProgress> = {}): RecapProgress {
     piggyTransfersData: null,
     projectSnapshotData: null,
     recoveryData: null,
+    surplusSavingsData: null,
+    plannedPiggyRefloat: 0,
+    plannedSavingsRefloat: null,
     ...overrides,
   }
 }
@@ -110,14 +113,21 @@ describe('FinalRecapStep', () => {
   })
 
   it('negative path: shows "renfloué votre déficit" with breakdown lines for each source > 0', () => {
+    // Sprint Recap-Manual-Refloat : plan manuel (tirelire 30, économies 45,
+    // budgets du mois prochain 25, projets 20) + ancienne cascade (tirelire 20,
+    // économies 10). Surplus rangé en économies : 60.
     render(
       <FinalRecapStep
         context="profile"
         summary={makeSummary({ bilan: -150, bilanSign: 'negative', totalSurplus: 0 })}
         recap={makeRecap({
-          refloatedFromPiggy: 50,
-          refloatedFromSavings: 75,
+          refloatedFromPiggy: 20,
+          refloatedFromSavings: 10,
+          plannedPiggyRefloat: 30,
+          plannedSavingsRefloat: { b1: 45 },
           snapshotData: { b1: 15, b2: 10 },
+          projectSnapshotData: { p1: 20 },
+          surplusSavingsData: { b1: 60 },
         })}
         salaryUpdated={false}
         groupRecapPending={false}
@@ -125,15 +135,20 @@ describe('FinalRecapStep', () => {
       />,
     )
 
-    expect(screen.getByText(/renfloué votre déficit/)).toBeInTheDocument()
-    // total = 50 + 75 + 25 = 150,00. Use \b so "50,00" doesn't match "150,00".
-    expect(screen.getByText(/\b150,00/)).toBeInTheDocument()
-    expect(screen.getByText(/Via la tirelire/)).toBeInTheDocument()
-    expect(screen.getByText(/\b50,00/)).toBeInTheDocument()
-    expect(screen.getByText(/Via vos économies/)).toBeInTheDocument()
-    expect(screen.getByText(/\b75,00/)).toBeInTheDocument()
-    expect(screen.getByText(/Via puisage budgets/)).toBeInTheDocument()
-    expect(screen.getByText(/\b25,00/)).toBeInTheDocument()
+    expect(screen.getByText(/Surplus de vos budgets rangé en économies/)).toHaveTextContent(
+      '+60,00',
+    )
+    expect(screen.getByText(/renfloué votre déficit/)).toHaveTextContent('150,00')
+    expect(screen.getByText(/Via la tirelire/).parentElement).toHaveTextContent('50,00')
+    expect(screen.getByText(/Via les économies des budgets/).parentElement).toHaveTextContent(
+      '55,00',
+    )
+    expect(screen.getByText(/Via les budgets du mois prochain/).parentElement).toHaveTextContent(
+      '25,00',
+    )
+    expect(screen.getByText(/Via les mensualités des projets/).parentElement).toHaveTextContent(
+      '20,00',
+    )
   })
 
   it('negative path: omits source lines that are zero', () => {
@@ -141,11 +156,7 @@ describe('FinalRecapStep', () => {
       <FinalRecapStep
         context="profile"
         summary={makeSummary({ bilan: -100, bilanSign: 'negative', totalSurplus: 0 })}
-        recap={makeRecap({
-          refloatedFromPiggy: 100,
-          refloatedFromSavings: 0,
-          snapshotData: null,
-        })}
+        recap={makeRecap({ plannedPiggyRefloat: 100 })}
         salaryUpdated={false}
         groupRecapPending={false}
         groupName={null}
@@ -153,11 +164,13 @@ describe('FinalRecapStep', () => {
     )
 
     expect(screen.getByText(/Via la tirelire/)).toBeInTheDocument()
-    expect(screen.queryByText(/Via vos économies/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/Via puisage budgets/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Via les économies des budgets/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Via les budgets du mois prochain/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Via les mensualités des projets/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Surplus de vos budgets/)).not.toBeInTheDocument()
   })
 
-  it('cascade path (bilanSign=positive + refloats > 0): shows both phases', () => {
+  it('positive path ignores refloat trackers (no cascade section)', () => {
     render(
       <FinalRecapStep
         context="profile"
@@ -169,12 +182,8 @@ describe('FinalRecapStep', () => {
       />,
     )
 
-    expect(screen.getByText(/Renflouement initial/)).toBeInTheDocument()
-    expect(screen.getByText(/Surplus transformé/)).toBeInTheDocument()
-    expect(screen.getByText(/\+50,00/)).toBeInTheDocument()
-    // 150,00 € appears twice : once in the total line, once in the
-    // "Via la tirelire" breakdown row.
-    expect(screen.getAllByText(/150,00/)).toHaveLength(2)
+    expect(screen.getByText(/transformé/)).toHaveTextContent('+50,00')
+    expect(screen.queryByText(/renfloué/)).not.toBeInTheDocument()
   })
 
   it('salaryUpdated=true in profile context: shows "Salaire mis à jour : X€"', () => {

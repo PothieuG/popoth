@@ -8,6 +8,12 @@ import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useProfile } from '@/hooks/useProfile'
 import { formatEuro } from '@/lib/format-currency'
 import type { ProjectSnapshotSummary, RecapContext, RecapSummary } from '@/lib/recap'
+import {
+  EMPTY_REFLOAT_PLAN,
+  planFromProgress,
+  round2,
+  sumPlanSource,
+} from '@/lib/recap/refloat-plan'
 
 const ERROR_COPY: Record<string, string> = {
   invalid_step: "Cette étape n'est plus accessible. Recharge la page.",
@@ -47,20 +53,18 @@ interface FinalRecapStepProps {
  * source du parcours emprunté + bouton "Retourner au dashboard" qui finalise
  * le récap.
  *
- * 3 cas de rendu :
+ * 2 cas de rendu :
  *
- *   1. **Cascade pos/nég** (`bilanSign === 'positive' && totalRefloated > 0`) :
- *      affiche 2 sections — `Renflouement initial : X€` avec breakdown par
- *      source, puis `Surplus transformé : +Y€ en économies`. Décision produit
- *      2026-05-24 ("Les deux étapes"). Ne fire pas en sprint 13 (BilanNegativeStep
- *      ne bascule pas sur BilanPositiveStep), mais code forward-compatible.
+ *   1. **Cas positif** (`bilanSign ∈ {'positive', 'zero'}`) : message unique
+ *      "Vous avez transformé +X€ en économies".
  *
- *   2. **Cas positif pur** (`bilanSign ∈ {'positive', 'zero'}` et pas de
- *      refloat) : message unique "Vous avez transformé +X€ en économies".
- *
- *   3. **Cas négatif pur** (`bilanSign === 'negative'`) : message "Vous avez
- *      renfloué votre déficit de X€" + breakdown par source (lignes > 0
- *      uniquement). Décision produit 2026-05-24 ("Détaillé par source").
+ *   2. **Cas négatif** (`bilanSign === 'negative'`) : surplus rangé dans les
+ *      économies, puis "Vous avez renfloué votre déficit de X€" + détail par
+ *      source (lignes > 0 uniquement). Depuis Sprint Recap-Manual-Refloat
+ *      (2026-10-01), les montants viennent du plan manuel (différé, appliqué
+ *      au clic sur le bouton ci-dessous) + ce que l'ancienne cascade avait
+ *      déjà débité sur les récaps ouverts avant ce sprint. L'ancien cas
+ *      « cascade pos/nég » (jamais déclenché) a été retiré.
  *
  * Si `salaryUpdated` est true, ligne additionnelle "Salaire mis à jour : X€"
  * (profile) ou "Contribution mise à jour : X€" (group).
@@ -89,14 +93,16 @@ export function FinalRecapStep({
   const { profile } = useProfile()
   const { contributions } = useGroupContributions()
 
-  const refloatedFromPiggy = recap?.refloatedFromPiggy ?? 0
-  const refloatedFromSavings = recap?.refloatedFromSavings ?? 0
-  const snapshotData = recap?.snapshotData ?? null
-  const snapshotTotal = snapshotData ? Object.values(snapshotData).reduce((s, v) => s + v, 0) : 0
-  const totalRefloated = refloatedFromPiggy + refloatedFromSavings + snapshotTotal
-
-  const hasRefloats = totalRefloated > 0.01
-  const isCascadeBalanceToPositive = summary.bilanSign === 'positive' && hasRefloats
+  const plan = recap ? planFromProgress(recap) : EMPTY_REFLOAT_PLAN
+  const fromPiggy = round2(plan.legacyPiggy + plan.piggy)
+  const fromSavings = round2(
+    plan.legacySavings + Object.values(plan.savings).reduce((s, v) => s + v, 0),
+  )
+  const fromNextBudgets = round2(Object.values(plan.budgets).reduce((s, v) => s + v, 0))
+  const fromProjects = sumPlanSource(plan, 'projects')
+  const surplusToSavings = round2(
+    Object.values(recap?.surplusSavingsData ?? {}).reduce((s, v) => s + v, 0),
+  )
 
   const handleComplete = async () => {
     setError(null)
@@ -132,20 +138,13 @@ export function FinalRecapStep({
       <h1 className="text-xl font-semibold text-gray-900">Récapitulatif final</h1>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-800">
-        {isCascadeBalanceToPositive ? (
-          <CascadeSummary
-            totalRefloated={totalRefloated}
-            refloatedFromPiggy={refloatedFromPiggy}
-            refloatedFromSavings={refloatedFromSavings}
-            snapshotTotal={snapshotTotal}
-            totalSurplus={summary.totalSurplus}
-          />
-        ) : summary.bilanSign === 'negative' ? (
+        {summary.bilanSign === 'negative' ? (
           <NegativeSummary
-            totalRefloated={totalRefloated}
-            refloatedFromPiggy={refloatedFromPiggy}
-            refloatedFromSavings={refloatedFromSavings}
-            snapshotTotal={snapshotTotal}
+            surplusToSavings={surplusToSavings}
+            fromPiggy={fromPiggy}
+            fromSavings={fromSavings}
+            fromNextBudgets={fromNextBudgets}
+            fromProjects={fromProjects}
           />
         ) : (
           <PositiveSummary totalSurplus={summary.totalSurplus} />
@@ -202,18 +201,35 @@ function PositiveSummary({ totalSurplus }: { totalSurplus: number }) {
 }
 
 function NegativeSummary({
-  totalRefloated,
-  refloatedFromPiggy,
-  refloatedFromSavings,
-  snapshotTotal,
+  surplusToSavings,
+  fromPiggy,
+  fromSavings,
+  fromNextBudgets,
+  fromProjects,
 }: {
-  totalRefloated: number
-  refloatedFromPiggy: number
-  refloatedFromSavings: number
-  snapshotTotal: number
+  surplusToSavings: number
+  fromPiggy: number
+  fromSavings: number
+  fromNextBudgets: number
+  fromProjects: number
 }) {
+  const totalRefloated = round2(fromPiggy + fromSavings + fromNextBudgets + fromProjects)
+  const lines: Array<{ label: string; amount: number; tone: string }> = [
+    { label: 'Via la tirelire', amount: fromPiggy, tone: 'text-violet-800' },
+    { label: 'Via les économies des budgets', amount: fromSavings, tone: 'text-violet-800' },
+    { label: 'Via les budgets du mois prochain', amount: fromNextBudgets, tone: 'text-orange-800' },
+    { label: 'Via les mensualités des projets', amount: fromProjects, tone: 'text-purple-800' },
+  ]
   return (
     <>
+      {surplusToSavings > 0.01 && (
+        <p className="mb-3">
+          Surplus de vos budgets rangé en économies :{' '}
+          <span className="font-semibold text-green-700 tabular-nums">
+            +{formatEuro(surplusToSavings)}
+          </span>
+        </p>
+      )}
       <p>
         Vous avez renfloué votre déficit de{' '}
         <span className="font-semibold text-red-700 tabular-nums">
@@ -221,30 +237,16 @@ function NegativeSummary({
         </span>
       </p>
       <ul className="mt-3 space-y-1">
-        {refloatedFromPiggy > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-violet-800">• Via la tirelire</span>
-            <span className="font-semibold text-violet-900 tabular-nums">
-              {formatEuro(refloatedFromPiggy)}
-            </span>
-          </li>
-        )}
-        {refloatedFromSavings > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-violet-800">• Via vos économies</span>
-            <span className="font-semibold text-violet-900 tabular-nums">
-              {formatEuro(refloatedFromSavings)}
-            </span>
-          </li>
-        )}
-        {snapshotTotal > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-orange-800">• Via puisage budgets</span>
-            <span className="font-semibold text-orange-900 tabular-nums">
-              {formatEuro(snapshotTotal)}
-            </span>
-          </li>
-        )}
+        {lines
+          .filter((line) => line.amount > 0.01)
+          .map((line) => (
+            <li key={line.label} className="flex items-baseline justify-between gap-2">
+              <span className={line.tone}>• {line.label}</span>
+              <span className={`font-semibold tabular-nums ${line.tone}`}>
+                {formatEuro(line.amount)}
+              </span>
+            </li>
+          ))}
       </ul>
     </>
   )
@@ -317,63 +319,5 @@ function ProjectsSummary({
         </ul>
       )}
     </div>
-  )
-}
-
-function CascadeSummary({
-  totalRefloated,
-  refloatedFromPiggy,
-  refloatedFromSavings,
-  snapshotTotal,
-  totalSurplus,
-}: {
-  totalRefloated: number
-  refloatedFromPiggy: number
-  refloatedFromSavings: number
-  snapshotTotal: number
-  totalSurplus: number
-}) {
-  return (
-    <>
-      <p>
-        Renflouement initial :{' '}
-        <span className="font-semibold text-red-700 tabular-nums">
-          {formatEuro(totalRefloated)}
-        </span>
-      </p>
-      <ul className="mt-2 space-y-1">
-        {refloatedFromPiggy > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-violet-800">• Via la tirelire</span>
-            <span className="font-semibold text-violet-900 tabular-nums">
-              {formatEuro(refloatedFromPiggy)}
-            </span>
-          </li>
-        )}
-        {refloatedFromSavings > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-violet-800">• Via vos économies</span>
-            <span className="font-semibold text-violet-900 tabular-nums">
-              {formatEuro(refloatedFromSavings)}
-            </span>
-          </li>
-        )}
-        {snapshotTotal > 0.01 && (
-          <li className="flex items-baseline justify-between gap-2">
-            <span className="text-orange-800">• Via puisage budgets</span>
-            <span className="font-semibold text-orange-900 tabular-nums">
-              {formatEuro(snapshotTotal)}
-            </span>
-          </li>
-        )}
-      </ul>
-      <p className="mt-4 border-t border-gray-200 pt-3">
-        Surplus transformé :{' '}
-        <span className="font-semibold text-green-700 tabular-nums">
-          +{formatEuro(totalSurplus)}
-        </span>{' '}
-        en économies.
-      </p>
-    </>
   )
 }

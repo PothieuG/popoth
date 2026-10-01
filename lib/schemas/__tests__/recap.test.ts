@@ -3,10 +3,9 @@ import { randomUUID } from 'node:crypto'
 import {
   advanceStepBodySchema,
   completeRecapBodySchema,
+  prepareDeficitBodySchema,
   recapStepSchema,
-  refloatFromPiggyBodySchema,
-  refloatFromSavingsBodySchema,
-  saveBudgetSnapshotBodySchema,
+  saveRefloatPlanBodySchema,
   startRecapBodySchema,
   statusQuerySchema,
   transferSurplusesBodySchema,
@@ -71,97 +70,83 @@ describe('transferSurplusesBodySchema', () => {
   })
 })
 
-describe('refloatFromPiggyBodySchema', () => {
-  it('accepts a positive 2-decimal amount', () => {
-    expect(refloatFromPiggyBodySchema.safeParse({ context: 'profile', amount: 12.5 }).success).toBe(
-      true,
-    )
+describe('prepareDeficitBodySchema', () => {
+  it('accepts context alone', () => {
+    expect(prepareDeficitBodySchema.safeParse({ context: 'profile' }).success).toBe(true)
+    expect(prepareDeficitBodySchema.safeParse({ context: 'group' }).success).toBe(true)
   })
 
-  it('rejects zero amount (must be strictly positive)', () => {
-    expect(refloatFromPiggyBodySchema.safeParse({ context: 'profile', amount: 0 }).success).toBe(
-      false,
-    )
-  })
-
-  it('rejects negative amount', () => {
-    expect(refloatFromPiggyBodySchema.safeParse({ context: 'profile', amount: -1 }).success).toBe(
-      false,
-    )
-  })
-
-  it('rejects 3-decimal precision', () => {
-    expect(
-      refloatFromPiggyBodySchema.safeParse({ context: 'profile', amount: 1.234 }).success,
-    ).toBe(false)
-  })
-
-  it('rejects NaN and Infinity', () => {
-    expect(
-      refloatFromPiggyBodySchema.safeParse({ context: 'profile', amount: Number.NaN }).success,
-    ).toBe(false)
-    expect(
-      refloatFromPiggyBodySchema.safeParse({
-        context: 'profile',
-        amount: Number.POSITIVE_INFINITY,
-      }).success,
-    ).toBe(false)
+  it('rejects missing or invalid context', () => {
+    expect(prepareDeficitBodySchema.safeParse({}).success).toBe(false)
+    expect(prepareDeficitBodySchema.safeParse({ context: 'household' }).success).toBe(false)
   })
 })
 
-describe('refloatFromSavingsBodySchema', () => {
-  // Sprint 07: body shape is `{ context }` only. The server computes the
-  // per-budget proportional allocation via computeProportionalSavingsRefloat.
-  it('accepts context=profile alone', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'profile' }).success).toBe(true)
-  })
-
-  it('accepts context=group alone', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'group' }).success).toBe(true)
-  })
-
-  it('rejects missing context', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({}).success).toBe(false)
-  })
-
-  it('rejects invalid context value', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'household' }).success).toBe(false)
-  })
-
-  it('silently ignores extra keys (e.g. legacy amount payload from older clients)', () => {
-    expect(refloatFromSavingsBodySchema.safeParse({ context: 'profile', amount: 50 }).success).toBe(
-      true,
-    )
-  })
-})
-
-describe('saveBudgetSnapshotBodySchema', () => {
-  // Sprint 07: body shape is `{ context }` only. The server computes the
-  // per-budget proportional allocation via computeProportionalBudgetSnapshot
-  // and overwrites the `monthly_recaps.budget_snapshot_data` JSONB.
-  it('accepts context=profile alone', () => {
-    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'profile' }).success).toBe(true)
-  })
-
-  it('accepts context=group alone', () => {
-    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'group' }).success).toBe(true)
-  })
-
-  it('rejects missing context', () => {
-    expect(saveBudgetSnapshotBodySchema.safeParse({}).success).toBe(false)
-  })
-
-  it('rejects invalid context value', () => {
-    expect(saveBudgetSnapshotBodySchema.safeParse({ context: 'family' }).success).toBe(false)
-  })
-
-  it('silently ignores extra keys (e.g. legacy snapshot payload from older clients)', () => {
+describe('saveRefloatPlanBodySchema', () => {
+  // Sprint Recap-Manual-Refloat (2026-10-01) — une source par appel.
+  it('accepts a piggy amount, 0 included (remise à zéro)', () => {
     expect(
-      saveBudgetSnapshotBodySchema.safeParse({
-        context: 'profile',
-        snapshot: { [uuid()]: 50 },
+      saveRefloatPlanBodySchema.safeParse({ context: 'profile', source: 'piggy', amount: 120.5 })
+        .success,
+    ).toBe(true)
+    expect(
+      saveRefloatPlanBodySchema.safeParse({ context: 'profile', source: 'piggy', amount: 0 })
+        .success,
+    ).toBe(true)
+  })
+
+  it('rejects a negative, 3-decimal or non-finite piggy amount', () => {
+    for (const amount of [-1, 10.123, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        saveRefloatPlanBodySchema.safeParse({ context: 'profile', source: 'piggy', amount })
+          .success,
+      ).toBe(false)
+    }
+  })
+
+  it('accepts budgets / projects allocations keyed by uuid', () => {
+    expect(
+      saveRefloatPlanBodySchema.safeParse({
+        context: 'group',
+        source: 'budgets',
+        allocations: { [uuid()]: 50, [uuid()]: 0 },
       }).success,
     ).toBe(true)
+    expect(
+      saveRefloatPlanBodySchema.safeParse({
+        context: 'profile',
+        source: 'projects',
+        allocations: {},
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects non-uuid keys and negative amounts in allocations', () => {
+    expect(
+      saveRefloatPlanBodySchema.safeParse({
+        context: 'profile',
+        source: 'budgets',
+        allocations: { 'not-a-uuid': 10 },
+      }).success,
+    ).toBe(false)
+    expect(
+      saveRefloatPlanBodySchema.safeParse({
+        context: 'profile',
+        source: 'projects',
+        allocations: { [uuid()]: -5 },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('rejects an unknown source or a payload of the wrong shape for the source', () => {
+    expect(
+      saveRefloatPlanBodySchema.safeParse({ context: 'profile', source: 'savings', amount: 10 })
+        .success,
+    ).toBe(false)
+    expect(
+      saveRefloatPlanBodySchema.safeParse({ context: 'profile', source: 'budgets', amount: 10 })
+        .success,
+    ).toBe(false)
   })
 })
 

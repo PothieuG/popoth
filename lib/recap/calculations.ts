@@ -1,9 +1,9 @@
 /**
  * Monthly Recap V3 — pure calculations module.
  *
- * 4 fonctions publiques : surplus/déficit par budget, résumé du recap,
- * refloat proportionnel sur économies cumulées, snapshot proportionnel sur
- * budgets futurs. Aucune I/O — les inputs sont passés en paramètres et les
+ * 3 fonctions publiques : surplus/déficit par budget, résumé du recap, et
+ * répartition proportionnelle plafonnée (`distributeProportional`, utilisée
+ * par le renflouement manuel). Aucune I/O — les inputs sont passés en paramètres et les
  * résultats retournés. Déterministe (tri stable + cents precision).
  */
 
@@ -54,9 +54,16 @@ export function computeRecapSummary(input: {
    *  exposé dans le `BudgetSummary` reste la valeur brute originale — seul le
    *  surplus/deficit est affecté. */
   piggyTransfersData?: Record<string, number>
+  /** Sprint Recap-Manual-Refloat (2026-10-01). `{ [budgetId]: amount }` du
+   *  surplus déjà versé dans les économies du budget à l'entrée de l'étape
+   *  « Gestion du déficit » (`monthly_recaps.surplus_savings_data`). Même
+   *  traitement que `piggyTransfersData` : le montant compte comme dépensé
+   *  pour le calcul du surplus, qui retombe à 0 une fois versé. Sans ça, le
+   *  surplus réapparaîtrait à côté des économies qu'il a alimentées. */
+  surplusSavingsData?: Record<string, number>
   /** Sprint Projets-Épargne 07 (2026-05-26). Passé verbatim dans le résultat
    *  pour alimenter le drawer "Projets en cours" du `SummaryStep` et la
-   *  cascade négative `RefloatProjectsLine` (sprint 09). Aucune logique de
+   *  section Projets de « Gestion du déficit ». Aucune logique de
    *  calcul ici — pur passthrough depuis `loadRecapSummary`. Défaut `[]`. */
   savingsProjects?: readonly SavingsProjectMeta[]
   /** Sprint Projets-Épargne 10. `{ [projectId]: refund_amount }` lu depuis
@@ -71,13 +78,15 @@ export function computeRecapSummary(input: {
 }): RecapSummary {
   const enriched: BudgetSummary[] = input.budgets.map((b) => {
     const transferredToPiggy = input.piggyTransfersData?.[b.budgetId] ?? 0
+    const transferredToSavings = input.surplusSavingsData?.[b.budgetId] ?? 0
     const carryoverSpent = b.carryoverSpentAmount ?? 0
     // Sprint Fix-Recap-Surplus-Inconsistency (2026-05-27) — miroir de
     // `_loadFinancialData` deficit loop : `deficit = MAX(0, spent_current_month
     // + carryover - estimated)`. Sans `carryoverSpent` dans `effectiveSpent`,
     // un budget avec dette reportée non-soldée afficherait à tort un surplus
     // = estimated tant que le mois courant n'a pas re-saturé le cap.
-    const effectiveSpent = b.spentThisMonth + carryoverSpent + transferredToPiggy
+    const effectiveSpent =
+      b.spentThisMonth + carryoverSpent + transferredToPiggy + transferredToSavings
     const { surplus, deficit } = computeBudgetSurplus(b.estimatedAmount, effectiveSpent)
     return {
       budgetId: b.budgetId,
@@ -161,64 +170,17 @@ function computeProjectSnapshotSummary(
   }
 }
 
-/** Distribue targetAmount proportionnellement aux cumulated_savings de chaque budget. */
-export function computeProportionalSavingsRefloat(
-  targetAmount: number,
-  budgets: ReadonlyArray<{ budgetId: string; cumulatedSavings: number }>,
-): RefloatProportionalAllocation {
-  return distributeProportional(
-    targetAmount,
-    budgets.map((b) => ({ budgetId: b.budgetId, pool: b.cumulatedSavings })),
-  )
-}
-
-/** Distribue targetAmount proportionnellement aux estimatedAmount de chaque
- *  budget (Option B). Sprint Carryover-Self-Healing 2026-05-26 — passe
- *  `capPerPool: false` à `distributeProportional` pour autoriser des parts
- *  per-budget > pool (estimatedAmount) quand le déficit dépasse
- *  sum(estimated_amount). Le snapshot devient autoritatif et peut "surcharger"
- *  un budget au-delà de 100% — la dette est ensuite résorbée mécaniquement
- *  par la marge libre des mois suivants (cf. operational-rules.md §5
- *  "carryover overwrite"). Les 2 autres consumers
- *  (`computeProportionalSavingsRefloat`, `computeProportionalProjectsRefloat`)
- *  gardent `capPerPool: true` car leur pool est physique (DB CHECK
- *  cumulated_savings >= 0 + sémantique "renoncer 1 mois de mensualité"). */
-export function computeProportionalBudgetSnapshot(
-  targetAmount: number,
-  budgets: ReadonlyArray<{ budgetId: string; estimatedAmount: number }>,
-): RefloatProportionalAllocation {
-  return distributeProportional(
-    targetAmount,
-    budgets.map((b) => ({ budgetId: b.budgetId, pool: b.estimatedAmount })),
-    { capPerPool: false },
-  )
-}
-
-/** Distribue targetAmount proportionnellement à `monthly_allocation` de chaque
- *  projet d'épargne (sprint Projets-Épargne 08, cascade renflouement étape
- *  intermédiaire entre savings et budget snapshot). Le pool est la mensualité
- *  du mois — pas l'`amount_saved` cumulé — sémantique "renoncer temporairement
- *  à l'épargne mensuelle du projet pour combler le déficit". Le résultat
- *  conserve le shape `RefloatProportionalAllocation` (`perBudget` = par
- *  `projectId`) pour réutiliser `distributeProportional` et la sérialisation
- *  côté action helper. */
-export function computeProportionalProjectsRefloat(
-  targetAmount: number,
-  projects: ReadonlyArray<{ projectId: string; monthlyAllocation: number }>,
-): RefloatProportionalAllocation {
-  return distributeProportional(
-    targetAmount,
-    projects.map((p) => ({ budgetId: p.projectId, pool: p.monthlyAllocation })),
-  )
-}
-
-function distributeProportional(
+/** Répartit `targetAmount` au prorata des `pool` (tri stable par id, le
+ *  dernier absorbe le reste d'arrondi). Aucune part ne dépasse son pool :
+ *  l'excédent remonte en `shortfall`. Seul consommateur depuis Sprint
+ *  Recap-Manual-Refloat (2026-10-01) : le bouton « Répartir le reste
+ *  automatiquement » (`autoDistributeBudgets`, `lib/recap/refloat-plan.ts`).
+ *  Les 3 répartitions proportionnelles de l'ancienne cascade (économies,
+ *  budgets, projets) ont été supprimées avec elle. */
+export function distributeProportional(
   targetAmount: number,
   budgets: ReadonlyArray<{ budgetId: string; pool: number }>,
-  options: { capPerPool?: boolean } = {},
 ): RefloatProportionalAllocation {
-  const capPerPool = options.capPerPool ?? true
-
   const sorted = budgets
     .filter((b) => b.pool > 0)
     .map((b) => ({ budgetId: b.budgetId, pool: round2(b.pool) }))
@@ -234,11 +196,9 @@ function distributeProportional(
     }
   }
 
-  // When capping is enabled and totalPool ≤ target, drain each pool fully and
-  // report a shortfall. When capping is disabled (budget snapshot mode), we
-  // fall through to the proportional branch — individual shares scale up by
-  // (target / totalPool) ≥ 1 and the total equals target (no shortfall).
-  if (capPerPool && totalPool <= targetAmount) {
+  // totalPool ≤ target : chaque pool est vidé entièrement, le reste remonte
+  // en shortfall.
+  if (totalPool <= targetAmount) {
     return {
       perBudget: sorted.map((b) => ({ budgetId: b.budgetId, amount: b.pool })),
       totalAllocated: totalPool,
@@ -250,14 +210,13 @@ function distributeProportional(
   for (let i = 0; i < sorted.length - 1; i++) {
     const current = sorted[i]!
     const raw = (targetAmount * current.pool) / totalPool
-    const rounded = round2(raw)
-    const amount = capPerPool ? Math.min(current.pool, rounded) : rounded
+    const amount = Math.min(current.pool, round2(raw))
     shares.push({ budgetId: current.budgetId, amount })
   }
   const sumSoFar = shares.reduce((s, x) => s + x.amount, 0)
   const last = sorted[sorted.length - 1]!
   const lastRaw = round2(targetAmount - sumSoFar)
-  const lastShare = capPerPool ? Math.min(last.pool, lastRaw) : lastRaw
+  const lastShare = Math.min(last.pool, lastRaw)
   shares.push({ budgetId: last.budgetId, amount: lastShare })
 
   const totalAllocated = round2(shares.reduce((s, x) => s + x.amount, 0))

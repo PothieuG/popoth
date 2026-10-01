@@ -83,6 +83,10 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
       // so `summary.projectSnapshot` reflects the preview that FinalRecapStep
       // displays (totalSaved / totalRefunded / shifted deadlines).
       const projectSnapshotData = coerceSnapshot(recapRow?.project_snapshot_data) ?? undefined
+      // Sprint Recap-Manual-Refloat (2026-10-01) — surplus déjà versé dans les
+      // économies à l'entrée de l'étape « Gestion du déficit » : le résumé doit
+      // le consommer (sinon il réapparaît comme surplus à côté des économies).
+      const surplusSavingsData = coerceSnapshot(recapRow?.surplus_savings_data) ?? undefined
 
       const summary = await loadRecapSummary({
         context,
@@ -95,6 +99,7 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
         recapMonth: recapRow?.recap_month ?? recapMonth,
         recapYear: recapRow?.recap_year ?? recapYear,
         piggyTransfersData,
+        surplusSavingsData,
         projectSnapshotData,
       })
 
@@ -116,6 +121,13 @@ export const GET = withAuthAndProfile(async (request, { userId, profile }) => {
             // ce récap. `null` = rien à annoncer (aucun bilan abandonné, ou
             // aucun n'avait coûté d'argent). Alimente `<RecoveredFundsBanner>`.
             recoveryData: parseRecoveryData(recapRow.recovery_data),
+            // Sprint Recap-Manual-Refloat (2026-10-01) — plan de renflouement
+            // manuel (différé, appliqué au finalize). `surplusSavingsData`
+            // `null` = surplus pas encore versé dans les économies (l'écran
+            // déclenche alors /prepare-deficit).
+            surplusSavingsData: surplusSavingsData ?? null,
+            plannedPiggyRefloat: Number(recapRow.planned_piggy_refloat ?? 0),
+            plannedSavingsRefloat: coerceSnapshot(recapRow.planned_savings_refloat),
           }
         : null
 

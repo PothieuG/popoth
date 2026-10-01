@@ -31,6 +31,10 @@
  *    takes over — no salary RPC call.
  *  - `outcome.salaryIncome` exposes the result (created/skip/already_exists)
  *    in solo mode, `null` in group mode.
+ *
+ * Sprint Recap-Manual-Refloat 2026-10-01 — extended :
+ *  - `apply_recap_refloat_plan` is the FIRST RPC (piggy + savings debits of
+ *    the manual plan), fail-soft with warning `apply_refloat_plan_failed`.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -84,6 +88,13 @@ const RECAP_ID = 'cccc3333-3333-3333-3333-333333333333'
 const BUDGET_1 = 'dddd4444-4444-4444-4444-444444444444'
 const BUDGET_2 = 'eeee5555-5555-5555-5555-555555555555'
 
+// Sprint Recap-Manual-Refloat (2026-10-01) — `apply_recap_refloat_plan` est
+// désormais la 1re RPC du finalize (tirelire + économies du plan manuel).
+const PLAN_NOOP = {
+  data: { already_applied: false, piggy_debited: 0, savings_debited: [], savings_total: 0 },
+  error: null,
+}
+
 describe('executeCompleteRecap', () => {
   it('empty snapshot → STILL calls apply_snapshot RPC (owner reset), then projects + processes + salary + marks completed', async () => {
     // Sprint Carryover-Self-Healing 2026-05-26 — the RPC is no longer skipped
@@ -94,6 +105,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 2 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
@@ -112,20 +124,20 @@ describe('executeCompleteRecap', () => {
     expect(outcome.snapshotApplied).toEqual({ applied: [], reset_count: 2 })
     expect(outcome.projectsApplied).toEqual({ updated_count: 0, total_refunded: 0 })
     expect(outcome.salaryIncome).toEqual({ created: false, reason: 'no_salary' })
-    expect(m.rpc).toHaveBeenCalledTimes(4)
-    expect(m.rpc).toHaveBeenNthCalledWith(1, 'finalize_recap_apply_snapshot', {
+    expect(m.rpc).toHaveBeenCalledTimes(5)
+    expect(m.rpc).toHaveBeenNthCalledWith(2, 'finalize_recap_apply_snapshot', {
       p_recap_id: RECAP_ID,
       p_snapshot: {},
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(2, 'apply_recap_projects_snapshot', {
+    expect(m.rpc).toHaveBeenNthCalledWith(3, 'apply_recap_projects_snapshot', {
       p_recap_id: RECAP_ID,
       p_allocations: {},
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(3, 'process_recap_transactions', {
+    expect(m.rpc).toHaveBeenNthCalledWith(4, 'process_recap_transactions', {
       p_recap_id: RECAP_ID,
       p_profile_id: PROFILE_ID,
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(4, 'create_salary_income_for_recap', {
+    expect(m.rpc).toHaveBeenNthCalledWith(5, 'create_salary_income_for_recap', {
       p_recap_id: RECAP_ID,
       p_profile_id: PROFILE_ID,
     })
@@ -136,6 +148,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({
         data: {
           applied: [
@@ -171,15 +184,15 @@ describe('executeCompleteRecap', () => {
     expect(outcome.snapshotApplied?.reset_count).toBe(4)
     expect(outcome.transactions.deleted_expenses).toBe(2)
     expect(outcome.transactions.carried_expenses).toBe(3)
-    expect(m.rpc).toHaveBeenNthCalledWith(1, 'finalize_recap_apply_snapshot', {
+    expect(m.rpc).toHaveBeenNthCalledWith(2, 'finalize_recap_apply_snapshot', {
       p_recap_id: RECAP_ID,
       p_snapshot: { [BUDGET_1]: 20, [BUDGET_2]: 30 },
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(2, 'apply_recap_projects_snapshot', {
+    expect(m.rpc).toHaveBeenNthCalledWith(3, 'apply_recap_projects_snapshot', {
       p_recap_id: RECAP_ID,
       p_allocations: {},
     })
-    expect(m.rpc).toHaveBeenNthCalledWith(3, 'process_recap_transactions', {
+    expect(m.rpc).toHaveBeenNthCalledWith(4, 'process_recap_transactions', {
       p_recap_id: RECAP_ID,
       p_profile_id: PROFILE_ID,
     })
@@ -191,6 +204,7 @@ describe('executeCompleteRecap', () => {
     const PROJ_1 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
     const PROJ_2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 2, total_refunded: 80 }, error: null })
       .mockResolvedValueOnce({
@@ -210,7 +224,7 @@ describe('executeCompleteRecap', () => {
     })
 
     expect(outcome.projectsApplied).toEqual({ updated_count: 2, total_refunded: 80 })
-    expect(m.rpc).toHaveBeenNthCalledWith(2, 'apply_recap_projects_snapshot', {
+    expect(m.rpc).toHaveBeenNthCalledWith(3, 'apply_recap_projects_snapshot', {
       p_recap_id: RECAP_ID,
       p_allocations: { [PROJ_1]: 50, [PROJ_2]: 30 },
     })
@@ -220,6 +234,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: null, error: { message: 'snapshot boom' } })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
@@ -244,6 +259,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'projects boom' } })
       .mockResolvedValueOnce({
@@ -267,6 +283,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
@@ -282,7 +299,7 @@ describe('executeCompleteRecap', () => {
 
     expect(outcome.completed).toBe(true)
     expect(outcome.salaryIncome).toBeNull()
-    expect(m.rpc).toHaveBeenCalledTimes(3)
+    expect(m.rpc).toHaveBeenCalledTimes(4)
     expect(m.rpc).not.toHaveBeenCalledWith('create_salary_income_for_recap', expect.anything())
   })
 
@@ -290,6 +307,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'tx boom' } })
@@ -318,6 +336,7 @@ describe('executeCompleteRecap', () => {
     const { executeCompleteRecap } = await import('../actions-finalize')
     const m = await getMocks()
     m.rpc
+      .mockResolvedValueOnce(PLAN_NOOP)
       .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
       .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
       .mockResolvedValueOnce({
@@ -334,5 +353,64 @@ describe('executeCompleteRecap', () => {
         recap: { id: RECAP_ID, budget_snapshot_data: {}, project_snapshot_data: {} },
       }),
     ).rejects.toMatchObject({ message: 'completion boom' })
+  })
+  it('applies the manual refloat plan FIRST (piggy + savings) and exposes the result', async () => {
+    const { executeCompleteRecap } = await import('../actions-finalize')
+    const m = await getMocks()
+    m.rpc
+      .mockResolvedValueOnce({
+        data: {
+          already_applied: false,
+          piggy_debited: 120,
+          savings_debited: [{ budget_id: BUDGET_1, amount: 30 }],
+          savings_total: 30,
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
+      .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
+      .mockResolvedValueOnce({
+        data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
+        error: null,
+      })
+
+    const outcome = await executeCompleteRecap({
+      context: 'group',
+      profile: { id: PROFILE_ID, group_id: GROUP_ID },
+      recap: { id: RECAP_ID, budget_snapshot_data: {}, project_snapshot_data: {} },
+    })
+
+    expect(m.rpc).toHaveBeenNthCalledWith(1, 'apply_recap_refloat_plan', { p_recap_id: RECAP_ID })
+    expect(outcome.refloatPlanApplied?.piggy_debited).toBe(120)
+    expect(outcome.refloatPlanApplied?.savings_total).toBe(30)
+    expect(outcome.warnings).toEqual([])
+  })
+
+  it('apply_recap_refloat_plan error → fail-soft with warning, the rest of the finalize still runs', async () => {
+    const { executeCompleteRecap } = await import('../actions-finalize')
+    const m = await getMocks()
+    m.rpc
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'cumulated_savings would be negative' },
+      })
+      .mockResolvedValueOnce({ data: { applied: [], reset_count: 0 }, error: null })
+      .mockResolvedValueOnce({ data: { updated_count: 0, total_refunded: 0 }, error: null })
+      .mockResolvedValueOnce({
+        data: { deleted_expenses: 0, deleted_incomes: 0, carried_expenses: 0, carried_incomes: 0 },
+        error: null,
+      })
+
+    const outcome = await executeCompleteRecap({
+      context: 'group',
+      profile: { id: PROFILE_ID, group_id: GROUP_ID },
+      recap: { id: RECAP_ID, budget_snapshot_data: {}, project_snapshot_data: {} },
+    })
+
+    expect(outcome.completed).toBe(true)
+    expect(outcome.refloatPlanApplied).toBeNull()
+    expect(outcome.warnings).toEqual(['apply_refloat_plan_failed'])
+    expect(m.rpc).toHaveBeenCalledTimes(4)
+    expect(m.recapsUpdateEq).toHaveBeenCalledTimes(1)
   })
 })

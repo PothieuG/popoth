@@ -1,12 +1,6 @@
 export { coerceSnapshot, computeDeficitRemaining, sumSnapshotValues } from './deficit-math'
 export type { ComputeDeficitArgs } from './deficit-math'
-export {
-  computeBudgetSurplus,
-  computeProportionalBudgetSnapshot,
-  computeProportionalProjectsRefloat,
-  computeProportionalSavingsRefloat,
-  computeRecapSummary,
-} from './calculations'
+export { computeBudgetSurplus, computeRecapSummary, distributeProportional } from './calculations'
 export { checkRecapStatus, RecapStatusError } from './check-status'
 export type { RecapContext, RecapStatusKind, RecapStatusResult } from './check-status'
 export { loadRecapSummary } from './load-summary'

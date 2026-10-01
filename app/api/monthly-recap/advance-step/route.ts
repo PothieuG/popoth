@@ -32,6 +32,8 @@
  *   - Caller is not the recap initiator                            403 'not_initiator'
  *   - fromStep ≠ recap.current_step (stale client)                 409 'stale_step'
  *   - toStep ≠ nextRequiredStep(fromStep), or toStep='completed'   400 'invalid_transition'
+ *   - manage_bilan → salary_update, bilan négatif, déficit non
+ *     couvert alors qu'une source peut encore donner              409 'deficit_not_covered'
  *   - executeAdvanceStep returns 'invalid_transition'              400
  *   - executeAdvanceStep returns 'stale_step' (concurrent writer)  409
  *   - executeAdvanceStep returns 'db_error'                        500
@@ -48,7 +50,14 @@ import { withAuthAndProfile } from '@/lib/api/with-auth'
 import { logger } from '@/lib/logger'
 import { getActiveRecap } from '@/lib/recap/active-recap'
 import { executeAdvanceStep } from '@/lib/recap/actions-advance'
+import { recapSummaryTrackers } from '@/lib/recap/actions-negative'
 import { loadRecapSummary } from '@/lib/recap/load-summary'
+import {
+  canLeaveDeficitStep,
+  deficitRemainingForPlan,
+  planFromRecapRow,
+  remainingRefloatCapacity,
+} from '@/lib/recap/refloat-plan'
 import { nextRequiredStep } from '@/lib/recap/state'
 import { advanceStepBodySchema } from '@/lib/schemas/recap'
 
@@ -88,6 +97,42 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       )
     }
 
+    const summaryInput = {
+      context: body.context,
+      profileId: userId,
+      groupId: profile.group_id,
+      recapMonth: recap.recap_month,
+      recapYear: recap.recap_year,
+      ...recapSummaryTrackers(recap),
+    }
+
+    // Sprint Recap-Manual-Refloat (2026-10-01) — « Obligatoire sauf si
+    // épuisé » : en bilan négatif, on ne quitte « Gestion du déficit » que si
+    // le plan couvre le déficit, ou si aucune source ne peut plus rien donner.
+    // Même règle que le bouton « Continuer » (`canLeaveDeficitStep`), ré-appliquée
+    // ici pour qu'un client ne puisse pas la contourner.
+    if (body.fromStep === 'manage_bilan') {
+      const summaryBefore = await loadRecapSummary(summaryInput)
+      if (summaryBefore.bilanSign === 'negative') {
+        const plan = planFromRecapRow(recap)
+        const deficitRemaining = deficitRemainingForPlan(summaryBefore.bilan, plan)
+        const capacityLeft = remainingRefloatCapacity(
+          {
+            piggyAmount: summaryBefore.piggyAmount,
+            budgets: summaryBefore.budgets,
+            projects: summaryBefore.savingsProjects,
+          },
+          plan,
+        )
+        if (!canLeaveDeficitStep(deficitRemaining, capacityLeft)) {
+          return NextResponse.json(
+            { error: 'deficit_not_covered', deficitRemaining },
+            { status: 409 },
+          )
+        }
+      }
+    }
+
     const outcome = await executeAdvanceStep({
       recap,
       fromStep: body.fromStep,
@@ -114,13 +159,7 @@ export const POST = withAuthAndProfile(async (request, { userId, profile }) => {
       return NextResponse.json({ error: 'Erreur interne' }, { status: 500 })
     }
 
-    const summary = await loadRecapSummary({
-      context: body.context,
-      profileId: userId,
-      groupId: profile.group_id,
-      recapMonth: recap.recap_month,
-      recapYear: recap.recap_year,
-    })
+    const summary = await loadRecapSummary(summaryInput)
 
     return NextResponse.json({
       data: {

@@ -1,30 +1,30 @@
-import { render, screen, waitFor } from '@testing-library/react'
+/**
+ * Sprint Recap-Manual-Refloat (2026-10-01) — écran « Gestion du déficit »
+ * (renflouement manuel). Remplace les tests de l'ancienne cascade
+ * automatique (sprint 13 + Projets-Épargne 09).
+ */
+
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RecapProgress } from '@/hooks/useMonthlyRecap'
 import type { RecapSummary } from '@/lib/recap'
 
-const refloatPiggyMock = vi.fn()
-const refloatSavingsMock = vi.fn()
-const refloatProjectsMock = vi.fn()
-const saveSnapshotMock = vi.fn()
+const prepareMock = vi.fn()
+const saveMock = vi.fn()
 const advanceMock = vi.fn()
-const transformMock = vi.fn()
-const transferMock = vi.fn()
-let advancePending = false
+let prepareState: { isError: boolean; error: Error | null } = { isError: false, error: null }
 
 vi.mock('@/hooks/useMonthlyRecap', () => ({
-  useRefloatFromPiggy: () => ({ mutateAsync: refloatPiggyMock, isPending: false }),
-  useRefloatFromSavings: () => ({ mutateAsync: refloatSavingsMock, isPending: false }),
-  useRefloatFromProjects: () => ({ mutateAsync: refloatProjectsMock, isPending: false }),
-  useSaveBudgetSnapshot: () => ({ mutateAsync: saveSnapshotMock, isPending: false }),
-  useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: advancePending }),
-  useTransferSurplusesToPiggy: () => ({ mutateAsync: transferMock, isPending: false }),
-  useTransformRemainingSurplusesToSavings: () => ({
-    mutateAsync: transformMock,
+  usePrepareDeficit: () => ({
+    mutate: prepareMock,
     isPending: false,
+    isError: prepareState.isError,
+    error: prepareState.error,
   }),
+  useSaveRefloatPlan: () => ({ mutateAsync: saveMock, isPending: false }),
+  useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: false }),
 }))
 
 import { BilanNegativeStep } from '../steps/BilanNegativeStep'
@@ -33,7 +33,7 @@ function makeSummary(overrides: Partial<RecapSummary> = {}): RecapSummary {
   return {
     currentBalance: 1500,
     ravEstime: 800,
-    ravEffectif: 700,
+    ravEffectif: -100,
     totalSurplus: 0,
     totalSavings: 75,
     piggyAmount: 50,
@@ -46,8 +46,8 @@ function makeSummary(overrides: Partial<RecapSummary> = {}): RecapSummary {
         estimatedAmount: 400,
         spentThisMonth: 350,
         cumulatedSavings: 75,
-        carryoverSpentAmount: 33,
-        surplus: 50,
+        carryoverSpentAmount: 0,
+        surplus: 0,
         deficit: 0,
       },
       {
@@ -76,470 +76,298 @@ function makeRecap(overrides: Partial<RecapProgress> = {}): RecapProgress {
     piggyTransfersData: null,
     projectSnapshotData: null,
     recoveryData: null,
+    surplusSavingsData: {},
+    plannedPiggyRefloat: 0,
+    plannedSavingsRefloat: null,
     ...overrides,
   }
 }
 
+function renderStep(summary = makeSummary(), recap = makeRecap()) {
+  return render(
+    <BilanNegativeStep context="profile" summary={summary} recap={recap} recapMonth={9} />,
+  )
+}
+
+/** Montant affiché dans le bandeau collant (« Reste à renflouer »). */
+function stickyAmount(): string {
+  const progress = screen.getByRole('progressbar', { name: 'Part du déficit renflouée' })
+  const card = progress.parentElement!
+  return card.textContent ?? ''
+}
+
 beforeEach(() => {
-  refloatPiggyMock.mockReset()
-  refloatSavingsMock.mockReset()
-  refloatProjectsMock.mockReset()
-  saveSnapshotMock.mockReset()
+  prepareMock.mockReset()
+  saveMock.mockReset()
   advanceMock.mockReset()
-  transformMock.mockReset()
-  transferMock.mockReset()
-  advancePending = false
+  prepareState = { isError: false, error: null }
 })
 
 afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('BilanNegativeStep', () => {
-  describe('initial cascade gating', () => {
-    it('renders header + deficit counter + 3 lines (piggy active, savings locked, snapshot locked)', () => {
-      render(<BilanNegativeStep context="profile" summary={makeSummary()} recap={makeRecap()} />)
+describe('BilanNegativeStep — préparation (surplus → économies)', () => {
+  it('lance la préparation une seule fois et affiche un chargement tant qu’elle n’est pas faite', () => {
+    const { rerender } = renderStep(makeSummary(), makeRecap({ surplusSavingsData: null }))
+    expect(prepareMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/On range le surplus de tes budgets/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Tirelire/ })).not.toBeInTheDocument()
 
-      expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
-      const header = screen.getByText('Montant à renflouer :').parentElement!
-      expect(header).toHaveTextContent(/100,00/)
+    rerender(
+      <BilanNegativeStep
+        context="profile"
+        summary={makeSummary()}
+        recap={makeRecap({ surplusSavingsData: null })}
+        recapMonth={9}
+      />,
+    )
+    expect(prepareMock).toHaveBeenCalledTimes(1)
+  })
 
-      // Piggy is active (button "Renflouer X€" visible)
-      expect(screen.getByRole('button', { name: /Renflouer/ })).toBeInTheDocument()
+  it('propose de réessayer quand la préparation échoue', async () => {
+    prepareState = { isError: true, error: new Error('no_active_recap') }
+    renderStep(makeSummary(), makeRecap({ surplusSavingsData: null }))
 
-      // Savings is LOCKED (waiting copy, no button)
-      expect(screen.getByText(/Disponible après avoir transféré la tirelire/)).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Aucun récap actif')
+    await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
+    expect(prepareMock).toHaveBeenCalledTimes(2)
+  })
 
-      // Snapshot is LOCKED (waiting copy)
-      expect(
-        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
-      ).toBeInTheDocument()
+  it('ne relance pas la préparation quand le surplus est déjà versé, et l’annonce', () => {
+    renderStep(makeSummary(), makeRecap({ surplusSavingsData: { b1: 75 } }))
+    expect(prepareMock).not.toHaveBeenCalled()
+    expect(screen.getByText(/a été rangé dans leurs économies/)).toHaveTextContent('75,00')
+  })
+})
+
+describe('BilanNegativeStep — affichage', () => {
+  it('affiche le titre, le reste à renflouer et les 3 sources', () => {
+    renderStep()
+
+    expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
+    expect(stickyAmount()).toMatch(/Reste à renflouer/)
+    expect(stickyAmount()).toMatch(/100,00/)
+    expect(screen.getByRole('button', { name: /Tirelire.*Disponible : 50,00/ })).toBeEnabled()
+    // Budgets : 75 + 400 + 0 + 100 = 575 disponibles dont 75 d'économies
+    expect(screen.getByRole('button', { name: /Budgets.*575,00.*75,00/ })).toBeEnabled()
+    // Aucun projet : section inactive
+    expect(screen.getByRole('button', { name: /Projets d’épargne.*Aucun projet/ })).toBeDisabled()
+  })
+
+  it('signale ce que l’ancienne cascade avait déjà débité', () => {
+    renderStep(makeSummary(), makeRecap({ refloatedFromPiggy: 20 }))
+    expect(screen.getByText(/Déjà renfloué avant la mise à jour/)).toHaveTextContent('20,00')
+    expect(stickyAmount()).toMatch(/80,00/)
+  })
+})
+
+describe('BilanNegativeStep — tirelire', () => {
+  it('le curseur met à jour le reste à renflouer en direct, Valider enregistre', async () => {
+    saveMock.mockResolvedValue({ plan: {}, deficitRemaining: 70 })
+    renderStep()
+
+    await userEvent.click(screen.getByRole('button', { name: /Tirelire/ }))
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Tirelire' }), {
+      target: { value: '30' },
     })
 
-    it('savings unlocks when piggy is empty + has been used (refloatedFromPiggy > 0)', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 50 })}
-        />,
-      )
+    expect(stickyAmount()).toMatch(/70,00/)
+    await userEvent.click(screen.getByRole('button', { name: 'Valider' }))
+    expect(saveMock).toHaveBeenCalledWith({ source: 'piggy', amount: 30 })
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Choix enregistré'))
+  })
 
-      // Piggy done state
-      expect(
-        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
-      ).toBeInTheDocument()
-      // Savings active (button visible)
-      expect(screen.getByRole('button', { name: 'Transférer les économies' })).toBeInTheDocument()
-      // Snapshot still locked
-      expect(
-        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
-      ).toBeInTheDocument()
+  it('le montant saisi est borné à ce qu’il reste à renflouer', async () => {
+    saveMock.mockResolvedValue({ plan: {}, deficitRemaining: 0 })
+    renderStep(makeSummary({ bilan: -30 }))
+
+    await userEvent.click(screen.getByRole('button', { name: /Tirelire/ }))
+    const input = screen.getByRole('textbox', { name: 'Montant pris dans Tirelire' })
+    await userEvent.click(input)
+    await userEvent.type(input, '40')
+
+    expect(stickyAmount()).toMatch(/Déficit comblé/)
+    await userEvent.click(screen.getByRole('button', { name: 'Valider' }))
+    expect(saveMock).toHaveBeenCalledWith({ source: 'piggy', amount: 30 })
+  })
+
+  it('Annuler abandonne la saisie', async () => {
+    renderStep()
+
+    await userEvent.click(screen.getByRole('button', { name: /Tirelire/ }))
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Tirelire' }), {
+      target: { value: '30' },
     })
+    await userEvent.click(screen.getByRole('button', { name: 'Annuler' }))
 
-    it('snapshot unlocks when both piggy and savings are empty', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
-        />,
-      )
+    expect(saveMock).not.toHaveBeenCalled()
+    expect(stickyAmount()).toMatch(/100,00/)
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument()
+  })
 
-      expect(
-        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
-      ).toBeInTheDocument()
-      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
-      // Snapshot active
-      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
+  it('bloque les autres sections tant qu’il y a des changements non validés', async () => {
+    renderStep()
+
+    await userEvent.click(screen.getByRole('button', { name: /Tirelire/ }))
+    expect(screen.getByRole('button', { name: /Budgets/ })).toBeEnabled()
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Tirelire' }), {
+      target: { value: '10' },
     })
+    expect(screen.getByRole('button', { name: /Budgets/ })).toBeDisabled()
+    expect(screen.getByText('Valide ou annule tes changements pour continuer.')).toBeInTheDocument()
+  })
 
-    it('savings stays empty (greyed "Pas d\'économies") when totalSavings was 0 from the start', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 50 })}
-        />,
-      )
+  it('affiche le message d’erreur métier quand l’enregistrement échoue', async () => {
+    saveMock.mockRejectedValue(new Error('overflow'))
+    renderStep()
 
-      // Savings shows empty copy (no money was there to begin with, no transfer happened)
-      expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
-      // Snapshot active right away (both piggy + savings empty)
-      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Tirelire/ }))
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Tirelire' }), {
+      target: { value: '10' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Valider' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('dépasse ce qu’il reste à renflouer'),
+    )
+  })
+})
+
+describe('BilanNegativeStep — budgets', () => {
+  it('affiche économies puis budget d’octobre par ligne, en direct', async () => {
+    renderStep()
+    await userEvent.click(screen.getByRole('button', { name: /Budgets/ }))
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Courses' }), {
+      target: { value: '90' },
+    })
+    const line = screen.getByRole('slider', { name: 'Curseur Courses' }).closest('li')!
+    // 90 = 75 d'économies + 15 sur le budget d'octobre
+    expect(within(line).getByText(/Économies/).parentElement).toHaveTextContent(/75,00.*0,00/)
+    expect(within(line).getByText(/Budget octobre/).parentElement).toHaveTextContent(
+      /400,00.*385,00/,
+    )
+    expect(stickyAmount()).toMatch(/10,00/)
+  })
+
+  it('« Répartir le reste automatiquement » : économies d’abord, puis budgets au prorata', async () => {
+    saveMock.mockResolvedValue({ plan: {}, deficitRemaining: 0 })
+    renderStep()
+    await userEvent.click(screen.getByRole('button', { name: /Budgets/ }))
+
+    await userEvent.click(screen.getByRole('button', { name: /Répartir le reste automatiquement/ }))
+    expect(stickyAmount()).toMatch(/Déficit comblé/)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Valider' }))
+    // 75 d'économies (Courses) puis 25 réparti 400:100 sur les budgets → 20 / 5
+    expect(saveMock).toHaveBeenCalledWith({
+      source: 'budgets',
+      allocations: { b1: 95, b2: 5 },
     })
   })
 
-  describe('deficit covered → "unneeded" cascade lines + Continuer', () => {
-    it('piggy alone covers deficit with residual → piggy done (with residual), savings/snapshot unneeded, Continuer visible', () => {
-      // Scenario: deficit 100, piggy was 150, refloated 100. Residual piggy 50.
-      // Savings has 75€ (default makeSummary) but is not needed.
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 50 })}
-          recap={makeRecap({ refloatedFromPiggy: 100 })}
-        />,
-      )
+  it('ré-ouvre la section avec les montants déjà enregistrés (économies + budget)', async () => {
+    renderStep(
+      makeSummary(),
+      makeRecap({ plannedSavingsRefloat: { b1: 75 }, snapshotData: { b1: 5 } }),
+    )
+    expect(screen.getByRole('button', { name: /Budgets/ })).toHaveTextContent('−80,00')
 
-      // Stays on BilanNegativeStep (no bascule)
-      expect(screen.getByRole('heading', { name: 'Gestion du déficit' })).toBeInTheDocument()
-      // Piggy done state visible
-      expect(
-        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
-      ).toBeInTheDocument()
-      // Savings + Snapshot are both "unneeded" (deficit already covered)
-      expect(screen.getAllByText(/Pas nécessaire — le déficit est déjà comblé/)).toHaveLength(2)
-      // Continuer at the bottom
-      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Budgets/ }))
+    expect(screen.getByRole('textbox', { name: 'Montant pris dans Courses' })).toHaveValue('80,00')
+  })
+})
+
+describe('BilanNegativeStep — projets', () => {
+  it('borne chaque projet à sa mensualité et annonce le recul d’échéance', async () => {
+    saveMock.mockResolvedValue({ plan: {}, deficitRemaining: 50 })
+    renderStep(
+      makeSummary({
+        savingsProjects: [
+          {
+            id: 'p1',
+            name: 'Vacances',
+            monthlyAllocation: 50,
+            amountSaved: 100,
+            targetAmount: 1000,
+            deadlineDate: '2027-06-01',
+            monthsRemaining: 9,
+            pendingDelayFraction: 0,
+          },
+        ],
+      }),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /Projets d’épargne/ }))
+    fireEvent.change(screen.getByRole('slider', { name: 'Curseur Vacances' }), {
+      target: { value: '50' },
     })
+    expect(screen.getByText(/Échéance repoussée de 1 mois/)).toBeInTheDocument()
 
-    it('savings cover the deficit → snapshot is unneeded (greyed), Continuer visible', () => {
-      // Scenario: deficit 100, piggy 0 from start, savings 100€ → full drain covers it.
-      // After: piggyEmpty, savingsEmpty (drained to 0), refloatedFromSavings=100.
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromSavings: 100 })}
-        />,
-      )
+    await userEvent.click(screen.getByRole('button', { name: 'Valider' }))
+    expect(saveMock).toHaveBeenCalledWith({ source: 'projects', allocations: { p1: 50 } })
+  })
+})
 
-      // Savings done state
-      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
-      // Snapshot is unneeded (deficit covered)
-      expect(screen.getByText(/Pas nécessaire — le déficit est déjà comblé/)).toBeInTheDocument()
-      // Snapshot button NOT visible (it's unneeded, not active)
-      expect(screen.queryByRole('button', { name: 'Équilibrer' })).not.toBeInTheDocument()
-      // Continuer visible
-      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
-    })
+describe('BilanNegativeStep — Continuer', () => {
+  it('reste inactif tant qu’il reste un déficit et de quoi le combler', () => {
+    renderStep()
+    expect(screen.getByRole('button', { name: 'Continuer' })).toBeDisabled()
+    expect(screen.getByText(/à renflouer avant de continuer/)).toHaveTextContent('100,00')
   })
 
-  describe('Continuer (deficit = 0 without bascule)', () => {
-    it('renders Continuer button at the bottom + click calls advance-step', async () => {
-      const user = userEvent.setup()
-      advanceMock.mockResolvedValueOnce({})
+  it('s’active quand le plan enregistré couvre le déficit et fait avancer le récap', async () => {
+    advanceMock.mockResolvedValue({})
+    renderStep(makeSummary(), makeRecap({ plannedPiggyRefloat: 50, snapshotData: { b2: 50 } }))
 
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromPiggy: 0, refloatedFromSavings: 100 })}
-        />,
-      )
-      await user.click(screen.getByRole('button', { name: 'Continuer' }))
-
-      await waitFor(() => {
-        expect(advanceMock).toHaveBeenCalledWith({
-          fromStep: 'manage_bilan',
-          toStep: 'salary_update',
-        })
-      })
-    })
-
-    it('swallows invalid_step error gracefully (snapshot auto-advance race)', async () => {
-      const user = userEvent.setup()
-      advanceMock.mockRejectedValueOnce(new Error('invalid_step'))
-
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ snapshotData: { b1: 60, b2: 40 } })}
-        />,
-      )
-      await user.click(screen.getByRole('button', { name: 'Continuer' }))
-
-      await waitFor(() => {
-        expect(advanceMock).toHaveBeenCalled()
-      })
-      // No alert should surface for invalid_step
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    })
-
-    it('shows mapped error copy when advance mutation rejects with a different code', async () => {
-      const user = userEvent.setup()
-      advanceMock.mockRejectedValueOnce(new Error('not_initiator'))
-
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({ piggyAmount: 0, totalSavings: 0 })}
-          recap={makeRecap({ refloatedFromSavings: 100 })}
-        />,
-      )
-      await user.click(screen.getByRole('button', { name: 'Continuer' }))
-
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/Tu n'es pas l'initiateur/)
-      })
-    })
+    expect(stickyAmount()).toMatch(/Déficit comblé/)
+    await userEvent.click(screen.getByRole('button', { name: 'Continuer' }))
+    expect(advanceMock).toHaveBeenCalledWith({ fromStep: 'manage_bilan', toStep: 'salary_update' })
   })
 
-  describe('projects cascade (sprint Projets-Épargne 09)', () => {
-    it('inserts projects(active) between savings(done) and budgets(locked)', () => {
-      // bilan=-200, piggy drained 50€, savings drained 25€ → deficitRemaining=125.
-      // Projects active (1 project of 100€/mois) → budgets stay locked.
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            bilan: -200,
-            savingsProjects: [
-              {
-                id: 'p1',
-                name: 'Japon',
-                monthlyAllocation: 100,
-                amountSaved: 300,
-                targetAmount: 7000,
-                deadlineDate: '2029-01-01',
-                monthsRemaining: 36,
-                pendingDelayFraction: 0,
-              },
-            ],
-          })}
-          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
-        />,
-      )
+  it('« Continuer sans tout renflouer » quand plus aucune source ne peut rien donner', async () => {
+    advanceMock.mockResolvedValue({})
+    renderStep(
+      makeSummary({
+        piggyAmount: 0,
+        totalSavings: 0,
+        budgets: [
+          {
+            budgetId: 'b1',
+            budgetName: 'Courses',
+            estimatedAmount: 0,
+            spentThisMonth: 0,
+            cumulatedSavings: 0,
+            carryoverSpentAmount: 0,
+            surplus: 0,
+            deficit: 0,
+          },
+        ],
+      }),
+    )
 
-      // Piggy + savings done
-      expect(
-        screen.getByText(/de la tirelire utilisée pour combler le déficit/),
-      ).toBeInTheDocument()
-      expect(screen.getByText(/d'économies transférés vers le déficit/)).toBeInTheDocument()
-      // Projects active (button visible mentioning montant)
-      expect(
-        screen.getByRole('button', { name: /Utiliser .+ depuis les projets/ }),
-      ).toBeInTheDocument()
-      // Budgets stay locked
-      expect(
-        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
-      ).toBeInTheDocument()
-    })
-
-    it('inserts projects(active) directly after piggy when savings is empty from the start', () => {
-      // piggy drained 100€, savings=0 from start, deficit not yet covered.
-      // Projects active right after savings(empty) — cascade skips over savings.
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            bilan: -200,
-            savingsProjects: [
-              {
-                id: 'p1',
-                name: 'Voiture',
-                monthlyAllocation: 80,
-                amountSaved: 480,
-                targetAmount: 5000,
-                deadlineDate: '2029-06-01',
-                monthsRemaining: 42,
-                pendingDelayFraction: 0,
-              },
-            ],
-          })}
-          recap={makeRecap({ refloatedFromPiggy: 100 })}
-        />,
-      )
-
-      // Savings shows "Pas d'économies" (empty, never had money)
-      expect(screen.getByText("Pas d'économies disponibles.")).toBeInTheDocument()
-      // Projects active — bouton visible
-      expect(
-        screen.getByRole('button', { name: /Utiliser .+ depuis les projets/ }),
-      ).toBeInTheDocument()
-      // Budgets locked
-      expect(
-        screen.getByText(/Disponible après avoir épuisé la tirelire et les économies/),
-      ).toBeInTheDocument()
-    })
-
-    it('0 project → projects(empty) lets budgets snapshot become active directly', () => {
-      // Same as the existing test "snapshot unlocks when both piggy and savings are empty",
-      // but explicit on the projects branch : savingsProjects=[] → projects(empty)
-      // → projectsOutOfTheWay → snapshot(active).
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            savingsProjects: [],
-          })}
-          recap={makeRecap({ refloatedFromPiggy: 50, refloatedFromSavings: 25 })}
-        />,
-      )
-
-      // Projects "empty" card visible (no button, grey copy)
-      expect(screen.getByText(/Aucun projet à utiliser/)).toBeInTheDocument()
-      expect(
-        screen.queryByRole('button', { name: /Utiliser .+ depuis les projets/ }),
-      ).not.toBeInTheDocument()
-      // Budgets active right after
-      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
-    })
-
-    it('projects(done) when projectSnapshotData populated + deficit covered → snapshot(unneeded)', () => {
-      // bilan=-200, piggy 50, savings 25, projects 125 → deficit covered.
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            bilan: -200,
-            savingsProjects: [
-              {
-                id: 'p1',
-                name: 'Japon',
-                monthlyAllocation: 100,
-                amountSaved: 300,
-                targetAmount: 7000,
-                deadlineDate: '2029-01-01',
-                monthsRemaining: 36,
-                pendingDelayFraction: 0,
-              },
-              {
-                id: 'p2',
-                name: 'Voiture',
-                monthlyAllocation: 50,
-                amountSaved: 480,
-                targetAmount: 5000,
-                deadlineDate: '2029-06-01',
-                monthsRemaining: 42,
-                pendingDelayFraction: 0,
-              },
-            ],
-          })}
-          recap={makeRecap({
-            refloatedFromPiggy: 50,
-            refloatedFromSavings: 25,
-            projectSnapshotData: { p1: 80, p2: 45 },
-          })}
-        />,
-      )
-
-      // Projects done state — total + nouvelle mensualité par projet
-      expect(
-        screen.getByText(/de mensualités projets utilisés pour combler le déficit/),
-      ).toBeInTheDocument()
-      // Snapshot is unneeded (deficit covered by piggy + savings + projects)
-      expect(screen.getByText(/Pas nécessaire — le déficit est déjà comblé/)).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: 'Équilibrer' })).not.toBeInTheDocument()
-      // Continuer visible
-      expect(screen.getByRole('button', { name: 'Continuer' })).toBeInTheDocument()
-    })
+    expect(screen.getByText(/ne pourront pas être renfloués/)).toHaveTextContent('100,00')
+    await userEvent.click(screen.getByRole('button', { name: 'Continuer sans tout renflouer' }))
+    expect(advanceMock).toHaveBeenCalledTimes(1)
   })
 
-  describe('no resources at all → skip-deficit escape hatch', () => {
-    it('shows "Continuer sans renflouer" when piggy=0, savings=0, no projects, no budgets', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            budgets: [],
-            savingsProjects: [],
-          })}
-          recap={makeRecap()}
-        />,
-      )
+  it('ignore invalid_step (le récap a déjà avancé) mais affiche les autres erreurs', async () => {
+    advanceMock.mockRejectedValueOnce(new Error('invalid_step'))
+    const { unmount } = renderStep(
+      makeSummary(),
+      makeRecap({ plannedPiggyRefloat: 50, snapshotData: { b2: 50 } }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Continuer' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    unmount()
 
-      // Skip button present (escape hatch)
-      expect(screen.getByRole('button', { name: 'Continuer sans renflouer' })).toBeInTheDocument()
-      // Classic "Continuer" hidden (deficit not covered)
-      expect(screen.queryByRole('button', { name: 'Continuer' })).not.toBeInTheDocument()
-      // Explanatory copy mentions the deficit amount being carried over
-      expect(screen.getByText(/aucune ressource/)).toBeInTheDocument()
-      expect(screen.getByText(/sera reporté sur ton solde du mois prochain/)).toBeInTheDocument()
-      // Snapshot line shows "empty" copy (no budgets)
-      expect(screen.getByText('Aucun budget à équilibrer.')).toBeInTheDocument()
-    })
-
-    it('clicking "Continuer sans renflouer" advances to salary_update', async () => {
-      const user = userEvent.setup()
-      advanceMock.mockResolvedValueOnce({})
-
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            budgets: [],
-            savingsProjects: [],
-          })}
-          recap={makeRecap()}
-        />,
-      )
-
-      await user.click(screen.getByRole('button', { name: 'Continuer sans renflouer' }))
-
-      await waitFor(() => {
-        expect(advanceMock).toHaveBeenCalledWith({
-          fromStep: 'manage_bilan',
-          toStep: 'salary_update',
-        })
-      })
-    })
-
-    it('does NOT show skip button when at least one budget exists (snapshot still actionable)', () => {
-      render(
-        <BilanNegativeStep
-          context="profile"
-          summary={makeSummary({
-            piggyAmount: 0,
-            totalSavings: 0,
-            savingsProjects: [],
-            // 1 budget remains → snapshot is the user's escape hatch (overshoot accepted)
-          })}
-          recap={makeRecap()}
-        />,
-      )
-
-      // Snapshot button visible (active)
-      expect(screen.getByRole('button', { name: 'Équilibrer' })).toBeInTheDocument()
-      // Skip button NOT present
-      expect(
-        screen.queryByRole('button', { name: 'Continuer sans renflouer' }),
-      ).not.toBeInTheDocument()
-      // Classic Continuer also hidden (deficit still > 0)
-      expect(screen.queryByRole('button', { name: 'Continuer' })).not.toBeInTheDocument()
-    })
-  })
-
-  describe('success snackbar', () => {
-    it('shows a success snackbar after a successful piggy refloat', async () => {
-      const user = userEvent.setup()
-      refloatPiggyMock.mockResolvedValueOnce({})
-
-      render(<BilanNegativeStep context="profile" summary={makeSummary()} recap={makeRecap()} />)
-      await user.click(screen.getByRole('button', { name: /Renflouer/ }))
-
-      const snackbar = await screen.findByRole('status')
-      expect(snackbar).toHaveTextContent(/tirelire/)
-      // Auto-dismiss timer behavior is covered by the inline `setTimeout` in
-      // the component (matches ProfileSettingsCard pattern) — not tested here
-      // because user-event + fake timers don't combine reliably in jsdom.
-    })
-
-    it('shows error alert when a refloat fails (no snackbar)', async () => {
-      const user = userEvent.setup()
-      refloatPiggyMock.mockRejectedValueOnce(new Error('piggy_insufficient'))
-
-      render(<BilanNegativeStep context="profile" summary={makeSummary()} recap={makeRecap()} />)
-      await user.click(screen.getByRole('button', { name: /Renflouer/ }))
-
-      await waitFor(() => {
-        expect(screen.getByRole('alert')).toHaveTextContent(/tirelire n'a pas ce montant/)
-      })
-      expect(screen.queryByRole('status')).not.toBeInTheDocument()
-    })
+    advanceMock.mockRejectedValueOnce(new Error('deficit_not_covered'))
+    renderStep(makeSummary(), makeRecap({ plannedPiggyRefloat: 50, snapshotData: { b2: 50 } }))
+    await userEvent.click(screen.getByRole('button', { name: 'Continuer' }))
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Il reste un montant à renflouer'),
+    )
   })
 })

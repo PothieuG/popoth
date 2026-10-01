@@ -170,7 +170,12 @@ export function RecapWizard({ context }: { context: RecapContext }) {
       {status.step === 'manage_bilan' &&
         (summary.bilanSign === 'negative' ? (
           recap ? (
-            <BilanNegativeStep context={context} summary={summary} recap={recap} />
+            <BilanNegativeStep
+              context={context}
+              summary={summary}
+              recap={recap}
+              recapMonth={recapMonth}
+            />
           ) : (
             <p className="text-center text-sm text-red-700">Erreur interne : recap manquant.</p>
           )

@@ -3,7 +3,18 @@
  *
  * One helper consumed by the matching POST route:
  *
- *  - `executeCompleteRecap` : closes the recap in 4 steps.
+ *  - `executeCompleteRecap` : closes the recap in 4 steps (+ step 0).
+ *
+ *      0. (fail-soft) Apply the manual refloat plan — RPC
+ *         `apply_recap_refloat_plan(p_recap_id)` (Sprint Recap-Manual-Refloat
+ *         2026-10-01). Debits the piggy bank by `planned_piggy_refloat` and
+ *         each budget's `cumulated_savings` by `planned_savings_refloat`, in
+ *         ONE transaction (all or nothing), then stamps
+ *         `refloat_plan_applied_at` — a retried finalize never debits twice.
+ *         Always invoked : a recap without a plan (positive flow, legacy
+ *         cascade) is a no-op. The « next month's budget » part of the plan
+ *         lives in `budget_snapshot_data` (step 1) and the projects part in
+ *         `project_snapshot_data` (step 2).
  *
  *      1. (fail-soft) Apply the deferred budget snapshot — RPC
  *         `finalize_recap_apply_snapshot(p_recap_id, p_snapshot)` is invoked
@@ -99,6 +110,14 @@ interface ApplySnapshotResult {
   reset_count: number
 }
 
+/** Sprint Recap-Manual-Refloat 2026-10-01. Result of `apply_recap_refloat_plan`. */
+interface ApplyRefloatPlanResult {
+  already_applied: boolean
+  piggy_debited: number
+  savings_debited: Array<{ budget_id: string; amount: number }>
+  savings_total: number
+}
+
 interface ApplyProjectsSnapshotResult {
   updated_count: number
   total_refunded: number
@@ -128,9 +147,9 @@ export interface ExecuteCompleteRecapArgs {
     id: string
     budget_snapshot_data: Json
     /** Sprint Projets-Épargne 10. JSONB `{ [projectId]: refund_amount }`
-     *  capturé pendant la cascade négative via `refloat-from-projects`. Peut
-     *  être `null` / `{}` quand l'user n'a pas activé la ligne (cas pos pur
-     *  ou cascade qui s'arrête avant). Toujours forwarded à
+     *  choisi dans « Gestion du déficit » (`save-refloat-plan`, source
+     *  `projects` — Sprint Recap-Manual-Refloat). Peut être `null` / `{}`
+     *  quand aucun projet n'a été utilisé. Toujours forwarded à
      *  `apply_recap_projects_snapshot` — la RPC itère sur les projets actifs
      *  même quand le payload est vide, pour créditer leur `amount_saved` du
      *  mois normalement. */
@@ -141,6 +160,9 @@ export interface ExecuteCompleteRecapArgs {
 export interface CompleteRecapOutcome {
   recapId: string
   completed: true
+  /** Sprint Recap-Manual-Refloat 2026-10-01. `null` when the RPC errored
+   *  (fail-soft, `warnings` carries `apply_refloat_plan_failed`). */
+  refloatPlanApplied: ApplyRefloatPlanResult | null
   snapshotApplied: ApplySnapshotResult | null
   /** Sprint Projets-Épargne 10. `null` quand la RPC a erroré (fail-soft) ou
    *  quand l'owner n'a aucun projet (RPC call sautée via la branche
@@ -169,6 +191,7 @@ export interface CompleteRecapOutcome {
 }
 
 export type FinalizeWarning =
+  | 'apply_refloat_plan_failed'
   | 'apply_snapshot_failed'
   | 'apply_projects_snapshot_failed'
   | 'process_transactions_failed'
@@ -191,6 +214,23 @@ export async function executeCompleteRecap(
   //    to clear stale carryovers from a previous month when this month has
   //    no deferred debt.
   const warnings: FinalizeWarning[] = []
+
+  // 0. Apply the manual refloat plan (piggy + savings debits). See header.
+  let refloatPlanApplied: ApplyRefloatPlanResult | null = null
+  const { data: planData, error: planError } = await supabaseServer.rpc(
+    'apply_recap_refloat_plan',
+    { p_recap_id: args.recap.id },
+  )
+  if (planError) {
+    logger.error('[recap/finalize] apply_refloat_plan failed', {
+      recapId: args.recap.id,
+      error: planError,
+    })
+    warnings.push('apply_refloat_plan_failed')
+  } else {
+    refloatPlanApplied = (planData ?? null) as ApplyRefloatPlanResult | null
+  }
+
   let snapshotApplied: ApplySnapshotResult | null = null
   const snapshot = coerceSnapshot(args.recap.budget_snapshot_data) ?? {}
   const { data: snapData, error: snapError } = await supabaseServer.rpc(
@@ -323,6 +363,7 @@ export async function executeCompleteRecap(
   return {
     recapId: args.recap.id,
     completed: true,
+    refloatPlanApplied,
     snapshotApplied,
     projectsApplied,
     transactions,

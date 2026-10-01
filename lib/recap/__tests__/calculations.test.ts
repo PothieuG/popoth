@@ -4,10 +4,8 @@ import { describe, expect, it } from 'vitest'
 // (throw au load sans env Supabase — cas de la CI).
 import {
   computeBudgetSurplus,
-  computeProportionalBudgetSnapshot,
-  computeProportionalProjectsRefloat,
-  computeProportionalSavingsRefloat,
   computeRecapSummary,
+  distributeProportional,
 } from '@/lib/recap/calculations'
 import type { RecapSummary } from '@/lib/recap/types'
 
@@ -356,6 +354,63 @@ describe('computeRecapSummary', () => {
     expect(result.budgets[0]?.deficit).toBe(10)
   })
 
+  // Sprint Recap-Manual-Refloat (2026-10-01) — le surplus versé dans les
+  // économies à l'entrée de « Gestion du déficit » ne doit pas réapparaître
+  // comme surplus (sinon il serait compté deux fois : économies + surplus).
+
+  it('consumes surplusSavingsData like piggyTransfersData (surplus back to 0, bilan unchanged)', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: -348.06,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'A',
+          estimatedAmount: 100,
+          spentThisMonth: 70,
+          cumulatedSavings: 30,
+        },
+        {
+          budgetId: 'b',
+          budgetName: 'B',
+          estimatedAmount: 50,
+          spentThisMonth: 10,
+          cumulatedSavings: 0,
+        },
+      ],
+      surplusSavingsData: { a: 30 },
+    })
+
+    expect(result.budgets.find((b) => b.budgetId === 'a')?.surplus).toBe(0)
+    expect(result.budgets.find((b) => b.budgetId === 'b')?.surplus).toBe(40)
+    expect(result.totalSurplus).toBe(40)
+    expect(result.totalSavings).toBe(30)
+    expect(result.bilan).toBe(-348.06)
+  })
+
+  it('sums piggyTransfersData and surplusSavingsData for the same budget', () => {
+    const result = computeRecapSummary({
+      ...baseInput,
+      ravEstime: 0,
+      ravEffectif: 0,
+      budgets: [
+        {
+          budgetId: 'a',
+          budgetName: 'A',
+          estimatedAmount: 100,
+          spentThisMonth: 50,
+          cumulatedSavings: 0,
+        },
+      ],
+      piggyTransfersData: { a: 20 },
+      surplusSavingsData: { a: 30 },
+    })
+
+    expect(result.budgets[0]?.surplus).toBe(0)
+    expect(result.budgets[0]?.deficit).toBe(0)
+  })
+
   // Sprint Projets-Épargne 07 (2026-05-26) — savingsProjects passthrough.
 
   it('defaults savingsProjects to [] when omitted from input', () => {
@@ -599,11 +654,11 @@ describe('computeRecapSummary', () => {
   })
 })
 
-describe('computeProportionalSavingsRefloat', () => {
+describe('distributeProportional', () => {
   it('distributes a target proportionally across two budgets', () => {
-    const result = computeProportionalSavingsRefloat(100, [
-      { budgetId: 'a', cumulatedSavings: 200 },
-      { budgetId: 'b', cumulatedSavings: 100 },
+    const result = distributeProportional(100, [
+      { budgetId: 'a', pool: 200 },
+      { budgetId: 'b', pool: 100 },
     ])
 
     expect(result.perBudget).toEqual([
@@ -615,9 +670,9 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('returns shortfall 0 when total pool equals target exactly', () => {
-    const result = computeProportionalSavingsRefloat(100, [
-      { budgetId: 'a', cumulatedSavings: 70 },
-      { budgetId: 'b', cumulatedSavings: 30 },
+    const result = distributeProportional(100, [
+      { budgetId: 'a', pool: 70 },
+      { budgetId: 'b', pool: 30 },
     ])
 
     expect(result.perBudget).toEqual([
@@ -629,9 +684,9 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('caps allocation at pool capacity and reports shortfall when pool < target', () => {
-    const result = computeProportionalSavingsRefloat(200, [
-      { budgetId: 'a', cumulatedSavings: 70 },
-      { budgetId: 'b', cumulatedSavings: 30 },
+    const result = distributeProportional(200, [
+      { budgetId: 'a', pool: 70 },
+      { budgetId: 'b', pool: 30 },
     ])
 
     expect(result.perBudget).toEqual([
@@ -643,9 +698,9 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('returns empty perBudget when every pool is zero', () => {
-    const result = computeProportionalSavingsRefloat(100, [
-      { budgetId: 'a', cumulatedSavings: 0 },
-      { budgetId: 'b', cumulatedSavings: 0 },
+    const result = distributeProportional(100, [
+      { budgetId: 'a', pool: 0 },
+      { budgetId: 'b', pool: 0 },
     ])
 
     expect(result.perBudget).toEqual([])
@@ -654,7 +709,7 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('allocates to a single budget when pool > target', () => {
-    const result = computeProportionalSavingsRefloat(50, [{ budgetId: 'a', cumulatedSavings: 200 }])
+    const result = distributeProportional(50, [{ budgetId: 'a', pool: 200 }])
 
     expect(result.perBudget).toEqual([{ budgetId: 'a', amount: 50 }])
     expect(result.totalAllocated).toBe(50)
@@ -662,7 +717,7 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('caps a single insufficient budget and reports shortfall', () => {
-    const result = computeProportionalSavingsRefloat(100, [{ budgetId: 'a', cumulatedSavings: 30 }])
+    const result = distributeProportional(100, [{ budgetId: 'a', pool: 30 }])
 
     expect(result.perBudget).toEqual([{ budgetId: 'a', amount: 30 }])
     expect(result.totalAllocated).toBe(30)
@@ -670,7 +725,7 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('returns empty allocation when target is zero', () => {
-    const result = computeProportionalSavingsRefloat(0, [{ budgetId: 'a', cumulatedSavings: 100 }])
+    const result = distributeProportional(0, [{ budgetId: 'a', pool: 100 }])
 
     expect(result.perBudget).toEqual([])
     expect(result.totalAllocated).toBe(0)
@@ -678,10 +733,10 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('lets the last budget absorb the cents remainder for an exact total', () => {
-    const result = computeProportionalSavingsRefloat(100, [
-      { budgetId: 'a', cumulatedSavings: 100 },
-      { budgetId: 'b', cumulatedSavings: 100 },
-      { budgetId: 'c', cumulatedSavings: 100 },
+    const result = distributeProportional(100, [
+      { budgetId: 'a', pool: 100 },
+      { budgetId: 'b', pool: 100 },
+      { budgetId: 'c', pool: 100 },
     ])
 
     expect(result.perBudget).toEqual([
@@ -694,10 +749,10 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('sorts perBudget output by budgetId regardless of input order', () => {
-    const result = computeProportionalSavingsRefloat(60, [
-      { budgetId: 'c', cumulatedSavings: 100 },
-      { budgetId: 'a', cumulatedSavings: 100 },
-      { budgetId: 'b', cumulatedSavings: 100 },
+    const result = distributeProportional(60, [
+      { budgetId: 'c', pool: 100 },
+      { budgetId: 'a', pool: 100 },
+      { budgetId: 'b', pool: 100 },
     ])
 
     expect(result.perBudget.map((p) => p.budgetId)).toEqual(['a', 'b', 'c'])
@@ -706,12 +761,12 @@ describe('computeProportionalSavingsRefloat', () => {
   it('guarantees sum(perBudget.amount) equals min(target, pool) to cents precision', () => {
     const target = 137.42
     const budgets = [
-      { budgetId: 'a', cumulatedSavings: 213.11 },
-      { budgetId: 'b', cumulatedSavings: 67.55 },
-      { budgetId: 'c', cumulatedSavings: 419.34 },
-      { budgetId: 'd', cumulatedSavings: 102.77 },
+      { budgetId: 'a', pool: 213.11 },
+      { budgetId: 'b', pool: 67.55 },
+      { budgetId: 'c', pool: 419.34 },
+      { budgetId: 'd', pool: 102.77 },
     ]
-    const result = computeProportionalSavingsRefloat(target, budgets)
+    const result = distributeProportional(target, budgets)
     const sum = Math.round(result.perBudget.reduce((s, p) => s + p.amount, 0) * 100) / 100
 
     expect(sum).toBe(target)
@@ -719,7 +774,7 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('returns empty allocation and zero shortfall when target is negative', () => {
-    const result = computeProportionalSavingsRefloat(-5, [{ budgetId: 'a', cumulatedSavings: 100 }])
+    const result = distributeProportional(-5, [{ budgetId: 'a', pool: 100 }])
 
     expect(result.perBudget).toEqual([])
     expect(result.totalAllocated).toBe(0)
@@ -727,9 +782,9 @@ describe('computeProportionalSavingsRefloat', () => {
   })
 
   it('allocates each budget exactly its pool when total pool equals target with equal sizes', () => {
-    const result = computeProportionalSavingsRefloat(100, [
-      { budgetId: 'a', cumulatedSavings: 50 },
-      { budgetId: 'b', cumulatedSavings: 50 },
+    const result = distributeProportional(100, [
+      { budgetId: 'a', pool: 50 },
+      { budgetId: 'b', pool: 50 },
     ])
 
     expect(result.perBudget).toEqual([
@@ -738,192 +793,5 @@ describe('computeProportionalSavingsRefloat', () => {
     ])
     expect(result.totalAllocated).toBe(100)
     expect(result.shortfall).toBe(0)
-  })
-})
-
-describe('computeProportionalBudgetSnapshot', () => {
-  it('distributes equally across budgets with the same estimatedAmount (spec example 30€/3 budgets)', () => {
-    const result = computeProportionalBudgetSnapshot(30, [
-      { budgetId: 'a', estimatedAmount: 100 },
-      { budgetId: 'b', estimatedAmount: 100 },
-      { budgetId: 'c', estimatedAmount: 100 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 10 },
-      { budgetId: 'b', amount: 10 },
-      { budgetId: 'c', amount: 10 },
-    ])
-    expect(result.totalAllocated).toBe(30)
-    expect(result.shortfall).toBe(0)
-  })
-
-  it('distributes proportionally when estimatedAmounts differ (100/50/25 pool)', () => {
-    const result = computeProportionalBudgetSnapshot(30, [
-      { budgetId: 'a', estimatedAmount: 100 },
-      { budgetId: 'b', estimatedAmount: 50 },
-      { budgetId: 'c', estimatedAmount: 25 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 17.14 },
-      { budgetId: 'b', amount: 8.57 },
-      { budgetId: 'c', amount: 4.29 },
-    ])
-    expect(result.totalAllocated).toBe(30)
-    expect(result.shortfall).toBe(0)
-  })
-
-  it('lets the last budget absorb the cents remainder for an exact total (target=10, 3x100)', () => {
-    const result = computeProportionalBudgetSnapshot(10, [
-      { budgetId: 'a', estimatedAmount: 100 },
-      { budgetId: 'b', estimatedAmount: 100 },
-      { budgetId: 'c', estimatedAmount: 100 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 3.33 },
-      { budgetId: 'b', amount: 3.33 },
-      { budgetId: 'c', amount: 3.34 },
-    ])
-    expect(result.totalAllocated).toBe(10)
-  })
-
-  it('Sprint Carryover-Self-Healing : single insufficient budget no longer caps — share = target, shortfall = 0', () => {
-    // Pre-Sprint Carryover-Self-Healing : target=100, pool=30 → amount=30, shortfall=70.
-    // Post-sprint : capPerPool=false → amount=100 (surcharge le budget à 333%),
-    // shortfall=0. La dette est résorbée mécaniquement sur les mois suivants
-    // par la marge libre du budget. Le UI Sprint B affichera un badge overshoot.
-    const result = computeProportionalBudgetSnapshot(100, [{ budgetId: 'a', estimatedAmount: 30 }])
-
-    expect(result.perBudget).toEqual([{ budgetId: 'a', amount: 100 }])
-    expect(result.totalAllocated).toBe(100)
-    expect(result.shortfall).toBe(0)
-  })
-
-  it('Sprint Carryover-Self-Healing : multi-budget with target > totalPool → shares scale up proportionally (no cap)', () => {
-    // target=900, pools 100+200=300 → ratio 3x, shares 300 + 600, total=900,
-    // shortfall=0. Sans le sprint, les shares seraient cappées à 100+200=300
-    // avec shortfall=600 (et le bouton Continuer serait masqué).
-    const result = computeProportionalBudgetSnapshot(900, [
-      { budgetId: 'a', estimatedAmount: 100 },
-      { budgetId: 'b', estimatedAmount: 200 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 300 },
-      { budgetId: 'b', amount: 600 },
-    ])
-    expect(result.totalAllocated).toBe(900)
-    expect(result.shortfall).toBe(0)
-  })
-
-  it('returns empty perBudget when every estimatedAmount is zero (no pool to scale from)', () => {
-    // capPerPool=false ne change pas ce cas : sans pool > 0, l'algo n'a
-    // aucune base proportionnelle. Shortfall = target intégral.
-    const result = computeProportionalBudgetSnapshot(50, [
-      { budgetId: 'a', estimatedAmount: 0 },
-      { budgetId: 'b', estimatedAmount: 0 },
-    ])
-
-    expect(result.perBudget).toEqual([])
-    expect(result.totalAllocated).toBe(0)
-    expect(result.shortfall).toBe(50)
-  })
-
-  it('gives equal shares to budgets with the same estimatedAmount (carryover-ignored regression guard)', () => {
-    const result = computeProportionalBudgetSnapshot(20, [
-      { budgetId: 'a', estimatedAmount: 50 },
-      { budgetId: 'b', estimatedAmount: 50 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 10 },
-      { budgetId: 'b', amount: 10 },
-    ])
-  })
-
-  it('sorts perBudget output by budgetId regardless of input order', () => {
-    const result = computeProportionalBudgetSnapshot(30, [
-      { budgetId: 'c', estimatedAmount: 100 },
-      { budgetId: 'a', estimatedAmount: 100 },
-      { budgetId: 'b', estimatedAmount: 100 },
-    ])
-
-    expect(result.perBudget.map((p) => p.budgetId)).toEqual(['a', 'b', 'c'])
-  })
-})
-
-describe('computeProportionalProjectsRefloat', () => {
-  it('distributes proportionally on monthly_allocation pool (100/50 → target 60)', () => {
-    const result = computeProportionalProjectsRefloat(60, [
-      { projectId: 'p1', monthlyAllocation: 100 },
-      { projectId: 'p2', monthlyAllocation: 50 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'p1', amount: 40 },
-      { budgetId: 'p2', amount: 20 },
-    ])
-    expect(result.totalAllocated).toBe(60)
-    expect(result.shortfall).toBe(0)
-  })
-
-  it('caps when total pool < target and reports shortfall', () => {
-    const result = computeProportionalProjectsRefloat(500, [
-      { projectId: 'p1', monthlyAllocation: 100 },
-      { projectId: 'p2', monthlyAllocation: 50 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'p1', amount: 100 },
-      { budgetId: 'p2', amount: 50 },
-    ])
-    expect(result.totalAllocated).toBe(150)
-    expect(result.shortfall).toBe(350)
-  })
-
-  it('returns empty perBudget when no projects', () => {
-    const result = computeProportionalProjectsRefloat(60, [])
-
-    expect(result.perBudget).toEqual([])
-    expect(result.totalAllocated).toBe(0)
-    expect(result.shortfall).toBe(60)
-  })
-
-  it('returns empty perBudget when every monthly_allocation is zero', () => {
-    const result = computeProportionalProjectsRefloat(60, [
-      { projectId: 'p1', monthlyAllocation: 0 },
-      { projectId: 'p2', monthlyAllocation: 0 },
-    ])
-
-    expect(result.perBudget).toEqual([])
-    expect(result.totalAllocated).toBe(0)
-    expect(result.shortfall).toBe(60)
-  })
-
-  it('absorbs cents remainder on the last project (3x100 → target=10)', () => {
-    const result = computeProportionalProjectsRefloat(10, [
-      { projectId: 'a', monthlyAllocation: 100 },
-      { projectId: 'b', monthlyAllocation: 100 },
-      { projectId: 'c', monthlyAllocation: 100 },
-    ])
-
-    expect(result.perBudget).toEqual([
-      { budgetId: 'a', amount: 3.33 },
-      { budgetId: 'b', amount: 3.33 },
-      { budgetId: 'c', amount: 3.34 },
-    ])
-    expect(result.totalAllocated).toBe(10)
-  })
-
-  it('sorts perBudget output by projectId regardless of input order', () => {
-    const result = computeProportionalProjectsRefloat(30, [
-      { projectId: 'c', monthlyAllocation: 100 },
-      { projectId: 'a', monthlyAllocation: 100 },
-      { projectId: 'b', monthlyAllocation: 100 },
-    ])
-
-    expect(result.perBudget.map((p) => p.budgetId)).toEqual(['a', 'b', 'c'])
   })
 })

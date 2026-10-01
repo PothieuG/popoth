@@ -21,10 +21,8 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useAdvanceStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTransferSurplusesToPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useTransformRemainingSurplusesToSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useRefloatFromPiggy: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useRefloatFromSavings: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useRefloatFromProjects: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSaveBudgetSnapshot: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  usePrepareDeficit: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }),
+  useSaveRefloatPlan: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateSalaries: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useCompleteRecap: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
@@ -178,6 +176,9 @@ describe('RecapWizard', () => {
         piggyTransfersData: null,
         projectSnapshotData: null,
         recoveryData: null,
+        surplusSavingsData: null,
+        plannedPiggyRefloat: 0,
+        plannedSavingsRefloat: null,
       },
     )
     render(<RecapWizard context="profile" />)
@@ -266,6 +267,9 @@ describe('RecapWizard', () => {
         piggyTransfersData: null,
         projectSnapshotData: null,
         recoveryData: { total: 150, periods: [{ month: 6, year: 2026, amount: 150 }] },
+        surplusSavingsData: null,
+        plannedPiggyRefloat: 0,
+        plannedSavingsRefloat: null,
       },
     )
     render(<RecapWizard context="profile" />)
@@ -291,6 +295,9 @@ describe('RecapWizard', () => {
         piggyTransfersData: null,
         projectSnapshotData: null,
         recoveryData: null,
+        surplusSavingsData: null,
+        plannedPiggyRefloat: 0,
+        plannedSavingsRefloat: null,
       },
     )
     render(<RecapWizard context="profile" />)

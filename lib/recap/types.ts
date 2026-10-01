@@ -47,8 +47,8 @@ export interface RecapSummary {
    *  d'épargne actifs de l'owner du recap. Alimenté par
    *  `financialData.meta?.savingsProjects` dans `loadRecapSummary` — aucun
    *  fetch supplémentaire. Consommé par `SummaryStep` (drawer "Projets en
-   *  cours") et par sprint 09 (`RefloatProjectsLine` dans la cascade
-   *  négative). `[]` quand l'owner n'a aucun projet (toujours présent). */
+   *  cours") et par la section Projets de « Gestion du déficit » (Sprint
+   *  Recap-Manual-Refloat). `[]` quand l'owner n'a aucun projet. */
   savingsProjects: readonly SavingsProjectMeta[]
   /** Sprint Projets-Épargne 10. Preview de ce que `apply_recap_projects_snapshot`
    *  fera à la finalize : pour chaque projet actif, `amount_saved +=

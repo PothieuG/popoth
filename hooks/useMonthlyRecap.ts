@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
+import type { RefloatPlan } from '@/lib/recap/refloat-plan'
 import type {
   RecapContext,
   RecapRecoveryData,
@@ -15,9 +16,11 @@ import type {
  * Sprint 13 — `recap` sibling exposed by GET /api/monthly-recap/status when
  * the wizard is `in_progress`. Carries the progression trackers from the
  * `monthly_recaps` row so the negative-flow `BilanNegativeStep` can compute
- * the remaining deficit live (`|bilan| - refloatedFromPiggy -
- * refloatedFromSavings - sum(snapshotData)`). `null` in every other status
- * state (no_recap / locked_by_other / completed).
+ * the remaining deficit live (cf. `lib/recap/refloat-plan.ts`). Depuis Sprint
+ * Recap-Manual-Refloat, `refloatedFromPiggy` / `refloatedFromSavings` ne sont
+ * plus écrits : ils gardent ce que l'ancienne cascade avait DÉJÀ débité sur
+ * les récaps ouverts avant ce sprint. `null` in every other status state
+ * (no_recap / locked_by_other / completed).
  */
 export interface RecapProgress {
   id: string
@@ -46,6 +49,18 @@ export interface RecapProgress {
    *  abandonné, ou aucun n'avait coûté d'argent — archivage silencieux).
    *  Consommé par `<RecoveredFundsBanner>` dans `RecapWizard`. */
   recoveryData: RecapRecoveryData | null
+  /** Sprint Recap-Manual-Refloat (2026-10-01). `{ [budgetId]: amount }` du
+   *  surplus versé dans les économies à l'entrée de « Gestion du déficit ».
+   *  `null` = pas encore fait : `BilanNegativeStep` déclenche alors
+   *  `usePrepareDeficit`. */
+  surplusSavingsData: Record<string, number> | null
+  /** Sprint Recap-Manual-Refloat. Montant choisi pour la tirelire (différé,
+   *  débité à la finalisation). */
+  plannedPiggyRefloat: number
+  /** Sprint Recap-Manual-Refloat. `{ [budgetId]: amount }` à retirer des
+   *  économies (différé). La part « budget du mois suivant » du même choix
+   *  est dans `snapshotData`. */
+  plannedSavingsRefloat: Record<string, number> | null
 }
 
 export interface MonthlyRecapStatusResponse {
@@ -147,9 +162,10 @@ export interface AdvanceStepMutationResult {
  * Invalidates `['monthly-recap', 'status', context]` on success — the
  * wizard re-fetches and renders the new step component automatically.
  *
- * **`stale_step` recovery (sprint 14 follow-up 2026-05-25)** : the negative
- * flow's `save-budget-snapshot` and the salary flow's `update-salaries`
- * both auto-advance `current_step` server-side. When the client subsequently
+ * **`stale_step` recovery (sprint 14 follow-up 2026-05-25)** : the salary
+ * flow's `update-salaries` (and, before Sprint Recap-Manual-Refloat, the
+ * negative flow's former `save-budget-snapshot`) auto-advances
+ * `current_step` server-side. When the client subsequently
  * fires an explicit advance-step with the old `fromStep`, the server
  * answers 409 `stale_step`. Without invalidation in that branch, the cache
  * stayed on the prior step and the wizard wouldn't render the new step
@@ -177,7 +193,13 @@ export function useAdvanceStep(context: RecapContext) {
       await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
     },
     onError: async (error) => {
-      if (error.message === 'stale_step' || error.message === 'invalid_step') {
+      // `deficit_not_covered` (Sprint Recap-Manual-Refloat) : le serveur a
+      // refusé de quitter « Gestion du déficit » — on resynchronise le plan.
+      if (
+        error.message === 'stale_step' ||
+        error.message === 'invalid_step' ||
+        error.message === 'deficit_not_covered'
+      ) {
         await qc.invalidateQueries({ queryKey: recapStatusKey(context) })
       }
     },
@@ -279,56 +301,45 @@ export function useTransformRemainingSurplusesToSavings(context: RecapContext) {
 }
 
 // ---------------------------------------------------------------------------
-// Sprint 13 — negative flow mutations (BilanNegativeStep cascade)
+// Sprint Recap-Manual-Refloat (2026-10-01) — flux négatif (BilanNegativeStep)
 // ---------------------------------------------------------------------------
 
-export interface RefloatFromPiggyVars {
-  amount: number
-}
-
-export interface RefloatFromPiggyResult {
-  newDeficit: number
-  refloatedFromPiggy: number
+export interface PrepareDeficitResult {
+  surplusSavingsData: Record<string, number>
+  alreadyDone: boolean
   summary: RecapSummary
 }
 
 /**
- * Sprint 13 — negative flow action 1 (BilanNegativeStep ligne 1). POST
- * /api/monthly-recap/refloat-from-piggy with the user-chosen amount (clamped
- * by the UI to `min(piggy, deficitRemaining)`). Debits `piggy_bank.amount`
- * via the atomic single-row RPC and bumps `monthly_recaps.refloated_from_piggy`.
+ * POST /api/monthly-recap/prepare-deficit — verse le surplus de chaque budget
+ * dans ses économies à l'arrivée sur l'écran « Gestion du déficit ».
+ * Idempotent côté serveur (un double appel ne crédite pas deux fois).
  *
- * Cache update strategy: `setQueryData` fast path — the response carries a
- * fresh `RecapSummary` (post-debit `piggyAmount`) AND the new cumulative
- * `refloatedFromPiggy` tracker. We patch both into `summary` and `recap` of
- * the cached status entry so `BilanNegativeStep` re-renders with the new
- * deficit counter without a round-trip. `snapshotData` and
- * `refloatedFromSavings` are preserved verbatim from the prior cache.
- *
- * Does NOT advance `current_step` — the route never does, and the user may
- * continue chaining refloats on the same step.
+ * Cache : `setQueryData` — le résumé frais (économies créditées, surplus à 0)
+ * et `recap.surplusSavingsData` sont patchés directement, l'écran s'affiche
+ * sans aller-retour supplémentaire.
  */
-export function useRefloatFromPiggy(context: RecapContext) {
+export function usePrepareDeficit(context: RecapContext) {
   const qc = useQueryClient()
-  return useMutation<RefloatFromPiggyResult, Error, RefloatFromPiggyVars>({
-    mutationFn: async ({ amount }) => {
-      const res = await fetch('/api/monthly-recap/refloat-from-piggy', {
+  return useMutation<PrepareDeficitResult, Error, void>({
+    mutationFn: async () => {
+      const res = await fetch('/api/monthly-recap/prepare-deficit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context, amount }),
+        body: JSON.stringify({ context }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? 'refloat_piggy_failed')
+        throw new Error(body.error ?? 'prepare_deficit_failed')
       }
-      const json = (await res.json()) as { data: RefloatFromPiggyResult }
+      const json = (await res.json()) as { data: PrepareDeficitResult }
       return json.data
     },
     onSuccess: (data) => {
       qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
         if (!old) return old
         const nextRecap: RecapProgress | null = old.recap
-          ? { ...old.recap, refloatedFromPiggy: data.refloatedFromPiggy }
+          ? { ...old.recap, surplusSavingsData: data.surplusSavingsData }
           : old.recap
         return { ...old, summary: data.summary, recap: nextRecap }
       })
@@ -336,157 +347,55 @@ export function useRefloatFromPiggy(context: RecapContext) {
   })
 }
 
-export interface RefloatFromSavingsResult {
-  newDeficit: number
-  refloatedFromSavings: number
-  perBudget: ReadonlyArray<{ budgetId: string; amount: number }>
-  failed: ReadonlyArray<{ budgetId: string; reason: string }>
-  shortfall: number
-  summary: RecapSummary
+export type SaveRefloatPlanVars =
+  | { source: 'piggy'; amount: number }
+  | { source: 'budgets'; allocations: Record<string, number> }
+  | { source: 'projects'; allocations: Record<string, number> }
+
+export interface SaveRefloatPlanResult {
+  plan: RefloatPlan
+  deficitRemaining: number
 }
 
 /**
- * Sprint 13 — negative flow action 2 (BilanNegativeStep ligne 2). POST
- * /api/monthly-recap/refloat-from-savings with no body other than `context`.
- * Server computes the proportional allocation across each budget's
- * `cumulated_savings` and debits up to the current `deficitRemaining`. Loop
- * is fail-soft (per-budget failures surface in `failed[]`).
+ * POST /api/monthly-recap/save-refloat-plan — enregistre le choix pour UNE
+ * source (tirelire, budgets ou projets), en remplaçant sa valeur précédente.
+ * Rien n'est débité : tout est appliqué à la finalisation du récap.
  *
- * Cache update strategy: `setQueryData` fast path — same shape as piggy.
- *
- * Does NOT advance `current_step`.
+ * Cache : `setQueryData` — le plan renvoyé par le serveur est recopié dans
+ * `recap` (champs `plannedPiggyRefloat`, `plannedSavingsRefloat`,
+ * `snapshotData`, `projectSnapshotData`). Le résumé (`summary`) ne change
+ * pas : aucun solde n'a bougé.
  */
-export function useRefloatFromSavings(context: RecapContext) {
+export function useSaveRefloatPlan(context: RecapContext) {
   const qc = useQueryClient()
-  return useMutation<RefloatFromSavingsResult, Error, void>({
-    mutationFn: async () => {
-      const res = await fetch('/api/monthly-recap/refloat-from-savings', {
+  return useMutation<SaveRefloatPlanResult, Error, SaveRefloatPlanVars>({
+    mutationFn: async (vars) => {
+      const res = await fetch('/api/monthly-recap/save-refloat-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context }),
+        body: JSON.stringify({ context, ...vars }),
       })
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? 'refloat_savings_failed')
+        throw new Error(body.error ?? 'save_refloat_plan_failed')
       }
-      const json = (await res.json()) as { data: RefloatFromSavingsResult }
+      const json = (await res.json()) as { data: SaveRefloatPlanResult }
       return json.data
     },
     onSuccess: (data) => {
       qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
-        if (!old) return old
-        const nextRecap: RecapProgress | null = old.recap
-          ? { ...old.recap, refloatedFromSavings: data.refloatedFromSavings }
-          : old.recap
-        return { ...old, summary: data.summary, recap: nextRecap }
-      })
-    },
-  })
-}
-
-export interface RefloatFromProjectsResult {
-  newDeficit: number
-  allocation: Record<string, number>
-  perProject: ReadonlyArray<{ projectId: string; amount: number }>
-  shortfall: number
-}
-
-/**
- * Sprint Projets-Épargne 09 — negative flow action 2.5 (BilanNegativeStep
- * ligne 3, intermédiaire entre `RefloatSavingsLine` et `RefloatBudgetSnapshotLine`).
- * POST /api/monthly-recap/refloat-from-projects with no body other than `context`.
- * Server computes the proportional allocation across each active project's
- * `monthly_allocation` (pas l'`amount_saved` cumulé — sémantique "renoncer
- * temporairement à la mensualité du projet") jusqu'à `deficitRemaining`.
- *
- * Cache update strategy: `setQueryData` fast path — patch
- * `recap.projectSnapshotData` in place with the server-computed allocation
- * so `BilanNegativeStep` re-renders with `computeDeficitRemaining` taking
- * the new projects refund into account (snapshot pure côté DB, aucune
- * mutation de `savings_projects` à cette étape — appliquée à la finalize
- * sprint 10 via `apply_recap_projects_snapshot`). `RecapSummary` n'est pas
- * impacté (les projets ne touchent ni à la tirelire ni aux savings des
- * budgets) — pas de patch summary.
- *
- * Does NOT advance `current_step` — la route ne le fait jamais.
- */
-export function useRefloatFromProjects(context: RecapContext) {
-  const qc = useQueryClient()
-  return useMutation<RefloatFromProjectsResult, Error, void>({
-    mutationFn: async () => {
-      const res = await fetch('/api/monthly-recap/refloat-from-projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? 'refloat_projects_failed')
-      }
-      const json = (await res.json()) as { data: RefloatFromProjectsResult }
-      return json.data
-    },
-    onSuccess: (data) => {
-      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
-        if (!old) return old
-        const nextRecap: RecapProgress | null = old.recap
-          ? { ...old.recap, projectSnapshotData: data.allocation }
-          : old.recap
-        return { ...old, recap: nextRecap }
-      })
-    },
-  })
-}
-
-export interface SaveBudgetSnapshotResult {
-  newDeficit: number
-  snapshot: Record<string, number>
-  perBudget: ReadonlyArray<{ budgetId: string; amount: number }>
-  shortfall: number
-  nextStep: 'salary_update' | null
-}
-
-/**
- * Sprint 13 — negative flow action 3 (BilanNegativeStep ligne 3). POST
- * /api/monthly-recap/save-budget-snapshot with no body other than `context`.
- * Server computes the proportional snapshot (pool = `estimated_amount`),
- * OVERWRITES `monthly_recaps.budget_snapshot_data` JSONB, and — uniquement
- * dans le flow négatif — advances `current_step → 'salary_update'` iff the
- * new deficit reaches 0.
- *
- * Cache update strategy: `setQueryData` fast path — we patch
- * `recap.snapshotData` in place with the server-computed snapshot so the
- * UI re-renders the per-budget breakdown without a refetch ("stay on page"
- * UX). We deliberately DO NOT mirror the server-side `current_step`
- * auto-advance into the cache: even when the snapshot covers the deficit,
- * the wizard stays on `BilanNegativeStep` so the user sees a final success
- * snackbar + the "Continuer" button. The Continuer click then triggers a
- * refetch (or an explicit advance-step), which is when the wizard moves to
- * `SalaryUpdateStep`.
- */
-export function useSaveBudgetSnapshot(context: RecapContext) {
-  const qc = useQueryClient()
-  return useMutation<SaveBudgetSnapshotResult, Error, void>({
-    mutationFn: async () => {
-      const res = await fetch('/api/monthly-recap/save-budget-snapshot', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context }),
-      })
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error ?? 'save_snapshot_failed')
-      }
-      const json = (await res.json()) as { data: SaveBudgetSnapshotResult }
-      return json.data
-    },
-    onSuccess: (data) => {
-      qc.setQueryData<MonthlyRecapStatusResponse>(recapStatusKey(context), (old) => {
-        if (!old) return old
-        const nextRecap: RecapProgress | null = old.recap
-          ? { ...old.recap, snapshotData: data.snapshot }
-          : old.recap
-        return { ...old, recap: nextRecap }
+        if (!old?.recap) return old
+        return {
+          ...old,
+          recap: {
+            ...old.recap,
+            plannedPiggyRefloat: data.plan.piggy,
+            plannedSavingsRefloat: data.plan.savings,
+            snapshotData: data.plan.budgets,
+            projectSnapshotData: data.plan.projects,
+          },
+        }
       })
     },
   })
@@ -550,6 +459,8 @@ export interface CompleteRecapResult {
   /** Present on first success — the recap that was just finalized. */
   recapId?: string
   completed?: true
+  /** Sprint Recap-Manual-Refloat — tirelire + économies débitées selon le plan. */
+  refloatPlanApplied?: { piggy_debited: number; savings_total: number } | null
   snapshotApplied?: { applied: ReadonlyArray<{ budget_id: string; amount: number }> } | null
   /** Sprint Projets-Épargne 10 — server-returned counts from
    *  `apply_recap_projects_snapshot` (number of projects credited + total

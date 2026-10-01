@@ -80,6 +80,11 @@ export interface LoadRecapSummaryInput {
    *  — this helper stays pure-load (no extra I/O). Pass `undefined` (or
    *  omit) when there is no active recap or when the column is empty. */
   piggyTransfersData?: Record<string, number>
+  /** Sprint Recap-Manual-Refloat (2026-10-01). Surplus déjà versé dans les
+   *  économies à l'entrée de l'étape « Gestion du déficit »
+   *  (`monthly_recaps.surplus_savings_data`). Forwardé à `computeRecapSummary`
+   *  qui le consomme comme `piggyTransfersData`. */
+  surplusSavingsData?: Record<string, number>
   /** Sprint Projets-Épargne 10. Forwarded to `computeRecapSummary` so the
    *  `projectSnapshot` preview reflects refunds already accumulated on the
    *  active recap. Callers (status route) read it from
@@ -96,6 +101,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     recapMonth,
     recapYear,
     piggyTransfersData,
+    surplusSavingsData,
     projectSnapshotData,
   } = input
 
@@ -171,6 +177,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       carryoverSpentAmount: Number(b.carryover_spent_amount ?? 0),
     })),
     piggyTransfersData,
+    surplusSavingsData,
     // Sprint Projets-Épargne 07 (2026-05-26) — réutilise la liste déjà
     // fetchée par `_loadFinancialData` (pas de RTT supplémentaire). Le
     // subset `SavingsProjectMeta` est construit dans `buildSavingsProjectMeta`
