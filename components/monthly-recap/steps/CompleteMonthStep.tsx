@@ -11,6 +11,7 @@ import { useFinancialData } from '@/hooks/useFinancialData'
 import { useAdvanceStep } from '@/hooks/useMonthlyRecap'
 import type { RealExpense } from '@/hooks/useRealExpenses'
 import type { RealIncome } from '@/hooks/useRealIncomes'
+import type { FinancialMonthWindow } from '@/lib/finance'
 import type { DateRange } from '@/lib/finance/period'
 import { formatEuro } from '@/lib/format-currency'
 import type { RecapContext } from '@/lib/recap'
@@ -163,22 +164,26 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const advanceMutation = useAdvanceStep(context)
-  const { financialData, isFetching } = useFinancialData(context)
-
   // Bornes ISO YYYY-MM-DD inclusives du mois recapé. `Date(year, month, 0)` =
   // dernier jour du mois précédent (paramètre `month` 0-indexed) — comme
   // `recapMonth` est 1-indexé, passer `recapMonth` directement donne le
   // dernier jour de `recapMonth`. Helper pur (inputs primitifs → output ISO).
-  const { startDate, endDate, dateRange } = useMemo(() => {
+  const { startDate, endDate, dateRange, monthWindow } = useMemo(() => {
     const mm = String(recapMonth).padStart(2, '0')
     const lastDay = new Date(recapYear, recapMonth, 0).getDate()
     const dd = String(lastDay).padStart(2, '0')
     const start = `${recapYear}-${mm}-01`
     const end = `${recapYear}-${mm}-${dd}`
     const range: DateRange = { startDate: start, endDate: end }
-    return { startDate: start, endDate: end, dateRange: range }
+    const recapWindow: FinancialMonthWindow = { month: recapMonth, year: recapYear }
+    return { startDate: start, endDate: end, dateRange: range, monthWindow: recapWindow }
   }, [recapYear, recapMonth])
+
+  const advanceMutation = useAdvanceStep(context)
+  // Reste à vivre du mois RECAPÉ : sur le mois courant (vide en début de
+  // mois), les dépassements de budget du mois écoulé disparaissaient et le
+  // montant ne correspondait plus au dashboard de fin de mois ni à l'étape 3.
+  const { financialData, isFetching } = useFinancialData(context, monthWindow)
 
   const handleNext = async () => {
     setError(null)
@@ -232,6 +237,7 @@ export function CompleteMonthStep({ context, recapYear, recapMonth }: CompleteMo
       <TransactionTabsComponent
         context={context}
         dateRange={dateRange}
+        monthWindow={monthWindow}
         scrollable={false}
         onEditTransaction={(transaction, type) => setEditing({ transaction, type })}
         className="min-h-[280px]"

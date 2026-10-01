@@ -579,6 +579,8 @@ export default function EditTransactionModal({
                   }
                   context={context}
                   existingAmount={transaction.amount}
+                  month={recapMonth}
+                  year={recapYear}
                 />
               )}
 

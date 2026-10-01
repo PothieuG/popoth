@@ -492,7 +492,8 @@ export const routes: RouteDef[] = [
     path: '/api/finance/summary',
     method: 'get',
     tag: 'finance',
-    summary: 'Full FinancialData summary (RAV, savings, balance, incomes, expenses, deficits)',
+    summary:
+      'Full FinancialData summary (RAV, savings, balance, incomes, expenses, deficits). Budget deficits cover `?month=&year=` when both are given (recap wizard), else the current month',
     querySchema: summaryQuerySchema,
     requiresAuth: true,
   },

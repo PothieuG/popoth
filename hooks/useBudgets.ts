@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
+import type { FinancialMonthWindow } from '@/lib/finance'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
 export interface EstimatedBudget {
@@ -44,23 +45,18 @@ interface UseBudgetsReturn {
 }
 
 /**
- * Mois (1-12) + année dont `spent_this_month` doit refléter le dépensé.
- * Passé par le wizard récap « Compléter le mois », qui saisit des dépenses du
- * mois RECAPÉ alors que `now()` est déjà sur le mois suivant. Absent sur les
- * dashboards → mois courant.
- */
-export interface BudgetsMonthWindow {
-  month: number
-  year: number
-}
-
-/**
  * Hook pour la gestion des budgets estimés
  * Gère le CRUD complet avec la base de données
  */
 export function useBudgets(
   context?: 'profile' | 'group',
-  monthWindow?: BudgetsMonthWindow,
+  /**
+   * Mois dont `spent_this_month` reflète le dépensé. Passé par le wizard récap
+   * « Compléter le mois », qui saisit des dépenses du mois RECAPÉ alors que
+   * `now()` est déjà sur le mois suivant. Absent sur les dashboards → mois
+   * courant.
+   */
+  monthWindow?: FinancialMonthWindow,
 ): UseBudgetsReturn {
   const queryClient = useQueryClient()
   // Clé distincte par fenêtre (le dépensé diffère), toujours sous le préfixe

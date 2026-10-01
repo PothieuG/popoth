@@ -130,23 +130,26 @@ export default function AddTransactionModal({
   // au helper `calculateBreakdown`.
   const useSavings = true
 
+  // Wizard récap « Compléter le mois » : les montants affichés (dépensé par
+  // budget, reste à vivre) portent sur le mois RECAPÉ, pas sur le mois courant
+  // (vide en début de mois). Absent sur les dashboards.
+  const recapWindow =
+    recapMonth != null && recapYear != null ? { month: recapMonth, year: recapYear } : undefined
+
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress } = useProgressData(context)
   // Solde tirelire courant — sert à plafonner la part finançable + l'aperçu RAV
   // (Sprint Exceptional-Expense-Piggy-Funding). Partage le cache TanStack avec
-  // RemainingToLivePreview (même queryKey ['financial-summary', context]).
-  const { financialData } = useFinancialData(context)
+  // RemainingToLivePreview (même queryKey, fenêtre du récap comprise).
+  const { financialData } = useFinancialData(context, recapWindow)
   const piggyBankBalance = financialData?.piggyBank ?? 0
   // Fallback pour éviter les dropdowns vides. Dans le wizard récap, le
   // dépensé (`spent_this_month`) doit être celui du mois RECAPÉ : sans la
   // fenêtre, le menu « Budget associé » affichait celui du mois courant (vide
   // en début de mois), p.ex. 0,00 €/66,43 € pour un budget entamé en septembre.
-  const { budgets } = useBudgets(
-    context,
-    recapMonth != null && recapYear != null ? { month: recapMonth, year: recapYear } : undefined,
-  )
+  const { budgets } = useBudgets(context, recapWindow)
   const { incomes } = useIncomes(context)
 
   const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
@@ -1016,6 +1019,8 @@ export default function AddTransactionModal({
                   fromPiggyBank={
                     transactionType === 'expense' && isExceptional ? effectivePiggy : 0
                   }
+                  month={recapMonth}
+                  year={recapYear}
                 />
               )}
 

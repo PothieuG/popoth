@@ -110,6 +110,11 @@ export const summaryQuerySchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((v) => v === 'true'),
+  // Fenêtre du terme `budgetDeficits` du RAV (`FinancialMonthWindow`). Le
+  // wizard récap « Compléter le mois » passe le mois RECAPÉ ; les deux doivent
+  // être présents, sinon mois courant (dashboards).
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  year: z.coerce.number().int().min(2000).max(3000).optional(),
 })
 export type SummaryQuery = z.infer<typeof summaryQuerySchema>
 

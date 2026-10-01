@@ -14,6 +14,7 @@ import { useFinancialData } from '@/hooks/useFinancialData'
 import { useProgressData } from '@/hooks/useProgressData'
 import { logger } from '@/lib/logger'
 import { computePeriodDateRange, type DateRange, type Period } from '@/lib/finance/period'
+import type { FinancialMonthWindow } from '@/lib/finance'
 import TransactionListItem from './TransactionListItem'
 
 type EditableTransaction = RealExpense | RealIncome
@@ -55,6 +56,13 @@ interface TransactionTabsComponentProps {
    * pouvait.
    */
   scrollable?: boolean
+  /**
+   * Mois dont les dépassements de budget entrent dans le RAV servant de base
+   * à l'aperçu « reste à vivre après suppression ». Le récap « Compléter le
+   * mois » passe le mois RECAPÉ ; absent → mois courant (dashboards). Distinct
+   * de `dateRange`, qui ne fait que filtrer la liste affichée.
+   */
+  monthWindow?: FinancialMonthWindow
   onEditTransaction?: (transaction: EditableTransaction, type: EditableType) => void
   onTransactionDeleted?: () => void
   className?: string
@@ -91,6 +99,7 @@ export default function TransactionTabsComponent({
   dateRange: dateRangeOverride,
   readOnly = false,
   scrollable = true,
+  monthWindow,
   onEditTransaction,
   onTransactionDeleted,
   className,
@@ -129,7 +138,7 @@ export default function TransactionTabsComponent({
   // + estimated_amount + spentAmount) and current RAV. All three hooks are
   // already mounted elsewhere on the dashboard (cached by TanStack Query).
   const { budgets: estimatedBudgets } = useBudgets(context)
-  const { financialData } = useFinancialData(context)
+  const { financialData } = useFinancialData(context, monthWindow)
   const { expenseProgress } = useProgressData(context, period)
   const currentRemainingToLive = financialData?.remainingToLive ?? null
 

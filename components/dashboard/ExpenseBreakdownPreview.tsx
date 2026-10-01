@@ -86,7 +86,12 @@ export default function ExpenseBreakdownPreview({
   year,
 }: ExpenseBreakdownPreviewProps) {
   const enabled = amount > 0 && !!budgetId
-  const { financialData } = useFinancialData(context)
+  // RAV de départ sur la même fenêtre que la répartition : mois recapé dans le
+  // wizard récap, mois courant sinon.
+  const { financialData } = useFinancialData(
+    context,
+    month != null && year != null ? { month, year } : undefined,
+  )
 
   const {
     data: breakdown = null,

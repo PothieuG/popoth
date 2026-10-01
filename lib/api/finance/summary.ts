@@ -22,7 +22,12 @@ import { logger } from '@/lib/logger'
 
 export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
-    const { context: forceContext } = parseQuery(request, summaryQuerySchema)
+    const { context: forceContext, month, year } = parseQuery(request, summaryQuerySchema)
+    // Mois recapé dans le wizard « Compléter le mois » : sans cette fenêtre,
+    // les dépassements de budget du mois recapé disparaissaient du RAV affiché
+    // (calculé sur le mois courant, encore vide), qui ne correspondait donc
+    // plus à celui du dashboard en fin de mois ni à celui de l'étape suivante.
+    const monthWindow = month != null && year != null ? { month, year } : undefined
 
     // Déterminer le contexte à utiliser
     let context: 'profile' | 'group'
@@ -35,9 +40,9 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
 
     let financialData: FinancialData
     if (context === 'group') {
-      financialData = await getGroupFinancialData(groupId!)
+      financialData = await getGroupFinancialData(groupId!, monthWindow)
     } else {
-      financialData = await getProfileFinancialData(userId)
+      financialData = await getProfileFinancialData(userId, monthWindow)
     }
 
     return NextResponse.json({

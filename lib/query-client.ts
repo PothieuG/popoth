@@ -149,8 +149,10 @@ export function applyBankBalanceToCache(
 ): void {
   qc.setQueryData<BankBalanceCache>(['bank-balance', context], (prev) => ({ ...prev, balance }))
   // Pas d'entrée en cache → rien à patcher : on ne fabrique pas un résumé
-  // partiel, le prochain montage le chargera entier.
-  qc.setQueryData<FinancialSummaryCache>(['financial-summary', context], (prev) =>
+  // partiel, le prochain montage le chargera entier. Correspondance par
+  // préfixe : couvre aussi le résumé fenêtré sur le mois recapé (wizard récap,
+  // `useFinancialData(ctx, monthWindow)`), dont le solde est le même.
+  qc.setQueriesData<FinancialSummaryCache>({ queryKey: ['financial-summary', context] }, (prev) =>
     prev ? { ...prev, data: { ...prev.data, availableBalance: balance } } : prev,
   )
 }

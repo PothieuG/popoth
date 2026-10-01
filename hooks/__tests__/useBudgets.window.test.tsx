@@ -12,9 +12,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+import type { FinancialMonthWindow } from '@/lib/finance'
 import { invalidateFinancialRefreshes } from '@/lib/query-client'
 
-import { useBudgets, type BudgetsMonthWindow } from '../useBudgets'
+import { useBudgets } from '../useBudgets'
 
 function Harness({
   context,
@@ -22,7 +23,7 @@ function Harness({
   testId,
 }: {
   context?: 'profile' | 'group'
-  monthWindow?: BudgetsMonthWindow
+  monthWindow?: FinancialMonthWindow
   testId: string
 }) {
   const { budgets } = useBudgets(context, monthWindow)

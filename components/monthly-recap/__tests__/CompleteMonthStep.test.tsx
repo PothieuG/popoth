@@ -24,23 +24,28 @@ vi.mock('@/hooks/useMonthlyRecap', () => ({
   useAdvanceStep: () => ({ mutateAsync: advanceMock, isPending: false }),
 }))
 
+// Arguments reçus par `useFinancialData` — épingle la fenêtre du mois recapé.
+const useFinancialDataCalls: unknown[][] = []
 vi.mock('@/hooks/useFinancialData', () => ({
-  useFinancialData: () => ({
-    financialData: {
-      availableBalance: 1234.56,
-      remainingToLive: 78.9,
-      totalSavings: 0,
-      totalEstimatedIncome: 0,
-      totalEstimatedBudgets: 0,
-      totalRealIncome: 0,
-      totalRealExpenses: 0,
-    },
-    loading: false,
-    isFetching: false,
-    error: null,
-    context: 'profile',
-    refreshFinancialData: vi.fn(),
-  }),
+  useFinancialData: (...args: unknown[]) => {
+    useFinancialDataCalls.push(args)
+    return {
+      financialData: {
+        availableBalance: 1234.56,
+        remainingToLive: 78.9,
+        totalSavings: 0,
+        totalEstimatedIncome: 0,
+        totalEstimatedBudgets: 0,
+        totalRealIncome: 0,
+        totalRealExpenses: 0,
+      },
+      loading: false,
+      isFetching: false,
+      error: null,
+      context: 'profile',
+      refreshFinancialData: vi.fn(),
+    }
+  },
 }))
 
 vi.mock('@/components/dashboard/AddTransactionModal', () => ({
@@ -79,12 +84,14 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
     context,
     readOnly,
     scrollable,
+    monthWindow,
     dateRange,
     onEditTransaction,
   }: {
     context?: string
     readOnly?: boolean
     scrollable?: boolean
+    monthWindow?: { month: number; year: number }
     dateRange?: { startDate: string; endDate: string } | null
     onEditTransaction?: (transaction: { id: string }, type: 'expense' | 'income') => void
   }) => (
@@ -93,6 +100,7 @@ vi.mock('@/components/dashboard/TransactionTabsComponent', () => ({
       data-context={context}
       data-read-only={readOnly ? 'true' : 'false'}
       data-scrollable={scrollable === false ? 'false' : 'true'}
+      data-month-window={monthWindow ? `${monthWindow.year}-${monthWindow.month}` : ''}
       data-range-start={dateRange?.startDate ?? ''}
       data-range-end={dateRange?.endDate ?? ''}
       data-has-edit-handler={onEditTransaction ? 'true' : 'false'}
@@ -184,6 +192,18 @@ describe('CompleteMonthStep', () => {
     render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={5} />)
 
     expect(screen.getByTestId('transaction-tabs')).toHaveAttribute('data-scrollable', 'false')
+  })
+
+  // Régression 2026-10-01 — le reste à vivre de l'écran était calculé sur le
+  // mois COURANT : en faisant le récap de septembre en octobre, les
+  // dépassements de budget de septembre en sortaient et le montant ne
+  // correspondait plus au dashboard de fin de mois.
+  it('computes the remaining-to-live on the recapped month (cards + list)', () => {
+    useFinancialDataCalls.length = 0
+    render(<CompleteMonthStep context="profile" recapYear={2026} recapMonth={9} />)
+
+    expect(useFinancialDataCalls[0]).toEqual(['profile', { month: 9, year: 2026 }])
+    expect(screen.getByTestId('transaction-tabs')).toHaveAttribute('data-month-window', '2026-9')
   })
 
   // Sprint Fix-Recap-EditPath-Month 2026-08-31 — régression : le kebab

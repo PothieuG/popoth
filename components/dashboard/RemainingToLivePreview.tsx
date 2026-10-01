@@ -48,6 +48,14 @@ interface RemainingToLivePreviewProps {
    * type='expense' && isExceptional.
    */
   fromPiggyBank?: number
+
+  /**
+   * Mois recapé 1-12 + année (wizard récap « Compléter le mois »). Le RAV de
+   * départ inclut alors les dépassements de budget de CE mois, comme les
+   * cartes de l'écran ; absents → mois courant (dashboards).
+   */
+  month?: number
+  year?: number
 }
 
 /**
@@ -66,8 +74,13 @@ export default function RemainingToLivePreview({
   context = 'profile',
   existingAmount = 0,
   fromPiggyBank = 0,
+  month,
+  year,
 }: RemainingToLivePreviewProps) {
-  const { financialData, loading, isFetching } = useFinancialData(context)
+  const { financialData, loading, isFetching } = useFinancialData(
+    context,
+    month != null && year != null ? { month, year } : undefined,
+  )
   const { expenseProgress, incomeProgress } = useProgressData(context)
 
   /**

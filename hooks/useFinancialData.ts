@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { FinancialData } from '@/lib/finance'
+import type { FinancialData, FinancialMonthWindow } from '@/lib/finance'
 
 interface UseFinancialDataReturn {
   financialData: FinancialData | null
@@ -36,7 +36,16 @@ const defaultFinancialData: FinancialData = {
  * - Fournit des méthodes pour rafraîchir les données
  * - Calcul toujours en temps réel sans cache
  */
-export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinancialDataReturn {
+export function useFinancialData(
+  forceContext?: 'profile' | 'group',
+  /**
+   * Mois dont les dépassements de budget entrent dans le RAV. Passé par le
+   * wizard récap « Compléter le mois » (mois RECAPÉ) ; absent sur les
+   * dashboards → mois courant. Clé de cache distincte, toujours sous le
+   * préfixe `['financial-summary']` que purge `invalidateFinancialRefreshes`.
+   */
+  monthWindow?: FinancialMonthWindow,
+): UseFinancialDataReturn {
   const {
     data: apiResponse,
     isLoading,
@@ -44,11 +53,18 @@ export function useFinancialData(forceContext?: 'profile' | 'group'): UseFinanci
     error,
     refetch,
   } = useQuery<FinancialApiResponse>({
-    queryKey: ['financial-summary', forceContext ?? null],
+    queryKey: monthWindow
+      ? ['financial-summary', forceContext ?? null, monthWindow.year, monthWindow.month]
+      : ['financial-summary', forceContext ?? null],
     queryFn: async () => {
-      const url = forceContext
-        ? `/api/finance/summary?context=${forceContext}`
-        : '/api/finance/summary'
+      const params = new URLSearchParams()
+      if (forceContext) params.set('context', forceContext)
+      if (monthWindow) {
+        params.set('month', String(monthWindow.month))
+        params.set('year', String(monthWindow.year))
+      }
+      const query = params.toString()
+      const url = `/api/finance/summary${query ? `?${query}` : ''}`
 
       const response = await fetch(url, {
         method: 'GET',

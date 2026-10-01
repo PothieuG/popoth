@@ -45,11 +45,17 @@ vi.mock('@/hooks/useRealIncomes', () => ({
 vi.mock('@/hooks/useProgressData', () => ({
   useProgressData: () => ({ expenseProgress: {} }),
 }))
+const useFinancialDataCalls: unknown[][] = []
 vi.mock('@/hooks/useFinancialData', () => ({
-  useFinancialData: () => ({ financialData: { remainingToLive: 1000 } }),
+  useFinancialData: (...args: unknown[]) => {
+    useFinancialDataCalls.push(args)
+    return { financialData: { remainingToLive: 1000 } }
+  },
 }))
 vi.mock('@/components/dashboard/RemainingToLivePreview', () => ({
-  default: () => null,
+  default: ({ month, year }: { month?: number; year?: number }) => (
+    <div data-testid="rav-preview" data-month={month ?? ''} data-year={year ?? ''} />
+  ),
 }))
 vi.mock('@/components/dashboard/ExpenseBreakdownPreview', () => ({
   default: () => null,
@@ -378,5 +384,40 @@ describe('AddTransactionModal — dépensé du mois recapé dans le menu budget'
 
     expect(useBudgetsCalls[useBudgetsCalls.length - 1]).toEqual(['profile', undefined])
     expect(screen.getByRole('option', { name: 'Alimentation' })).toHaveAttribute('data-spent', '0')
+  })
+})
+
+// Régression 2026-10-01 — même cause que le menu budget : le reste à vivre de
+// départ des aperçus doit inclure les dépassements du mois RECAPÉ.
+describe('AddTransactionModal — reste à vivre du mois recapé', () => {
+  beforeEach(() => {
+    useFinancialDataCalls.length = 0
+  })
+
+  it('wizard récap : useFinancialData et l’aperçu RAV reçoivent le mois recapé', async () => {
+    const user = userEvent.setup()
+    render(
+      <AddTransactionModal onClose={vi.fn()} context="profile" recapMonth={9} recapYear={2026} />,
+    )
+    await navigateToFieldsExpense(user, { exceptional: true })
+    await user.type(screen.getByLabelText(/montant/i), '20')
+
+    expect(useFinancialDataCalls[useFinancialDataCalls.length - 1]).toEqual([
+      'profile',
+      { month: 9, year: 2026 },
+    ])
+    const preview = screen.getByTestId('rav-preview')
+    expect(preview).toHaveAttribute('data-month', '9')
+    expect(preview).toHaveAttribute('data-year', '2026')
+  })
+
+  it('dashboard : pas de fenêtre', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} context="profile" />)
+    await navigateToFieldsExpense(user, { exceptional: true })
+    await user.type(screen.getByLabelText(/montant/i), '20')
+
+    expect(useFinancialDataCalls[useFinancialDataCalls.length - 1]).toEqual(['profile', undefined])
+    expect(screen.getByTestId('rav-preview')).toHaveAttribute('data-month', '')
   })
 })
