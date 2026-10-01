@@ -184,7 +184,10 @@ export default function AddBudgetDialog({
                 type="text"
                 {...form.register('name')}
                 placeholder="Ex: Alimentation, Transport, Loisirs..."
-                disabled={isSubmitting}
+                // Pas de disabled={isSubmitting} : la soumission est synchrone
+                // (onSave remonte au parent), isSubmitting ne couvre que la
+                // validation. Un champ désactivé à ce moment-là fait échouer
+                // le focus sur le premier champ en erreur (onInvalidSubmit).
                 aria-invalid={fieldErrors.name ? 'true' : 'false'}
                 aria-describedby={fieldErrors.name ? 'add-budget-name-error' : undefined}
                 className={cn(

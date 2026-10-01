@@ -67,9 +67,10 @@ describe('AddBudgetDialog', () => {
     const errorBox = document.getElementById('add-budget-name-error')
     expect(errorBox).toHaveTextContent(/Le nom du budget est requis/)
     // Axe 2 setFocus assertion : focus moved to first faulty field.
-    // waitFor : react-hook-form rend l'erreur PUIS appelle onInvalid
-    // (→ setFocus) après un `await` ; sous charge (CI) l'assertion pouvait
-    // passer entre les deux et voir encore le focus sur le bouton.
+    // Ce test était instable en CI : le champ était désactivé pendant la
+    // validation (disabled={isSubmitting}), donc le focus de onInvalidSubmit
+    // échouait et seul le rattrapage différé de react-hook-form pouvait
+    // réussir, selon l'ordre des rendus. Le champ n'est plus désactivé.
     await waitFor(() => expect(nameInput).toHaveFocus())
   })
 })
