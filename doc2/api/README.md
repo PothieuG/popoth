@@ -77,17 +77,19 @@ Toutes les routes valident le cookie `session` via le wrapper `withAuth` / `with
 
 ### Incomes
 
-| Path                            | Verbes                 | Module                                                                             | Consumer                                                     |
-| ------------------------------- | ---------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `/api/finance/incomes`          | GET, POST, PUT, DELETE | [`lib/api/finance/incomes.ts`](../../lib/api/finance/incomes.ts)                   | [`hooks/useIncomes.ts`](../../hooks/useIncomes.ts)           |
-| `/api/finance/income/estimated` | GET, POST, PUT, DELETE | [`lib/api/finance/income-estimated.ts`](../../lib/api/finance/income-estimated.ts) | (lecture/écriture détaillée)                                 |
-| `/api/finance/income/real`      | GET, POST, PUT, DELETE | [`lib/api/finance/income-real.ts`](../../lib/api/finance/income-real.ts)           | [`hooks/useRealIncomes.ts`](../../hooks/useRealIncomes.ts)   |
-| `/api/finance/income/progress`  | GET                    | [`lib/api/finance/income-progress.ts`](../../lib/api/finance/income-progress.ts)   | [`hooks/useProgressData.ts`](../../hooks/useProgressData.ts) |
+| Path                                      | Verbes                 | Module                                                                                       | Consumer                                                                     |
+| ----------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `/api/finance/incomes`                    | GET, POST, PUT, DELETE | [`lib/api/finance/incomes.ts`](../../lib/api/finance/incomes.ts)                             | [`hooks/useIncomes.ts`](../../hooks/useIncomes.ts)                           |
+| `/api/finance/income/estimated`           | GET, POST, PUT, DELETE | [`lib/api/finance/income-estimated.ts`](../../lib/api/finance/income-estimated.ts)           | (lecture/écriture détaillée)                                                 |
+| `/api/finance/income/real`                | GET, POST, PUT, DELETE | [`lib/api/finance/income-real.ts`](../../lib/api/finance/income-real.ts)                     | [`hooks/useRealIncomes.ts`](../../hooks/useRealIncomes.ts)                   |
+| `/api/finance/income/progress`            | GET                    | [`lib/api/finance/income-progress.ts`](../../lib/api/finance/income-progress.ts)             | [`hooks/useProgressData.ts`](../../hooks/useProgressData.ts)                 |
+| `/api/finance/income/real/receive-salary` | POST                   | [`lib/api/finance/income-receive-salary.ts`](../../lib/api/finance/income-receive-salary.ts) | [`hooks/useRealIncomes.ts`](../../hooks/useRealIncomes.ts) (`receiveSalary`) |
 
 **Query params** :
 
 - `income/real` GET : `?group=true&limit=50&offset=0`.
 - `income/real` POST : body `{ amount, description, entry_date?, estimated_income_id?, is_for_group? }`.
+- `income/real/receive-salary` POST (espace perso, « Réception du salaire ») : body `{ amount, salary_month: 'AAAA-MM', entry_date? }`. `salary_month` = le mois que la paie **finance** : le mois ouvert (mois du jour, ou mois recapé tant que le récap n'est pas terminé) ou le suivant — tout autre mois → 400 `invalid-salary-month`. Mois ouvert : l'écart avec `profiles.salary` devient tout de suite un « Équilibrage salaire » (revenu ou dépense exceptionnel) ; mois suivant : il est créé à la fin du récap. Si la ligne « Salaire » du récap attend sa validation pour ce mois, c'est elle qui est validée. Réponse `{ data: { incomeId, salaryMonth, expected, received, delta, deltaApplied, balance } }`. 409 `salary-already-received` (un salaire existe déjà pour ce mois) / `no-salary-declared`.
 
 ### Expenses
 

@@ -118,10 +118,10 @@ Les tests gated lisent leurs propres variables : `SUPABASE_RPC_CONCURRENCY_TESTS
 | `pnpm test:coverage`                       | Vitest avec rapport couverture v8 (écrit dans `coverage/`, gitignored)                 |
 | `pnpm db:types`                            | Régénère [`lib/database.types.ts`](./lib/database.types.ts) depuis le schéma prod      |
 | `pnpm db:check-drift`                      | Compare prod ↔ baseline `20260101000000_remote_schema.sql`                             |
-| `pnpm db:check-rpcs`                       | Vérifie via `pg_proc` les **29 RPC finance** pinnées (cf. `scripts/check-rpcs.mjs`)    |
+| `pnpm db:check-rpcs`                       | Vérifie via `pg_proc` les **31 RPC finance** pinnées (cf. `scripts/check-rpcs.mjs`)    |
 | `pnpm db:check-functions`                  | Vérifie via `pg_proc` les 5 fonctions trigger custom                                   |
 | `pnpm db:check-types-fresh`                | Vérifie que `lib/database.types.ts` correspond au schéma prod actuel                   |
-| `pnpm db:audit-functions`                  | Audit générique : toutes les `public.*` fonctions vs `supabase/migrations/` (44/44)    |
+| `pnpm db:audit-functions`                  | Audit générique : toutes les `public.*` fonctions vs `supabase/migrations/` (46/46)    |
 | `pnpm db:audit-objects`                    | Audit étendu : functions, composite types, enums, domains, operators                   |
 | `pnpm verify`                              | **Sanity sweep** : `typecheck` + `test:run` + les 6 `db:*` checks (fail-fast, ~36s)    |
 | `pnpm pwa:assets`                          | Régénère apple-icon + icons manifest + splash iPhone (sharp)                           |

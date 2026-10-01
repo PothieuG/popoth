@@ -63,10 +63,11 @@ view; this doc is the post-Sprint-DB state.
 
 ### `real_income_entries` — actual revenue entries
 
-- Cols: `amount`, `description`, `entry_date`, `is_exceptional`
+- Cols: `amount`, `description`, `entry_date`, `is_exceptional`, `salary_month`
 - FK: profile_id, group_id, estimated_income_id → estimated_incomes ON DELETE SET NULL
-- Constraints: amount > 0, owner XOR
-- Indexes: profile/group dates, estimated_id partial
+- Constraints: amount > 0, owner XOR, `salary_month` is the 1st of a month
+- Indexes: profile/group dates, estimated_id partial, unique `(profile_id, salary_month)` partial
+- Salary lines (`salary_month` not null, migration `20261002010000`): the month the salary **funds**, not the day it was received. One per profile and month. Created by `receive_salary` (user-entered « Réception du salaire ») or `create_salary_income_for_recap` (recap finalize, which adopts a line already received for the month that opens). Never counted in the remaining-to-live — the salary enters it through `profiles.salary`; only the « Équilibrage salaire » exceptional line (received − declared) does.
 
 ### `monthly_recaps` — month-end reconciliation state machine
 

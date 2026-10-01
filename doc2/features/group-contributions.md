@@ -8,7 +8,7 @@
 
 ## 1. Vue d'ensemble métier
 
-Popoth permet à plusieurs utilisateurs (typiquement un couple, une colocation, une famille) de partager un **budget commun** — par exemple un budget courses + loyer + sorties à 1 800 €/mois. Chaque membre du groupe **cotise au prorata de son salaire personnel** vers ce budget commun. La cotisation calculée est **affichée à titre informatif** : Popoth ne déplace pas automatiquement l'argent du compte personnel vers la tirelire du groupe. Charge à chaque membre d'effectuer le virement réel vers le compte commun, puis de l'enregistrer comme dépense exceptionnelle (sortie côté personnel) ou revenu (entrée côté groupe).
+Popoth permet à plusieurs utilisateurs (typiquement un couple, une colocation, une famille) de partager un **budget commun** — par exemple un budget courses + loyer + sorties à 1 800 €/mois. Chaque membre du groupe **cotise au prorata de son salaire personnel** vers ce budget commun. La cotisation calculée apparaît automatiquement comme une **dépense « Contribution au groupe »** dans l'espace personnel de chaque membre (déduite de son reste à vivre) et comme un **revenu « Contribution de <prénom> »** dans l'espace du groupe. Popoth ne déplace pas d'argent réel : charge à chaque membre d'effectuer le virement vers le compte commun, puis de **valider** la ligne (appui long) pour que les soldes le reflètent — valider un côté valide l'autre.
 
 **Proposition de valeur** : éviter les disputes "qui paie quoi ?" en partant d'une règle d'équité — celui qui gagne plus contribue plus, en valeur absolue, mais le **pourcentage de salaire mobilisé est le même pour tous**.
 
@@ -36,7 +36,7 @@ Budget du groupe : **1 800 € / mois**. Alice contribue 720 €, Bob 1 080 €.
 | **Split proportionnel** | Mode nominal : `contribution_amount = (salary / Σ salaires positifs) × monthly_budget_estimate`.                                                                                                                                                                                                                                               |
 | **Split égalitaire**    | Mode fallback : `contribution_amount = monthly_budget_estimate / nb_membres` quand tous les salaires sont à 0.                                                                                                                                                                                                                                 |
 | **Creator**             | Membre qui a créé le groupe (`groups.creator_id`). Peut modifier le `name` (route `PUT /api/groups/[id]`) et supprimer le groupe. Le `monthly_budget_estimate` n'est plus directement éditable depuis Sprint Group-Budget-Auto-Sync (auto-syncé via trigger). **Ne peut pas quitter** tant que d'autres membres y sont (verrou côté API + UX). |
-| **RAV** (reste-à-vivre) | Indicateur central du tableau de bord. Pour un groupe, inclut les `contribution_amount` des membres comme un revenu collectif (cf. §5). Pour un profil personnel, **n'inclut PAS** sa contribution comme une charge.                                                                                                                           |
+| **RAV** (reste-à-vivre) | Indicateur central du tableau de bord. Pour un groupe, inclut les `contribution_amount` des membres comme un revenu collectif (cf. §5). Pour un profil personnel, la contribution **est déduite** (dépense miroir automatique, cf. §5.2).                                                                                                      |
 
 ---
 
@@ -187,15 +187,19 @@ export async function calculateRemainingToLiveGroup(
 
 **Lecture métier** : du point de vue du groupe, les cotisations sont la source de financement principale. Le RAV groupe = ce qui reste après avoir couvert les budgets et déficits, dans l'hypothèse où tous les membres ont effectivement versé leur quote-part.
 
-### 5.2 RAV personnel — la contribution **n'est PAS** auto-déduite
+### 5.2 RAV personnel — la contribution **est déduite automatiquement**
 
-C'est une décision produit explicite : Popoth n'opère **aucun mouvement automatique** entre le compte personnel et le compte commun. Pour qu'une cotisation impacte le RAV personnel, le membre doit :
+Depuis le Sprint 16 V3 (2026-05-28), chaque ligne `group_contributions` a une **dépense miroir** dans l'espace personnel du membre, tenue à jour par le trigger `sync_contribution_real_expense` ([20260528010000](../../supabase/migrations/20260528010000_create_contribution_sync_triggers.sql), puis [20260528030000](../../supabase/migrations/20260528030000_auto_devalidate_contribution_on_amount_change.sql)) :
 
-1. Effectuer le virement réel hors-application (ou en interne via la feature "transfert").
-2. Enregistrer une **dépense réelle** côté personnel (typiquement exceptionnelle, sans budget rattaché → soustraite directement du RAV via `exceptionalExpenses`).
-3. Optionnellement, enregistrer un **revenu réel** côté groupe pour matérialiser l'entrée.
+- ligne `real_expenses` « Contribution au groupe <nom> », `contribution_id` non nul, `is_exceptional = true`, montant = `contribution_amount` ;
+- elle entre dans `exceptionalExpenses` de [lib/finance/financial-data.ts](../../lib/finance/financial-data.ts) : la contribution est donc **soustraite du RAV personnel, chaque mois**. Les dépenses exceptionnelles ne sont volontairement pas filtrées par date, sinon ce miroir (qui garde sa date d'origine à vie) sortirait du calcul ;
+- côté groupe, un **revenu miroir** « Contribution de <prénom> » (`sync_contribution_real_income`, [20260605000004](../../supabase/migrations/20260605000004_create_contribution_real_income_triggers.sql)) matérialise l'entrée. Il n'ajoute rien au RAV groupe, qui compte déjà la somme des contributions (§5.1).
 
-> ⚠️ Conséquence à connaître pour le support : un user qui voit "Contribution au groupe : 720 €" dans la navbar (cf. [UserInfoNavbar.tsx](../../components/ui/UserInfoNavbar.tsx)) ne voit **pas** ces 720 € soustraits de son RAV personnel. Le chiffre est un **engagement informatif**, pas un débit comptable.
+Ce que l'utilisateur fait encore lui-même : le **virement réel**, puis la **validation** de la ligne (appui long). Valider n'agit que sur les soldes bancaires, pas sur le RAV : `toggle_contribution_pair_applied` débite le solde personnel et crédite le solde du groupe dans la même transaction. Si la contribution change alors que la ligne était validée, le trigger la dévalide et l'interface affiche l'écart à ajouter ou retirer.
+
+Les deux lignes miroir sont pilotées par les triggers : ni modifiables ni supprimables à la main (409 côté API), et `process_recap_transactions` les épargne à la clôture du mois.
+
+> Pour le support : la « Contribution au groupe : 720 € » de la navbar ([UserInfoNavbar.tsx](../../components/ui/UserInfoNavbar.tsx)) est bien soustraite du RAV personnel. Depuis la Part 47 (2026-10-02), l'écran « Récap général » du récap perso l'affiche avec la mention « Déjà déduite du reste à vivre effectif ». En revanche le « Reste à vivre estimé » de ce même écran ne la déduit pas (note « Avant contribution au groupe »).
 
 ---
 
@@ -513,9 +517,9 @@ Comme la RPC (Sprint Group-Income-Cascade), les revenus estimés du groupe sont 
 
 ## 10. Pièges & invariants critiques
 
-### 10.1 Aucune déduction automatique côté profil
+### 10.1 Déduction automatique côté profil, validation manuelle
 
-Le RAV personnel d'un membre n'inclut **pas** sa contribution comme une charge implicite. La contribution est un engagement informatif qui se matérialise uniquement quand le user enregistre une dépense réelle (virement vers le compte commun). Voir §5.2.
+Le RAV personnel d'un membre inclut sa contribution comme une charge (dépense miroir, §5.2) — ne pas saisir en plus une dépense « virement compte commun » pour le même montant, elle compterait deux fois. Seule la **validation** (appui long) reste manuelle : elle répercute le virement réel sur les soldes, sans effet sur le RAV.
 
 ### 10.2 Triggers non-atomiques avec la mutation déclenchante
 
@@ -559,7 +563,7 @@ Aucun de ces niveaux ne supprime le besoin des autres : le backend protège cont
 
 - [x] ~~**Migrer `useGroupContributions` vers TanStack Query**~~ — fait Sprint Group-Budget-Auto-Sync (2026-05-19). Le hook utilise désormais `useQuery + useMutation` avec queryKey `['group-contributions']`, invalidé via `invalidateFinancialRefreshes`.
 - [ ] **Lier formellement la formule DB et le helper TS** — soit déplacer le calcul côté client (DB devient lecture seule), soit générer le TS depuis un schéma source unique. Aujourd'hui synchronisation manuelle.
-- [ ] **Atomicité contribution + transfert réel** — ajouter une feature optionnelle "marquer ma contribution comme payée ce mois-ci" qui déclencherait une dépense réelle automatique côté profil + revenu réel côté groupe (toggle utilisateur).
+- [x] ~~**Atomicité contribution + transfert réel**~~ — fait : dépense miroir côté profil (Sprint 16 V3, 2026-05-28) + revenu miroir côté groupe et validation atomique de la paire (Contribution-Income-Mirror, 2026-06-05). Cf. §5.2.
 - [ ] **Historisation mensuelle** — utile pour les recaps "qui a contribué quoi sur l'année".
 
 ---
