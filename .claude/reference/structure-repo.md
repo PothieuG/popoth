@@ -92,6 +92,7 @@ lib/
   debug-guard.ts           # blockInProduction() pour /api/debug/*
   expense-allocation.ts    # calculateBreakdown + applyAllocation (lecture, RPC à l'écriture)
   logger.ts                # ✅ Sprint Cleanup-I8 / Lot 1 — logger général level-aware Edge-safe (LOG_LEVEL gated, défaut warn prod / debug dev). Boundary `console.*` du repo ; tout le reste appelle logger.error/warn/info/debug
+  clock.ts                 # Part 47 — `now()` pour toute date métier ; date simulée sur la base de test (`NEXT_PUBLIC_DEV_TODAY`).
   format-currency.ts       # ✅ Sprint 11 V3 — `formatEuro(n)` 2 décimales (cohabite avec `formatCurrency` 0-déc).
   recap/                   # ✅ Monthly Recap V3 sprints 03-08 livrés (State-Lock-Schemas / Calculations / Endpoints START-STATUS-proxy / flow positif / flow négatif / salary-update + finalize)
     state.ts               # RecapStep + RECAP_STEP_ORDER (7 valeurs : welcome → complete_month → summary → manage_bilan → salary_update → final_recap → completed ; 6 écrans + terminal) + isAdvanceAllowed (forward-only, skip permis) + nextRequiredStep (null sur terminal). Pure sync, 0 I/O.
@@ -145,6 +146,7 @@ lib/
     constants.ts           # EMPTY_FINANCIAL_DATA (frozen, fallback fail-soft pour get*FinancialData)
     calc-rtl.ts            # 5 helpers PURS : calculateAvailableCash, calculateRemainingToLive{Profile,Group}, calculateBudgetSavings, calculateBudgetDeficit (no I/O)
     income-compensation.ts # calculateIncomeCompensation(filter: ContextFilter) — unifie les 95%-identiques profile/group
+    salary-reception.ts    # Part 47 — règles pures « Réception du salaire » (mois financé, écart). Route `lib/api/finance/income-receive-salary.ts`.
     rav-persistence.ts     # saveRavToDatabase + getRavFromDatabase (lecture/écriture RAV en bank_balances)
     financial-data.ts      # _loadFinancialData(filter, opts) factorisé + 2 wrappers getProfileFinancialData / getGroupFinancialData. ⚠️ Aucun travail par membre ici (cf. group-members-rav.ts)
     group-members-rav.ts   # ✅ Part 42 (2026-09-10) — `loadGroupMembersRav(groupId)` : RAV authoritatif par membre (1 `getProfileFinancialData` chacun). Extrait de `_loadFinancialData` §13 où il coûtait un N+1 à chaque chargement du dashboard groupe ; servi à la demande par GET /api/finance/group-members-rav.

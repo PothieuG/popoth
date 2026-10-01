@@ -138,3 +138,25 @@ Test de présence binaire autorisé :
 ```powershell
 if (Test-Path .env.local) { 'OK' } else { 'MISSING' }
 ```
+
+## 8. Date simulée sur la base de test (Part 47 — 2026-10-02)
+
+Pour rejouer une fin de mois (saisir sur le dashboard « la veille », puis faire tomber le récap) :
+
+1. **Remettre la base de test à la fin du mois** — elle a ses propres snapshots (`pg_cron` y tourne aussi) :
+
+   ```powershell
+   $env:SUPABASE_PROJECT_REF = 'ddehmjucyfgyppfkbddr'
+   pnpm db:snapshot restore 2026-09      # taper RESTAURER
+   $env:SUPABASE_PROJECT_REF = $null
+   ```
+
+2. **Simuler la date** : `NEXT_PUBLIC_DEV_TODAY=2026-09-30` (dashboard ouvert, récap d'août déjà fait), puis `2026-10-01` (le récap de septembre se déclenche), puis retirer la variable.
+   - Site de test en ligne (Vercel-dev) : Settings → Environment Variables, puis **Redeploy** à chaque changement (variable `NEXT_PUBLIC_*`, figée à la compilation).
+   - En local : une ligne dans `.env.local`, relancer `pnpm dev`.
+
+Une pastille « Date simulée : … » s'affiche en haut de l'écran tant que la variable agit.
+
+**Garde-fou** ([lib/clock.ts](../../lib/clock.ts)) : la variable n'est honorée que si `NEXT_PUBLIC_SUPABASE_URL` désigne la base de test. Posée contre la prod, elle est ignorée — elle y déclencherait un vrai récap. Seules les dates métier sont simulées ; les `CURRENT_DATE` / `NOW()` des fonctions SQL restent réels (une ligne « Salaire » créée par le récap porte la vraie date du jour).
+
+**Sans date simulée** : l'étape « Compléter le mois » du récap permet déjà d'ajouter, valider et supprimer des transactions du mois recapé — suffisant pour tester une saisie de fin de mois sans toucher à la date.
