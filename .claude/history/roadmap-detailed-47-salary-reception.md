@@ -5,7 +5,7 @@
 > grande partie de cet argent sert à la contribution au groupe ».
 > Migrations `20261002000000_salary_reception_in_advance.sql` puis
 > `20261002010000_salary_month.sql` (la seconde remplace le booléen de la
-> première par le mois financé). **Appliquées sur dev, PAS encore en prod.**
+> première par le mois financé). Appliquées sur dev puis en prod (2026-10-01).
 
 ## 1. Le constat (lecture seule sur la prod)
 
@@ -142,14 +142,32 @@ Procédure → [multi-env.md §8](../conventions/multi-env.md).
   commitée).
 - **Non fait** : aucun test gated (pas de `.env.local` sur le poste).
 
-## 6. Reste à faire
+## 6. Application en prod (2026-10-01, accord utilisateur)
 
-1. **Prod** : push gate habituel (2 migrations), puis `db:types`, baseline,
-   `db:check-drift`. D'ici là `db:check-rpcs` / `db:check-types-fresh` sont
-   rouges sur la prod (`lib/database.types.ts` complété à la main).
-2. Récap de septembre en prod : à l'étape « Compléter le mois », dévalider puis
-   supprimer le « Salaire » du 28/09 saisi à la main, puis le ressaisir via
-   « Réception du salaire » (mois : octobre).
+- Pré-check lecture seule : colonne et fonctions absentes, tracker 73 (dernière
+  `20261001000000`), 1 récap ouvert (septembre, perso, étape `manage_bilan`),
+  aucune ligne salaire de récap.
+- `apply-sql.mjs` ×2 (HTTP 201) + `INSERT` dans `schema_migrations` (75).
+  `salary_month` + index unique présents, `salary_reception` et
+  `receive_salary_in_advance` absents ; droits des 3 RPC : `postgres` +
+  `service_role` seuls. 46 fonctions publiques.
+- `db:types` : aucun écart avec les types complétés à la main ;
+  `db:check-types-fresh` OK. Baseline ré-exportée (colonne, CHECK, index) →
+  `db:check-drift` OK. `check-rpcs` 31/31, `check-rls`, `check-functions`,
+  `audit-functions`, `audit-objects`, `check-snapshots` OK.
+- Pas de smoke test en écriture sur la prod (fait sur dev uniquement).
+- Code : `dev` puis `main` en fast-forward.
+
+### Reste à faire (utilisateur)
+
+1. Restaurer le snapshot de fin septembre en prod, puis, à l'étape « Compléter
+   le mois » du récap : dévalider et supprimer le « Salaire » du 28/09 saisi à
+   la main, le ressaisir via « Réception du salaire » (mois : octobre),
+   ressaisir les transactions perdues, puis dérouler le récap.
+2. Date simulée EN PROD (demandée pour corriger le dashboard « la veille ») :
+   **non livrée**. L'assouplissement du garde-fou de `lib/clock` a été refusé
+   par le contrôle de sécurité de la session ; « Compléter le mois » couvre le
+   besoin sans toucher à la date. Décision laissée à l'utilisateur.
 3. Vercel `popoth_dev` : la branche de production était `main` (les pushes sur
    `dev` partaient en « Preview ») — réglage corrigé par l'utilisateur pendant
    le sprint ; multi-env.md §3 décrivait déjà `dev`.
