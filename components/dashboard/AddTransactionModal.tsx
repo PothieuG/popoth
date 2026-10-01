@@ -20,8 +20,17 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
+import SalaryReceptionPanel from '@/components/dashboard/SalaryReceptionPanel'
 import { useProgressData } from '@/hooks/useProgressData'
+import { now, todayIso } from '@/lib/clock'
 import { calculateBreakdown } from '@/lib/expense-breakdown'
+import {
+  nextMonth,
+  ofMonth,
+  resolveSalaryReceptionState,
+  type MonthRef,
+  type SalaryReceptionState,
+} from '@/lib/finance/salary-reception'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
@@ -77,9 +86,12 @@ type TransactionType = 'expense' | 'income'
  */
 type WizardStep = 'select-type' | 'select-kind' | 'fields'
 
-const todayIso = (): string => {
-  const today = new Date().toISOString().split('T')[0]
-  return today as string
+const SALARY_UNAVAILABLE: SalaryReceptionState = { kind: 'unavailable' }
+
+/** Codes renvoyés par `POST /api/finance/income/real/receive-salary`. */
+const SALARY_ERROR_COPY: Record<string, string> = {
+  'salary-already-received': 'Le salaire du mois prochain est déjà enregistré.',
+  'no-salary-declared': 'Renseignez d’abord votre salaire dans les paramètres.',
 }
 
 /**
@@ -121,6 +133,11 @@ export default function AddTransactionModal({
   // forcé à 0 + input masqué ; on → input révélé. Reset à chaque changement de
   // type/kind pour ne pas trainer un état piggy sur une dépense budgétée.
   const [usePiggy, setUsePiggy] = useState(false)
+  // Sprint Salary-Reception (2026-10-02) — 3e nature de revenu, espace perso
+  // uniquement. Le formulaire reste celui d'un revenu (montant + date) ; la
+  // description et le rattachement sont imposés, et l'envoi part vers
+  // `receiveSalary` au lieu de `addIncome`.
+  const [isSalaryKind, setIsSalaryKind] = useState(false)
   // Animation direction for the step transition (Sprint Modal-Polish 2026-05-21).
   // `forward` = slide-in-from-right, `backward` = slide-in-from-left. Set before
   // `setWizardStep` so the new step renders with the matching animate-in class.
@@ -139,7 +156,7 @@ export default function AddTransactionModal({
 
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
-  const { addIncome, incomes: realIncomes } = useRealIncomes(context)
+  const { addIncome, receiveSalary, incomes: realIncomes } = useRealIncomes(context)
   const { expenseProgress } = useProgressData(context)
   // Solde tirelire courant — sert à plafonner la part finançable + l'aperçu RAV
   // (Sprint Exceptional-Expense-Piggy-Funding). Partage le cache TanStack avec
@@ -152,6 +169,23 @@ export default function AddTransactionModal({
   // en début de mois), p.ex. 0,00 €/66,43 € pour un budget entamé en septembre.
   const { budgets } = useBudgets(context, recapWindow)
   const { incomes } = useIncomes(context)
+
+  // Sprint Salary-Reception — ce que « Réception du salaire » fera pour ce
+  // compte (mois en cours / mois suivant / déjà reçu). Un groupe n'a pas de
+  // salaire : l'option n'existe qu'en perso. Salaire déclaré = ligne virtuelle
+  // « Salaire » du reste à vivre (`meta.readOnlyIncomes`).
+  const declaredSalary =
+    financialData?.meta?.readOnlyIncomes?.find((income) => income.kind === 'salary')?.amount ?? 0
+  const salaryState: SalaryReceptionState =
+    context === 'group'
+      ? SALARY_UNAVAILABLE
+      : resolveSalaryReceptionState(realIncomes, declaredSalary)
+  // Mois « en cours » pour les libellés : le mois recapé dans le wizard
+  // « Compléter le mois », sinon le mois du jour.
+  const currentMonthRef: MonthRef = recapWindow ?? {
+    month: now().getMonth() + 1,
+    year: now().getFullYear(),
+  }
 
   const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
     resolver: zodResolver(addTransactionFormSchema),
@@ -278,6 +312,7 @@ export default function AddTransactionModal({
     const current = form.getValues()
     setStepAnimDir('forward')
     setUsePiggy(false)
+    setIsSalaryKind(false)
     if (newType === 'expense') {
       form.reset({
         transactionType: 'expense',
@@ -308,6 +343,13 @@ export default function AddTransactionModal({
    * `estimated_income_id` when exceptional.
    */
   const handleSelectKind = (exceptional: boolean) => {
+    // Retour depuis « Réception du salaire » : on ne laisse pas traîner la
+    // description et le montant imposés sur un revenu ordinaire.
+    if (isSalaryKind) {
+      form.setValue('description', '')
+      form.setValue('amount', 0 as never)
+      setIsSalaryKind(false)
+    }
     form.setValue('is_exceptional', exceptional)
     if (exceptional) {
       if (transactionType === 'expense') {
@@ -320,6 +362,22 @@ export default function AddTransactionModal({
     // ré-opte explicitement (Sprint Exceptional-Expense-Piggy-Funding).
     setUsePiggy(false)
     form.setValue('amount_from_piggy_bank', 0)
+    setStepAnimDir('forward')
+    setWizardStep('fields')
+  }
+
+  /**
+   * Step 2 (revenu, espace perso) : « Réception du salaire ». Le montant est
+   * pré-rempli avec le salaire prévu — l'utilisateur corrige s'il a reçu plus
+   * ou moins. `is_exceptional` / `description` ne servent qu'à satisfaire le
+   * schéma du formulaire : l'envoi part vers `receiveSalary`, qui les ignore.
+   */
+  const handleSelectSalary = (expected: number) => {
+    setIsSalaryKind(true)
+    form.setValue('is_exceptional', true)
+    form.setValue('estimated_income_id', null)
+    form.setValue('description', 'Salaire')
+    form.setValue('amount', expected as never)
     setStepAnimDir('forward')
     setWizardStep('fields')
   }
@@ -376,6 +434,15 @@ export default function AddTransactionModal({
           month: recapMonth,
           year: recapYear,
         })
+      } else if (isSalaryKind) {
+        const outcome = await receiveSalary({ amount: data.amount, entry_date: data.entry_date })
+        if (!outcome.ok) {
+          setServerError(
+            SALARY_ERROR_COPY[outcome.error] ?? "Erreur lors de l'enregistrement du salaire.",
+          )
+          return
+        }
+        success = true
       } else {
         success = await addIncome({
           description: data.description,
@@ -444,7 +511,16 @@ export default function AddTransactionModal({
           : 'Type de revenu'
         : transactionType === 'expense'
           ? 'Ajouter une dépense'
-          : 'Ajouter un revenu'
+          : isSalaryKind
+            ? 'Réception du salaire'
+            : 'Ajouter un revenu'
+
+  // Encart « Réception du salaire » : seulement quand l'option a été choisie et
+  // qu'elle est applicable (les deux autres états ne mènent pas au formulaire).
+  const salaryPanelMode =
+    isSalaryKind && (salaryState.kind === 'current' || salaryState.kind === 'advance')
+      ? salaryState
+      : null
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -714,6 +790,69 @@ export default function AddTransactionModal({
                       </div>
                     </div>
                   </button>
+
+                  {/* Sprint Salary-Reception (2026-10-02) — espace perso avec
+                      un salaire déclaré. Désactivée (avec la raison) quand la
+                      paie du mois suivant est déjà enregistrée. */}
+                  {salaryState.kind !== 'unavailable' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (salaryState.kind === 'already-received') return
+                        handleSelectSalary(salaryState.expected)
+                      }}
+                      disabled={salaryState.kind === 'already-received'}
+                      className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 text-left transition-all hover:bg-green-100 focus-visible:outline-2 focus-visible:outline-green-500 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:hover:bg-gray-50"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <svg
+                          className={cn(
+                            'h-6 w-6 shrink-0',
+                            salaryState.kind === 'already-received'
+                              ? 'text-gray-400'
+                              : 'text-green-600',
+                          )}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+                          />
+                        </svg>
+                        <div>
+                          <p
+                            className={cn(
+                              'font-medium',
+                              salaryState.kind === 'already-received'
+                                ? 'text-gray-500'
+                                : 'text-green-700',
+                            )}
+                          >
+                            Réception du salaire
+                          </p>
+                          <p
+                            className={cn(
+                              'text-xs',
+                              salaryState.kind === 'already-received'
+                                ? 'text-gray-500'
+                                : 'text-green-600',
+                            )}
+                          >
+                            {salaryState.kind === 'already-received'
+                              ? `Paie ${ofMonth(nextMonth(currentMonthRef))} déjà enregistrée (${formatEUR(salaryState.received)})`
+                              : salaryState.kind === 'current'
+                                ? `Paie ${ofMonth(currentMonthRef)} : valide la ligne « Salaire » en attente`
+                                : `Paie ${ofMonth(nextMonth(currentMonthRef))} : met le solde à jour, sans gonfler le RAV`}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )}
                 </div>
               </>
             )}
@@ -754,6 +893,11 @@ export default function AddTransactionModal({
                     )}
                   >
                     {isExceptional ? 'Exceptionnelle' : 'Budgétée'}
+                  </span>
+                )}
+                {isSalaryKind && (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 font-medium text-green-700">
+                    Salaire
                   </span>
                 )}
               </div>
@@ -802,37 +946,40 @@ export default function AddTransactionModal({
                 </div>
               )}
 
-              {/* Description */}
-              <div className="space-y-1.5">
-                <Label htmlFor="description" className="text-sm font-medium text-gray-900">
-                  Description <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="description"
-                  type="text"
-                  {...form.register('description')}
-                  placeholder={
-                    transactionType === 'expense'
-                      ? 'Ex: Achat de chaussures'
-                      : 'Ex: Salaire mensuel'
-                  }
-                  aria-invalid={fieldErrors.description ? 'true' : 'false'}
-                  aria-describedby={
-                    fieldErrors.description ? 'add-transaction-description-error' : undefined
-                  }
-                  className="w-full"
-                />
-                {fieldErrors.description && (
-                  <p id="add-transaction-description-error" className="text-sm text-red-600">
-                    {fieldErrors.description.message}
-                  </p>
-                )}
-              </div>
+              {/* Description — imposée (« Salaire ») pour une réception de salaire */}
+              {!isSalaryKind && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-sm font-medium text-gray-900">
+                    Description <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="description"
+                    type="text"
+                    {...form.register('description')}
+                    placeholder={
+                      transactionType === 'expense'
+                        ? 'Ex: Achat de chaussures'
+                        : 'Ex: Salaire mensuel'
+                    }
+                    aria-invalid={fieldErrors.description ? 'true' : 'false'}
+                    aria-describedby={
+                      fieldErrors.description ? 'add-transaction-description-error' : undefined
+                    }
+                    className="w-full"
+                  />
+                  {fieldErrors.description && (
+                    <p id="add-transaction-description-error" className="text-sm text-red-600">
+                      {fieldErrors.description.message}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Amount */}
               <div className="space-y-1.5">
                 <Label htmlFor="amount" className="text-sm font-medium text-gray-900">
-                  Montant (€) <span className="text-red-500">*</span>
+                  {isSalaryKind ? 'Montant reçu (€)' : 'Montant (€)'}{' '}
+                  <span className="text-red-500">*</span>
                 </Label>
                 <DecimalFormInput
                   control={form.control}
@@ -1005,21 +1152,33 @@ export default function AddTransactionModal({
                 />
               )}
 
-              {/* Preview for incomes or exceptional expenses - show remaining to live */}
-              {previewSafe > 0 && (transactionType === 'income' || isExceptional) && (
-                <RemainingToLivePreview
-                  amount={previewSafe}
-                  type={transactionType}
-                  isExceptional={isExceptional}
-                  selectedId={transactionType === 'expense' ? budgetId : incomeId}
-                  context={context}
-                  fromPiggyBank={
-                    transactionType === 'expense' && isExceptional ? effectivePiggy : 0
-                  }
-                  month={recapMonth}
-                  year={recapYear}
+              {/* Réception du salaire : ce que le montant saisi va changer */}
+              {salaryPanelMode && (
+                <SalaryReceptionPanel
+                  mode={salaryPanelMode.kind}
+                  expected={salaryPanelMode.expected}
+                  received={previewSafe}
+                  currentMonth={currentMonthRef}
                 />
               )}
+
+              {/* Preview for incomes or exceptional expenses - show remaining to live */}
+              {previewSafe > 0 &&
+                !isSalaryKind &&
+                (transactionType === 'income' || isExceptional) && (
+                  <RemainingToLivePreview
+                    amount={previewSafe}
+                    type={transactionType}
+                    isExceptional={isExceptional}
+                    selectedId={transactionType === 'expense' ? budgetId : incomeId}
+                    context={context}
+                    fromPiggyBank={
+                      transactionType === 'expense' && isExceptional ? effectivePiggy : 0
+                    }
+                    month={recapMonth}
+                    year={recapYear}
+                  />
+                )}
 
               {/* Server-side error */}
               {serverError && (
@@ -1055,6 +1214,8 @@ export default function AddTransactionModal({
                     <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                     <span>Ajout...</span>
                   </div>
+                ) : isSalaryKind ? (
+                  'Enregistrer le salaire'
                 ) : (
                   `Ajouter ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
                 )}

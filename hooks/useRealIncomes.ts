@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { ReceiveSalaryResponse } from '@/lib/api/finance/income-receive-salary'
 import { logger } from '@/lib/logger'
 import {
   applyBankBalanceToCache,
@@ -31,6 +32,20 @@ export interface ValidateSalaryRequest {
   incomeId: string
   realAmount: number
 }
+
+/** Sprint Salary-Reception (2026-10-02) — option « Réception du salaire ». */
+export interface ReceiveSalaryRequest {
+  amount: number
+  entry_date?: string
+}
+
+/**
+ * `error` = code renvoyé par la route (`salary-already-received`,
+ * `no-salary-declared`) ou message générique : l'appelant choisit le texte.
+ */
+export type ReceiveSalaryOutcome =
+  | { ok: true; result: ReceiveSalaryResponse }
+  | { ok: false; error: string }
 
 export interface RealIncome {
   id: string
@@ -84,6 +99,16 @@ export interface RealIncome {
    *     `real_expenses` paire (côté user perso) atomiquement.
    */
   contribution_id?: string | null
+  /**
+   * Sprint Salary-Reception (2026-10-02). `true` = salaire reçu en avance :
+   * déjà appliqué au solde, compté pour le mois SUIVANT (hors reste à vivre
+   * du mois en cours). Le prochain récap perso l'adopte comme ligne salaire
+   * (`recap_origin_id` posé, ce champ remis à null). Signal pour l'UI :
+   *   - libellé « Salaire reçu en avance » + rappel du mois financé ;
+   *   - « Modifier » retiré (409 côté serveur) — retirer du solde puis
+   *     supprimer pour corriger.
+   */
+  salary_reception?: boolean | null
   estimated_income?: {
     name: string
   }
@@ -132,6 +157,12 @@ interface UseRealIncomesReturn {
    * `toggle_carry_over_and_apply_income`.
    */
   toggleCarryApplied: (incomeId: string, validate: boolean) => Promise<ToggleAppliedOutcome>
+  /**
+   * Sprint Salary-Reception (2026-10-02) — « Réception du salaire » (espace
+   * perso). Ne lève pas : le code d'erreur est renvoyé pour que le dialogue
+   * affiche un message adapté.
+   */
+  receiveSalary: (data: ReceiveSalaryRequest) => Promise<ReceiveSalaryOutcome>
   refreshIncomes: () => Promise<void>
 }
 
@@ -402,6 +433,33 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
     },
   })
 
+  // Sprint Salary-Reception (2026-10-02). La réception crée (ou valide) une
+  // ligne salaire et crédite le solde ; en mode « mois en cours » elle peut
+  // aussi créer un « Équilibrage salaire » qui touche le reste à vivre et la
+  // liste des dépenses → rafraîchissement complet plutôt que ciblé.
+  const receiveSalaryMutation = useMutation<ReceiveSalaryResponse, Error, ReceiveSalaryRequest>({
+    mutationFn: async (data) => {
+      const response = await fetch('/api/finance/income/real/receive-salary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null)
+        throw new Error(errorData?.error || `Erreur ${response.status}: ${response.statusText}`)
+      }
+      const json = await response.json()
+      return json.data as ReceiveSalaryResponse
+    },
+    onSuccess: () => {
+      invalidateFinancialRefreshes(queryClient)
+    },
+    onError: (err) => {
+      logger.error('[useRealIncomes] Error in receiveSalary:', err)
+    },
+  })
+
   const totalIncomes = incomes.reduce((sum, income) => sum + income.amount, 0)
 
   const latestError =
@@ -460,6 +518,13 @@ export function useRealIncomes(context?: 'profile' | 'group'): UseRealIncomesRet
         return validate ? 'applied' : 'unapplied'
       } catch {
         return 'error'
+      }
+    },
+    receiveSalary: async (data) => {
+      try {
+        return { ok: true, result: await receiveSalaryMutation.mutateAsync(data) }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'unknown' }
       }
     },
     refreshIncomes,

@@ -122,6 +122,21 @@ export const validateSalaryFormSchema = z.object({
 export type ValidateSalaryForm = z.infer<typeof validateSalaryFormSchema>
 
 /**
+ * Sprint Salary-Reception (2026-10-02).
+ * POST /api/finance/income/real/receive-salary body — option « Réception du
+ * salaire » du dialogue d'ajout (espace perso uniquement).
+ *
+ *   - amount : le montant réellement reçu. Strictement positif (la ligne
+ *     créée porte ce montant, et `real_income_entries.amount > 0`).
+ *   - entry_date : date de réception. Absente → date du jour.
+ */
+export const receiveSalaryBodySchema = z.object({
+  amount: moneySchema,
+  entry_date: isoDateSchema.optional(),
+})
+export type ReceiveSalaryBody = z.infer<typeof receiveSalaryBodySchema>
+
+/**
  * Estimated income create body. Snake_case because the handler at
  * `lib/api/finance/income-estimated.ts` writes verbatim to
  * `estimated_incomes`. Mirrors `createEstimatedBudgetBodySchema` in

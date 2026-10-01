@@ -266,6 +266,17 @@ export default function TransactionListItem({
   const isSalaryRow = type === 'income' && (transaction as RealIncome).recap_origin_id != null
   const isSalaryAwaitingValidation = isSalaryRow && !isApplied
 
+  /**
+   * Sprint Salary-Reception (2026-10-02). Salaire reçu en avance (option
+   * « Réception du salaire ») : appliqué au solde, mais compté pour le mois
+   * SUIVANT — il n'entre pas dans le reste à vivre du mois en cours. Le
+   * prochain récap perso en fait la ligne « Salaire » du nouveau mois
+   * (`isSalaryRow` prend alors le relais). D'ici là : pas de « Modifier »
+   * (409 côté serveur) ; pour corriger, retirer du solde puis supprimer.
+   */
+  const isSalaryReception =
+    type === 'income' && (transaction as RealIncome).salary_reception === true
+
   const runToggle = async () => {
     if (isToggling) return
     // Salaire auto-créé : si déjà validé, long-press inopérant (lock à vie).
@@ -364,6 +375,15 @@ export default function TransactionListItem({
   const getCategoryName = (): string => {
     if (isContributionRow) {
       return 'Contribution groupe'
+    }
+
+    // Lignes salaire : ni exceptionnelles ni rattachées à un revenu estimé —
+    // sans ce cas, elles retombaient sur « Revenu supprimé ».
+    if (isSalaryReception) {
+      return 'Salaire reçu en avance'
+    }
+    if (isSalaryRow) {
+      return 'Salaire'
     }
 
     if (transaction.is_exceptional) {
@@ -536,6 +556,16 @@ export default function TransactionListItem({
     const income = transaction as RealIncome
     const ravBalance = currentRemainingToLive
 
+    // Un salaire reçu en avance ne pèse pas sur le reste à vivre du mois.
+    if (isSalaryReception) {
+      return (
+        <p className="text-gray-600">
+          Votre <span className="font-medium text-blue-600">reste à vivre</span> ne sera pas affecté
+          (ce salaire finance le mois prochain).
+        </p>
+      )
+    }
+
     if (income.is_exceptional) {
       if (ravBalance == null) return undefined
       const newRav = ravBalance - income.amount
@@ -653,8 +683,9 @@ export default function TransactionListItem({
     // Modifier disparaît du menu pour une transaction actuellement reportée
     // (règle produit). Réapparaît si l'utilisateur la valide d'abord.
     // Idem pour une exceptionnelle financée par tirelire (verrouillée en
-    // modification — Sprint Exceptional-Expense-Piggy-Funding).
-    ...(isCurrentlyCarried || isPiggyFundedExceptional ? [] : [editItem]),
+    // modification — Sprint Exceptional-Expense-Piggy-Funding) et pour un
+    // salaire reçu en avance (Sprint Salary-Reception).
+    ...(isCurrentlyCarried || isPiggyFundedExceptional || isSalaryReception ? [] : [editItem]),
     {
       label: toggleLabel,
       icon: toggleIcon,
@@ -857,6 +888,16 @@ export default function TransactionListItem({
             voit immédiatement le warning + sait le delta à transférer.
             Bordure + fond orange légers (charte : orange = "needs attention",
             distinct du red "déficit" et du yellow réservé "exceptionnel"). */}
+        {/* Sprint Salary-Reception (2026-10-02) — rappel permanent sur un
+            salaire reçu en avance : le solde l'a déjà, le reste à vivre du
+            mois non. Bleu = code couleur « reste à vivre », ton informatif
+            (pas d'action attendue, contrairement au bloc contribution). */}
+        {isSalaryReception && (
+          <p className="mt-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs text-blue-900">
+            Finance le mois prochain : compté dans le solde, pas dans le reste à vivre de ce mois.
+          </p>
+        )}
+
         {isContributionRow && needsValidation && (
           <div
             role="status"

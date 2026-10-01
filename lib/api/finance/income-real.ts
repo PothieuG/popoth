@@ -7,6 +7,7 @@ import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createRealIncomeBodySchema, updateRealIncomeBodySchema } from '@/lib/schemas/income'
 import { deleteByIdQuerySchema } from '@/lib/schemas/common'
+import { now } from '@/lib/clock'
 import { logger } from '@/lib/logger'
 
 type RealIncomeInsert = Database['public']['Tables']['real_income_entries']['Insert']
@@ -115,7 +116,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
     const { amount, description, entry_date, estimated_income_id } = body
     const is_for_group = body.is_for_group ?? false
 
-    const todayIso = new Date().toISOString().split('T')[0] as string
+    const todayIso = now().toISOString().split('T')[0] as string
     const insertData: RealIncomeInsert = {
       amount,
       description,
@@ -232,12 +233,19 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
     //     recap (recap_origin_id != null) — read-only à vie ;
     //   - modification d'un revenu miroir contribution (contribution_id != null)
     //     — cycle 100% trigger-piloté (symétrique au guard existant côté
-    //     expense Sprint 16 V3).
+    //     expense Sprint 16 V3) ;
+    //   - modification d'un salaire reçu en avance (Sprint Salary-Reception
+    //     2026-10-02) : la ligne est appliquée au solde pour le montant reçu,
+    //     un changement de montant désynchroniserait le solde. Pour corriger :
+    //     retirer du solde, supprimer, ressaisir.
     const { data: protectedCheck } = await supabaseServer
       .from('real_income_entries')
-      .select('is_carried_over, recap_origin_id, contribution_id')
+      .select('is_carried_over, recap_origin_id, contribution_id, salary_reception')
       .eq('id', id)
       .maybeSingle()
+    if (protectedCheck?.salary_reception) {
+      return NextResponse.json({ error: 'cannot-edit-salary-reception' }, { status: 409 })
+    }
     if (protectedCheck?.is_carried_over) {
       return NextResponse.json({ error: 'cannot-edit-carried-transaction' }, { status: 409 })
     }
