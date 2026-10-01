@@ -142,7 +142,12 @@ BEGIN
 END;
 $$;
 
+-- `FROM PUBLIC` ne suffit pas sur Supabase : les privilèges par défaut du
+-- schéma public accordent aussi EXECUTE explicitement à anon/authenticated
+-- (constaté sur dev le 2026-10-01). Sans ce REVOKE, la fonction — SECURITY
+-- DEFINER, donc hors RLS — serait appelable via l'API REST avec la clé publique.
 REVOKE ALL ON FUNCTION transfer_recap_surplus_to_savings(uuid, jsonb) FROM PUBLIC;
+REVOKE ALL ON FUNCTION transfer_recap_surplus_to_savings(uuid, jsonb) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION transfer_recap_surplus_to_savings(uuid, jsonb) TO service_role;
 
 -- ============================================================================
@@ -250,6 +255,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION apply_recap_refloat_plan(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION apply_recap_refloat_plan(uuid) FROM anon, authenticated;
 GRANT EXECUTE ON FUNCTION apply_recap_refloat_plan(uuid) TO service_role;
 
 NOTIFY pgrst, 'reload schema';
