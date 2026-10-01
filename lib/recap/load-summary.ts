@@ -22,6 +22,9 @@
  *      (règle CLAUDE.md "Tables owner-row hybrides" : un fresh account
  *      n'a pas encore de row).
  *   5. Solde bancaire (`bank_balances.balance`) — `.maybeSingle()` + 0.
+ *   6-7. Espace perso uniquement, pour EXPLIQUER le reste à vivre (aucun
+ *      calcul) : contribution au groupe déjà déduite, et salaire reçu en
+ *      avance (Sprint Salary-Reception 2026-10-02).
  *
  * RAV mapping (cf. .claude/conventions/operational-rules.md §5 — formule RAV canonique) :
  *   - ravEstime (profile) = totalEstimatedIncome - totalEstimatedBudgets
@@ -57,11 +60,12 @@
  */
 
 import { getGroupFinancialData, getProfileFinancialData } from '@/lib/finance'
+import { nextMonth, salaryDelta } from '@/lib/finance/salary-reception'
 import { supabaseServer } from '@/lib/supabase-server'
 
 import { computeRecapSummary } from './calculations'
 import type { RecapContext } from './check-status'
-import type { RecapSummary } from './types'
+import type { RecapSummary, SalaryReceptionSummary } from './types'
 
 export interface LoadRecapSummaryInput {
   context: RecapContext
@@ -119,7 +123,15 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       ? formatIsoDate(recapYear + 1, 1, 1)
       : formatIsoDate(recapYear, recapMonth + 1, 1)
 
-  const [financialData, budgetsResult, spentRows, piggyRow, bankRow] = await Promise.all([
+  const [
+    financialData,
+    budgetsResult,
+    spentRows,
+    piggyRow,
+    bankRow,
+    contributionRow,
+    receptionRow,
+  ] = await Promise.all([
     // Sprint Fix-Recap-Bilan-Month 2026-08-31 — fenêtre = mois RECAPÉ.
     // Sans elle, `ravEffectif` (donc le bilan) agrégeait les dépenses budget
     // du mois COURANT tandis que le tableau par budget ci-dessous portait sur
@@ -143,11 +155,53 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
       .lt('expense_date', nextMonthStart),
     supabaseServer.from('piggy_bank').select('amount').eq(ownerColumn, ownerId).maybeSingle(),
     supabaseServer.from('bank_balances').select('balance').eq(ownerColumn, ownerId).maybeSingle(),
+    // Sprint Salary-Reception (2026-10-02) — espace perso uniquement : de quoi
+    // EXPLIQUER le reste à vivre à l'écran « Récap général ». Aucune des deux
+    // lectures n'entre dans un calcul.
+    //   - contribution au groupe : déjà soustraite du RAV via la ligne miroir
+    //     de dépense, dont le montant est tenu égal à `contribution_amount`
+    //     par le trigger `sync_contribution_real_expense` ;
+    //   - salaire reçu en avance : dans le solde, hors RAV (1 ligne au plus,
+    //     index unique partiel).
+    context === 'profile'
+      ? supabaseServer
+          .from('group_contributions')
+          .select('contribution_amount, group:groups(name)')
+          .eq('profile_id', profileId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    context === 'profile'
+      ? supabaseServer
+          .from('real_income_entries')
+          .select('amount')
+          .eq('profile_id', profileId)
+          .is('salary_reception', true)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   const budgets = budgetsResult.data ?? []
   const piggyAmount = piggyRow.data?.amount ?? 0
   const currentBalance = bankRow.data?.balance ?? 0
+
+  const contributionAmount = Number(contributionRow.data?.contribution_amount ?? 0)
+  const contributionGroup = contributionRow.data?.group as { name: string | null } | null
+  const groupContribution: RecapSummary['groupContribution'] =
+    contributionAmount > 0
+      ? {
+          label: contributionGroup?.name
+            ? `Contribution au groupe ${contributionGroup.name}`
+            : 'Contribution au groupe',
+          amount: contributionAmount,
+        }
+      : undefined
+
+  const salaryReception = buildSalaryReception(
+    receptionRow.data?.amount,
+    financialData.meta?.readOnlyIncomes?.find((income) => income.kind === 'salary')?.amount ?? 0,
+    recapMonth,
+    recapYear,
+  )
 
   // Agréger spentThisMonth par budgetId (sum amount_from_budget, fallback 0 si null).
   const spentByBudgetId = new Map<string, number>()
@@ -160,7 +214,7 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     )
   }
 
-  return computeRecapSummary({
+  const summary = computeRecapSummary({
     currentBalance,
     ravEstime:
       financialData.totalEstimatedIncome +
@@ -189,6 +243,28 @@ export async function loadRecapSummary(input: LoadRecapSummaryInput): Promise<Re
     // callers passent `undefined` car aucun snapshot n'est encore matérialisé).
     projectSnapshotData,
   })
+
+  return {
+    ...summary,
+    ...(groupContribution !== undefined && { groupContribution }),
+    ...(salaryReception !== undefined && { salaryReception }),
+  }
+}
+
+function buildSalaryReception(
+  received: number | null | undefined,
+  expected: number,
+  recapMonth: number,
+  recapYear: number,
+): SalaryReceptionSummary | undefined {
+  if (received == null) return undefined
+  const amount = Number(received)
+  return {
+    received: amount,
+    expected,
+    delta: salaryDelta(amount, expected),
+    fundedMonth: nextMonth({ month: recapMonth, year: recapYear }),
+  }
 }
 
 function formatIsoDate(year: number, month1Indexed: number, day: number): string {

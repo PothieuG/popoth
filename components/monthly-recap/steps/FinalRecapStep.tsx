@@ -6,8 +6,14 @@ import { Button } from '@/components/ui/button'
 import { useCompleteRecap, type RecapProgress } from '@/hooks/useMonthlyRecap'
 import { useGroupContributions } from '@/hooks/useGroupContributions'
 import { useProfile } from '@/hooks/useProfile'
+import { ofMonth } from '@/lib/finance/salary-reception'
 import { formatEuro } from '@/lib/format-currency'
-import type { ProjectSnapshotSummary, RecapContext, RecapSummary } from '@/lib/recap'
+import type {
+  ProjectSnapshotSummary,
+  RecapContext,
+  RecapSummary,
+  SalaryReceptionSummary,
+} from '@/lib/recap'
 import {
   EMPTY_REFLOAT_PLAN,
   planFromProgress,
@@ -163,6 +169,8 @@ export function FinalRecapStep({
             <span className="tabular-nums">{formatEuro(salaryLine.amount)}</span>
           </p>
         )}
+
+        {summary.salaryReception && <SalaryReceptionLine reception={summary.salaryReception} />}
       </section>
 
       <Button
@@ -181,6 +189,41 @@ export function FinalRecapStep({
       {error && (
         <p role="alert" className="text-sm text-red-700">
           {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Sprint Salary-Reception (2026-10-02). Le salaire du mois qui s'ouvre a déjà
+ * été reçu (option « Réception du salaire ») : à la finalisation il devient la
+ * ligne « Salaire » de ce mois, déjà validée — aucune ligne à valider sur le
+ * dashboard — et son écart avec le salaire prévu entre dans le reste à vivre.
+ * Miroir de `create_salary_income_for_recap`.
+ */
+function SalaryReceptionLine({ reception }: { reception: SalaryReceptionSummary }) {
+  const target = ofMonth(reception.fundedMonth)
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-3 text-gray-700">
+      <p>
+        <span className="font-medium">Salaire {target} déjà reçu :</span>{' '}
+        <span className="tabular-nums">{formatEuro(reception.received)}</span>
+      </p>
+      {reception.delta > 0 && (
+        <p className="mt-1 text-xs text-gray-600">
+          <span className="font-semibold text-green-700 tabular-nums">
+            +{formatEuro(reception.delta)}
+          </span>{' '}
+          par rapport au salaire prévu, ajoutés à votre reste à vivre {target}.
+        </p>
+      )}
+      {reception.delta < 0 && (
+        <p className="mt-1 text-xs text-gray-600">
+          <span className="font-semibold text-red-700 tabular-nums">
+            −{formatEuro(-reception.delta)}
+          </span>{' '}
+          par rapport au salaire prévu, retirés de votre reste à vivre {target}.
         </p>
       )}
     </div>

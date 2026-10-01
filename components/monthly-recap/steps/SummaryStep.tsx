@@ -4,8 +4,9 @@ import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useAdvanceStep } from '@/hooks/useMonthlyRecap'
+import { monthName, ofMonth } from '@/lib/finance/salary-reception'
 import { formatEuro } from '@/lib/format-currency'
-import type { RecapContext, RecapSummary } from '@/lib/recap'
+import type { RecapContext, RecapSummary, SalaryReceptionSummary } from '@/lib/recap'
 import { cn } from '@/lib/utils'
 
 import { BilanBlock } from '../BilanBlock'
@@ -59,18 +60,38 @@ const ACCENT_STYLES: Record<CardAccent, { border: string; amount: string; link: 
   },
 }
 
+/**
+ * Sprint Salary-Reception (2026-10-02). Le salaire reçu en avance est dans le
+ * solde mais hors bilan : il finance le mois suivant, où seul son écart avec
+ * le salaire prévu entrera dans le reste à vivre.
+ */
+function salaryReceptionNote(reception: SalaryReceptionSummary): string {
+  const base = `Compris dans le solde. Il finance ${monthName(reception.fundedMonth)} : il n'entre pas dans ce bilan.`
+  const target = ofMonth(reception.fundedMonth)
+  if (reception.delta > 0) {
+    return `${base} ${formatEuro(reception.delta)} de plus que prévu, ajoutés au reste à vivre ${target}.`
+  }
+  if (reception.delta < 0) {
+    return `${base} ${formatEuro(-reception.delta)} de moins que prévu, retirés du reste à vivre ${target}.`
+  }
+  return base
+}
+
 function SummaryCard({
   label,
   amount,
   accent,
   onShowDetail,
   detailLabel,
+  note,
 }: {
   label: string
   amount: number
   accent: CardAccent
   onShowDetail?: () => void
   detailLabel?: string
+  /** Précision sous le montant (une phrase courte, écran mobile). */
+  note?: string
 }) {
   const styles = ACCENT_STYLES[accent]
   return (
@@ -82,6 +103,7 @@ function SummaryCard({
     >
       <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">{label}</p>
       <p className={cn('text-xl font-semibold', styles.amount)}>{formatEuro(amount)}</p>
+      {note && <p className="text-xs leading-snug text-gray-600">{note}</p>}
       {onShowDetail && (
         <Button
           type="button"
@@ -111,6 +133,10 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
   const hasProjects = activeProjects.length > 0
   const projectsLabel =
     activeProjects.length === 1 ? '1 projet en cours' : `${activeProjects.length} projets en cours`
+  // Sprint Salary-Reception (2026-10-02) — espace perso : rendre lisible l'écart
+  // entre un solde élevé et un reste à vivre faible (contribution au groupe déjà
+  // déduite, salaire du mois suivant déjà dans le solde).
+  const { groupContribution, salaryReception } = summary
 
   const handleNext = async () => {
     setError(null)
@@ -129,8 +155,29 @@ export function SummaryStep({ context, summary }: SummaryStepProps) {
 
       <div className="space-y-3">
         <SummaryCard label="Solde actuel" amount={summary.currentBalance} accent="bank" />
-        <SummaryCard label="Reste à vivre estimé" amount={summary.ravEstime} accent="neutral" />
+        {salaryReception && (
+          <SummaryCard
+            label="Salaire reçu en avance"
+            amount={salaryReception.received}
+            accent="bank"
+            note={salaryReceptionNote(salaryReception)}
+          />
+        )}
+        <SummaryCard
+          label="Reste à vivre estimé"
+          amount={summary.ravEstime}
+          accent="neutral"
+          note={groupContribution ? 'Avant contribution au groupe.' : undefined}
+        />
         <SummaryCard label="Reste à vivre effectif" amount={summary.ravEffectif} accent="neutral" />
+        {groupContribution && (
+          <SummaryCard
+            label={groupContribution.label}
+            amount={groupContribution.amount}
+            accent="neutral"
+            note="Déjà déduite du reste à vivre effectif."
+          />
+        )}
         <SummaryCard
           label="Surplus total des budgets"
           amount={summary.totalSurplus}

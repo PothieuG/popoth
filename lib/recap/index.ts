@@ -15,4 +15,5 @@ export type {
   ProjectSnapshotSummary,
   RecapSummary,
   RefloatProportionalAllocation,
+  SalaryReceptionSummary,
 } from './types'

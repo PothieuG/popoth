@@ -58,6 +58,28 @@ export interface RecapSummary {
    *  dans `monthly_recaps.project_snapshot_data` pour le recap actif).
    *  Consommé par `FinalRecapStep` pour afficher la section "Projets". */
   projectSnapshot?: ProjectSnapshotSummary
+  /** Sprint Salary-Reception (2026-10-02). Espace perso d'un membre de groupe :
+   *  la contribution au groupe DÉJÀ soustraite de `ravEffectif` (ligne miroir
+   *  `real_expenses.contribution_id`). Purement explicatif — sans elle, un
+   *  reste à vivre faible à côté d'un solde élevé ne se lit pas. Absent en
+   *  contexte groupe ou hors groupe. */
+  groupContribution?: { label: string; amount: number }
+  /** Sprint Salary-Reception (2026-10-02). Salaire reçu en avance pendant le
+   *  mois recapé (option « Réception du salaire ») : présent dans
+   *  `currentBalance`, absent de `ravEffectif` — il finance `fundedMonth`. À la
+   *  finalisation, `create_salary_income_for_recap` en fait la ligne salaire de
+   *  ce mois et `delta` (reçu − prévu) entre dans son reste à vivre. */
+  salaryReception?: SalaryReceptionSummary
+}
+
+export interface SalaryReceptionSummary {
+  received: number
+  /** Salaire déclaré au moment du calcul (`profiles.salary`). */
+  expected: number
+  /** received − expected, au centime. */
+  delta: number
+  /** Mois qui suit le mois recapé. */
+  fundedMonth: { month: number; year: number }
 }
 
 /** Sprint Projets-Épargne 10 — résumé synthétique des effets de
