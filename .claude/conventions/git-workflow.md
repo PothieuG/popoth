@@ -153,7 +153,7 @@ Quand une PR Dependabot est mergée (workflow appris au follow-up Sprint DX-Veri
 Pour toute nouvelle RPC :
 
 - `SECURITY DEFINER`
-- `REVOKE ALL FROM PUBLIC`
+- `REVOKE ALL FROM PUBLIC` **+ `REVOKE ALL … FROM anon, authenticated`** — sur Supabase, les privilèges par défaut du schéma `public` accordent EXECUTE explicitement à `anon`/`authenticated` : `FROM PUBLIC` seul ne les retire pas, et une fonction `SECURITY DEFINER` (hors RLS) reste alors appelable via l'API REST avec la clé publique. Constaté sur dev le 2026-10-01 (Part 46) : toutes les RPC finance antérieures sont dans ce cas.
 - `GRANT EXECUTE TO service_role`
 - `SET search_path = public`
 - `NOTIFY pgrst, 'reload schema';` à la fin (sinon `.rpc()` lève "Could not find the function in the schema cache" — leçon Sprint DB).

@@ -108,6 +108,25 @@ l'écran.
 - Rendu vérifié en Chromium 390 × 844 (page de prévisualisation temporaire, non
   commitée).
 
+## 4 bis. Application sur dev (2026-10-01, accord utilisateur)
+
+- `apply-sql.mjs` avec `SUPABASE_PROJECT_REF=ddehmjucyfgyppfkbddr` explicite
+  (le script vise la prod par défaut). Pré-check lecture seule : colonnes et
+  fonctions absentes, `update_piggy_bank_amount` présente, 1 récap ouvert.
+- Dev a un tracker `schema_migrations` à jour (72 lignes) contrairement à
+  multi-env.md §6 (2026-05-29) → version `20261001000000` inscrite (73).
+- **Trouvaille sécurité** : après application, les 2 RPC étaient EXECUTE pour
+  `anon` + `authenticated` (privilèges par défaut Supabase, que
+  `REVOKE … FROM PUBLIC` ne retire pas). Migration corrigée (REVOKE explicite)
+  et appliquée sur dev → `postgres` + `service_role` seuls. **Toutes les RPC
+  finance antérieures sont dans ce cas sur dev** (`update_piggy_bank_amount`,
+  `update_budget_cumulated_savings`, `start_monthly_recap`…) : hors périmètre,
+  à traiter dans un sprint dédié (vérifier d'abord la prod).
+- Smoke test SQL dans une transaction volontairement annulée (`RAISE` final) :
+  surplus crédité une fois (10 + 200 = 210), 2e appel no-op ; plan appliqué
+  (tirelire 100 → 0, économies 210 → 0), 2e application no-op ; économie
+  négative refusée. 0 ligne résiduelle vérifiée. `db:check-rpcs` (dev) : 30/30.
+
 ## 5. Leçons
 
 - **Un écran de « cascade » cache facilement un flux d'argent orphelin** : le
@@ -116,5 +135,8 @@ l'écran.
 - **Différer les débits rend l'UX réversible gratuitement** (plan modifiable,
   rien à rembourser à l'abandon) ; l'idempotence se règle une fois, dans la RPC
   d'application (`refloat_plan_applied_at` posé dans la même transaction).
+- **Sur Supabase, `REVOKE … FROM PUBLIC` ne protège pas une RPC** : retirer
+  aussi `anon, authenticated` et vérifier `information_schema.routine_privileges`
+  après application.
 - **`next dev` (16.3) ajoute un bloc `nextjs-agent-rules` à `CLAUDE.md`** : ne
   pas le commiter (plafond 39,5k), restaurer le fichier après un `pnpm dev`.

@@ -119,6 +119,8 @@ $env:SUPABASE_PROJECT_REF = $null
 
 Si la DB dev est vide / fresh : copier la baseline prod via `supabase db push --include-all` après link.
 
+> ✅ **Mise à jour 2026-10-01** : dev **a désormais** un tracker `supabase_migrations.schema_migrations` tenu à jour (72 versions, identiques aux fichiers locaux jusqu'à `20260928000000`). Toute migration appliquée sur dev via `apply-sql.mjs` doit donc y être inscrite (`INSERT … (version, name)`), comme en prod — fait pour `20261001000000` (Part 46). Le paragraphe ci-dessous décrit l'état antérieur.
+>
 > ⚠️ **Réalité dev (constatée 2026-05-29)** : le projet dev `ddehmjucyfgyppfkbddr` n'a **aucun tracker de migrations** — le schéma `supabase_migrations` (et donc la table `schema_migrations`) **n'existe pas**. Son schéma a été bâti entièrement en ad-hoc via `apply-sql.mjs` (Management API), jamais via `supabase db push`. Conséquences :
 >
 > - `supabase migration list` / `db push` contre dev **ne marchent pas tels quels** : un `db push` créerait le tracker puis tenterait d'appliquer **toutes** les migrations locales — or la plupart existent déjà sur dev → collisions (`relation already exists`, `type already exists`…). Le bloc PowerShell ci-dessus (link + `db push`) est donc **théorique** tant que le tracker dev n'est pas initialisé.
