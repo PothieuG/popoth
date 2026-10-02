@@ -102,8 +102,8 @@ Toutes les routes valident le cookie `session` via le wrapper `withAuth` / `with
 
 **Query params** :
 
-- `expenses/preview-breakdown` GET : `?amount=42.50&budget_id=<uuid>&context=profile|group&expense_id=<uuid>` (le dernier exclut une dépense de la simulation).
-- `expenses/add-with-logic` POST : body `{ amount, description, expense_date?, estimated_budget_id?, is_for_group? }` — gère l'allocation tirelire → savings → budget en RPC atomique.
+- `expenses/preview-breakdown` GET : `?amount=42.50&budget_id=<uuid>&context=profile|group&expense_id=<uuid>&month=&year=` (`expense_id` : simulation de modification, sources d'origine conservées). Renvoie aussi `overflow` (dépassement après économies du budget + budget) et `other_budgets_savings` (réserves mobilisables) ; en ajout, la répartition est calculée **sans** couverture (dépassement sur le reste à vivre).
+- `expenses/add-with-logic` POST : body `{ amount, description, expense_date?, estimated_budget_id?, is_for_group?, use_savings?, overflow_coverage?, amount_from_piggy_bank?, month?, year? }`. Économies du budget puis budget ; le dépassement est couvert par `overflow_coverage` `{ piggy, budgets: [{ budget_id, amount }] }` (choix de l'utilisateur), le reste part en déficit. Couverture devenue impossible → **409** `overflow-coverage-outdated`. Débit + INSERT en une RPC atomique.
 
 ## Routes hors `/api/finance/*` — wrappées en v4
 
@@ -136,21 +136,21 @@ sequenceDiagram
     participant UI as AddTransactionModal
     participant Hook as useRealExpenses
     participant API as /api/finance/expenses/add-with-logic
-    participant Lib as lib/expense-allocation.ts
-    participant RPC as RPC atomiques (lib/finance/*)
+    participant Lib as lib/expense-breakdown.ts
+    participant RPC as RPC atomiques (lib/finance/expenses.ts)
     participant DB as PostgreSQL
 
-    UI->>Hook: addExpense({ amount, budget_id, ... })
+    UI->>API: GET preview-breakdown (dépassement + réserves)
+    Note over UI: dépassement + réserves → étape « Couvrir le dépassement »
+    UI->>Hook: addExpense({ amount, budget_id, overflow_coverage? })
     Hook->>API: POST + body
-    API->>Lib: calculateBreakdown(amount, budget)
-    Lib-->>API: { fromPiggy, fromBudgetSavings, fromBudget }
-    API->>RPC: updatePiggyBank(-fromPiggy)
-    RPC->>DB: UPDATE piggy_bank.amount
-    API->>RPC: updateBudgetCumulatedSavings(-fromBudgetSavings)
-    RPC->>DB: UPDATE estimated_budgets.cumulated_savings
-    API->>DB: INSERT real_expenses (fromBudget portion)
+    API->>Lib: findCoverageIssue → 409 si couverture périmée
+    API->>Lib: calculateBreakdownWithCoverage(amount, budget, couverture)
+    Lib-->>API: { fromPiggy, fromBudgetSavings, fromBudget, crossBudgetDebits }
+    API->>RPC: add_expense_with_breakdown | add_expense_with_cross_budget_cascade
+    RPC->>DB: débits tirelire / économies + INSERT real_expenses + trace des sources (1 tx)
     API-->>Hook: { real_expense, breakdown }
-    Hook-->>UI: triggerFinancialRefresh()
+    Hook-->>UI: invalidateFinancialRefreshes()
 ```
 
 ## Vérification

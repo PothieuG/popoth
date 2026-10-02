@@ -126,48 +126,10 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS** modifier la valeur `:root { font-size: 15.5px }` ni la garde `input, textarea, select { font-size: 16px }` dans [app/globals.css](../../app/globals.css) sans peser leur effet de cascade global (Sprint Mobile-Density-Shrink 2026-05-21). Le root décale tout le rem-Tailwind (text-_, p-_, gap-_, h-_, w-_) de ~3 % sous le default navigateur 16 px — c'est la baseline densité mobile-first volontaire pour rendre l'UI "moins grosse" sur Android (Fairphone 6 412×916 + autres) où Roboto rend visuellement plus dense que SF iOS. La garde 16 px sur les form controls empêche iOS Safari de zoomer au focus quand un input a une font-size computed < 16 px (spec WebKit délibérée). Pour itérer la densité (e.g. -6 % ou -10 %) : changer juste la valeur 15.5px → 15px / 14.5px, recharger. Reversal en commentant les 2 déclarations. ❌ **NE PAS** non plus override `@theme { --spacing }` ou `@theme { --text-_ }` pour shrinkr la densité — le root font-size shift est l'unique single-point-of-truth idiomatique Tailwind 4 CSS-first.
 
-### Edit-mode allocation semantics
+### Couverture du dépassement & mode édition (Part 48 — 2026-10-02)
 
-- ❌ **NE PAS** réintroduire l'allocation P4-strict fresh en mode EDIT (Sprint Expense-Preview-Posé-Layout 2026-05-21, raffinée Delta-Cascade-Edit 2026-05-21). Le mode EDIT — détecté par la présence du paramètre `existingExpense` non-null sur [lib/expense-allocation.ts::applyAllocation](../../lib/expense-allocation.ts) ET dans la route [lib/api/finance/expenses-preview-breakdown.ts](../../lib/api/finance/expenses-preview-breakdown.ts) — DOIT utiliser l'algorithme « **delta-based cascade** » :
-
-  ```
-  delta = round(amount - existing.amount, 2)    // cents-precise
-
-  if delta == 0:
-    return { fromPiggy: eP, fromSavings: eS, fromBudget: eB }   // preserve
-
-  if delta > 0:
-    extra_savings_room = max(0, savingsBefore - eS)   // pool libre, hors claim existant
-    addSavings = min(delta, extra_savings_room)
-    addBudget  = delta - addSavings
-    return {
-      fromPiggy:   eP,                            // jamais auto-débitée
-      fromSavings: eS + addSavings,
-      fromBudget:  eB + addBudget,
-    }
-
-  if delta < 0:
-    refundFromBudget  = min(|delta|, eB)          // budget vidé en priorité
-    refundFromSavings = min(|delta| - refundFromBudget, eS)
-    refundFromPiggy   = |delta| - refundFromBudget - refundFromSavings
-    return {
-      fromPiggy:   eP - refundFromPiggy,
-      fromSavings: eS - refundFromSavings,
-      fromBudget:  eB - refundFromBudget,
-    }
-  ```
-
-  Trois cas distincts selon le sens du delta. Sans `existingExpense` (mode ADD), P4-strict standard reste valide (budget first, savings cascade overflow).
-
-  Cas vérifiés :
-  - **A=123 (eS=25, eB=98), pool savings=0** : 123→5 ⇒ nS=5, nB=0 ; 123→130 ⇒ nS=25, nB=105 ; 123→30 ⇒ nS=25, nB=5 ; 123→123 ⇒ preserve {nS=25, nB=98}.
-  - **A=250 (eS=250, eB=0), pool savings=50** : 250→275 ⇒ nS=275, nB=0 (cascade les 25€ de delta dans le pool libre) ; 250→350 ⇒ nS=300, nB=50 (savings saturée, reste sur budget) ; 250→100 ⇒ nS=100, nB=0 (refund 150 from eB=0 then from eS=250).
-
-  Bug pré-raffinement (algorithme « preserve existing caps » initial qui cappait nS à `eS` strict) : 250→275 affichait nS=250, nB=25 au lieu de nS=275, nB=0 — les économies libres dans le pool n'étaient pas utilisées. User rule "si il existe encore des économies disponibles, il faut les utiliser" : le delta>0 cascade savings AVANT budget si pool libre, miroir P5 toggle mais piloté par la disponibilité du pool plutôt qu'un toggle UI.
-
-  Le mirroir entre `applyAllocation` (server PUT) et la duplication inline dans `expenses-preview-breakdown.ts` (route route, import server-only pas trivial à factoriser) est intentionnel — **toute modif de l'algo doit toucher LES DEUX endroits**. La précision cents (`Math.round(delta * 100) / 100`) absorbe le drift float introduit par DecimalFormInput (e.g., 250.0000001 typé devient 250.0000001 parsé).
-
-- ❌ **NE PAS** soustraire `existingExpense.amount_from_budget` de `budgetSpentBefore` AVANT de calculer le breakdown (Sprint Expense-Preview-Posé-Layout 2026-05-21). Le `budgetSpentBefore` lu via SELECT inclut la valeur old (real_expenses pas encore UPDATE par le PUT). Garder cette valeur **un-reverted** pour l'input du calcul. Le subtract du existing.amount_from_budget se fait UNIQUEMENT au calcul du `budget_spent_after` retourné par l'API : `budget_spent_after = budgetSpentBefore - (existingExpense?.amount_from_budget ?? 0) + fromBudget`. Bug pré-fix : la route preview-breakdown soustrayait à l'input → budgetRemaining trop grand → P4-strict mettait tout sur le budget (allocation divergente du PUT serveur).
+- ❌ **NE PAS** débiter tirelire ni économies d'autres budgets sans choix explicite : `overflow_coverage` (étape « Couvrir le dépassement », défaut = reste à vivre). Le serveur recalcule le dépassement et renvoie 409 `overflow-coverage-outdated` au lieu de corriger en silence. L'ancienne cascade auto (Part 28) n'est plus qu'un bouton (`autoCoverOverflow`). Les économies du budget destination restent automatiques.
+- ❌ **NE PAS** refaire une répartition « fraîche » en EDIT (PUT `expenses/real` + preview avec `expense_id`) : sources d'origine (trace `expense_savings_sources`) gardées via `calculateBreakdownWithCoverage`, réduites au prorata si le dépassement baisse, jamais augmentées. Calcul post-reverse : `budgetSpentBefore` exclut `existing.amount_from_budget`, `budget_spent_after = budgetSpentBefore + fromBudget`. Le delta-based du 2026-05-21 ne survit que dans `applyAllocation` (chemin legacy : budget destination changé). Détails → [Part 48](../history/roadmap-detailed-48-expense-overflow-coverage.md).
 
 - ❌ **NE PAS** réintroduire `sum + expense.amount` dans `EditTransactionModal.calculateRealSpentAmount` — doit sommer `expense.amount_from_budget` avec fallback sur `amount` pour legacy nulls, miroir `AddTransactionModal`. Sprint 2026-05-21 : le bug donnait `398€/200€` dans le dropdown pour 2 dépenses (123+275) dont 300€ d'économies absorbaient la majorité — l'affichage cumulé incluait la portion savings+piggy ce qui n'a pas de sens pour un "spent on budget pool". Le seul invariant valide : `dropdown.spentAmount === sum(expense.amount_from_budget)`.
 
