@@ -2,7 +2,13 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { supabaseServer } from '@/lib/supabase-server'
 import { saveRemainingToLiveSnapshot } from '@/lib/finance'
-import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
+import {
+  calculateBreakdown,
+  calculateBreakdownWithCoverage,
+  EMPTY_COVERAGE,
+  findCoverageIssue,
+  type OverflowCoverage,
+} from '@/lib/expense-breakdown'
 import {
   addExceptionalExpenseWithPiggy,
   addExpenseWithBreakdown,
@@ -26,8 +32,8 @@ export interface AddExpenseWithLogicRequest {
   is_for_group?: boolean
   /** Sprint P4-P5-P6 / P5 toggle — see `addExpenseWithLogicBodySchema`. */
   use_savings?: boolean
-  /** Sprint P4-P5-P6 / P4 Phase 2 — see `addExpenseWithLogicBodySchema`. */
-  cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
+  /** Sprint Expense-Overflow-Coverage — see `addExpenseWithLogicBodySchema`. */
+  overflow_coverage?: OverflowCoverage
   /** Sprint Exceptional-Expense-Piggy-Funding — part tirelire (dépense exceptionnelle). */
   amount_from_piggy_bank?: number
 }
@@ -48,10 +54,11 @@ export interface ExpenseBreakdown {
 /**
  * POST /api/finance/expenses/add-with-logic
  *
- * Adds an expense with the following priority logic:
- * 1. First, deplete piggy bank
- * 2. Then, deplete budget savings (cumulated_savings)
- * 3. Finally, use the budget itself
+ * Adds a budgeted expense: the destination budget's savings, then the budget
+ * itself; any overflow is covered by what the user chose (`overflow_coverage`:
+ * piggy bank + other budgets' savings), the rest becomes a budget deficit
+ * (remaining-to-live). Exceptional expenses are inserted directly (optionally
+ * funded by the piggy bank).
  *
  * Returns a detailed breakdown of how the expense was allocated.
  *
@@ -68,8 +75,8 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
       body
     const is_for_group = body.is_for_group ?? false
     // Sprint Exceptional-Expense-Piggy-Funding — montant tirelire (dépense
-    // exceptionnelle uniquement ; ignoré côté budgétée où la cascade auto
-    // pilote la tirelire). Clamp ≤ amount au cas où le client enverrait plus.
+    // exceptionnelle uniquement ; ignoré côté budgétée où la tirelire passe
+    // par `overflow_coverage`). Clamp ≤ amount au cas où le client enverrait plus.
     const amountFromPiggyBank = Math.min(body.amount_from_piggy_bank ?? 0, amount)
 
     // Determine profile_id or group_id
@@ -268,17 +275,18 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
       }, 0) || 0
 
     // Inclure le carryover (déficit reporté du recap précédent) dans la
-    // somme dépensée. Sans ça, `budgetRemaining` est surestimé et la cascade
-    // auto (piggy → savings → cross-budgets) n'est pas déclenchée quand
-    // l'overflow réel l'exigerait, laissant la trace `expense_savings_sources`
-    // divergente de la sémantique attendue par le dashboard.
+    // somme dépensée. Sans ça, `budgetRemaining` est surestimé et le
+    // dépassement réel sous-estimé (le budget accepterait une dépense que la
+    // dette reportée sature déjà).
     const carryoverSpent = budgetData.carryover_spent_amount ?? 0
     const budgetSpentBefore = actualSpentCurrentMonth + carryoverSpent
 
-    // Step 4: Auto-cascade breakdown — serveur autoritatif. Le client peut
-    // envoyer `cross_budget_cascade` mais on l'ignore : le serveur recalcule
-    // entièrement (piggy-first puis cross-budget proportionnel) depuis l'état
-    // DB courant. Évite les drifts client/serveur et les payloads obsolètes.
+    // Step 4: couverture du dépassement (Sprint Expense-Overflow-Coverage).
+    // L'utilisateur choisit ce qui couvre le dépassement ; sans choix, il va
+    // en déficit sur le reste à vivre. Le serveur recalcule le dépassement
+    // sur l'état DB courant et refuse une couverture devenue impossible
+    // (autre dépense entre-temps, autre membre du groupe) plutôt que de la
+    // corriger en silence : la modale réaffiche des montants à jour.
     const budgetRemaining = (budgetData.estimated_amount || 0) - budgetSpentBefore
 
     const { data: otherBudgetsRaw } = await supabaseServer
@@ -293,12 +301,26 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
       available: b.cumulated_savings ?? 0,
     }))
 
-    const allocation = calculateBreakdownWithAutoCascade(
+    const coverage = body.overflow_coverage ?? EMPTY_COVERAGE
+    const { overflow } = calculateBreakdown(amount, budgetRemaining, savingsBefore, {
+      useSavingsToggle: use_savings,
+    })
+    const coverageIssue = findCoverageIssue(
+      coverage,
+      overflow,
+      piggyBankBefore,
+      otherBudgetsSavings,
+    )
+    if (coverageIssue) {
+      logger.warn('[add-with-logic] couverture du dépassement refusée:', coverageIssue)
+      return NextResponse.json({ error: 'overflow-coverage-outdated' }, { status: 409 })
+    }
+
+    const allocation = calculateBreakdownWithCoverage(
       amount,
       budgetRemaining,
       savingsBefore,
-      piggyBankBefore,
-      otherBudgetsSavings,
+      coverage,
       { useSavingsToggle: use_savings },
     )
     const fromPiggyBank = allocation.fromPiggyBank
@@ -310,7 +332,7 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
     const savingsAfter = savingsBefore - fromBudgetSavings
     const budgetSpentAfter = budgetSpentBefore + fromBudgetWithOverflow
 
-    // Step 5: Single atomic op. Cascade auto → dispatch :
+    // Step 5: Single atomic op. Dispatch :
     //   - piggy > 0 OU crossBudgetDebits non vide → composite RPC
     //     `add_expense_with_cross_budget_cascade` (gère piggy + multi-source).
     //   - Sinon → RPC simple `add_expense_with_breakdown` (piggy=0, budget

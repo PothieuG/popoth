@@ -5,12 +5,15 @@
  * bundling supabase-server.ts in the client bundle would leak the
  * service_role key).
  *
- * Two algorithms:
- *   - `calculateBreakdown` (legacy P4-P5 strict, single-budget).
- *   - `calculateBreakdownWithAutoCascade` (auto piggy-first + cross-budget
- *     proportional cascade when overflow > 0). Used in ADD mode where
- *     the user no longer selects sources manually.
+ * Two layers:
+ *   - `calculateBreakdown` (P4-P5, single-budget) : économies du budget
+ *     destination puis le budget lui-même ; ce qui dépasse = `overflow`.
+ *   - `calculateBreakdownWithCoverage` : le dépassement est couvert par ce que
+ *     l'utilisateur a choisi (tirelire + économies d'autres budgets), le reste
+ *     part en déficit du budget destination (donc sur le reste à vivre).
  */
+
+import { ROUNDING_TOLERANCE } from '@/lib/constants/finance'
 
 export interface CrossBudgetDebit {
   budget_id: string
@@ -33,10 +36,9 @@ export interface AllocationBreakdown {
 
 export interface AllocationBreakdownWithCascade extends AllocationBreakdown {
   /**
-   * Cross-budget cascade debits produced when overflow > 0 and piggy
-   * couldn't fully cover. Empty otherwise. Order follows the input
-   * `otherBudgetsSavings` array. With auto-cascade, `overflow` will be 0
-   * (residual absorbed into `fromBudget` as a deficit).
+   * Économies d'autres budgets prises pour couvrir le dépassement. Vide si
+   * rien n'est couvert. `overflow` vaut alors 0 : le résidu non couvert est
+   * absorbé par `fromBudget` (déficit du budget destination).
    */
   crossBudgetDebits: CrossBudgetDebit[]
 }
@@ -91,94 +93,178 @@ export function calculateBreakdown(
 const roundCents = (value: number): number => Math.round(value * 100) / 100
 
 /**
- * Auto-cascade breakdown — used in ADD mode for budgeted expenses.
- *
- * Allocation order:
- *   1. Destination budget's local savings (P5 default: savings d'abord).
- *   2. Destination budget itself (jusqu'à budgetRemaining).
- *   3. If overflow > 0 → piggy bank first (priority).
- *   4. If overflow > 0 → cross-budget savings prorata aux disponibilités.
- *   5. Residual overflow absorbé par `fromBudget` (déficit destination, RAV).
- *
- * Évolution de `calculateBreakdown` quand l'utilisateur accepte que la
- * tirelire et les autres budgets soient consommés automatiquement (UI :
- * encart violet informatif, plus de sélection manuelle). La règle ❌
- * "piggy JAMAIS auto-débitée" historique est amendée : piggy peut
- * désormais être auto-débitée mais UNIQUEMENT pour combler un overflow.
+ * Sprint Expense-Overflow-Coverage (2026-10-02) — couverture du dépassement
+ * choisie par l'utilisateur dans l'étape « Couvrir le dépassement ».
+ * Rien de couvert (`EMPTY_COVERAGE`) = tout le dépassement va sur le reste à
+ * vivre, comportement par défaut : aucune réserve n'est prise sans action.
  */
-export function calculateBreakdownWithAutoCascade(
+export interface OverflowCoverage {
+  piggy: number
+  budgets: CrossBudgetDebit[]
+}
+
+export const EMPTY_COVERAGE: OverflowCoverage = { piggy: 0, budgets: [] }
+
+/** Réserve mobilisable : économies d'un autre budget que la destination. */
+export interface BudgetSavingsSource {
+  budget_id: string
+  available: number
+}
+
+export function coverageTotal(coverage: OverflowCoverage): number {
+  return roundCents(coverage.piggy + coverage.budgets.reduce((sum, b) => sum + b.amount, 0))
+}
+
+/**
+ * Répartit `total` entre des sources au prorata de leur poids, au centime,
+ * sans jamais dépasser le poids d'une source (`total` ≤ somme des poids).
+ * L'écart d'arrondi est reporté sur la dernière source qui a de la marge.
+ */
+function distributeProportionally(
+  total: number,
+  sources: ReadonlyArray<{ id: string; weight: number }>,
+): Array<{ id: string; amount: number }> {
+  const eligible = sources.filter((s) => s.weight > 0)
+  const totalWeight = eligible.reduce((sum, s) => sum + s.weight, 0)
+  const toAllocate = roundCents(Math.min(Math.max(0, total), totalWeight))
+  if (toAllocate <= 0 || totalWeight <= 0) return []
+
+  const shares = eligible.map((s) => ({
+    id: s.id,
+    weight: s.weight,
+    amount: Math.min(roundCents((s.weight / totalWeight) * toAllocate), s.weight),
+  }))
+
+  const drift = roundCents(toAllocate - shares.reduce((sum, s) => sum + s.amount, 0))
+  if (drift !== 0) {
+    for (let i = shares.length - 1; i >= 0; i--) {
+      const entry = shares[i]
+      if (!entry) continue
+      const headroom = roundCents(entry.weight - entry.amount)
+      if (drift > 0 && headroom > 0) {
+        entry.amount = roundCents(entry.amount + Math.min(drift, headroom))
+        break
+      }
+      if (drift < 0 && entry.amount > 0) {
+        entry.amount = roundCents(entry.amount - Math.min(-drift, entry.amount))
+        break
+      }
+    }
+  }
+
+  return shares.filter((s) => s.amount > 0).map(({ id, amount }) => ({ id, amount }))
+}
+
+/**
+ * Bouton « Répartir automatiquement » : tirelire d'abord, puis économies des
+ * autres budgets au prorata de leurs disponibilités. Ce qui ne peut pas être
+ * couvert reste sur le reste à vivre. (Ancienne cascade automatique de
+ * Part 28, devenue une simple proposition.)
+ */
+export function autoCoverOverflow(
+  overflow: number,
+  piggyAvailable: number,
+  otherBudgetsSavings: ReadonlyArray<BudgetSavingsSource>,
+): OverflowCoverage {
+  const target = roundCents(Math.max(0, overflow))
+  const piggy = roundCents(Math.min(target, Math.max(0, piggyAvailable)))
+  const budgets = distributeProportionally(
+    roundCents(target - piggy),
+    otherBudgetsSavings.map((b) => ({ id: b.budget_id, weight: b.available })),
+  ).map((s) => ({ budget_id: s.id, amount: s.amount }))
+  return { piggy, budgets }
+}
+
+const PIGGY_KEY = '__piggy__'
+
+/**
+ * Ramène une couverture à `target` au plus, au prorata de chaque part (la
+ * tirelire comprise). Sert en modification : si le dépassement diminue, les
+ * réserves utilisées sont rendues ; s'il augmente, rien de plus n'est pris.
+ */
+export function shrinkCoverage(coverage: OverflowCoverage, target: number): OverflowCoverage {
+  const piggy = roundCents(Math.max(0, coverage.piggy))
+  const budgets = coverage.budgets
+    .filter((b) => b.amount > 0)
+    .map((b) => ({ budget_id: b.budget_id, amount: roundCents(b.amount) }))
+  const normalized: OverflowCoverage = { piggy, budgets }
+  if (coverageTotal(normalized) <= roundCents(Math.max(0, target))) return normalized
+
+  const shares = distributeProportionally(target, [
+    { id: PIGGY_KEY, weight: piggy },
+    ...budgets.map((b) => ({ id: b.budget_id, weight: b.amount })),
+  ])
+  return {
+    piggy: shares.find((s) => s.id === PIGGY_KEY)?.amount ?? 0,
+    budgets: shares
+      .filter((s) => s.id !== PIGGY_KEY)
+      .map((s) => ({ budget_id: s.id, amount: s.amount })),
+  }
+}
+
+/**
+ * Répartition d'une dépense budgétée :
+ *   1. économies du budget destination puis le budget (`calculateBreakdown`) ;
+ *   2. le dépassement est couvert par `coverage` (ramenée au dépassement si
+ *      elle le dépasse — on ne prend jamais plus que nécessaire) ;
+ *   3. le reste non couvert s'ajoute à `fromBudget` : déficit du budget
+ *      destination, donc baisse du reste à vivre.
+ * Ajout : `coverage` = choix de l'utilisateur (validé côté serveur par
+ * `findCoverageIssue`). Modification : `coverage` = sources d'origine.
+ */
+export function calculateBreakdownWithCoverage(
   amount: number,
   budgetRemaining: number,
   savingsAvailable: number,
-  piggyAvailable: number,
-  otherBudgetsSavings: ReadonlyArray<{ budget_id: string; available: number }>,
+  coverage: OverflowCoverage,
   options: CalculateBreakdownOptions = {},
 ): AllocationBreakdownWithCascade {
   const local = calculateBreakdown(amount, budgetRemaining, savingsAvailable, {
     useSavingsToggle: options.useSavingsToggle ?? true,
   })
-
-  if (local.overflow <= 0) {
-    return { ...local, fromPiggyBank: 0, crossBudgetDebits: [] }
-  }
-
-  let remaining = local.overflow
-  const fromPiggyBank = Math.min(remaining, Math.max(0, piggyAvailable))
-  remaining = roundCents(remaining - fromPiggyBank)
-
-  const sources = otherBudgetsSavings.filter((b) => b.available > 0)
-  const crossBudgetDebits: CrossBudgetDebit[] = []
-
-  if (remaining > 0 && sources.length > 0) {
-    const totalAvailable = sources.reduce((s, b) => s + b.available, 0)
-    const toAllocate = Math.min(remaining, totalAvailable)
-
-    const rawShares = sources.map((b) => ({
-      budget_id: b.budget_id,
-      share: (b.available / totalAvailable) * toAllocate,
-      available: b.available,
-    }))
-    const rounded = rawShares.map((r) => ({
-      ...r,
-      share: Math.min(roundCents(r.share), r.available),
-    }))
-
-    const sumRounded = rounded.reduce((s, r) => s + r.share, 0)
-    const drift = roundCents(toAllocate - sumRounded)
-    if (drift !== 0 && rounded.length > 0) {
-      for (let i = rounded.length - 1; i >= 0; i--) {
-        const entry = rounded[i]
-        if (!entry) continue
-        const headroom = roundCents(entry.available - entry.share)
-        if (drift > 0 && headroom > 0) {
-          const bump = Math.min(drift, headroom)
-          entry.share = roundCents(entry.share + bump)
-          break
-        }
-        if (drift < 0 && entry.share > 0) {
-          const cut = Math.min(-drift, entry.share)
-          entry.share = roundCents(entry.share - cut)
-          break
-        }
-      }
-    }
-
-    for (const r of rounded) {
-      if (r.share > 0) {
-        crossBudgetDebits.push({ budget_id: r.budget_id, amount: r.share })
-      }
-    }
-    const consumed = crossBudgetDebits.reduce((s, d) => s + d.amount, 0)
-    remaining = roundCents(remaining - consumed)
-  }
-
-  const fromBudget = roundCents(local.fromBudget + Math.max(0, remaining))
-
+  const kept = shrinkCoverage(coverage, local.overflow)
+  const residual = roundCents(Math.max(0, local.overflow - coverageTotal(kept)))
   return {
-    fromPiggyBank,
+    fromPiggyBank: kept.piggy,
     fromBudgetSavings: local.fromBudgetSavings,
-    fromBudget,
+    fromBudget: roundCents(local.fromBudget + residual),
     overflow: 0,
-    crossBudgetDebits,
+    crossBudgetDebits: kept.budgets,
   }
+}
+
+export type CoverageIssue =
+  | 'duplicate-budget'
+  | 'unknown-budget'
+  | 'piggy-exceeds-available'
+  | 'budget-exceeds-available'
+  | 'exceeds-overflow'
+
+/**
+ * Contrôle serveur d'une couverture envoyée par le client, contre l'état de
+ * la base au moment de l'écriture. Une couverture devenue impossible (autre
+ * dépense entre-temps, autre membre du groupe) est refusée plutôt que
+ * corrigée en silence : l'utilisateur revoit sa répartition.
+ */
+export function findCoverageIssue(
+  coverage: OverflowCoverage,
+  overflow: number,
+  piggyAvailable: number,
+  otherBudgetsSavings: ReadonlyArray<BudgetSavingsSource>,
+): CoverageIssue | null {
+  const seen = new Set<string>()
+  for (const entry of coverage.budgets) {
+    if (seen.has(entry.budget_id)) return 'duplicate-budget'
+    seen.add(entry.budget_id)
+    const source = otherBudgetsSavings.find((b) => b.budget_id === entry.budget_id)
+    if (!source) return 'unknown-budget'
+    if (entry.amount > source.available + ROUNDING_TOLERANCE) return 'budget-exceeds-available'
+  }
+  if (coverage.piggy > Math.max(0, piggyAvailable) + ROUNDING_TOLERANCE) {
+    return 'piggy-exceeds-available'
+  }
+  if (coverageTotal(coverage) > Math.max(0, overflow) + ROUNDING_TOLERANCE) {
+    return 'exceeds-overflow'
+  }
+  return null
 }

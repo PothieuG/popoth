@@ -1,16 +1,17 @@
 /**
  * Mocked unit tests for POST /api/finance/expenses/add-with-logic.
  *
- * Sprint Auto-Cascade-Piggy (2026-05-25) — la route a basculé sur
- * `calculateBreakdownWithAutoCascade` (piggy-first + proportionnel quand
- * overflow > 0) au lieu de `calculateBreakdown` legacy. Le dispatch RPC
- * suit : piggy > 0 ou cross_budget_debits non vide → composite RPC
- * `add_expense_with_cross_budget_cascade` ; sinon → `add_expense_with_breakdown`.
+ * Sprint Expense-Overflow-Coverage (2026-10-02) — le dépassement n'est plus
+ * couvert automatiquement : la route applique la couverture choisie
+ * (`overflow_coverage` : tirelire + économies d'autres budgets), le reste part
+ * en déficit (reste à vivre). Sans couverture, aucune réserve n'est touchée.
+ * Une couverture devenue impossible → 409 `overflow-coverage-outdated`. Le
+ * dispatch RPC suit : piggy > 0 ou cross_budget_debits non vide → composite
+ * RPC `add_expense_with_cross_budget_cascade` ; sinon →
+ * `add_expense_with_breakdown`.
  *
- * `calculateBreakdownWithAutoCascade` est gardée REAL (pure-sync). Les
- * helpers RPC sont mockés. `addExpenseWithBreakdown` et
- * `addExpenseWithCrossBudgetCascade` ont chacune leur entry point selon
- * la présence de piggy/cross debits.
+ * Les fonctions pures de `@/lib/expense-breakdown` restent REAL. Les helpers
+ * RPC sont mockés.
  */
 
 import type { NextRequest } from 'next/server'
@@ -119,7 +120,11 @@ async function importMocks() {
   return { supabase, expensesMod, loggerMod }
 }
 
-describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
+const BUDGET_ID = '11111111-1111-4111-8111-111111111111'
+const COURSES_ID = '33333333-3333-4333-8333-333333333333'
+const LOISIRS_ID = '44444444-4444-4444-8444-444444444444'
+
+describe('POST /api/finance/expenses/add-with-logic — couverture du dépassement', () => {
   it('happy path no overflow: amount fits budget → addExpenseWithBreakdown, piggy untouched', async () => {
     const { supabase, expensesMod, loggerMod } = await importMocks()
 
@@ -171,7 +176,60 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     expect(loggerMod.logger.error).not.toHaveBeenCalled()
   })
 
-  it('overflow with piggy auto-cascade: piggy covers entirely → addExpenseWithCrossBudgetCascade', async () => {
+  it('overflow sans couverture choisie → tirelire intacte, dépassement en déficit', async () => {
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: BUDGET_ID, name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 180, amount_from_budget: 180 }],
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ id: COURSES_ID, cumulated_savings: 80 }],
+      error: null,
+    })
+    expensesMod.addExpenseWithBreakdown.mockResolvedValueOnce({ expense_id: 'rx-rav' })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: 'rx-rav', amount: 150, description: 'L', estimated_budget: { name: 'Budget 1' } },
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    // budgetRemaining=20, savings=30 → overflow=100, tout en déficit (20+100).
+    const response = await POST(
+      buildRequest({
+        amount: 150,
+        description: 'L',
+        estimated_budget_id: BUDGET_ID,
+        is_for_group: false,
+        use_savings: true,
+      }),
+    )
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(json.breakdown).toMatchObject({
+      from_piggy_bank: 0,
+      from_budget_savings: 30,
+      from_budget: 120,
+      piggy_bank_after: 100,
+    })
+    expect(expensesMod.addExpenseWithBreakdown).toHaveBeenCalledWith(
+      { profile_id: 'user-1' },
+      expect.objectContaining({
+        amountFromPiggyBank: 0,
+        amountFromBudgetSavings: 30,
+        amountFromBudget: 120,
+      }),
+    )
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
+  })
+
+  it('overflow couvert par la tirelire (choix utilisateur) → addExpenseWithCrossBudgetCascade', async () => {
     const { supabase, expensesMod } = await importMocks()
 
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
@@ -204,13 +262,14 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
     // amount=150, budgetRemaining=20, savings=30, piggy=100, others=[]
     // P4 strict local: budget=20 + savings=30 → overflow=100
-    // Auto-cascade: piggy=min(100,100)=100, remaining=0 → fromBudget stays at 20
+    // Couverture choisie : tirelire 100 → fromBudget reste à 20
     const response = await POST(
       buildRequest({
         amount: 150,
         description: 'L',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
+        overflow_coverage: { piggy: 100, budgets: [] },
       }),
     )
     const json = await response.json()
@@ -235,7 +294,7 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
   })
 
-  it('overflow with piggy partial + cross-budget proportional cascade', async () => {
+  it('overflow couvert par tirelire + économies de 2 autres budgets', async () => {
     const { supabase, expensesMod } = await importMocks()
 
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 50 }, error: null })
@@ -256,8 +315,8 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     // other budgets: Courses 100€, Loisirs 200€
     supabase.__mocks.matchAwait.mockResolvedValueOnce({
       data: [
-        { id: 'b-courses', cumulated_savings: 100 },
-        { id: 'b-loisirs', cumulated_savings: 200 },
+        { id: COURSES_ID, cumulated_savings: 100 },
+        { id: LOISIRS_ID, cumulated_savings: 200 },
       ],
       error: null,
     })
@@ -273,16 +332,21 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
 
     const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
     // amount=150, budgetRemaining=0, savings=0, piggy=50, others=[100,200]
-    // Local: overflow=150
-    // Piggy: 50 used, remaining=100
-    // Cross proportional sum 300 → toAllocate=100 :
-    //   Courses 100*100/300=33.33, Loisirs 100*200/300=66.67
+    // Local: overflow=150 — couverture choisie : tirelire 50 + Courses 33,33
+    // + Loisirs 66,67 (= ce que propose « Répartir automatiquement »).
     const response = await POST(
       buildRequest({
         amount: 150,
         description: 'L',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
+        overflow_coverage: {
+          piggy: 50,
+          budgets: [
+            { budget_id: COURSES_ID, amount: 33.33 },
+            { budget_id: LOISIRS_ID, amount: 66.67 },
+          ],
+        },
       }),
     )
 
@@ -295,8 +359,8 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
         amountFromLocalSavings: 0,
         amountFromBudget: 0,
         crossBudgetDebits: [
-          { budget_id: 'b-courses', amount: 33.33 },
-          { budget_id: 'b-loisirs', amount: 66.67 },
+          { budget_id: COURSES_ID, amount: 33.33 },
+          { budget_id: LOISIRS_ID, amount: 66.67 },
         ],
       }),
     )
@@ -426,12 +490,13 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
         description: 'L',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
+        overflow_coverage: { piggy: 50, budgets: [] },
       }),
     )
 
     expect(response.status).toBe(500)
-    // piggy=100, overflow=50 → cross-budget RPC chosen (piggy debit needs the
-    // cascade RPC which accepts p_amount_from_piggy_bank > 0).
+    // piggy=100, overflow=50 couvert par la tirelire → cross-budget RPC chosen
+    // (piggy debit needs the cascade RPC which accepts p_amount_from_piggy_bank > 0).
     expect(expensesMod.addExpenseWithCrossBudgetCascade).toHaveBeenCalledTimes(1)
     expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
     expect(supabase.__mocks.insert).not.toHaveBeenCalled()
@@ -496,11 +561,11 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
     expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
   })
 
-  it('carryover saturates budget with piggy available: cascade auto-debits piggy for overflow', async () => {
-    // Suite du repro : si l'user a une tirelire à 200€, l'overflow de 300€
-    // doit être absorbé d'abord par la piggy (200€) puis le reste (100€) en
-    // déficit destination. addExpenseWithCrossBudgetCascade choisi car
-    // amountFromPiggyBank > 0.
+  it('carryover saturates budget with piggy chosen: overflow 300 → piggy 200 + 100 de déficit', async () => {
+    // Suite du repro : si l'user choisit de prendre ses 200€ de tirelire,
+    // l'overflow de 300€ (calculé carryover compris) est couvert à hauteur de
+    // 200€, le reste (100€) en déficit destination.
+    // addExpenseWithCrossBudgetCascade choisi car amountFromPiggyBank > 0.
     const { supabase, expensesMod } = await importMocks()
 
     supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 200 }, error: null })
@@ -538,6 +603,7 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
         description: 'Big shop',
         estimated_budget_id: '11111111-1111-4111-8111-111111111111',
         is_for_group: false,
+        overflow_coverage: { piggy: 200, budgets: [] },
       }),
     )
 
@@ -553,6 +619,53 @@ describe('POST /api/finance/expenses/add-with-logic — auto-cascade', () => {
       }),
     )
     expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['plus que la tirelire', { piggy: 150, budgets: [] }],
+    [
+      'budget destination ou sans économies',
+      { piggy: 0, budgets: [{ budget_id: BUDGET_ID, amount: 10 }] },
+    ],
+    ['plus que le dépassement', { piggy: 100, budgets: [{ budget_id: COURSES_ID, amount: 10 }] }],
+    [
+      'plus que les économies du budget',
+      { piggy: 0, budgets: [{ budget_id: COURSES_ID, amount: 90 }] },
+    ],
+  ])('couverture impossible (%s) → 409, rien n’est écrit', async (_label, coverage) => {
+    const { supabase, expensesMod } = await importMocks()
+
+    supabase.__mocks.maybeSingle.mockResolvedValueOnce({ data: { amount: 100 }, error: null })
+    supabase.__mocks.single.mockResolvedValueOnce({
+      data: { id: BUDGET_ID, name: 'Budget 1', estimated_amount: 200, cumulated_savings: 30 },
+      error: null,
+    })
+    // budgetRemaining=20, savings=30, amount=150 → overflow=100
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ amount: 180, amount_from_budget: 180 }],
+      error: null,
+    })
+    supabase.__mocks.matchAwait.mockResolvedValueOnce({
+      data: [{ id: COURSES_ID, cumulated_savings: 80 }],
+      error: null,
+    })
+
+    const { POST } = await import('@/lib/api/finance/expenses-add-with-logic')
+    const response = await POST(
+      buildRequest({
+        amount: 150,
+        description: 'L',
+        estimated_budget_id: BUDGET_ID,
+        is_for_group: false,
+        use_savings: true,
+        overflow_coverage: coverage,
+      }),
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: 'overflow-coverage-outdated' })
+    expect(expensesMod.addExpenseWithBreakdown).not.toHaveBeenCalled()
+    expect(expensesMod.addExpenseWithCrossBudgetCascade).not.toHaveBeenCalled()
   })
 
   it('exceptional path (no estimated_budget_id): single INSERT, no cascade RPC', async () => {

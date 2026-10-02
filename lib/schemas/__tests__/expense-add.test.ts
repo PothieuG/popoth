@@ -36,48 +36,58 @@ describe('addExpenseWithLogicBodySchema', () => {
     if (result.success) expect(result.data.use_savings).toBe(true)
   })
 
-  it('accepts cross_budget_cascade array (P4 Phase 2)', () => {
+  it('accepts overflow_coverage (tirelire + économies d’autres budgets)', () => {
     const result = addExpenseWithLogicBodySchema.safeParse({
       amount: 200,
       description: 'Big purchase',
       estimated_budget_id: validUuid,
-      cross_budget_cascade: [
-        { budget_id: otherUuid, amount: 50 },
-        { budget_id: '33333333-3333-4333-8333-333333333333', amount: 30 },
-      ],
+      overflow_coverage: {
+        piggy: 20,
+        budgets: [
+          { budget_id: otherUuid, amount: 50 },
+          { budget_id: '33333333-3333-4333-8333-333333333333', amount: 30 },
+        ],
+      },
     })
     expect(result.success).toBe(true)
-    if (result.success) expect(result.data.cross_budget_cascade?.length).toBe(2)
+    if (result.success) expect(result.data.overflow_coverage?.budgets.length).toBe(2)
   })
 
-  it('rejects cross_budget_cascade with invalid budget_id', () => {
+  it('rejects overflow_coverage with invalid budget_id', () => {
     const result = addExpenseWithLogicBodySchema.safeParse({
       amount: 200,
       description: 'Big purchase',
       estimated_budget_id: validUuid,
-      cross_budget_cascade: [{ budget_id: 'not-a-uuid', amount: 50 }],
+      overflow_coverage: { piggy: 0, budgets: [{ budget_id: 'not-a-uuid', amount: 50 }] },
     })
     expect(result.success).toBe(false)
   })
 
-  it('rejects cross_budget_cascade with non-positive amount', () => {
-    const result = addExpenseWithLogicBodySchema.safeParse({
+  it('rejects overflow_coverage with non-positive budget amount or negative piggy', () => {
+    const zeroBudget = addExpenseWithLogicBodySchema.safeParse({
       amount: 200,
       description: 'Big purchase',
       estimated_budget_id: validUuid,
-      cross_budget_cascade: [{ budget_id: otherUuid, amount: 0 }],
+      overflow_coverage: { piggy: 0, budgets: [{ budget_id: otherUuid, amount: 0 }] },
     })
-    expect(result.success).toBe(false)
+    const negativePiggy = addExpenseWithLogicBodySchema.safeParse({
+      amount: 200,
+      description: 'Big purchase',
+      estimated_budget_id: validUuid,
+      overflow_coverage: { piggy: -1, budgets: [] },
+    })
+    expect(zeroBudget.success).toBe(false)
+    expect(negativePiggy.success).toBe(false)
   })
 
-  it('cross_budget_cascade is optional (absent → no Phase 2)', () => {
+  it('overflow_coverage is optional (absent → dépassement sur le reste à vivre)', () => {
     const result = addExpenseWithLogicBodySchema.safeParse({
       amount: 100,
       description: 'Lunch',
       estimated_budget_id: validUuid,
     })
     expect(result.success).toBe(true)
-    if (result.success) expect(result.data.cross_budget_cascade).toBeUndefined()
+    if (result.success) expect(result.data.overflow_coverage).toBeUndefined()
   })
 
   // Sprint Exceptional-Expense-Piggy-Funding

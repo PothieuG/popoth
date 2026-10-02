@@ -5,7 +5,12 @@ import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { now } from '@/lib/clock'
 import { previewBreakdownQuerySchema } from '@/lib/schemas/expense'
-import { calculateBreakdownWithAutoCascade } from '@/lib/expense-allocation'
+import {
+  calculateBreakdown,
+  calculateBreakdownWithCoverage,
+  EMPTY_COVERAGE,
+  type OverflowCoverage,
+} from '@/lib/expense-breakdown'
 
 export interface CrossBudgetDebitPreview {
   budget_id: string
@@ -13,6 +18,13 @@ export interface CrossBudgetDebitPreview {
   amount: number
   available_before: number
   available_after: number
+}
+
+/** Économies d'un autre budget mobilisables pour couvrir le dépassement. */
+export interface BudgetSavingsAvailability {
+  budget_id: string
+  budget_name: string
+  available: number
 }
 
 export interface ExpenseBreakdownPreview {
@@ -29,19 +41,30 @@ export interface ExpenseBreakdownPreview {
   budget_estimated: number
   budget_name: string
   cross_budget_debits: CrossBudgetDebitPreview[]
+  /**
+   * Sprint Expense-Overflow-Coverage — dépassement après économies du budget
+   * et budget lui-même (avant toute couverture), et réserves disponibles pour
+   * le couvrir (tirelire = `piggy_bank_before`). Alimentent l'étape
+   * « Couvrir le dépassement » de la modale d'ajout.
+   */
+  overflow: number
+  other_budgets_savings: BudgetSavingsAvailability[]
 }
 
 /**
  * GET /api/finance/expenses/preview-breakdown
  *
  * Previews the breakdown of a budgeted expense — ADD mode (no expense_id) or
- * EDIT mode (with expense_id). Sprint Auto-Cascade-Piggy / Traceability
- * (2026-05-26) — les deux modes utilisent désormais
- * `calculateBreakdownWithAutoCascade` :
- *   - ADD : cascade fresh sur l'état DB courant.
- *   - EDIT : cascade fresh sur l'état post-reverse virtuel (sources d'origine
- *     restaurées dans les pools courants, lecture via expense_savings_sources
- *     ou fallback colonnes consolidées si pas de trace).
+ * EDIT mode (with expense_id). Sprint Expense-Overflow-Coverage (2026-10-02),
+ * `calculateBreakdownWithCoverage` :
+ *   - ADD : sans couverture — le dépassement va en déficit (reste à vivre),
+ *     comportement par défaut. La couverture choisie dans l'étape « Couvrir
+ *     le dépassement » est appliquée côté client à partir de `overflow` et
+ *     des réserves renvoyées (aperçu en direct, sans aller-retour serveur).
+ *   - EDIT : sur l'état post-reverse virtuel (sources d'origine restaurées
+ *     dans les pools courants, lecture via expense_savings_sources ou fallback
+ *     colonnes consolidées si pas de trace), en gardant les sources d'origine :
+ *     jamais de nouvelle réserve prise, le supplément va en déficit.
  */
 export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
@@ -183,8 +206,8 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
     // Le carryover (déficit reporté du recap précédent) est un terme
     // constant sur le mois courant, indépendant des dépenses du mois — il
     // doit participer à `budgetSpentBefore` pour que `budgetRemaining` =
-    // marge réellement libre sur le pool. Sans ça, la cascade auto n'est
-    // pas déclenchée quand le carryover sature déjà le cap, et la preview
+    // marge réellement libre sur le pool. Sans ça, le dépassement n'est
+    // pas détecté quand le carryover sature déjà le cap, et la preview
     // affiche un budget faussement remis à zéro (cf. dashboard
     // `budget.spent_this_month` qui inclut le carryover).
     const carryoverSpent = budgetData.carryover_spent_amount ?? 0
@@ -213,15 +236,25 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
       })
       .filter((b) => b.available_before > 0)
 
-    const allocation = calculateBreakdownWithAutoCascade(
+    // EDIT : sources d'origine de la couverture (tirelire + économies des
+    // autres budgets) ; sans trace, seule la part tirelire est connue.
+    const existingCoverage: OverflowCoverage = existingExpense
+      ? {
+          piggy: hasTrace ? oldPiggyFromSources : existingExpense.amount_from_piggy_bank,
+          budgets: [...oldSourcesByBudget.entries()]
+            .filter(([sourceId]) => sourceId !== budgetId)
+            .map(([sourceId, sourceAmount]) => ({ budget_id: sourceId, amount: sourceAmount })),
+        }
+      : EMPTY_COVERAGE
+
+    const { overflow } = calculateBreakdown(amount, budgetRemaining, savingsBefore, {
+      useSavingsToggle: true,
+    })
+    const allocation = calculateBreakdownWithCoverage(
       amount,
       budgetRemaining,
       savingsBefore,
-      piggyBankBefore,
-      otherBudgetsPostReverse.map((b) => ({
-        budget_id: b.budget_id,
-        available: b.available_before,
-      })),
+      existingCoverage,
     )
     const fromPiggyBank = allocation.fromPiggyBank
     const fromBudgetSavings = allocation.fromBudgetSavings
@@ -257,6 +290,12 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
       budget_estimated: budgetData.estimated_amount,
       budget_name: budgetData.name,
       cross_budget_debits: crossBudgetDebitsPreview,
+      overflow,
+      other_budgets_savings: otherBudgetsPostReverse.map((b) => ({
+        budget_id: b.budget_id,
+        budget_name: b.budget_name,
+        available: b.available_before,
+      })),
     }
 
     return NextResponse.json({ breakdown })

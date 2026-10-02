@@ -7,7 +7,7 @@ import {
   deleteExpenseWithSourcesRefund,
   updateExpenseWithSourcesReapply,
 } from '@/lib/finance/expenses'
-import { calculateBreakdownWithAutoCascade } from '@/lib/expense-breakdown'
+import { calculateBreakdownWithCoverage } from '@/lib/expense-breakdown'
 import type { Database } from '@/lib/database.types'
 import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
@@ -319,9 +319,13 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
       // dépenses budgetées dont le destination budget ne change PAS, on
       // utilise la RPC reverse-then-reapply atomique qui consulte la trace
       // expense_savings_sources pour rendre les sources d'origine puis
-      // applique la nouvelle cascade auto. Pour les cas legacy (changement
-      // de budget destination, dépense devient exceptionnelle), on retombe
-      // sur reverseAllocation + applyAllocation (perte de trace acceptée).
+      // applique la nouvelle répartition. Sprint Expense-Overflow-Coverage
+      // (2026-10-02) : la couverture choisie à l'ajout est conservée — à la
+      // hausse, rien de plus n'est pris (le supplément va en déficit) ; à la
+      // baisse, les réserves sont rendues au prorata. Pour les cas legacy
+      // (changement de budget destination, dépense devient exceptionnelle),
+      // on retombe sur reverseAllocation + applyAllocation (perte de trace
+      // acceptée).
       if (budgetId && !oldExpense.is_exceptional && !budgetChanged) {
         const contextFilter: Record<string, string> = {}
         if (oldExpense.group_id) contextFilter.group_id = oldExpense.group_id
@@ -343,15 +347,6 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
         }
         const hasTrace = (sources?.length ?? 0) > 0
 
-        const { data: piggyData } = await supabaseServer
-          .from('piggy_bank')
-          .select('amount')
-          .match(contextFilter)
-          .maybeSingle()
-        const piggyCurrent = piggyData?.amount ?? 0
-        const piggyPostReverse =
-          piggyCurrent + (hasTrace ? piggyFromSources : (oldExpense.amount_from_piggy_bank ?? 0))
-
         const { data: budgetData } = await supabaseServer
           .from('estimated_budgets')
           .select('estimated_amount, cumulated_savings, carryover_spent_amount')
@@ -369,7 +364,7 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
         // Filter by month window + carried_from_recap_id IS NULL :
         // same rationale as `lib/finance/financial-data.ts` deficit loop
         // (2026-05-27 + Part 35) — exclure les transactions héritées d'un
-        // recap antérieur (états A & B) pour que la cascade auto ne soit pas
+        // recap antérieur (états A & B) pour que la répartition ne soit pas
         // faussée par une carry-over validée qui aurait rempli le pool budget.
         //
         // Sprint Fix-Recap-EditPath-Month 2026-08-31 — miroir du fix
@@ -402,7 +397,7 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
           budgetExpenses?.reduce((sum, e) => sum + (e.amount_from_budget ?? 0), 0) ?? 0
         // Carryover : déficit reporté du recap précédent, indépendant des
         // dépenses du mois courant — doit être ajouté à `budgetSpentPostReverse`
-        // pour que la cascade auto soit déclenchée correctement quand le
+        // pour que le dépassement soit détecté correctement quand le
         // budget est saturé via carryover (cf. fix preview-breakdown +
         // add-with-logic 2026-05-27).
         const carryoverSpent = budgetData.carryover_spent_amount ?? 0
@@ -410,25 +405,20 @@ export const PUT = withAuthAndGroup(async (request: NextRequest) => {
           budgetSpentCurrent - (oldExpense.amount_from_budget ?? 0) + carryoverSpent
         const budgetRemainingPostReverse = budgetData.estimated_amount - budgetSpentPostReverse
 
-        const { data: otherBudgets } = await supabaseServer
-          .from('estimated_budgets')
-          .select('id, cumulated_savings')
-          .match(contextFilter)
-          .neq('id', budgetId)
-        const otherBudgetsPostReverse = (otherBudgets ?? [])
-          .map((b) => {
-            const currentSavings = b.cumulated_savings ?? 0
-            const oldClaim = hasTrace ? (sourceMap.get(b.id) ?? 0) : 0
-            return { budget_id: b.id, available: currentSavings + oldClaim }
-          })
-          .filter((b) => b.available > 0)
-
-        const allocation = calculateBreakdownWithAutoCascade(
+        // Couverture d'origine : tirelire + économies des AUTRES budgets (la
+        // part du budget destination est recalculée automatiquement). Sans
+        // trace, seule la part tirelire est connue. Chaque source garde au
+        // plus son montant d'origine, toujours disponible après reverse.
+        const allocation = calculateBreakdownWithCoverage(
           amount,
           budgetRemainingPostReverse,
           savingsPostReverse,
-          piggyPostReverse,
-          otherBudgetsPostReverse,
+          {
+            piggy: hasTrace ? piggyFromSources : (oldExpense.amount_from_piggy_bank ?? 0),
+            budgets: [...sourceMap.entries()]
+              .filter(([sourceId]) => sourceId !== budgetId)
+              .map(([sourceId, sourceAmount]) => ({ budget_id: sourceId, amount: sourceAmount })),
+          },
         )
 
         try {

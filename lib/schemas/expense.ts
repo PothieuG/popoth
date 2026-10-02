@@ -11,19 +11,24 @@ import {
 const descriptionSchema = z.string().trim().min(1, 'La description est requise')
 
 /**
- * Single entry in the P4 Phase 2 cross-budget cascade array.
- * `budget_id` is the FROM budget (its cumulated_savings will be debited);
- * `amount` is how much to draw from that budget's savings. Must be > 0.
- *
- * The route handler validates that the sum of `amount` across all entries
- * does not exceed the overflow (which it should match exactly per UI).
+ * Sprint Expense-Overflow-Coverage (2026-10-02) — couverture du dépassement
+ * choisie par l'utilisateur pour une dépense budgétée : part tirelire + part
+ * des économies d'autres budgets (chaque `budget_id` au plus une fois, hors
+ * budget destination). Absente = rien de couvert, le dépassement va en
+ * déficit (reste à vivre). Le serveur recalcule le dépassement et refuse
+ * (409 `overflow-coverage-outdated`) une couverture devenue impossible.
  */
-const crossBudgetCascadeEntrySchema = z.object({
-  budget_id: uuidSchema,
-  amount: moneySchema,
+export const overflowCoverageSchema = z.object({
+  piggy: nonNegativeMoneySchema,
+  budgets: z.array(
+    z.object({
+      budget_id: uuidSchema,
+      amount: moneySchema,
+    }),
+  ),
 })
 
-export type CrossBudgetCascadeEntry = z.infer<typeof crossBudgetCascadeEntrySchema>
+export type OverflowCoverageBody = z.infer<typeof overflowCoverageSchema>
 
 /**
  * Real-expense create body. estimated_budget_id absent (or undefined) means
@@ -83,23 +88,23 @@ export type UpdateRealExpenseBody = z.infer<typeof updateRealExpenseBodySchema>
  *   `cumulated_savings` BEFORE the budget itself. Default `false` → P4 strict
  *   (budget first, savings cascade only on overflow).
  *
- * - `cross_budget_cascade` (P4 Phase 2): when local budget + savings are
- *   insufficient, the UI proposes drawing from OTHER budgets' savings.
- *   Each entry specifies the source budget + amount. The handler dispatches
- *   to the composite RPC `add_expense_with_cross_budget_cascade` for atomic
- *   multi-budget debit + INSERT in one Postgres tx.
+ * - `overflow_coverage` (Sprint Expense-Overflow-Coverage) : quand le budget
+ *   et ses économies ne suffisent pas, l'utilisateur choisit ce qui couvre le
+ *   dépassement (tirelire + économies d'autres budgets) ; le reste va en
+ *   déficit. Débit multi-sources + INSERT dans une seule tx via la RPC
+ *   composite `add_expense_with_cross_budget_cascade`.
  *
  * Dispatch rules (route-internal, not schema-enforced):
  * - No `estimated_budget_id` + `amount_from_piggy_bank > 0` → exceptional financée
  *   par tirelire via RPC `add_exceptional_expense_with_piggy` (Sprint Exceptional-
  *   Expense-Piggy-Funding). Sinon (sans piggy) → INSERT exceptionnel direct.
- * - With `estimated_budget_id`, no cross_budget → `add_expense_with_breakdown`
- * - With `estimated_budget_id` + cross_budget → `add_expense_with_cross_budget_cascade`
+ * - With `estimated_budget_id`, rien de couvert → `add_expense_with_breakdown`
+ * - With `estimated_budget_id` + couverture > 0 → `add_expense_with_cross_budget_cascade`
  *
  * `amount_from_piggy_bank` (Sprint Exceptional-Expense-Piggy-Funding) : montant
  * prélevé dans la tirelire pour financer une dépense EXCEPTIONNELLE (hors budget).
- * Optionnel, default 0. Ignoré pour les dépenses budgétées (la cascade auto
- * pilote la tirelire elle-même).
+ * Optionnel, default 0. Ignoré pour les dépenses budgétées (la tirelire y
+ * passe par `overflow_coverage`).
  */
 export const addExpenseWithLogicBodySchema = z.object({
   amount: moneySchema,
@@ -108,7 +113,7 @@ export const addExpenseWithLogicBodySchema = z.object({
   estimated_budget_id: uuidSchema.optional(),
   is_for_group: z.boolean().optional(),
   use_savings: z.boolean().optional().default(false),
-  cross_budget_cascade: z.array(crossBudgetCascadeEntrySchema).optional(),
+  overflow_coverage: overflowCoverageSchema.optional(),
   amount_from_piggy_bank: nonNegativeMoneySchema.optional(),
   // Sprint Fix-Recap-AddPath-Month : miroir exact du contrat déjà en place sur
   // `previewBreakdownQuerySchema` (Sprint Fix-Recap-Preview-Month 2026-05-27).

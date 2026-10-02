@@ -5,7 +5,6 @@ import { asContextFilter } from '@/lib/finance/context'
 import { logger } from '@/lib/logger'
 import {
   calculateBreakdown,
-  calculateBreakdownWithAutoCascade,
   type AllocationBreakdown,
   type CalculateBreakdownOptions,
   type CrossBudgetDebit,
@@ -15,7 +14,7 @@ import {
 // tests) keep their `@/lib/expense-allocation` import path unchanged.
 // Client-side hooks should prefer importing directly from `./expense-breakdown`
 // to avoid pulling in `supabase-server` (and its service_role client).
-export { calculateBreakdown, calculateBreakdownWithAutoCascade }
+export { calculateBreakdown }
 export type { AllocationBreakdown, CalculateBreakdownOptions, CrossBudgetDebit }
 
 export interface ApplyAllocationResult extends AllocationBreakdown {
