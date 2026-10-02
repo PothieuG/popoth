@@ -20,10 +20,14 @@ import { useRealIncomes } from '@/hooks/useRealIncomes'
 import { useFinancialData } from '@/hooks/useFinancialData'
 import RemainingToLivePreview from '@/components/dashboard/RemainingToLivePreview'
 import ExpenseBreakdownPreview from '@/components/dashboard/ExpenseBreakdownPreview'
+import {
+  OverflowCoverageStep,
+  type CoverageMode,
+} from '@/components/dashboard/OverflowCoverageStep'
 import SalaryReceptionPanel from '@/components/dashboard/SalaryReceptionPanel'
-import { useProgressData } from '@/hooks/useProgressData'
+import { needsCoverageStep, useExpenseBreakdownPreview } from '@/hooks/useExpenseBreakdownPreview'
 import { now, todayIso } from '@/lib/clock'
-import { calculateBreakdown } from '@/lib/expense-breakdown'
+import { coverageTotal, EMPTY_COVERAGE, type OverflowCoverage } from '@/lib/expense-breakdown'
 import {
   defaultSalaryMonthOption,
   monthName,
@@ -82,11 +86,20 @@ type TransactionType = 'expense' | 'income'
  * - `'select-kind'`: choose budgeted/regular vs exceptional. Polymorphic on
  *   the active `transactionType` — labels and FK target differ.
  * - `'fields'`: form fields (description, amount, date, FK, savings toggle, etc.)
+ * - `'cover-overflow'` (Sprint Expense-Overflow-Coverage) : dépense budgétée
+ *   qui dépasse le budget + ses économies, avec des réserves disponibles —
+ *   choix entre reste à vivre et réserves (curseurs).
  *
  * Form state is preserved via the single `useForm` at the top — step
  * transitions only swap the render.
  */
-type WizardStep = 'select-type' | 'select-kind' | 'fields'
+type WizardStep = 'select-type' | 'select-kind' | 'fields' | 'cover-overflow'
+
+/** Copie des erreurs de `addExpense` (codes renvoyés par l'API). */
+const EXPENSE_ERROR_COPY: Record<string, string> = {
+  'overflow-coverage-outdated':
+    'Les montants disponibles ont changé entre-temps. La répartition a été remise à zéro : vérifiez-la puis validez à nouveau.',
+}
 
 const NO_SALARY_OPTIONS: SalaryMonthOption[] = []
 
@@ -156,9 +169,16 @@ export default function AddTransactionModal({
   const [stepAnimDir, setStepAnimDir] = useState<'forward' | 'backward'>('forward')
   // Sprint 2026-05-21 / Auto-Use-Savings : le toggle UI "Utiliser les économies"
   // a été retiré — savings utilisées par défaut (mode P5 strict). La constante
-  // reste pour passer `use_savings: true` à l'API + `useSavingsToggle: true`
-  // au helper `calculateBreakdown`.
+  // reste pour passer `use_savings: true` à l'API et à l'aperçu.
   const useSavings = true
+  // Sprint Expense-Overflow-Coverage (2026-10-02) — étape « Couvrir le
+  // dépassement ». Par défaut le dépassement va sur le reste à vivre : aucune
+  // réserve n'est prise sans action. La couverture est liée au couple
+  // budget + montant pour lequel elle a été saisie (`coverageKey`) : revenir
+  // changer l'un des deux la remet à zéro.
+  const [coverMode, setCoverMode] = useState<CoverageMode>('rav')
+  const [coverage, setCoverage] = useState<OverflowCoverage>(EMPTY_COVERAGE)
+  const [coverageKey, setCoverageKey] = useState<string | null>(null)
 
   // Wizard récap « Compléter le mois » : les montants affichés (dépensé par
   // budget, reste à vivre) portent sur le mois RECAPÉ, pas sur le mois courant
@@ -169,7 +189,6 @@ export default function AddTransactionModal({
   // Hooks for managing data
   const { addExpense, expenses: realExpenses } = useRealExpenses(context)
   const { addIncome, receiveSalary, incomes: realIncomes } = useRealIncomes(context)
-  const { expenseProgress } = useProgressData(context)
   // Solde tirelire courant — sert à plafonner la part finançable + l'aperçu RAV
   // (Sprint Exceptional-Expense-Piggy-Funding). Partage le cache TanStack avec
   // RemainingToLivePreview (même queryKey, fenêtre du récap comprise).
@@ -254,26 +273,25 @@ export default function AddTransactionModal({
   const formatEUR = (v: number): string =>
     v.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
-  // P5 — local savings of selected budget (for cascade absorption preview + RAV calc)
-  const selectedBudget = budgets.find((b) => b.id === budgetId)
-  const savingsAvailable = selectedBudget?.cumulated_savings ?? 0
-
-  // Sprint Auto-Cascade-Piggy (2026-05-25) — l'utilisateur ne sélectionne
-  // plus manuellement les budgets sources en cas de dépassement. Le serveur
-  // applique automatiquement : tirelire d'abord, puis cascade proportionnelle
-  // sur les économies des autres budgets. On calcule juste l'overflow ici
-  // pour afficher l'encart violet informatif si > 0.
-  const budgetProgress = expenseProgress[budgetId]
-  const budgetRemainingLocal = budgetProgress
-    ? budgetProgress.estimatedAmount - budgetProgress.spentAmount
-    : 0
-  const localBreakdown =
-    transactionType === 'expense' && !isExceptional && budgetId
-      ? calculateBreakdown(previewSafe, budgetRemainingLocal, savingsAvailable, {
-          useSavingsToggle: useSavings,
-        })
-      : null
-  const overflow = localBreakdown?.overflow ?? 0
+  // Sprint Expense-Overflow-Coverage — dépassement et réserves lus sur la
+  // route d'aperçu (fenêtre du récap comprise, même cache que
+  // `ExpenseBreakdownPreview`). Encart « Dépassement » + libellé du bouton ;
+  // la décision d'afficher l'étape relit la route à l'envoi (`fetchFresh`).
+  const isBudgetedExpense = transactionType === 'expense' && !isExceptional && !!budgetId
+  const { data: preview, fetchFresh: fetchFreshPreview } = useExpenseBreakdownPreview(
+    {
+      amount: isBudgetedExpense ? previewSafe : 0,
+      budgetId,
+      context,
+      useSavings,
+      month: recapMonth,
+      year: recapYear,
+    },
+    { keepPrevious: true },
+  )
+  const livePreview = isBudgetedExpense && previewSafe > 0 ? (preview ?? null) : null
+  const overflow = livePreview?.overflow ?? 0
+  const showsCoverageStep = livePreview != null && needsCoverageStep(livePreview)
 
   // Calculer les vrais montants dépensés pour chaque budget depuis les dépenses réelles
   // Ne compte QUE amount_from_budget (pas tirelire ni savings)
@@ -428,7 +446,10 @@ export default function AddTransactionModal({
    */
   const handleBack = () => {
     setStepAnimDir('backward')
-    if (wizardStep === 'fields') {
+    setServerError(null)
+    if (wizardStep === 'cover-overflow') {
+      setWizardStep('fields')
+    } else if (wizardStep === 'fields') {
       setWizardStep('select-kind')
     } else if (wizardStep === 'select-kind') {
       setWizardStep('select-type')
@@ -457,7 +478,42 @@ export default function AddTransactionModal({
           setServerError('Le montant prélevé dépasse le solde de votre tirelire.')
           return
         }
-        success = await addExpense({
+
+        // Sprint Expense-Overflow-Coverage — dépense budgétée : depuis les
+        // champs, on relit l'aperçu pour le montant exact envoyé. Dépassement
+        // + réserves disponibles → étape « Couvrir le dépassement » au lieu
+        // d'ajouter tout de suite.
+        const budgetedId = data.is_exceptional ? null : (data.estimated_budget_id ?? null)
+        if (budgetedId && wizardStep === 'fields') {
+          const fresh = await fetchFreshPreview({
+            amount: data.amount,
+            budgetId: budgetedId,
+            context,
+            useSavings,
+            month: recapMonth,
+            year: recapYear,
+          })
+          if (needsCoverageStep(fresh)) {
+            const key = `${budgetedId}|${data.amount}`
+            if (key !== coverageKey) {
+              setCoverMode('rav')
+              setCoverage(EMPTY_COVERAGE)
+              setCoverageKey(key)
+            }
+            setStepAnimDir('forward')
+            setWizardStep('cover-overflow')
+            return
+          }
+        }
+        const overflowCoverage =
+          budgetedId &&
+          wizardStep === 'cover-overflow' &&
+          coverMode === 'reserves' &&
+          coverageTotal(coverage) > 0
+            ? coverage
+            : undefined
+
+        const outcome = await addExpense({
           description: data.description,
           amount: data.amount,
           expense_date: data.expense_date,
@@ -467,6 +523,7 @@ export default function AddTransactionModal({
           is_for_group: context === 'group',
           use_savings: useSavings,
           amount_from_piggy_bank: piggyToSend,
+          overflow_coverage: overflowCoverage,
           // Sprint Fix-Recap-AddPath-Month — mêmes bornes que celles passées à
           // `ExpenseBreakdownPreview` ci-dessous, sinon l'aperçu et l'écriture
           // calculent la répartition sur deux mois différents. `undefined` hors
@@ -474,6 +531,26 @@ export default function AddTransactionModal({
           month: recapMonth,
           year: recapYear,
         })
+        if (!outcome.ok) {
+          if (outcome.error === 'overflow-coverage-outdated' && budgetedId) {
+            // Réserves ou budget modifiés entre-temps (autre dépense, autre
+            // membre du groupe) : montants relus, répartition remise à zéro.
+            setCoverage(EMPTY_COVERAGE)
+            await fetchFreshPreview({
+              amount: data.amount,
+              budgetId: budgetedId,
+              context,
+              useSavings,
+              month: recapMonth,
+              year: recapYear,
+            }).catch(() => undefined)
+          }
+          setServerError(
+            EXPENSE_ERROR_COPY[outcome.error] ?? "Erreur lors de l'ajout de la dépense.",
+          )
+          return
+        }
+        success = true
       } else if (isSalaryKind) {
         if (!selectedSalaryOption) {
           setServerError(SALARY_ERROR_COPY['salary-already-received'] ?? null)
@@ -557,11 +634,47 @@ export default function AddTransactionModal({
         ? transactionType === 'expense'
           ? 'Type de dépense'
           : 'Type de revenu'
-        : transactionType === 'expense'
-          ? 'Ajouter une dépense'
-          : isSalaryKind
-            ? 'Réception du salaire'
-            : 'Ajouter un revenu'
+        : wizardStep === 'cover-overflow'
+          ? 'Couvrir le dépassement'
+          : transactionType === 'expense'
+            ? 'Ajouter une dépense'
+            : isSalaryKind
+              ? 'Réception du salaire'
+              : 'Ajouter un revenu'
+
+  // Pied commun aux étapes « champs » et « couvrir le dépassement ».
+  const renderActions = (submitLabel: string) => (
+    <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={handleClose}
+        disabled={isSubmitting}
+        className="flex-1"
+      >
+        Annuler
+      </Button>
+      <Button
+        type="submit"
+        disabled={isSubmitting}
+        className={cn(
+          'flex-1',
+          transactionType === 'expense'
+            ? 'bg-red-600 hover:bg-red-700'
+            : 'bg-green-600 hover:bg-green-700',
+        )}
+      >
+        {isSubmitting ? (
+          <div className="flex items-center space-x-1.5">
+            <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+            <span>{submitLabel === 'Suivant' ? 'Calcul...' : 'Ajout...'}</span>
+          </div>
+        ) : (
+          submitLabel
+        )}
+      </Button>
+    </div>
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -1211,20 +1324,20 @@ export default function AddTransactionModal({
                 </div>
               )}
 
-              {/* Sprint Auto-Cascade-Piggy (2026-05-25) — encart violet
-                  informatif quand la dépense dépasse le budget + ses
-                  économies locales. La tirelire est puisée en priorité,
-                  puis les économies des autres budgets proportionnellement.
-                  Pas de sélection manuelle — détail dans Impact/Après. */}
+              {/* Sprint Expense-Overflow-Coverage (2026-10-02) — encart violet
+                  quand la dépense dépasse le budget + ses économies. Plus de
+                  ponction automatique : le choix (reste à vivre ou réserves)
+                  se fait à l'étape suivante, ou le dépassement va directement
+                  sur le reste à vivre s'il n'y a aucune réserve. */}
               {overflow > 0 && (
                 <div className="space-y-1.5 rounded-lg border border-violet-200 bg-violet-50 p-3">
                   <p className="text-sm font-medium text-violet-900">
-                    Dépassement de{' '}
-                    {overflow.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                    Dépassement de {formatEUR(overflow)}
                   </p>
                   <p className="text-xs text-violet-800">
-                    La tirelire sera utilisée en priorité, puis les économies des autres budgets
-                    proportionnellement. Le détail apparaît ci-dessous.
+                    {showsCoverageStep
+                      ? 'À l’étape suivante, choisissez : l’imputer au reste à vivre ou puiser dans vos réserves (tirelire, économies de vos autres budgets).'
+                      : 'Aucune réserve disponible : il sera imputé au reste à vivre.'}
                   </p>
                 </div>
               )}
@@ -1276,39 +1389,68 @@ export default function AddTransactionModal({
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex shrink-0 space-x-2 border-t border-gray-200 px-6 py-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                disabled={isSubmitting}
-                className="flex-1"
-              >
-                Annuler
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className={cn(
-                  'flex-1',
-                  transactionType === 'expense'
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-green-600 hover:bg-green-700',
-                )}
-              >
-                {isSubmitting ? (
-                  <div className="flex items-center space-x-1.5">
-                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                    <span>Ajout...</span>
-                  </div>
-                ) : isSalaryKind ? (
-                  'Enregistrer le salaire'
-                ) : (
-                  `Ajouter ${transactionType === 'expense' ? 'la dépense' : 'le revenu'}`
-                )}
-              </Button>
+            {renderActions(
+              isSalaryKind
+                ? 'Enregistrer le salaire'
+                : transactionType === 'expense'
+                  ? showsCoverageStep
+                    ? 'Suivant'
+                    : 'Ajouter la dépense'
+                  : 'Ajouter le revenu',
+            )}
+          </form>
+        )}
+
+        {/* Step 4 (Sprint Expense-Overflow-Coverage) : couvrir le dépassement */}
+        {wizardStep === 'cover-overflow' && (
+          <form
+            key="step-cover-overflow"
+            onSubmit={form.handleSubmit(onValidSubmit)}
+            onKeyDown={preventEnterSubmit}
+            className={cn(
+              'flex min-h-0 flex-auto flex-col overflow-hidden',
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+            noValidate
+          >
+            <div className="min-h-0 flex-auto space-y-4 overflow-y-auto px-6 py-4">
+              {livePreview ? (
+                <>
+                  <OverflowCoverageStep
+                    breakdown={livePreview}
+                    currentRav={financialData?.remainingToLive ?? null}
+                    mode={coverMode}
+                    onModeChange={setCoverMode}
+                    coverage={coverage}
+                    onCoverageChange={setCoverage}
+                    disabled={isSubmitting}
+                  />
+                  <ExpenseBreakdownPreview
+                    amount={previewSafe}
+                    budgetId={budgetId}
+                    context={context}
+                    useSavings={useSavings}
+                    month={recapMonth}
+                    year={recapYear}
+                    coverage={coverMode === 'reserves' ? coverage : undefined}
+                  />
+                </>
+              ) : (
+                <div className="animate-pulse space-y-2 rounded-lg border border-gray-200 p-4">
+                  <div className="h-4 w-3/4 rounded bg-gray-100" />
+                  <div className="h-4 w-1/2 rounded bg-gray-100" />
+                </div>
+              )}
+
+              {serverError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-700">{serverError}</p>
+                </div>
+              )}
             </div>
+
+            {renderActions('Ajouter la dépense')}
           </form>
         )}
       </DialogContent>

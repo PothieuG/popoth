@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { OverflowCoverage } from '@/lib/expense-breakdown'
 import { logger } from '@/lib/logger'
 import {
   applyBankBalanceToCache,
@@ -82,8 +83,9 @@ export interface CreateRealExpenseRequest {
   is_for_group?: boolean
   /** Sprint P4-P5-P6 / P5 toggle — see addExpenseWithLogicBodySchema. */
   use_savings?: boolean
-  /** Sprint P4-P5-P6 / P4 Phase 2 — see addExpenseWithLogicBodySchema. */
-  cross_budget_cascade?: Array<{ budget_id: string; amount: number }>
+  /** Couverture du dépassement choisie (Sprint Expense-Overflow-Coverage) — see
+   * addExpenseWithLogicBodySchema. Absente = dépassement sur le reste à vivre. */
+  overflow_coverage?: OverflowCoverage
   /**
    * Sprint Exceptional-Expense-Piggy-Funding — montant prélevé dans la tirelire
    * pour financer une dépense exceptionnelle (hors budget). Default 0 / absent.
@@ -130,13 +132,20 @@ export interface UpdateRealExpenseRequest {
  */
 export type ToggleAppliedOutcome = 'applied' | 'unapplied' | 'no-op' | 'error'
 
+/**
+ * Result of an addExpense call. `error` = code renvoyé par l'API (ex.
+ * `overflow-coverage-outdated` : la couverture du dépassement choisie n'est
+ * plus possible) ou message générique, pour un retour lisible dans la modale.
+ */
+export type AddExpenseOutcome = { ok: true } | { ok: false; error: string }
+
 interface UseRealExpensesReturn {
   expenses: RealExpense[]
   loading: boolean
   isFetching: boolean
   error: string | null
   totalExpenses: number
-  addExpense: (expenseData: CreateRealExpenseRequest) => Promise<boolean>
+  addExpense: (expenseData: CreateRealExpenseRequest) => Promise<AddExpenseOutcome>
   updateExpense: (expenseData: UpdateRealExpenseRequest) => Promise<boolean>
   deleteExpense: (expenseId: string) => Promise<boolean>
   toggleApplied: (expenseId: string, apply: boolean) => Promise<ToggleAppliedOutcome>
@@ -213,7 +222,7 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
       invalidateFinancialRefreshes(queryClient)
     },
     onError: (err) => {
-      // silently-swallowed côté UI (addExpense retourne false sans toast)
+      // L'appelant reçoit le code d'erreur via `AddExpenseOutcome`.
       logger.error('Error in addExpense:', err)
     },
   })
@@ -466,9 +475,9 @@ export function useRealExpenses(context?: 'profile' | 'group'): UseRealExpensesR
     addExpense: async (expenseData) => {
       try {
         await addMutation.mutateAsync(expenseData)
-        return true
-      } catch {
-        return false
+        return { ok: true }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
       }
     },
     updateExpense: async (expenseData) => {

@@ -26,7 +26,9 @@ export function lineLimit(capacity: number, value: number, remaining: number): n
   return round2(Math.min(capacity, value + Math.max(0, remaining)))
 }
 
-function Line({
+/** Ligne curseur + montant saisissable + « Compléter ». Réutilisée par
+ *  l'étape « Couvrir le dépassement » de la modale d'ajout de dépense. */
+export function Line({
   title,
   label,
   value,
@@ -86,7 +88,7 @@ function Line({
   )
 }
 
-function Arrow({ from, to, className }: { from: number; to: number; className?: string }) {
+export function Arrow({ from, to, className }: { from: number; to: number; className?: string }) {
   const changed = Math.abs(from - to) > 0.004
   return (
     <span className="tabular-nums">

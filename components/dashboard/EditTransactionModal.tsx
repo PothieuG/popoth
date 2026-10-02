@@ -510,11 +510,11 @@ export default function EditTransactionModal({
               )}
             </div>
 
-            {/* Sprint Auto-Cascade-Piggy / EDIT (2026-05-26) — encart violet
+            {/* Sprint Expense-Overflow-Coverage (2026-10-02) — encart violet
                 informatif quand le nouveau montant produit un dépassement.
-                La cascade auto sera appliquée (tirelire + autres budgets
-                proportionnellement) avec refund précis des sources d'origine
-                via la trace expense_savings_sources. */}
+                Les réserves choisies à l'ajout sont conservées (au plus leur
+                montant d'origine, rendues au prorata si le dépassement
+                baisse) ; rien de plus n'est pris, le reste va en déficit. */}
             {transactionType === 'expense' &&
               !usesRecapMonthWindow &&
               editAmountChanged &&
@@ -528,8 +528,9 @@ export default function EditTransactionModal({
                     })}
                   </p>
                   <p className="text-xs text-violet-800">
-                    La tirelire sera utilisée en priorité, puis les économies des autres budgets
-                    proportionnellement. Le détail apparaît ci-dessous.
+                    Rien de plus n&apos;est pris dans vos réserves : ce que celles choisies à
+                    l&apos;ajout ne couvrent pas est imputé au reste à vivre. Le détail apparaît
+                    ci-dessous.
                   </p>
                 </div>
               )}

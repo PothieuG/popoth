@@ -26,8 +26,15 @@ vi.mock('@/hooks/useRealExpenses', () => ({
 vi.mock('@/hooks/useRealIncomes', () => ({
   useRealIncomes: () => ({ addIncome, receiveSalary, incomes: fixtures.realIncomes }),
 }))
-vi.mock('@/hooks/useProgressData', () => ({
-  useProgressData: () => ({ expenseProgress: {} }),
+vi.mock('@/hooks/useExpenseBreakdownPreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useExpenseBreakdownPreview')>()),
+  // Aperçu sans dépassement : la dépense budgétée s'ajoute directement.
+  useExpenseBreakdownPreview: () => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+    fetchFresh: async () => ({ overflow: 0, piggy_bank_before: 0, other_budgets_savings: [] }),
+  }),
 }))
 vi.mock('@/hooks/useFinancialData', () => ({
   useFinancialData: () => ({

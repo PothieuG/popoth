@@ -1,15 +1,65 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent, { type UserEvent } from '@testing-library/user-event'
+import type { ExpenseBreakdownPreviewData } from '@/hooks/useExpenseBreakdownPreview'
 
 // 5 hooks mocked — AddTransactionModal has the broadest data surface of any
 // client form. Fixtures kept stable across tests.
 
-const addExpense = vi.fn(async () => true)
+const addExpense = vi.fn(
+  async (): Promise<{ ok: true } | { ok: false; error: string }> => ({
+    ok: true,
+  }),
+)
 const addIncome = vi.fn(async () => true)
 
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
 const INCOME_UUID = '22222222-2222-4222-8222-222222222222'
+const OTHER_BUDGET_UUID = '33333333-3333-4333-8333-333333333333'
+
+// Aperçu de la route preview-breakdown (Sprint Expense-Overflow-Coverage).
+// Par défaut : pas de dépassement → la dépense budgétée s'ajoute directement.
+// Les tests « couvrir le dépassement » le remplacent par `OVERFLOW_PREVIEW`.
+const NO_OVERFLOW_PREVIEW: ExpenseBreakdownPreviewData = {
+  total_amount: 100,
+  from_piggy_bank: 0,
+  from_budget_savings: 50,
+  from_budget: 50,
+  piggy_bank_before: 0,
+  piggy_bank_after: 0,
+  savings_before: 50,
+  savings_after: 0,
+  budget_spent_before: 0,
+  budget_spent_after: 50,
+  budget_estimated: 500,
+  budget_name: 'Alimentation',
+  cross_budget_debits: [],
+  overflow: 0,
+  other_budgets_savings: [],
+}
+// 600 € sur un budget de 500 € (+ 50 € d'économies) → 50 € de dépassement.
+// Réserves : 20 € de tirelire + 30 € d'économies « Loisirs ».
+const OVERFLOW_PREVIEW: ExpenseBreakdownPreviewData = {
+  ...NO_OVERFLOW_PREVIEW,
+  total_amount: 600,
+  from_budget: 550,
+  piggy_bank_before: 20,
+  piggy_bank_after: 20,
+  budget_spent_after: 550,
+  overflow: 50,
+  other_budgets_savings: [{ budget_id: OTHER_BUDGET_UUID, budget_name: 'Loisirs', available: 30 }],
+}
+let previewData: ExpenseBreakdownPreviewData = NO_OVERFLOW_PREVIEW
+const fetchFresh = vi.fn(async () => previewData)
+vi.mock('@/hooks/useExpenseBreakdownPreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useExpenseBreakdownPreview')>()),
+  useExpenseBreakdownPreview: (params: { amount: number }) => ({
+    data: params.amount > 0 ? previewData : undefined,
+    isLoading: false,
+    error: null,
+    fetchFresh,
+  }),
+}))
 
 // Arguments reçus par `useBudgets` — épingle la fenêtre du mois recapé. Le
 // dépensé renvoyé en dépend, comme côté serveur (35 € en septembre, 0 € sinon).
@@ -41,9 +91,6 @@ vi.mock('@/hooks/useRealExpenses', () => ({
 }))
 vi.mock('@/hooks/useRealIncomes', () => ({
   useRealIncomes: () => ({ addIncome, incomes: [] }),
-}))
-vi.mock('@/hooks/useProgressData', () => ({
-  useProgressData: () => ({ expenseProgress: {} }),
 }))
 const useFinancialDataCalls: unknown[][] = []
 vi.mock('@/hooks/useFinancialData', () => ({
@@ -86,6 +133,10 @@ vi.mock('@/lib/logger', () => ({
 
 import AddTransactionModal from '../AddTransactionModal'
 
+beforeEach(() => {
+  previewData = NO_OVERFLOW_PREVIEW
+})
+
 /**
  * Wizard navigation helpers (Sprint P4-P5-P6 / Phase B3).
  * Each test that needs to reach the form fields navigates the wizard first.
@@ -118,7 +169,7 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
   beforeEach(() => {
     addExpense.mockClear()
     addIncome.mockClear()
-    addExpense.mockResolvedValue(true)
+    addExpense.mockResolvedValue({ ok: true })
     addIncome.mockResolvedValue(true)
   })
 
@@ -206,7 +257,7 @@ describe('AddTransactionModal — wizard navigation (Sprint P4-P5-P6 / B1)', () 
 describe('AddTransactionModal — use_savings auto-enabled (Sprint 2026-05-21 / Auto-Use-Savings)', () => {
   beforeEach(() => {
     addExpense.mockClear()
-    addExpense.mockResolvedValue(true)
+    addExpense.mockResolvedValue({ ok: true })
   })
 
   it('no longer renders a "Utiliser les économies" toggle UI', async () => {
@@ -244,7 +295,7 @@ describe('AddTransactionModal — submit flows', () => {
   beforeEach(() => {
     addExpense.mockClear()
     addIncome.mockClear()
-    addExpense.mockResolvedValue(true)
+    addExpense.mockResolvedValue({ ok: true })
     addIncome.mockResolvedValue(true)
   })
 
@@ -420,5 +471,137 @@ describe('AddTransactionModal — reste à vivre du mois recapé', () => {
 
     expect(useFinancialDataCalls[useFinancialDataCalls.length - 1]).toEqual(['profile', undefined])
     expect(screen.getByTestId('rav-preview')).toHaveAttribute('data-month', '')
+  })
+})
+
+describe('AddTransactionModal — couvrir le dépassement (Sprint Expense-Overflow-Coverage)', () => {
+  beforeEach(() => {
+    addExpense.mockClear()
+    addExpense.mockResolvedValue({ ok: true })
+    fetchFresh.mockClear()
+    previewData = OVERFLOW_PREVIEW
+  })
+
+  async function fillOverflowingExpense(user: UserEvent) {
+    await navigateToFieldsExpense(user)
+    await user.selectOptions(screen.getByTestId('fk-dropdown'), BUDGET_UUID)
+    await user.type(screen.getByLabelText(/description/i), 'Concert')
+    const amount = screen.getByLabelText(/montant/i)
+    await user.clear(amount)
+    await user.type(amount, '600')
+  }
+
+  it('dépassement avec réserves : encart + bouton « Suivant » → étape dédiée', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+
+    expect(screen.getByText(/Dépassement de 50,00/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Couvrir le dépassement' }),
+    ).toBeInTheDocument()
+    expect(fetchFresh).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 600, budgetId: BUDGET_UUID }),
+    )
+    // Reste à vivre présélectionné : aucune réserve prise sans action.
+    expect(screen.getByRole('radio', { name: /Imputer au reste à vivre/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    expect(addExpense).not.toHaveBeenCalled()
+  })
+
+  it('choix « reste à vivre » : ajout sans couverture', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+    await user.click(await screen.findByRole('button', { name: /^Ajouter la dépense$/ }))
+
+    await waitFor(() => expect(addExpense).toHaveBeenCalledTimes(1))
+    expect(addExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 600, overflow_coverage: undefined }),
+    )
+  })
+
+  it('choix « réserves » + répartition automatique : tirelire puis économies', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+    await user.click(await screen.findByRole('radio', { name: /Puiser dans mes réserves/ }))
+    await user.click(screen.getByRole('button', { name: /Répartir automatiquement/ }))
+    await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/ }))
+
+    await waitFor(() => expect(addExpense).toHaveBeenCalledTimes(1))
+    expect(addExpense).toHaveBeenCalledWith(
+      expect.objectContaining({
+        overflow_coverage: {
+          piggy: 20,
+          budgets: [{ budget_id: OTHER_BUDGET_UUID, amount: 30 }],
+        },
+      }),
+    )
+  })
+
+  it('réserves choisies puis retour à « reste à vivre » : rien n’est pris', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+    await user.click(await screen.findByRole('radio', { name: /Puiser dans mes réserves/ }))
+    await user.click(screen.getByRole('button', { name: /Répartir automatiquement/ }))
+    await user.click(screen.getByRole('radio', { name: /Imputer au reste à vivre/ }))
+    await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/ }))
+
+    await waitFor(() => expect(addExpense).toHaveBeenCalledTimes(1))
+    expect(addExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ overflow_coverage: undefined }),
+    )
+  })
+
+  it('montants changés entre-temps (409) : message, répartition remise à zéro', async () => {
+    addExpense.mockResolvedValueOnce({ ok: false, error: 'overflow-coverage-outdated' })
+    const onClose = vi.fn()
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={onClose} />)
+    await fillOverflowingExpense(user)
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+    await user.click(await screen.findByRole('radio', { name: /Puiser dans mes réserves/ }))
+    await user.click(screen.getByRole('button', { name: /Répartir automatiquement/ }))
+    await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/montants disponibles ont changé/)
+    expect(onClose).not.toHaveBeenCalled()
+    // Couverture remise à 0 : le bouton « Tout remettre à 0 » disparaît.
+    expect(screen.queryByRole('button', { name: /Tout remettre à 0/ })).not.toBeInTheDocument()
+  })
+
+  it('retour aux champs : valeurs conservées', async () => {
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+    await user.click(screen.getByRole('button', { name: /^Suivant$/ }))
+    await user.click(await screen.findByRole('button', { name: /Retour à l'étape précédente/ }))
+
+    expect(screen.getByLabelText(/description/i)).toHaveValue('Concert')
+    expect(screen.getByRole('button', { name: /^Suivant$/ })).toBeInTheDocument()
+  })
+
+  it('dépassement sans aucune réserve : ajout direct, imputé au reste à vivre', async () => {
+    previewData = { ...OVERFLOW_PREVIEW, piggy_bank_before: 0, other_budgets_savings: [] }
+    const user = userEvent.setup()
+    render(<AddTransactionModal onClose={vi.fn()} />)
+    await fillOverflowingExpense(user)
+
+    expect(screen.getByText(/Aucune réserve disponible/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^Ajouter la dépense$/ }))
+
+    await waitFor(() => expect(addExpense).toHaveBeenCalledTimes(1))
+    expect(addExpense).toHaveBeenCalledWith(
+      expect.objectContaining({ overflow_coverage: undefined }),
+    )
   })
 })

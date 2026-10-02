@@ -7,7 +7,7 @@ import userEvent, { type UserEvent } from '@testing-library/user-event'
 // fixtures there). useFinancialData returns a non-zero piggyBank so the
 // "Utiliser ma tirelire" section is eligible to render.
 
-const addExpense = vi.fn(async () => true)
+const addExpense = vi.fn(async () => ({ ok: true }))
 const addIncome = vi.fn(async () => true)
 
 const BUDGET_UUID = '11111111-1111-4111-8111-111111111111'
@@ -28,8 +28,15 @@ vi.mock('@/hooks/useRealExpenses', () => ({
 vi.mock('@/hooks/useRealIncomes', () => ({
   useRealIncomes: () => ({ addIncome, incomes: [] }),
 }))
-vi.mock('@/hooks/useProgressData', () => ({
-  useProgressData: () => ({ expenseProgress: {} }),
+vi.mock('@/hooks/useExpenseBreakdownPreview', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useExpenseBreakdownPreview')>()),
+  // Aperçu sans dépassement : la dépense budgétée s'ajoute directement.
+  useExpenseBreakdownPreview: () => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+    fetchFresh: async () => ({ overflow: 0, piggy_bank_before: 0, other_budgets_savings: [] }),
+  }),
 }))
 // Piggy balance = 200 → section eligible for exceptional expenses.
 vi.mock('@/hooks/useFinancialData', () => ({
@@ -73,7 +80,7 @@ async function gotoExpenseKind(user: UserEvent, opts: { exceptional?: boolean } 
 describe('AddTransactionModal — piggy funding (Sprint Exceptional-Expense-Piggy-Funding)', () => {
   beforeEach(() => {
     addExpense.mockClear()
-    addExpense.mockResolvedValue(true)
+    addExpense.mockResolvedValue({ ok: true })
   })
 
   it('shows the "Utiliser ma tirelire" toggle for an exceptional expense (piggy > 0)', async () => {

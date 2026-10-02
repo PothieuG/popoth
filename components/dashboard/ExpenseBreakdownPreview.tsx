@@ -1,7 +1,12 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
 import { useFinancialData } from '@/hooks/useFinancialData'
+import {
+  applyCoverageToPreview,
+  ravDeltaOf,
+  useExpenseBreakdownPreview,
+} from '@/hooks/useExpenseBreakdownPreview'
+import type { OverflowCoverage } from '@/lib/expense-breakdown'
 import {
   BalanceRow,
   BudgetRecapRow,
@@ -33,30 +38,12 @@ interface ExpenseBreakdownPreviewProps {
    */
   month?: number
   year?: number
-}
-
-interface CrossBudgetDebitPreviewUi {
-  budget_id: string
-  budget_name: string
-  amount: number
-  available_before: number
-  available_after: number
-}
-
-interface BreakdownData {
-  total_amount: number
-  from_piggy_bank: number
-  from_budget_savings: number
-  from_budget: number
-  piggy_bank_before: number
-  piggy_bank_after: number
-  savings_before: number
-  savings_after: number
-  budget_spent_before: number
-  budget_spent_after: number
-  budget_estimated: number
-  budget_name: string
-  cross_budget_debits: CrossBudgetDebitPreviewUi[]
+  /**
+   * Sprint Expense-Overflow-Coverage (2026-10-02) — couverture du dépassement
+   * choisie dans l'étape « Couvrir le dépassement » (ajout uniquement). La
+   * route renvoie l'aperçu sans couverture ; elle est appliquée ici en direct.
+   */
+  coverage?: OverflowCoverage
 }
 
 /**
@@ -84,8 +71,8 @@ export default function ExpenseBreakdownPreview({
   useSavings = false,
   month,
   year,
+  coverage,
 }: ExpenseBreakdownPreviewProps) {
-  const enabled = amount > 0 && !!budgetId
   // RAV de départ sur la même fenêtre que la répartition : mois recapé dans le
   // wizard récap, mois courant sinon.
   const { financialData } = useFinancialData(
@@ -94,51 +81,12 @@ export default function ExpenseBreakdownPreview({
   )
 
   const {
-    data: breakdown = null,
+    data: rawBreakdown = null,
     isLoading,
     error,
-  } = useQuery<BreakdownData>({
-    queryKey: [
-      'expense-breakdown',
-      amount,
-      budgetId,
-      context,
-      expenseId ?? null,
-      useSavings,
-      month ?? null,
-      year ?? null,
-    ],
-    enabled,
-    queryFn: async ({ signal }) => {
-      const params = new URLSearchParams({
-        amount: amount.toString(),
-        budget_id: budgetId,
-        context,
-      })
-      if (expenseId) {
-        params.set('expense_id', expenseId)
-      }
-      if (useSavings) {
-        params.set('use_savings', 'true')
-      }
-      if (month != null && year != null) {
-        params.set('month', String(month))
-        params.set('year', String(year))
-      }
-
-      const response = await fetch(`/api/finance/expenses/preview-breakdown?${params}`, {
-        credentials: 'include',
-        signal,
-      })
-
-      if (!response.ok) {
-        throw new Error('Erreur lors du calcul du breakdown')
-      }
-
-      const data = await response.json()
-      return data.breakdown as BreakdownData
-    },
-  })
+  } = useExpenseBreakdownPreview({ amount, budgetId, context, expenseId, useSavings, month, year })
+  const breakdown =
+    rawBreakdown && coverage ? applyCoverageToPreview(rawBreakdown, coverage) : rawBreakdown
 
   if (isLoading) {
     return (
@@ -171,9 +119,7 @@ export default function ExpenseBreakdownPreview({
   // `?? fallback` ne tire pas sur `0`, donc un cache stale à 0 cassait le
   // delta et affichait une ligne Budget fantôme dans Impact).
   const currentBudgetSpent = breakdown.budget_spent_before
-  const currentOverflow = Math.max(0, currentBudgetSpent - breakdown.budget_estimated)
-  const newOverflow = Math.max(0, breakdown.budget_spent_after - breakdown.budget_estimated)
-  const ravDelta = newOverflow - currentOverflow
+  const ravDelta = ravDeltaOf(breakdown)
 
   // Budget pool usage delta (Sprint 2026-05-21 / Impact-Lines-Refactor) :
   // l'IMPACT ligne Budget reflète maintenant le delta dans la portion du
