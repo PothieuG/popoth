@@ -122,5 +122,6 @@ consommateur).
 `<!-- BEGIN:nextjs-agent-rules -->` (675 caractères), qui fait passer le
 fichier au-dessus du plafond 39 500. Il est recréé à chaque démarrage tant
 que l'option n'est pas coupée (`agentRules: false` dans `next.config.js`,
-cf. message au démarrage). Bloc annulé, non commité ; désactivation laissée
-à l'utilisateur (changement de configuration hors sujet).
+cf. message au démarrage). Bloc annulé, non commité. Désactivé ensuite à la
+demande de l'utilisateur (`agentRules: false`) : vérifié, `next dev` démarre
+sans toucher `CLAUDE.md` ni créer `AGENTS.md`.

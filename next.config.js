@@ -3,6 +3,10 @@ const nextConfig = {
   poweredByHeader: false,
   compress: true,
   turbopack: {},
+  // `next dev` ajoute sinon à chaque démarrage un bloc « nextjs-agent-rules »
+  // en fin de CLAUDE.md (+675 caractères), qui le fait dépasser le plafond de
+  // 39 500 caractères des docs de contexte (check-md-size bloque le commit).
+  agentRules: false,
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
