@@ -101,7 +101,7 @@ pas touché).
 Un client resté sur l'ancien JavaScript (PWA en cache) affiche les 3 onglets
 mélangés comme des notes jusqu'au rechargement ; ses ajouts restent des notes.
 
-### 6.1 Effectué le 2026-10-03 (base de test + `dev`)
+### 6.1 Effectué le 2026-10-03 (base de test, prod, `dev` et `main`)
 
 - **Base de test** (`ddehmjucyfgyppfkbddr`) : état vérifié avant (table sans
   `kind`/`checked_at`, 2 notes, tracker à jour jusqu'à `20261002010000`), puis
@@ -113,4 +113,13 @@ mélangés comme des notes jusqu'au rechargement ; ses ajouts restent des notes.
   bloc écrit à la main.
 - `dev` avancé en fast-forward sur la branche de la fonctionnalité (aucun
   commit de fusion), sur demande de l'utilisateur.
-- **Prod : non faite.** Reste l'étape 2 ci-dessus avant tout merge dans `main`.
+- **Prod** (`jzmppreybwabaeycvasz`), sur feu vert explicite de l'utilisateur :
+  `db:check-drift` à 0 et même état que la base de test avant migration
+  (contrôle rejoué juste avant l'écriture), puis la même requête unique
+  (migration et ligne de tracker). Vérifié : mêmes colonnes et CHECK, 2 notes
+  en `note`, RLS, tracker. Pas de `SUPABASE_DB_PASSWORD` dans le conteneur,
+  d'où `apply-sql.mjs` plutôt que `db push` (précédent Part 43 §6.1).
+- `pnpm db:types` depuis la prod : **aucun diff** sur `lib/database.types.ts`.
+  Baseline re-exportée (2 colonnes + 2 CHECK `notes`). `pnpm verify` vert :
+  1255 tests, drift, RLS, 31 RPC, fonctions, types frais, objets, snapshots.
+- `main` puis `dev` avancés en fast-forward sur le même commit (`dev = main`).
