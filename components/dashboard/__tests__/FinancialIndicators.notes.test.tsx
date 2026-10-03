@@ -16,7 +16,7 @@ const { state, spies } = vi.hoisted(() => ({
 vi.mock('@/hooks/useNotes', () => ({
   useNotes: (context: string) => {
     spies.useNotes(context)
-    return { notes: Array.from({ length: state.noteCount }, (_, i) => ({ id: String(i) })) }
+    return { pendingCount: state.noteCount }
   },
 }))
 
@@ -78,6 +78,7 @@ describe('FinancialIndicators — demi-lignes Économies | Notes', () => {
     expect(screen.getByTestId('savings-drawer')).toBeInTheDocument()
   })
 
+  // `pendingCount` (courses cochées exclues) : pinné par useNotes.test.tsx.
   it('affiche le nombre de notes et ouvre le drawer dans le bon contexte', async () => {
     state.noteCount = 3
     const user = userEvent.setup()

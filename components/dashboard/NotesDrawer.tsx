@@ -10,6 +10,7 @@ import { DRAWER_CONTENT_CLASSES } from '@/components/ui/drawer-content-classes'
 import { ModalCloseX } from '@/components/ui/modal-close-x'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { InlineSpinner } from '@/components/ui/InlineSpinner'
 import UserAvatar from '@/components/ui/UserAvatar'
@@ -17,15 +18,105 @@ import DropdownMenu from '@/components/ui/DropdownMenu'
 import { useNotes, type Note } from '@/hooks/useNotes'
 import { useProfile } from '@/hooks/useProfile'
 import { useGroupMembers, type GroupMember } from '@/hooks/useGroupMembers'
-import { createNoteBodySchema } from '@/lib/schemas/notes'
-import { NOTE_CONTENT_MAX_CHARS } from '@/lib/constants/notes'
+import { noteFormSchema } from '@/lib/schemas/notes'
+import {
+  NOTE_CONTENT_MAX_CHARS,
+  NOTE_KINDS,
+  SHOPPING_CHECKED_RETENTION_DAYS,
+  type NoteKind,
+} from '@/lib/constants/notes'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
+import { cn } from '@/lib/utils'
 import type { ProfileData } from '@/app/api/profile/route'
 
 const ConfirmationDialog = dynamic(() => import('../ui/ConfirmationDialog'), { ssr: false })
 
-type NoteFormInput = z.input<typeof createNoteBodySchema>
-type NoteFormOutput = z.output<typeof createNoteBodySchema>
+type NoteFormInput = z.input<typeof noteFormSchema>
+type NoteFormOutput = z.output<typeof noteFormSchema>
+
+/**
+ * Onglet ouvert à la fermeture du drawer, rouvert la fois suivante. Confort
+ * propre au téléphone : si le stockage est indisponible, on ouvre Courses.
+ */
+const TAB_STORAGE_KEY = 'notes-drawer-tab'
+
+function readStoredTab(): NoteKind {
+  try {
+    const stored = window.localStorage.getItem(TAB_STORAGE_KEY)
+    return NOTE_KINDS.find((kind) => kind === stored) ?? 'shopping'
+  } catch {
+    return 'shopping'
+  }
+}
+
+function storeTab(kind: NoteKind) {
+  try {
+    window.localStorage.setItem(TAB_STORAGE_KEY, kind)
+  } catch {
+    // Stockage bloqué (navigation privée…) : l'onglet ne sera pas retenu.
+  }
+}
+
+interface TabConfig {
+  label: string
+  icon: string
+  fieldLabel: string
+  placeholder: string
+  emptyTitle: string
+  emptyHint: { profile: string; group: string }
+  saveError: string
+  deleteError: string
+  deleteTitle: string
+  deleteGroupMessage: string
+}
+
+const TABS: Record<NoteKind, TabConfig> = {
+  shopping: {
+    label: 'Courses',
+    icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
+    fieldLabel: 'Article de courses',
+    placeholder: 'Ajouter un article…',
+    emptyTitle: 'Liste de courses vide',
+    emptyHint: {
+      profile: 'Cochez un article une fois dans le panier.',
+      group: 'Partagée avec tous les membres du groupe. Cochez un article une fois dans le panier.',
+    },
+    saveError: "L'article n'a pas pu être enregistré. Réessayez.",
+    deleteError: "L'article n'a pas pu être supprimé. Réessayez.",
+    deleteTitle: 'Supprimer cet article ?',
+    deleteGroupMessage: 'Il disparaîtra aussi pour les autres membres du groupe.',
+  },
+  note: {
+    label: 'Notes',
+    icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+    fieldLabel: 'Contenu de la note',
+    placeholder: 'Écrire un pense-bête…',
+    emptyTitle: "Aucune note pour l'instant",
+    emptyHint: {
+      profile: 'Vos notes restent privées.',
+      group: 'Les notes ajoutées ici sont visibles par tous les membres du groupe.',
+    },
+    saveError: "La note n'a pas pu être enregistrée. Réessayez.",
+    deleteError: "La note n'a pas pu être supprimée. Réessayez.",
+    deleteTitle: 'Supprimer cette note ?',
+    deleteGroupMessage: 'Elle disparaîtra aussi pour les autres membres du groupe.',
+  },
+  project: {
+    label: 'Projets',
+    icon: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+    fieldLabel: 'Projet',
+    placeholder: 'Ajouter un projet…',
+    emptyTitle: "Aucun projet pour l'instant",
+    emptyHint: {
+      profile: 'Une ligne par projet ou idée.',
+      group: 'Les projets ajoutés ici sont visibles par tous les membres du groupe.',
+    },
+    saveError: "Le projet n'a pas pu être enregistré. Réessayez.",
+    deleteError: "Le projet n'a pas pu être supprimé. Réessayez.",
+    deleteTitle: 'Supprimer ce projet ?',
+    deleteGroupMessage: 'Il disparaîtra aussi pour les autres membres du groupe.',
+  },
+}
 
 /**
  * Résout l'auteur d'une note en `ProfileData` pour `<UserAvatar>`.
@@ -71,12 +162,27 @@ export function formatNoteDate(iso: string, now: Date = new Date()): string {
   }).format(date)
 }
 
+/**
+ * Courses : à acheter d'abord (ordre de l'API, plus récents en tête), puis
+ * les articles cochés, derniers cochés en tête.
+ */
+export function splitShoppingItems(items: Note[]): { pending: Note[]; checked: Note[] } {
+  const pending = items.filter((item) => !item.checked_at)
+  const checked = items
+    .filter((item) => item.checked_at)
+    .sort((a, b) => Date.parse(b.checked_at ?? '') - Date.parse(a.checked_at ?? ''))
+  return { pending, checked }
+}
+
 interface NoteFormProps {
   idPrefix: string
+  label: string
+  multiline: boolean
   defaultContent?: string
   placeholder?: string
   submitLabel: string
   submittingLabel: string
+  serverErrorMessage: string
   onSubmit: (content: string) => Promise<boolean>
   onCancel?: () => void
   resetOnSuccess?: boolean
@@ -84,16 +190,23 @@ interface NoteFormProps {
 }
 
 /**
- * Formulaire d'une note (ajout en tête du drawer, ou édition en place).
- * `react-hook-form` + `zodResolver(createNoteBodySchema)` : même validation
- * que le serveur (trim, non vide, ≤ NOTE_CONTENT_MAX_CHARS).
+ * Formulaire d'une note (ajout en tête de l'onglet, ou édition en place).
+ * `react-hook-form` + `zodResolver(noteFormSchema)` : même validation que le
+ * serveur (trim, non vide, ≤ NOTE_CONTENT_MAX_CHARS).
+ *
+ * `multiline` : zone de texte (onglet Notes) ; sinon champ d'une ligne
+ * (Courses, Projets). En ajout sur une ligne, le bouton est à droite du champ
+ * et le champ garde le focus : on enchaîne les articles sans rouvrir le clavier.
  */
 function NoteForm({
   idPrefix,
+  label,
+  multiline,
   defaultContent = '',
   placeholder,
   submitLabel,
   submittingLabel,
+  serverErrorMessage,
   onSubmit,
   onCancel,
   resetOnSuccess = false,
@@ -101,26 +214,67 @@ function NoteForm({
 }: NoteFormProps) {
   const [serverError, setServerError] = useState<string | null>(null)
   const form = useForm<NoteFormInput, undefined, NoteFormOutput>({
-    resolver: zodResolver(createNoteBodySchema),
+    resolver: zodResolver(noteFormSchema),
     defaultValues: { content: defaultContent },
   })
   const { isSubmitting, errors } = form.formState
   const fieldId = `${idPrefix}-content`
   const errorId = `${idPrefix}-content-error`
+  const inline = !multiline && !onCancel
 
   const onValidSubmit = async ({ content }: NoteFormOutput) => {
     setServerError(null)
     const ok = await onSubmit(content)
     if (!ok) {
-      setServerError("La note n'a pas pu être enregistrée. Réessayez.")
+      setServerError(serverErrorMessage)
       return
     }
-    if (resetOnSuccess) form.reset({ content: '' })
+    if (resetOnSuccess) {
+      form.reset({ content: '' })
+      if (inline) form.setFocus('content')
+    }
   }
 
   const onInvalidSubmit = (formErrors: FieldErrors<NoteFormInput>) => {
     if (formErrors.content) form.setFocus('content')
   }
+
+  const fieldProps = {
+    id: fieldId,
+    maxLength: NOTE_CONTENT_MAX_CHARS,
+    placeholder,
+    autoFocus,
+    'aria-invalid': errors.content ? true : undefined,
+    'aria-describedby': errors.content ? errorId : undefined,
+    ...form.register('content'),
+  }
+
+  const buttons = (
+    <div className="flex shrink-0 justify-end gap-2">
+      {onCancel && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
+          Annuler
+        </Button>
+      )}
+      <Button
+        type="submit"
+        size="sm"
+        disabled={isSubmitting}
+        // Le champ garde le focus au tap : le clavier mobile reste ouvert.
+        onMouseDown={inline ? (e) => e.preventDefault() : undefined}
+        className={cn('bg-slate-700 text-white hover:bg-slate-800', inline && 'h-9')}
+      >
+        {isSubmitting && <InlineSpinner className="mr-1.5" />}
+        {isSubmitting ? submittingLabel : submitLabel}
+      </Button>
+    </div>
+  )
 
   return (
     <form
@@ -130,19 +284,24 @@ function NoteForm({
       className="space-y-2"
     >
       <label htmlFor={fieldId} className="sr-only">
-        Contenu de la note
+        {label}
       </label>
-      <Textarea
-        id={fieldId}
-        rows={3}
-        maxLength={NOTE_CONTENT_MAX_CHARS}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        aria-invalid={errors.content ? true : undefined}
-        aria-describedby={errors.content ? errorId : undefined}
-        className="min-h-0 resize-none bg-white"
-        {...form.register('content')}
-      />
+      {multiline ? (
+        <>
+          <Textarea {...fieldProps} rows={3} className="min-h-0 resize-none bg-white" />
+          {buttons}
+        </>
+      ) : inline ? (
+        <div className="flex items-center gap-2">
+          <Input {...fieldProps} className="h-9 min-w-0 flex-1 bg-white" />
+          {buttons}
+        </div>
+      ) : (
+        <>
+          <Input {...fieldProps} className="h-9 bg-white" />
+          {buttons}
+        </>
+      )}
       {errors.content && (
         <p id={errorId} className="text-xs text-red-600">
           {errors.content.message}
@@ -153,29 +312,42 @@ function NoteForm({
           {serverError}
         </p>
       )}
-      <div className="flex justify-end gap-2">
-        {onCancel && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
-            Annuler
-          </Button>
-        )}
-        <Button
-          type="submit"
-          size="sm"
-          disabled={isSubmitting}
-          className="bg-slate-700 text-white hover:bg-slate-800"
-        >
-          {isSubmitting && <InlineSpinner className="mr-1.5" />}
-          {isSubmitting ? submittingLabel : submitLabel}
-        </Button>
-      </div>
     </form>
+  )
+}
+
+const EDIT_ICON =
+  'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z'
+const DELETE_ICON =
+  'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16'
+
+function MenuIcon({ path }: { path: string }) {
+  return (
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={path} />
+    </svg>
+  )
+}
+
+function NoteItemMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
+  return (
+    <DropdownMenu
+      items={[
+        { label: 'Modifier', icon: <MenuIcon path={EDIT_ICON} />, onClick: onEdit },
+        {
+          label: 'Supprimer',
+          variant: 'danger',
+          icon: <MenuIcon path={DELETE_ICON} />,
+          onClick: onDelete,
+        },
+      ]}
+    />
   )
 }
 
@@ -189,24 +361,33 @@ interface NotesDrawerProps {
  * Drawer plein écran des notes / pense-bêtes (Sprint Notes-Pense-Betes
  * 2026-09-23). Ouvert depuis la demi-ligne « Notes » de `<FinancialIndicators>`.
  *
- * Perso : notes privées. Groupe : notes partagées, visibles et modifiables par
- * tous les membres ; l'avatar de l'auteur précède chaque note.
+ * 3 onglets (Sprint Notes-Tabs 2026-10-03), rouvert sur le dernier utilisé :
+ * - Courses : liste à cocher ; un article coché est légèrement barré, passe
+ *   en bas, et disparaît 7 jours plus tard (ménage fait par l'API) ;
+ * - Notes : texte libre, l'avatar de l'auteur précède chaque note ;
+ * - Projets : liste simple, une ligne par projet.
+ *
+ * Perso : privé. Groupe : partagé, visible et modifiable par tous les membres.
  *
  * Aucun fetch propre à l'ouverture : `useNotes` partage la query déjà montée
  * par `<FinancialIndicators>` (compteur), `useGroupMembers` celle de l'en-tête.
  */
 export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerProps) {
-  const { notes, loading, isFetching, error, addNote, updateNote, deleteNote } = useNotes(context)
+  const { notes, loading, isFetching, error, addNote, updateNote, toggleChecked, deleteNote } =
+    useNotes(context)
   const { profile } = useProfile()
   const { members } = useGroupMembers(profile?.group_id, { enabled: context === 'group' })
 
+  const [activeTab, setActiveTab] = useState<NoteKind>(readStoredTab)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<Note | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const isGroup = context === 'group'
   const subtitle = isGroup ? 'Partagées avec votre groupe' : 'Visibles par vous seul'
+  const tab = TABS[activeTab]
+  const items = notes.filter((note) => note.kind === activeTab)
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
@@ -215,14 +396,130 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
     }
   }
 
+  const selectTab = (kind: NoteKind) => {
+    setActiveTab(kind)
+    storeTab(kind)
+    setEditingId(null)
+    setActionError(null)
+  }
+
+  const handleToggle = async (item: Note) => {
+    setActionError(null)
+    const ok = await toggleChecked(item.id, !item.checked_at)
+    if (!ok) setActionError("L'article n'a pas pu être mis à jour. Réessayez.")
+  }
+
   const handleConfirmDelete = async () => {
     if (!deleting) return
     setIsDeleting(true)
-    setDeleteError(null)
+    setActionError(null)
     const ok = await deleteNote(deleting.id)
     setIsDeleting(false)
-    if (!ok) setDeleteError("La note n'a pas pu être supprimée. Réessayez.")
+    if (!ok) setActionError(TABS[deleting.kind].deleteError)
     setDeleting(null)
+  }
+
+  const startDelete = (item: Note) => {
+    setActionError(null)
+    setDeleting(item)
+  }
+
+  const renderEditForm = (item: Note) => (
+    <NoteForm
+      idPrefix={`edit-note-${item.id}`}
+      label={TABS[item.kind].fieldLabel}
+      multiline={item.kind === 'note'}
+      defaultContent={item.content}
+      submitLabel="Enregistrer"
+      submittingLabel="Enregistrement..."
+      serverErrorMessage={TABS[item.kind].saveError}
+      autoFocus
+      onCancel={() => setEditingId(null)}
+      onSubmit={async (content) => {
+        const ok = await updateNote(item.id, content)
+        if (ok) setEditingId(null)
+        return ok
+      }}
+    />
+  )
+
+  const renderNote = (note: Note) => {
+    const author = resolveNoteAuthor(note, profile, members)
+    const isMine = !!profile && note.created_by_profile_id === profile.id
+    const authorName = isMine ? 'Vous' : author?.first_name || 'Ancien membre'
+    const isEditing = editingId === note.id
+
+    return (
+      <li key={note.id} className="flex gap-3 py-3">
+        <UserAvatar profile={author} size="sm" className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-baseline gap-1.5 text-xs">
+            <span className="truncate font-medium text-gray-900">{authorName}</span>
+            <span className="shrink-0 text-gray-500">{formatNoteDate(note.created_at)}</span>
+          </p>
+          {isEditing ? (
+            <div className="mt-1.5">{renderEditForm(note)}</div>
+          ) : (
+            <p className="mt-0.5 text-sm break-words whitespace-pre-wrap text-gray-800">
+              {note.content}
+            </p>
+          )}
+        </div>
+        {!isEditing && (
+          <NoteItemMenu onEdit={() => setEditingId(note.id)} onDelete={() => startDelete(note)} />
+        )}
+      </li>
+    )
+  }
+
+  /** Ligne d'une liste simple : case à cocher (courses) ou puce (projets). */
+  const renderListItem = (item: Note) => {
+    const isEditing = editingId === item.id
+    const isChecked = !!item.checked_at
+    const checkboxId = `note-check-${item.id}`
+
+    return (
+      <li key={item.id} className="flex items-center gap-3 py-2">
+        {isEditing ? (
+          <div className="min-w-0 flex-1 py-1">{renderEditForm(item)}</div>
+        ) : (
+          <>
+            {item.kind === 'shopping' ? (
+              <>
+                <input
+                  id={checkboxId}
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => handleToggle(item)}
+                  className="h-5 w-5 shrink-0 cursor-pointer accent-slate-600"
+                />
+                {/* Le libellé entier est cliquable : grande zone de tap en magasin. */}
+                <label
+                  htmlFor={checkboxId}
+                  className={cn(
+                    'min-w-0 flex-1 cursor-pointer py-1 text-sm break-words',
+                    isChecked ? 'text-gray-400 line-through decoration-gray-300' : 'text-gray-800',
+                  )}
+                >
+                  {item.content}
+                </label>
+              </>
+            ) : (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400"
+                />
+                <p className="min-w-0 flex-1 py-1 text-sm break-words text-gray-800">
+                  {item.content}
+                </p>
+              </>
+            )}
+            <NoteItemMenu onEdit={() => setEditingId(item.id)} onDelete={() => startDelete(item)} />
+          </>
+        )}
+      </li>
+    )
   }
 
   const renderList = () => {
@@ -230,7 +527,7 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
       return (
         <div className="space-y-3" aria-hidden="true">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className={activeTab === 'note' ? 'h-16 w-full' : 'h-9 w-full'} />
           ))}
         </div>
       )
@@ -244,111 +541,38 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
       )
     }
 
-    if (notes.length === 0) {
+    if (items.length === 0) {
       return (
         <div className="py-10 text-center">
-          <p className="font-medium text-gray-700">Aucune note pour l&apos;instant</p>
-          <p className="mt-1 text-sm text-gray-500">
-            {isGroup
-              ? 'Les notes ajoutées ici sont visibles par tous les membres du groupe.'
-              : 'Vos notes restent privées.'}
-          </p>
+          <p className="font-medium text-gray-700">{tab.emptyTitle}</p>
+          <p className="mt-1 text-sm text-gray-500">{tab.emptyHint[context]}</p>
         </div>
       )
     }
 
-    return (
-      <ul className="divide-y divide-gray-100">
-        {notes.map((note) => {
-          const author = resolveNoteAuthor(note, profile, members)
-          const isMine = !!profile && note.created_by_profile_id === profile.id
-          const authorName = isMine ? 'Vous' : author?.first_name || 'Ancien membre'
-          const isEditing = editingId === note.id
+    if (activeTab === 'note') {
+      return <ul className="divide-y divide-gray-100">{items.map(renderNote)}</ul>
+    }
 
-          return (
-            <li key={note.id} className="flex gap-3 py-3">
-              <UserAvatar profile={author} size="sm" className="shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="flex items-baseline gap-1.5 text-xs">
-                  <span className="truncate font-medium text-gray-900">{authorName}</span>
-                  <span className="shrink-0 text-gray-500">{formatNoteDate(note.created_at)}</span>
-                </p>
-                {isEditing ? (
-                  <div className="mt-1.5">
-                    <NoteForm
-                      idPrefix={`edit-note-${note.id}`}
-                      defaultContent={note.content}
-                      submitLabel="Enregistrer"
-                      submittingLabel="Enregistrement..."
-                      autoFocus
-                      onCancel={() => setEditingId(null)}
-                      onSubmit={async (content) => {
-                        const ok = await updateNote(note.id, content)
-                        if (ok) setEditingId(null)
-                        return ok
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <p className="mt-0.5 text-sm break-words whitespace-pre-wrap text-gray-800">
-                    {note.content}
-                  </p>
-                )}
-              </div>
-              {!isEditing && (
-                <DropdownMenu
-                  items={[
-                    {
-                      label: 'Modifier',
-                      icon: (
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                      ),
-                      onClick: () => setEditingId(note.id),
-                    },
-                    {
-                      label: 'Supprimer',
-                      variant: 'danger',
-                      icon: (
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      ),
-                      onClick: () => {
-                        setDeleteError(null)
-                        setDeleting(note)
-                      },
-                    },
-                  ]}
-                />
-              )}
-            </li>
-          )
-        })}
-      </ul>
+    if (activeTab === 'project') {
+      return <ul className="divide-y divide-gray-100">{items.map(renderListItem)}</ul>
+    }
+
+    const { pending, checked } = splitShoppingItems(items)
+    return (
+      <>
+        {pending.length > 0 && (
+          <ul className="divide-y divide-gray-100">{pending.map(renderListItem)}</ul>
+        )}
+        {checked.length > 0 && (
+          <section aria-labelledby="notes-checked-heading" className="mt-3">
+            <h3 id="notes-checked-heading" className="py-1 text-xs font-medium text-gray-500">
+              Dans le panier · retirés au bout de {SHOPPING_CHECKED_RETENTION_DAYS} jours
+            </h3>
+            <ul className="divide-y divide-gray-100">{checked.map(renderListItem)}</ul>
+          </section>
+        )}
+      </>
     )
   }
 
@@ -371,7 +595,7 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    d={TABS.note.icon}
                   />
                 </svg>
               </div>
@@ -393,26 +617,83 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
           </div>
         </div>
 
-        {/* Nouvelle note */}
-        <div className="shrink-0 border-b border-gray-200 px-4 py-3">
-          <NoteForm
-            idPrefix="new-note"
-            placeholder="Écrire un pense-bête…"
-            submitLabel="Ajouter"
-            submittingLabel="Ajout..."
-            resetOnSuccess
-            onSubmit={addNote}
-          />
+        {/* Onglets (même gabarit que PlanningDrawer) */}
+        <div className="shrink-0 border-b border-gray-200 px-4 py-2">
+          <div
+            role="tablist"
+            aria-label="Type de notes"
+            className="flex rounded-lg bg-gray-100 p-1"
+          >
+            {NOTE_KINDS.map((kind) => {
+              const selected = kind === activeTab
+              return (
+                <button
+                  key={kind}
+                  id={`notes-tab-${kind}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={selected ? `notes-panel-${kind}` : undefined}
+                  onClick={() => selectTab(kind)}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-sm font-medium transition-all duration-200',
+                    selected
+                      ? 'bg-white text-slate-800 shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900',
+                  )}
+                >
+                  <svg
+                    className="h-4 w-4 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d={TABS[kind].icon}
+                    />
+                  </svg>
+                  <span>{TABS[kind].label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Liste */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-2">
-          {deleteError && (
-            <p role="alert" className="py-2 text-sm text-red-600">
-              {deleteError}
-            </p>
-          )}
-          {renderList()}
+        <div
+          role="tabpanel"
+          id={`notes-panel-${activeTab}`}
+          aria-labelledby={`notes-tab-${activeTab}`}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {/* Ajout — `key` : un brouillon ne passe pas d'un onglet à l'autre */}
+          <div className="shrink-0 border-b border-gray-200 px-4 py-3">
+            <NoteForm
+              key={activeTab}
+              idPrefix={`new-${activeTab}`}
+              label={tab.fieldLabel}
+              multiline={activeTab === 'note'}
+              placeholder={tab.placeholder}
+              submitLabel="Ajouter"
+              submittingLabel="Ajout..."
+              serverErrorMessage={tab.saveError}
+              resetOnSuccess
+              onSubmit={(content) => addNote(content, activeTab)}
+            />
+          </div>
+
+          {/* Liste */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-2">
+            {actionError && (
+              <p role="alert" className="py-2 text-sm text-red-600">
+                {actionError}
+              </p>
+            )}
+            {renderList()}
+          </div>
         </div>
 
         {deleting && (
@@ -420,11 +701,9 @@ export default function NotesDrawer({ isOpen, onClose, context }: NotesDrawerPro
             isOpen
             onClose={() => setDeleting(null)}
             onConfirm={handleConfirmDelete}
-            title="Supprimer cette note ?"
+            title={TABS[deleting.kind].deleteTitle}
             message={
-              isGroup
-                ? 'Elle disparaîtra aussi pour les autres membres du groupe.'
-                : 'Cette action est définitive.'
+              isGroup ? TABS[deleting.kind].deleteGroupMessage : 'Cette action est définitive.'
             }
             details={
               <p className="line-clamp-3 rounded-md bg-gray-50 px-3 py-2 text-sm break-words whitespace-pre-wrap text-gray-700">

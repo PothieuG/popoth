@@ -53,7 +53,8 @@ export default function FinancialIndicators({
   const [isNotesOpen, setIsNotesOpen] = useState(false)
   const notesContext = context ?? 'profile'
   // Compteur de la demi-ligne Notes — même query que le drawer (dédoublonnée).
-  const { notes } = useNotes(notesContext)
+  // Courses cochées exclues : le chiffre baisse au fil des courses.
+  const { pendingCount: notesCount } = useNotes(notesContext)
 
   /**
    * Get color class based on amount value
@@ -248,7 +249,7 @@ export default function FinancialIndicators({
         <button
           type="button"
           onClick={() => setIsNotesOpen(true)}
-          aria-label={notes.length > 0 ? `Notes (${notes.length})` : 'Notes'}
+          aria-label={notesCount > 0 ? `Notes (${notesCount})` : 'Notes'}
           className="cursor-pointer rounded-xl border border-slate-200 bg-linear-to-r from-slate-50 to-slate-100 py-2 pr-3 pl-2 shadow-xs transition-all duration-200 hover:from-slate-100"
         >
           <div className="flex items-center space-x-1.5">
@@ -273,12 +274,12 @@ export default function FinancialIndicators({
             </div>
 
             <p className="text-sm font-medium text-slate-800">Notes</p>
-            {notes.length > 0 && (
+            {notesCount > 0 && (
               <span
                 aria-hidden="true"
                 className="shrink-0 rounded-full bg-slate-600 px-1.5 text-xs leading-5 font-medium text-white"
               >
-                {notes.length}
+                {notesCount}
               </span>
             )}
           </div>
