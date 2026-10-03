@@ -95,6 +95,10 @@ Pour toute paire ou triplet d'opérations DB sur les colonnes sensibles (`piggy_
 
 - ❌ **NE PAS** compter une ligne salaire (`salary_month`) dans le RAV, deviner côté serveur le mois financé (choisi : mois ouvert ou suivant), ni créditer le solde à l'adoption. Dates métier → `now()` de `lib/clock` (garde-fou sur la base). Règles : `lib/finance/salary-reception.ts`, [Part 47](../history/roadmap-detailed-47-salary-reception.md).
 
+### Notes à onglets (Part 49 — 2026-10-03)
+
+- ❌ **NE PAS** créer une table ou une query par onglet : Courses / Notes / Projets = colonne `notes.kind`, une seule query `['notes', context]` (compteur du dashboard = `pendingCount`, courses cochées exclues). Le ménage des courses cochées depuis 7 jours se fait au `GET /api/notes`, sans tâche planifiée ; `checked_at` = heure réelle (pas `lib/clock`). Migration avant le code, sinon `GET` en 500. Détails → [Part 49](../history/roadmap-detailed-49-notes-tabs.md).
+
 ### Carry-over UI (Sprint 15 V3 — 2026-05-25, raffiné Part 35 — 2026-05-27)
 
 - ❌ **NE PAS** filtrer les carry-overs sur les GET de listing UI (`GET /api/finance/{expenses,income}/real`) — l'UI doit afficher les carry-overs avec badge "Mois précédent" + actions. Le filtre s'applique uniquement aux SELECT contribuant aux **calculs** current-month (RAV / solde / déficit / économies). **Règle canonique Part 35** : `.is('carried_from_recap_id', null)` — `.eq('is_carried_over', false)` seul (pattern initial Sprint 15) est insuffisant car il laisse passer l'état B (carry-over validé : `is_carried_over=false, carried_from_recap_id != null`), créant un double-comptage cross-mois. Une dépense reportée appartient au mois d'origine, déjà comptée dans son RAV ; la validation post-recap modifie le solde uniquement. Cf. [Part 35](../history/roadmap-detailed-35-carryover-validated-exclude-from-rav.md).

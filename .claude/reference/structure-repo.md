@@ -42,7 +42,7 @@ app/                       # App Router (pages + API routes)
   monthly-recap/page.tsx   # ✅ Sprint 10 V3 — server component Suspense + parse searchParams.context (défaut profile). Mount <RecapWizard>. Page route hors api/.
 components/                # UI (shadcn/ui sous components/ui/)
   dashboard/BottomNav.tsx  # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — navbar bottom 3-tabs partagée par /dashboard et /group-dashboard. `useRouter().push()` au lieu de `window.location.href` (soft nav). Variante "Aucun groupe" si `!hasGroup`.
-  dashboard/NotesDrawer.tsx # ✅ Part 43 — drawer notes (ajout, édition, suppression), avatar auteur `resolveNoteAuthor`
+  dashboard/NotesDrawer.tsx # ✅ Part 43/49 — onglets Courses (cases) / Notes (avatar auteur) / Projets
   dashboard/DashboardHeader.tsx # ✅ Sprint Fix-Dashboards-Navbar-Switch (2026-05-20) — header sticky partagé. Props `context`, `onOpenMenu`. Rend `<UserInfoNavbar>` (profile) OU `<GroupInfoNavbar>` (group) + `<UserAvatar>`. Hooks dédupés TanStack Query.
   dashboard/SalaryReceptionPanel.tsx, dev/SimulatedDateBadge.tsx # ✅ Part 47 — encart « Réception du salaire » ; pastille date simulée
   dashboard/OverflowCoverageStep.tsx # ✅ Part 48 — étape « Couvrir le dépassement » : reste à vivre ou réserves (curseurs `Line` du récap)
@@ -73,7 +73,7 @@ hooks/                     # 22 hooks React — ✅ Sprint 1.5 : fetchers sur Ta
   useBudgets.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation ; CRUD → [`invalidateFinancialRefreshes`](lib/query-client.ts) (Sprint 2-followup, single source of truth)
   useProjects.ts           # ✅ Sprints 02/05/06 — useQuery + 3 useMutation ; CRUD branché aux 3 modals Projets : Add/Edit/ConfirmDelete + snackbar tirelire.
   useIncomes.ts            # ✅ Sprint 1.5 — useQuery + 3 useMutation
-  useNotes.ts              # ✅ Part 43 — useQuery ['notes', context] + 3 useMutation (setQueryData), hors invalidateFinancialRefreshes
+  useNotes.ts              # ✅ Part 43/49 — useQuery ['notes', context] (3 onglets), case optimiste, hors invalidateFinancialRefreshes
   useRealExpenses.ts       # ✅ Sprint 1.5 — useQuery + 3 useMutation ; `addExpense` → `AddExpenseOutcome` (Part 48). Toggles (Part 42 §10) : solde écrit via `applyBankBalanceToCache`, 0 refetch nominal — miroir useRealIncomes
   useGroupMembers.ts       # ✅ Part 42 §10 (2026-09-10) — useQuery ['group-members', groupId] + `enabled` (ex-useState sans cache : refetch + skeleton en-tête à chaque bascule perso→groupe). Invalidé par les 4 mutations d'appartenance de useGroups
   useRealIncomes.ts        # ✅ Sprint 1.5 — useQuery + 3 useMutation
@@ -124,7 +124,7 @@ lib/
     # NOTE: recap.ts ajouté Sprint State-Lock-Schemas-V3 (sub-task 03/17, 2026-05-24) — 8 schémas (start, transferSurpluses, prepareDeficit + saveRefloatPlan (Part 46, discriminatedUnion sur `source`), updateSalaries, complete, statusQuery, advanceStep) réutilisant contextSchema/uuidSchema/nonNegativeMoneySchema de common.ts. Tests : __tests__/recap.test.ts ≥40 cas non-gated. Barrel index.ts étendu (`export * from './recap'`).
   api/                     # ✅ Sprint Refactor-Architecture v1+v2 — handlers extraits, ré-exportés par app/api/finance/**/route.ts
     parse-body.ts          # ✅ Sprint Refactor-I5 — parseBody<T>(req, schema) + BadRequestError + handleBadRequest(error). Validation Zod centralisée pour les handlers
-    notes.ts               # ✅ Part 43 — handlers /api/notes, accès filtré dans l'UPDATE/DELETE (0 ligne ⇒ 404)
+    notes.ts               # ✅ Part 43/49 — /api/notes, accès filtré dans UPDATE/DELETE, ménage courses au GET
     __tests__/parse-body.test.ts  # ✅ Sprint Refactor-I5 — 6 cas non-gated (happy path, malformed JSON, schema mismatch, etc.)
     with-auth.ts           # ✅ Sprint Refactor-Architecture-v3+v4+v5 — withAuth(handler) + withAuthAndProfile(handler) higher-order helpers utilisés par ~20 modules (12 finance + Volet C : profile/savings/bank-balance/groups). Profile shape étendu en v4 à { id, group_id, first_name, last_name }. Signature étendue avec 2 overloads en v5 : (a) static-route signature sans routeContext, (b) dynamic-route signature avec generic `<TParams>` et routeContext NON-optionnel — élimine le `routeContext!` dans groups/[id]/** sans casser la cohabitation static. Tests gated `SUPABASE_API_TESTS=1` dans [lib/api/__tests__/with-auth.test.ts](lib/api/__tests__/with-auth.test.ts) (12 cas, Sprint v5).
     finance/               # 14 modules : summary, rav, group-members-rav, budgets (POST/PUT/DELETE), budgets-estimated, incomes, income-{real,estimated,progress}, expenses-{real,add-with-logic,preview-breakdown,progress}, projects
@@ -132,7 +132,7 @@ lib/
       with-auth.test.ts    # gated SUPABASE_API_TESTS=1 — 12 cas withAuth + withAuthAndProfile (auth, expired payload, overloads, profile shape, isolation)
   constants/               # ✅ Sprint Hygiène-Code — magic numbers extraits
     auth.ts                # SESSION_EXPIRATION_SECONDS (3600), SESSION_EXPIRATION_JOSE ('1h'), SESSION_REFRESH_INTERVAL_MS (50min), AUTH_CHECK_INTERVAL_MS (5min)
-    notes.ts               # NOTE_CONTENT_MAX_CHARS (1000), miroir du CHECK SQL
+    notes.ts               # NOTE_CONTENT_MAX_CHARS, NOTE_KINDS, rétention 7 j
     finance.ts             # ROUNDING_TOLERANCE (0.01) — currently orphan post Clean-Slate-Recap (était utilisé par process-step1), conservé pour V3 cascade tolerance
   finance/                 # ✅ Sprint 0 C3 (RPC atomiques) + Sprint Refactor-I4 (split god file 1069 LOC)
     # Sprint 0 / C3 — atomic RPC helpers (single-call + retry-safe DB writes)
