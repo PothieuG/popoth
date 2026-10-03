@@ -6,6 +6,7 @@ import { withAuthAndGroup } from '@/lib/api/with-auth'
 import { parseBody, parseQuery, handleBadRequest } from '@/lib/api/parse-body'
 import { createNoteBodySchema, updateNoteBodySchema } from '@/lib/schemas/notes'
 import { contextOnlyQuerySchema, uuidSchema } from '@/lib/schemas/common'
+import { SHOPPING_CHECKED_RETENTION_DAYS } from '@/lib/constants/notes'
 import { logger } from '@/lib/logger'
 
 type NoteInsert = Database['public']['Tables']['notes']['Insert']
@@ -21,7 +22,9 @@ interface RouteParams {
  * §11) : l'avatar est résolu côté client depuis `useGroupMembers` / `useProfile`.
  */
 export const NOTE_SELECT =
-  'id, profile_id, group_id, created_by_profile_id, content, created_at, updated_at, created_by:profiles!notes_created_by_profile_id_fkey(id, first_name, last_name)'
+  'id, profile_id, group_id, created_by_profile_id, kind, content, checked_at, created_at, updated_at, created_by:profiles!notes_created_by_profile_id_fkey(id, first_name, last_name)'
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * Condition d'accès à une note existante : la sienne (perso) ou celle de son
@@ -35,7 +38,13 @@ const NOT_FOUND = { error: 'Note non trouvée ou accès non autorisé' }
 
 /**
  * GET /api/notes?context=profile|group - Notes perso de l'utilisateur, ou
- * notes partagées de son groupe. Plus récentes d'abord.
+ * notes partagées de son groupe, tous onglets confondus (le drawer les trie).
+ * Plus récentes d'abord.
+ *
+ * Fait aussi le ménage des courses : un article coché depuis plus de
+ * SHOPPING_CHECKED_RETENTION_DAYS jours est supprimé avant la lecture (pas de
+ * tâche planifiée). `checked_at` est un horodatage technique : heure réelle,
+ * pas `now()` de lib/clock. Un échec du ménage ne bloque pas la liste.
  */
 export const GET = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
@@ -44,6 +53,17 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
     if (context === 'group' && !groupId) {
       return NextResponse.json({ notes: [] })
     }
+
+    const cutoff = new Date(Date.now() - SHOPPING_CHECKED_RETENTION_DAYS * DAY_MS).toISOString()
+    const purge = supabaseServer
+      .from('notes')
+      .delete()
+      .eq('kind', 'shopping')
+      .lt('checked_at', cutoff)
+    const { error: purgeError } = await (context === 'group'
+      ? purge.eq('group_id', groupId!)
+      : purge.eq('profile_id', userId))
+    if (purgeError) logger.error('Error purging checked shopping items:', purgeError)
 
     const query = supabaseServer.from('notes').select(NOTE_SELECT)
     const scoped =
@@ -62,9 +82,10 @@ export const GET = withAuthAndGroup(async (request: NextRequest, { userId, group
 })
 
 /**
- * POST /api/notes?context=profile|group - Crée une note. En groupe, elle est
- * visible et modifiable par tous les membres ; `created_by_profile_id` garde
- * la trace de son auteur (avatar affiché devant la note).
+ * POST /api/notes?context=profile|group - Crée une note dans l'onglet `kind`
+ * (`note` par défaut). En groupe, elle est visible et modifiable par tous les
+ * membres ; `created_by_profile_id` garde la trace de son auteur (avatar
+ * affiché devant la note).
  */
 export const POST = withAuthAndGroup(async (request: NextRequest, { userId, groupId }) => {
   try {
@@ -80,8 +101,18 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
 
     const payload: NoteInsert =
       context === 'group'
-        ? { group_id: groupId!, created_by_profile_id: userId, content: body.content }
-        : { profile_id: userId, created_by_profile_id: userId, content: body.content }
+        ? {
+            group_id: groupId!,
+            created_by_profile_id: userId,
+            kind: body.kind,
+            content: body.content,
+          }
+        : {
+            profile_id: userId,
+            created_by_profile_id: userId,
+            kind: body.kind,
+            content: body.content,
+          }
 
     const { data: note, error } = await supabaseServer
       .from('notes')
@@ -100,8 +131,10 @@ export const POST = withAuthAndGroup(async (request: NextRequest, { userId, grou
 })
 
 /**
- * PUT /api/notes/[id] - Modifie le contenu d'une note. L'auteur ne change pas
- * (set-once à l'INSERT, miroir `real_expenses.created_by_profile_id`).
+ * PUT /api/notes/[id] - Modifie le contenu d'une note (`{ content }`), ou
+ * coche / décoche un article de courses (`{ checked }`). L'auteur et l'onglet
+ * ne changent pas (set-once à l'INSERT, miroir
+ * `real_expenses.created_by_profile_id`).
  *
  * Contrôle d'accès et écriture en une seule requête : l'UPDATE est filtré par
  * `ownershipCondition`, 0 ligne touchée ⇒ 404 (note absente ou d'un autre
@@ -118,9 +151,17 @@ export const PUT = withAuthAndGroup<RouteParams>(
 
       const body = await parseBody(request, updateNoteBodySchema)
 
-      const { data: note, error } = await supabaseServer
-        .from('notes')
-        .update({ content: body.content })
+      // La case n'existe que sur les courses : cocher une note ou un projet
+      // ne touche aucune ligne ⇒ 404.
+      const update =
+        'checked' in body
+          ? supabaseServer
+              .from('notes')
+              .update({ checked_at: body.checked ? new Date().toISOString() : null })
+              .eq('kind', 'shopping')
+          : supabaseServer.from('notes').update({ content: body.content })
+
+      const { data: note, error } = await update
         .eq('id', noteId.data)
         .or(ownershipCondition(userId, groupId))
         .select(NOTE_SELECT)

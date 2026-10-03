@@ -200,7 +200,8 @@ export const routes: RouteDef[] = [
     path: '/api/notes',
     method: 'get',
     tag: 'notes',
-    summary: 'List notes (private for profile, shared by all members for group)',
+    summary:
+      'List notes of all tabs (private for profile, shared by all members for group); purges shopping items checked more than 7 days ago',
     querySchema: contextOnlyQuerySchema,
     requiresAuth: true,
   },
@@ -208,7 +209,7 @@ export const routes: RouteDef[] = [
     path: '/api/notes',
     method: 'post',
     tag: 'notes',
-    summary: 'Create note in context (author recorded for the avatar)',
+    summary: 'Create note in context and tab (author recorded for the avatar)',
     querySchema: contextOnlyQuerySchema,
     bodySchema: createNoteBodySchema,
     requiresAuth: true,
@@ -217,7 +218,8 @@ export const routes: RouteDef[] = [
     path: '/api/notes/{id}',
     method: 'put',
     tag: 'notes',
-    summary: 'Update note content (own note or note of own group)',
+    summary:
+      'Update note content, or check / uncheck a shopping item (own note or note of own group)',
     bodySchema: updateNoteBodySchema,
     pathParams: ['id'],
     requiresAuth: true,

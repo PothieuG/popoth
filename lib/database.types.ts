@@ -453,29 +453,35 @@ export type Database = {
       }
       notes: {
         Row: {
+          checked_at: string | null
           content: string
           created_at: string
           created_by_profile_id: string | null
           group_id: string | null
           id: string
+          kind: string
           profile_id: string | null
           updated_at: string
         }
         Insert: {
+          checked_at?: string | null
           content: string
           created_at?: string
           created_by_profile_id?: string | null
           group_id?: string | null
           id?: string
+          kind?: string
           profile_id?: string | null
           updated_at?: string
         }
         Update: {
+          checked_at?: string | null
           content?: string
           created_at?: string
           created_by_profile_id?: string | null
           group_id?: string | null
           id?: string
+          kind?: string
           profile_id?: string | null
           updated_at?: string
         }

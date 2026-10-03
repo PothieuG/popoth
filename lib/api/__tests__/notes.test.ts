@@ -2,9 +2,12 @@
  * Sprint Notes-Pense-Betes (2026-09-23) — handlers `/api/notes` et
  * `/api/notes/[id]` (lib/api/notes.ts).
  *
+ * Étendu Sprint Notes-Tabs (2026-10-03) : onglet `kind`, case des courses
+ * (`checked_at`), ménage des courses cochées depuis plus de 7 jours au GET.
+ *
  * Ce qui est pinné :
  *   - le scope : notes perso filtrées sur `profile_id`, notes de groupe sur
- *     `group_id` — jamais l'un pour l'autre ;
+ *     `group_id` — jamais l'un pour l'autre (lecture ET ménage) ;
  *   - l'auteur (`created_by_profile_id`) est posé à l'INSERT, jamais modifié ;
  *   - le contrôle d'accès de PUT/DELETE passe par le filtre de la requête
  *     elle-même (0 ligne ⇒ 404), sans lecture préalable ;
@@ -21,6 +24,8 @@ const { AUTH, DB } = vi.hoisted(() => ({
   DB: {
     calls: [] as { method: string; args: unknown[] }[],
     result: { data: null as unknown, error: null as unknown },
+    // Ménage du GET : la requête DELETE est attendue sans méthode terminale.
+    purgeResult: { error: null as unknown },
   },
 }))
 
@@ -50,8 +55,11 @@ vi.mock('@/lib/supabase-server', () => {
       DB.calls.push({ method, args })
       return DB.result
     }
-  for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'or']) chain[m] = passthrough(m)
+  for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'lt', 'or']) {
+    chain[m] = passthrough(m)
+  }
   for (const m of ['order', 'single', 'maybeSingle']) chain[m] = terminal(m)
+  chain.then = (resolve: (value: unknown) => void) => resolve(DB.purgeResult)
   return {
     supabaseServer: {
       from: (table: string) => {
@@ -86,6 +94,7 @@ beforeEach(() => {
   AUTH.groupId = null
   DB.calls.length = 0
   DB.result = { data: null, error: null }
+  DB.purgeResult = { error: null }
 })
 
 afterEach(() => {
@@ -101,8 +110,13 @@ describe('GET /api/notes', () => {
 
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ notes: [{ id: NOTE_ID, content: 'Payer la cantine' }] })
-    expect(callsOf('from')[0]?.args).toEqual(['notes'])
-    expect(callsOf('eq').map((c) => c.args)).toEqual([['profile_id', USER_ID]])
+    expect(callsOf('from').map((c) => c.args)).toEqual([['notes'], ['notes']])
+    // Ménage (kind + scope), puis lecture (scope).
+    expect(callsOf('eq').map((c) => c.args)).toEqual([
+      ['kind', 'shopping'],
+      ['profile_id', USER_ID],
+      ['profile_id', USER_ID],
+    ])
     expect(callsOf('order')[0]?.args).toEqual(['created_at', { ascending: false }])
   })
 
@@ -112,7 +126,8 @@ describe('GET /api/notes', () => {
 
     await GET(request('/api/notes'))
 
-    expect(callsOf('eq').map((c) => c.args)).toEqual([['profile_id', USER_ID]])
+    expect(callsOf('eq').map((c) => c.args)).toContainEqual(['profile_id', USER_ID])
+    expect(callsOf('eq').map((c) => c.args)).not.toContainEqual(['group_id', GROUP_ID])
   })
 
   it('en groupe, liste les notes partagées du groupe', async () => {
@@ -123,7 +138,52 @@ describe('GET /api/notes', () => {
     const res = await GET(request('/api/notes?context=group'))
 
     expect(res.status).toBe(200)
-    expect(callsOf('eq').map((c) => c.args)).toEqual([['group_id', GROUP_ID]])
+    expect(callsOf('eq').map((c) => c.args)).toEqual([
+      ['kind', 'shopping'],
+      ['group_id', GROUP_ID],
+      ['group_id', GROUP_ID],
+    ])
+  })
+
+  it('supprime les courses cochées depuis plus de 7 jours avant de lire', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-10T12:00:00.000Z'))
+    try {
+      DB.result = { data: [], error: null }
+      const { GET } = await import('../notes')
+
+      await GET(request('/api/notes?context=profile'))
+
+      const deleteIndex = DB.calls.findIndex((c) => c.method === 'delete')
+      const selectIndex = DB.calls.findIndex((c) => c.method === 'select')
+      expect(deleteIndex).toBeGreaterThanOrEqual(0)
+      expect(deleteIndex).toBeLessThan(selectIndex)
+      expect(callsOf('lt').map((c) => c.args)).toEqual([['checked_at', '2026-10-03T12:00:00.000Z']])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('un échec du ménage ne bloque pas la liste', async () => {
+    DB.purgeResult = { error: { message: 'boom' } }
+    DB.result = { data: [{ id: NOTE_ID }], error: null }
+    const { GET } = await import('../notes')
+
+    const res = await GET(request('/api/notes?context=profile'))
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ notes: [{ id: NOTE_ID }] })
+  })
+
+  it('renvoie l’onglet et la case de chaque note', async () => {
+    DB.result = { data: [], error: null }
+    const { GET } = await import('../notes')
+
+    await GET(request('/api/notes?context=profile'))
+
+    const selected = String(callsOf('select')[0]?.args[0])
+    expect(selected).toContain('kind')
+    expect(selected).toContain('checked_at')
   })
 
   it('en groupe sans groupe, renvoie une liste vide sans toucher la base', async () => {
@@ -177,8 +237,28 @@ describe('POST /api/notes', () => {
     expect(callsOf('insert')[0]?.args[0]).toEqual({
       profile_id: USER_ID,
       created_by_profile_id: USER_ID,
+      kind: 'note',
       content: 'Rappel',
     })
+  })
+
+  it.each(['shopping', 'note', 'project'])('crée dans l’onglet demandé (%s)', async (kind) => {
+    DB.result = { data: { id: NOTE_ID }, error: null }
+    const { POST } = await import('../notes')
+
+    const res = await POST(request('/api/notes?context=profile', { content: 'Lait', kind }))
+
+    expect(res.status).toBe(201)
+    expect(callsOf('insert')[0]?.args[0]).toMatchObject({ kind })
+  })
+
+  it('refuse un onglet inconnu (400)', async () => {
+    const { POST } = await import('../notes')
+
+    const res = await POST(request('/api/notes?context=profile', { content: 'x', kind: 'todo' }))
+
+    expect(res.status).toBe(400)
+    expect(callsOf('insert')).toEqual([])
   })
 
   it('crée une note de groupe rattachée au groupe, pas au profil', async () => {
@@ -191,6 +271,7 @@ describe('POST /api/notes', () => {
     expect(callsOf('insert')[0]?.args[0]).toEqual({
       group_id: GROUP_ID,
       created_by_profile_id: USER_ID,
+      kind: 'note',
       content: 'Courses samedi',
     })
   })
@@ -273,6 +354,56 @@ describe('PUT /api/notes/[id]', () => {
     const { PUT } = await import('../notes')
 
     const res = await PUT(request(`/api/notes/${NOTE_ID}`, { content: ' ' }), params(NOTE_ID))
+
+    expect(res.status).toBe(400)
+    expect(callsOf('update')).toEqual([])
+  })
+
+  it('coche un article de courses : horodatage, filtre onglet et accès', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T08:30:00.000Z'))
+    try {
+      AUTH.groupId = GROUP_ID
+      DB.result = { data: { id: NOTE_ID }, error: null }
+      const { PUT } = await import('../notes')
+
+      const res = await PUT(request(`/api/notes/${NOTE_ID}`, { checked: true }), params(NOTE_ID))
+
+      expect(res.status).toBe(200)
+      expect(callsOf('update')[0]?.args[0]).toEqual({ checked_at: '2026-10-03T08:30:00.000Z' })
+      expect(callsOf('eq').map((c) => c.args)).toEqual([
+        ['kind', 'shopping'],
+        ['id', NOTE_ID],
+      ])
+      expect(callsOf('or')[0]?.args[0]).toBe(`profile_id.eq.${USER_ID},group_id.eq.${GROUP_ID}`)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('décoche un article de courses', async () => {
+    DB.result = { data: { id: NOTE_ID }, error: null }
+    const { PUT } = await import('../notes')
+
+    await PUT(request(`/api/notes/${NOTE_ID}`, { checked: false }), params(NOTE_ID))
+
+    expect(callsOf('update')[0]?.args[0]).toEqual({ checked_at: null })
+  })
+
+  it('404 en cochant une ligne qui n’est pas un article de courses', async () => {
+    // Le filtre `kind = shopping` ne retient aucune ligne.
+    DB.result = { data: null, error: null }
+    const { PUT } = await import('../notes')
+
+    const res = await PUT(request(`/api/notes/${NOTE_ID}`, { checked: true }), params(NOTE_ID))
+
+    expect(res.status).toBe(404)
+  })
+
+  it('400 sur une case qui n’est pas un booléen', async () => {
+    const { PUT } = await import('../notes')
+
+    const res = await PUT(request(`/api/notes/${NOTE_ID}`, { checked: 'oui' }), params(NOTE_ID))
 
     expect(res.status).toBe(400)
     expect(callsOf('update')).toEqual([])
