@@ -237,4 +237,6 @@ Si total `.claude/**/*.md` croît trop vite (> 1 MB chars) → envisager de purg
 
 **Sprint Notes-Tabs (2026-10-03)** : Part 49 créée (~6k). `CLAUDE.md` à 18 caractères du plafond : la ligne §11 « État global » (compteurs en double de §5.5, qui dérivaient) devient un renvoi « voir §5.5 », ce qui finance l'entrée Part 49 → 39 498. `structure-repo.md` : 4 lignes notes réécrites en place, plus courtes (39 462 → 39 443). `operational-rules.md` +1 section « Notes à onglets » (37 471). `sprint-chronology-part-3.md` +1 ligne. ⚠️ Mesure locale : sans locale `en_US.UTF-8` installée, `LC_ALL=en_US.UTF-8 wc -m` compte des octets (CLAUDE.md affichait 40 127) — utiliser `LC_ALL=C.utf8` ou `node scripts/check-md-size.mjs`.
 
+**Sprint Savings-Transfer (2026-10-03)** : Part 50 créée (~6k). `CLAUDE.md` à 2 caractères du plafond : 11 libellés de l'index §11 raccourcis (Parts 01, 03, 04, 07, 12, 13, 15, 16, 21, 26, 36) pour financer l'entrée Part 50 → 39 477. `structure-repo.md` +3 lignes, financées par la compression des lignes `ui/modal-close-x.tsx` (compteurs de sites périmés retirés) et `ui/skeleton.tsx` → 39 460. `operational-rules.md` +1 section « Transfert d'économies » (37 968). `sprint-chronology-part-3.md` +1 ligne.
+
 Cf. inventaire détaillé via `pnpm check:md-size` ou `LC_ALL=en_US.UTF-8 wc -m CLAUDE.md .claude/**/*.md`.
