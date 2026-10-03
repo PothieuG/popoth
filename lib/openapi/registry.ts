@@ -19,6 +19,7 @@ import {
   progressQuerySchema,
   searchGroupsQuerySchema,
   sessionActionBodySchema,
+  savingsTransferBodySchema,
   summaryQuerySchema,
   transferSavingsBodySchema,
   updateBankBalanceBodySchema,
@@ -248,6 +249,15 @@ export const routes: RouteDef[] = [
     tag: 'savings',
     summary: 'Atomic transfer (budget→budget OR budget→piggy_bank, discriminated by action)',
     bodySchema: transferSavingsBodySchema,
+    requiresAuth: true,
+  },
+  {
+    path: '/api/finance/savings-transfer',
+    method: 'post',
+    tag: 'savings',
+    summary:
+      'Savings transfer (send to / receive from savings): moves the bank balance only, capped at total savings',
+    bodySchema: savingsTransferBodySchema,
     requiresAuth: true,
   },
 

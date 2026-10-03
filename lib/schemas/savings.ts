@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { contextSchema, moneySchema, uuidSchema } from './common'
+import {
+  exceedsSavingsTransferMax,
+  SAVINGS_TRANSFER_DIRECTIONS,
+} from '@/lib/finance/savings-transfer'
+import { contextSchema, moneyFormSchema, moneySchema, uuidSchema } from './common'
 
 /**
  * Discriminate on `action`: when present and equal to `'budget_to_piggy_bank'`,
@@ -46,4 +50,30 @@ export function isBudgetToPiggyBank(
   body: TransferSavingsBody,
 ): body is Extract<TransferSavingsBody, { action: 'budget_to_piggy_bank' }> {
   return 'action' in body && body.action === 'budget_to_piggy_bank'
+}
+
+/**
+ * Part 50 — `POST /api/finance/savings-transfer`. Envoi vers l'épargne ou
+ * réception depuis l'épargne : seul le solde disponible bouge. Le plafond
+ * (total des économies) se vérifie dans la route, qui le relit en base.
+ */
+export const savingsTransferBodySchema = z.object({
+  context: contextSchema,
+  direction: z.enum(SAVINGS_TRANSFER_DIRECTIONS),
+  amount: moneySchema,
+})
+
+export type SavingsTransferBody = z.infer<typeof savingsTransferBodySchema>
+
+/**
+ * Formulaire du dialogue (Pattern D : plafond dépendant des props). Même
+ * contrat que la route — montant positif, 2 décimales, ≤ total des économies.
+ */
+export function makeSavingsTransferFormSchema(opts: { totalSavings: number }) {
+  return z
+    .object({ amount: moneyFormSchema })
+    .refine((d) => !exceedsSavingsTransferMax(d.amount, opts.totalSavings), {
+      message: 'Le montant dépasse le total de vos économies',
+      path: ['amount'],
+    })
 }

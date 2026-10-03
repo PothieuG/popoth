@@ -25,6 +25,10 @@ import {
   type CoverageMode,
 } from '@/components/dashboard/OverflowCoverageStep'
 import SalaryReceptionPanel from '@/components/dashboard/SalaryReceptionPanel'
+import {
+  SavingsTransferAmountStep,
+  SavingsTransferDirectionStep,
+} from '@/components/dashboard/SavingsTransferSteps'
 import { needsCoverageStep, useExpenseBreakdownPreview } from '@/hooks/useExpenseBreakdownPreview'
 import { now, todayIso } from '@/lib/clock'
 import { coverageTotal, EMPTY_COVERAGE, type OverflowCoverage } from '@/lib/expense-breakdown'
@@ -37,6 +41,7 @@ import {
   type MonthRef,
   type SalaryMonthOption,
 } from '@/lib/finance/salary-reception'
+import { savingsTransferMax, type SavingsTransferDirection } from '@/lib/finance/savings-transfer'
 import CustomDropdown, { type DropdownOption } from '@/components/ui/CustomDropdown'
 import { preventEnterSubmit } from '@/lib/forms/prevent-enter-submit'
 import {
@@ -89,11 +94,20 @@ type TransactionType = 'expense' | 'income'
  * - `'cover-overflow'` (Sprint Expense-Overflow-Coverage) : dépense budgétée
  *   qui dépasse le budget + ses économies, avec des réserves disponibles —
  *   choix entre reste à vivre et réserves (curseurs).
+ * - `'transfer-direction'` → `'transfer-amount'` (Part 50) : « Transfert
+ *   d'économies », envoi ou réception puis montant. Formulaire à part
+ *   (`SavingsTransferSteps`) : seul le solde disponible bouge.
  *
  * Form state is preserved via the single `useForm` at the top — step
  * transitions only swap the render.
  */
-type WizardStep = 'select-type' | 'select-kind' | 'fields' | 'cover-overflow'
+type WizardStep =
+  | 'select-type'
+  | 'select-kind'
+  | 'fields'
+  | 'cover-overflow'
+  | 'transfer-direction'
+  | 'transfer-amount'
 
 /** Copie des erreurs de `addExpense` (codes renvoyés par l'API). */
 const EXPENSE_ERROR_COPY: Record<string, string> = {
@@ -179,6 +193,11 @@ export default function AddTransactionModal({
   const [coverMode, setCoverMode] = useState<CoverageMode>('rav')
   const [coverage, setCoverage] = useState<OverflowCoverage>(EMPTY_COVERAGE)
   const [coverageKey, setCoverageKey] = useState<string | null>(null)
+  // Part 50 — « Transfert d'économies ». `transferBusy` : requête en cours dans
+  // le formulaire du montant (le sien, pas le `useForm` ci-dessous), pendant
+  // laquelle retour et fermeture sont bloqués.
+  const [transferDirection, setTransferDirection] = useState<SavingsTransferDirection>('send')
+  const [transferBusy, setTransferBusy] = useState(false)
 
   // Wizard récap « Compléter le mois » : les montants affichés (dépensé par
   // budget, reste à vivre) portent sur le mois RECAPÉ, pas sur le mois courant
@@ -218,6 +237,13 @@ export default function AddTransactionModal({
       ? NO_SALARY_OPTIONS
       : salaryMonthOptions(realIncomes, declaredSalary, openMonth)
   const hasSelectableSalaryMonth = salaryOptions.some((option) => option.status.kind !== 'received')
+
+  // Part 50 — plafond du transfert d'économies = carte « Économies » du
+  // dashboard (budgets + tirelire). Option absente du wizard récap : elle ne
+  // touche pas au mois recapé.
+  const totalSavings = financialData?.totalSavings ?? 0
+  const showSavingsTransfer = recapWindow == null
+  const canTransferSavings = savingsTransferMax(totalSavings) > 0
 
   const form = useForm<AddTransactionFormInput, undefined, AddTransactionFormOutput>({
     resolver: zodResolver(addTransactionFormSchema),
@@ -440,6 +466,18 @@ export default function AddTransactionModal({
     }
   }
 
+  /** Step 1 (Part 50) : « Transfert d'économies » → choix du sens. */
+  const handleSelectSavingsTransfer = () => {
+    setStepAnimDir('forward')
+    setWizardStep('transfer-direction')
+  }
+
+  const handleSelectTransferDirection = (direction: SavingsTransferDirection) => {
+    setTransferDirection(direction)
+    setStepAnimDir('forward')
+    setWizardStep('transfer-amount')
+  }
+
   /**
    * Back navigation: returns to previous step preserving form values.
    * Now uniform across expense/income flows since both go through select-kind.
@@ -451,7 +489,9 @@ export default function AddTransactionModal({
       setWizardStep('fields')
     } else if (wizardStep === 'fields') {
       setWizardStep('select-kind')
-    } else if (wizardStep === 'select-kind') {
+    } else if (wizardStep === 'transfer-amount') {
+      setWizardStep('transfer-direction')
+    } else if (wizardStep === 'select-kind' || wizardStep === 'transfer-direction') {
       setWizardStep('select-type')
     }
   }
@@ -594,7 +634,7 @@ export default function AddTransactionModal({
    * Handle modal close
    */
   const handleClose = () => {
-    if (!form.formState.isSubmitting) {
+    if (!form.formState.isSubmitting && !transferBusy) {
       onClose()
     }
   }
@@ -613,6 +653,8 @@ export default function AddTransactionModal({
 
   const fieldErrors = form.formState.errors
   const isSubmitting = form.formState.isSubmitting
+  // En-tête (retour, fermeture) : bloqué pendant n'importe quel envoi.
+  const isBusy = isSubmitting || transferBusy
 
   // Discriminated union narrowing : .expense_date and .entry_date live in
   // different branches. Index permissively based on the live transactionType.
@@ -630,17 +672,19 @@ export default function AddTransactionModal({
   const stepTitle =
     wizardStep === 'select-type'
       ? 'Type de transaction'
-      : wizardStep === 'select-kind'
-        ? transactionType === 'expense'
-          ? 'Type de dépense'
-          : 'Type de revenu'
-        : wizardStep === 'cover-overflow'
-          ? 'Couvrir le dépassement'
-          : transactionType === 'expense'
-            ? 'Ajouter une dépense'
-            : isSalaryKind
-              ? 'Réception du salaire'
-              : 'Ajouter un revenu'
+      : wizardStep === 'transfer-direction' || wizardStep === 'transfer-amount'
+        ? 'Transfert d’économies'
+        : wizardStep === 'select-kind'
+          ? transactionType === 'expense'
+            ? 'Type de dépense'
+            : 'Type de revenu'
+          : wizardStep === 'cover-overflow'
+            ? 'Couvrir le dépassement'
+            : transactionType === 'expense'
+              ? 'Ajouter une dépense'
+              : isSalaryKind
+                ? 'Réception du salaire'
+                : 'Ajouter un revenu'
 
   // Pied commun aux étapes « champs » et « couvrir le dépassement ».
   const renderActions = (submitLabel: string) => (
@@ -687,7 +731,7 @@ export default function AddTransactionModal({
             <button
               type="button"
               onClick={handleBack}
-              disabled={isSubmitting}
+              disabled={isBusy}
               aria-label="Retour à l'étape précédente"
               className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
             >
@@ -714,7 +758,7 @@ export default function AddTransactionModal({
           </DialogTitle>
           <ModalCloseX
             onClose={handleClose}
-            disabled={isSubmitting}
+            disabled={isBusy}
             variant="ghost"
             className="h-9 w-9"
           />
@@ -809,6 +853,74 @@ export default function AddTransactionModal({
                   />
                 </svg>
               </button>
+
+              {/* Part 50 — « Transfert d'économies » : seul le solde disponible
+                  bouge. Désactivée (avec la raison) sans économies, puisque le
+                  montant y est plafonné. Absente du wizard récap. */}
+              {showSavingsTransfer && (
+                <button
+                  type="button"
+                  onClick={handleSelectSavingsTransfer}
+                  disabled={!canTransferSavings}
+                  className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50 p-4 text-left transition-all hover:bg-violet-100 focus-visible:outline-2 focus-visible:outline-violet-500 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:hover:bg-gray-50"
+                >
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className={cn(
+                        'h-6 w-6 shrink-0',
+                        canTransferSavings ? 'text-violet-600' : 'text-gray-400',
+                      )}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                      />
+                    </svg>
+                    <div>
+                      <p
+                        className={cn(
+                          'font-medium',
+                          canTransferSavings ? 'text-violet-700' : 'text-gray-500',
+                        )}
+                      >
+                        Transfert d’économies
+                      </p>
+                      <p
+                        className={cn(
+                          'text-xs',
+                          canTransferSavings ? 'text-violet-600' : 'text-gray-500',
+                        )}
+                      >
+                        {canTransferSavings
+                          ? 'Entre votre compte et votre épargne\u00a0: seul le solde change'
+                          : 'Aucune économie disponible'}
+                      </p>
+                    </div>
+                  </div>
+                  {canTransferSavings && (
+                    <svg
+                      className="h-5 w-5 shrink-0 text-violet-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 5l7 7-7 7"
+                      />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1452,6 +1564,35 @@ export default function AddTransactionModal({
 
             {renderActions('Ajouter la dépense')}
           </form>
+        )}
+
+        {/* Part 50 — Transfert d'économies : sens, puis montant */}
+        {wizardStep === 'transfer-direction' && (
+          <SavingsTransferDirectionStep
+            key="step-transfer-direction"
+            onSelect={handleSelectTransferDirection}
+            className={cn(
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          />
+        )}
+
+        {wizardStep === 'transfer-amount' && (
+          <SavingsTransferAmountStep
+            key={`step-transfer-amount-${transferDirection}`}
+            context={context ?? 'profile'}
+            direction={transferDirection}
+            totalSavings={totalSavings}
+            currentBalance={financialData?.availableBalance ?? null}
+            onCancel={handleClose}
+            onDone={onClose}
+            onBusyChange={setTransferBusy}
+            className={cn(
+              'animate-in fade-in duration-200',
+              stepAnimDir === 'forward' ? 'slide-in-from-right-4' : 'slide-in-from-left-4',
+            )}
+          />
         )}
       </DialogContent>
     </Dialog>
