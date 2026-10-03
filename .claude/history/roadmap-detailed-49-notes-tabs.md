@@ -100,3 +100,17 @@ pas touché).
 
 Un client resté sur l'ancien JavaScript (PWA en cache) affiche les 3 onglets
 mélangés comme des notes jusqu'au rechargement ; ses ajouts restent des notes.
+
+### 6.1 Effectué le 2026-10-03 (base de test + `dev`)
+
+- **Base de test** (`ddehmjucyfgyppfkbddr`) : état vérifié avant (table sans
+  `kind`/`checked_at`, 2 notes, tracker à jour jusqu'à `20261002010000`), puis
+  migration + `INSERT` dans `supabase_migrations.schema_migrations` en **une
+  seule** requête `apply-sql.mjs` (`SUPABASE_PROJECT_REF` explicite : le script
+  vise la prod par défaut). Vérifié : 2 colonnes, 2 CHECK, les 2 notes passées
+  en `note`, RLS active sans policy, ligne de tracker présente.
+- `supabase gen types` contre la base de test : bloc `notes` **identique** au
+  bloc écrit à la main.
+- `dev` avancé en fast-forward sur la branche de la fonctionnalité (aucun
+  commit de fusion), sur demande de l'utilisateur.
+- **Prod : non faite.** Reste l'étape 2 ci-dessus avant tout merge dans `main`.
